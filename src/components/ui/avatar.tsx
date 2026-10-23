@@ -11,12 +11,14 @@ export function initials(name: string): string {
 
 interface AvatarProps {
   name: string;
+  /** Override when initials should not be derived from the name. */
+  initials?: string;
   size?: number;
   className?: string;
 }
 
 /** Initials on gold-soft; decorative because the name is always shown next to it. */
-export function Avatar({ name, size = 36, className }: AvatarProps) {
+export function Avatar({ name, initials: explicit, size = 36, className }: AvatarProps) {
   return (
     <span
       aria-hidden="true"
@@ -26,7 +28,7 @@ export function Avatar({ name, size = 36, className }: AvatarProps) {
         className,
       )}
     >
-      {initials(name)}
+      {explicit ?? initials(name)}
     </span>
   );
 }

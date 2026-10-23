@@ -1,0 +1,196 @@
+import type { LedgerEntry } from "@/domain/cashback";
+import type { Customer, CustomerPurchase } from "@/domain/customer";
+import { formatNumber } from "@/lib/format";
+
+import { MALIKA_LEDGER } from "./cashback";
+import { buildOrderDetail, ORDER_SEEDS } from "./orders";
+import { CUSTOMER_IDS, customerRef } from "./people";
+import { createRandom } from "./random";
+
+const t = (iso: string) => `${iso}+05:00`;
+
+/** Purchases tab rows as drawn, plus the older purchases behind the ledger. */
+const MALIKA_PURCHASES: CustomerPurchase[] = [
+  {
+    id: "p-10248",
+    at: t("2026-10-23T14:05:00"),
+    source: "online",
+    document: "№10248",
+    amount: 808_000,
+    promoAmount: 240_000,
+    cashback: 5_680,
+  },
+  {
+    id: "p-88213",
+    at: t("2026-10-21T11:47:00"),
+    source: "store_qr",
+    document: "S-88213",
+    amount: 231_000,
+    promoAmount: 0,
+    cashback: 2_310,
+  },
+  {
+    id: "p-10231",
+    at: t("2026-10-18T15:25:00"),
+    source: "online",
+    document: "№10231",
+    amount: 314_000,
+    promoAmount: 0,
+    cashback: 3_140,
+  },
+  {
+    id: "p-86540",
+    at: t("2026-10-09T13:40:00"),
+    source: "store_qr",
+    document: "S-86540",
+    amount: 412_000,
+    promoAmount: 0,
+    cashback: 4_120,
+  },
+  {
+    id: "p-81377",
+    at: t("2026-09-14T12:20:00"),
+    source: "store_qr",
+    document: "S-81377",
+    amount: 864_000,
+    promoAmount: 0,
+    cashback: 8_640,
+  },
+  {
+    id: "p-76102",
+    at: t("2026-08-02T17:05:00"),
+    source: "store_qr",
+    document: "S-76102",
+    amount: 621_000,
+    promoAmount: 0,
+    cashback: 6_210,
+  },
+];
+
+function malika(): Customer {
+  return {
+    ...customerRef(CUSTOMER_IDS.malika),
+    status: "active",
+    registeredAt: t("2025-03-12T10:20:00"),
+    language: "uz",
+    address: "Toshkent, Chilonzor, 9-kvartal",
+    totals: { store: 9_940_000, online: 3_640_000 },
+    onlineOrders: { count: 12, lastOrderId: 10248, lastOrderAt: t("2026-10-23T14:02:00") },
+    upcomingAppointments: 1,
+    groups: [{ name: "Doimiy mijozlar", rule: "10 mln+ xarid" }],
+    ledger: [...MALIKA_LEDGER],
+    purchases: MALIKA_PURCHASES,
+    device: {
+      model: "iPhone 14",
+      os: "iOS 18.1",
+      appVersion: "1.0.0",
+      lastActiveAt: t("2026-10-24T09:12:00"),
+      pushEnabled: true,
+    },
+  };
+}
+
+/** Card for any other customer, derived from their online orders. */
+function fromOrders(id: string): Customer {
+  const ref = customerRef(id);
+  const random = createRandom(Number(id) * 97);
+  const orders = ORDER_SEEDS.filter((seed) => seed.customerId === id).map(buildOrderDetail);
+  const ledger: LedgerEntry[] = [];
+  const purchases: CustomerPurchase[] = [];
+  let online = 0;
+
+  for (const order of orders) {
+    const settled =
+      order.status === "delivered" ||
+      order.status === "handed_to_courier" ||
+      order.status === "processing";
+    for (const entry of order.cashback) {
+      ledger.push({
+        id: `${order.id}-${entry.kind}`,
+        at: order.payment.confirmedAt ?? order.createdAt,
+        kind: entry.kind === "reversal" ? "reversal" : entry.kind,
+        source: `Buyurtma №${order.id}`,
+        note:
+          entry.kind === "debit"
+            ? "To‘lovning bir qismi"
+            : entry.kind === "reversal"
+              ? "Buyurtma bekor qilindi · cashback qaytarildi"
+              : `${entry.label.replace("1% × ", "")} so‘m · 1%`,
+        amount: entry.amount,
+      });
+    }
+    if (!settled) continue;
+    const amount = order.items.reduce((s, i) => s + i.unitPrice * i.quantity, 0);
+    online += amount;
+    purchases.push({
+      id: `p-${order.id}`,
+      at: order.payment.confirmedAt ?? order.createdAt,
+      source: "online",
+      document: `№${order.id}`,
+      amount,
+      promoAmount: order.items
+        .filter((i) => i.promo)
+        .reduce((s, i) => s + i.unitPrice * i.quantity, 0),
+      cashback: order.cashback.find((e) => e.kind === "credit")?.amount ?? 0,
+    });
+  }
+
+  // A plausible in-store history so balances are not only online credits.
+  const store = random.int(0, 60) * 50_000;
+  if (store > 0) {
+    const credit = Math.floor(store / 100);
+    ledger.push({
+      id: `${id}-store`,
+      at: t("2026-09-05T12:00:00"),
+      kind: "credit",
+      source: `Billz savdo S-${80_000 + Number(id) * 7}`,
+      note: `Chek ${formatNumber(store)} so‘m · 1%`,
+      amount: credit,
+    });
+    purchases.push({
+      id: `p-store-${id}`,
+      at: t("2026-09-05T12:00:00"),
+      source: "store_qr",
+      document: `S-${80_000 + Number(id) * 7}`,
+      amount: store,
+      promoAmount: 0,
+      cashback: credit,
+    });
+  }
+
+  ledger.sort((a, b) => b.at.localeCompare(a.at));
+  purchases.sort((a, b) => b.at.localeCompare(a.at));
+  const last = orders[0];
+  const lifetime = store + online;
+
+  return {
+    ...ref,
+    status: "active",
+    registeredAt: t(
+      `2025-${String(random.int(1, 12)).padStart(2, "0")}-${String(random.int(1, 28)).padStart(2, "0")}T12:00:00`,
+    ),
+    language: random.chance(0.75) ? "uz" : "ru",
+    address: orders.find((o) => o.address)?.address,
+    totals: { store, online },
+    onlineOrders: { count: orders.length, lastOrderId: last?.id, lastOrderAt: last?.createdAt },
+    upcomingAppointments: 0,
+    groups: lifetime >= 10_000_000 ? [{ name: "Doimiy mijozlar", rule: "10 mln+ xarid" }] : [],
+    ledger,
+    purchases,
+    device: {
+      model: random.chance(0.55) ? "iPhone 13" : "Samsung Galaxy A54",
+      os: random.chance(0.55) ? "iOS 18.1" : "Android 14",
+      appVersion: "1.0.0",
+      lastActiveAt: t("2026-10-23T20:15:00"),
+      pushEnabled: random.chance(0.8),
+    },
+  };
+}
+
+export function buildCustomer(id: string): Customer | null {
+  try {
+    return id === CUSTOMER_IDS.malika ? malika() : fromOrders(id);
+  } catch {
+    return null;
+  }
+}

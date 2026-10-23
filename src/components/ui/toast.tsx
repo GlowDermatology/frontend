@@ -15,6 +15,8 @@ import { Icon } from "./icon";
 export interface ToastInput {
   title: string;
   description?: string;
+  /** `success` confirms a completed action; `info` explains why nothing happened. */
+  tone?: "success" | "info";
 }
 
 interface ToastItem extends ToastInput {
@@ -67,9 +69,15 @@ function Toast({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: number)
 
   return (
     <div className="pointer-events-auto flex animate-toast-in items-center gap-3 rounded-md bg-surface-raised py-3.5 pr-2 pl-4 shadow-lg">
-      <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-success-soft text-success">
-        <Icon name="check" size={16} />
-      </span>
+      {toast.tone === "info" ? (
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-gold-soft text-gold-ink">
+          <Icon name="info" size={16} />
+        </span>
+      ) : (
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-success-soft text-success">
+          <Icon name="check" size={16} />
+        </span>
+      )}
       <span className="flex min-w-0 flex-col">
         <span className="text-[14px] leading-5 font-bold text-ink">{toast.title}</span>
         {toast.description && (

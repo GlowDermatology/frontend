@@ -76,7 +76,9 @@ export function CashbackSection({ dict }: { dict: LandingDictionary["cashback"] 
                     {visual.rate}
                   </span>
                   <span className="flex flex-col gap-2.5">
-                    <span className="text-overline text-banner-ink-soft uppercase">{tier.name}</span>
+                    <span className="text-overline text-banner-ink-soft uppercase">
+                      {tier.name}
+                    </span>
                     <span className="text-[18px] leading-6 font-semibold text-banner-ink-soft">
                       {tier.range}
                     </span>

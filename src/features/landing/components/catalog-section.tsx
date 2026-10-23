@@ -44,7 +44,15 @@ export function CatalogSection({ dict }: { dict: LandingDictionary["catalog"] })
               >
                 <span className="relative flex h-[280px] items-center justify-center overflow-hidden rounded-lg bg-gold-soft">
                   <svg aria-hidden="true" viewBox="0 0 200 200" className="absolute size-[230px]">
-                    <circle cx="100" cy="100" r="88" fill="none" strokeWidth="1" strokeOpacity=".45" className="stroke-gold" />
+                    <circle
+                      cx="100"
+                      cy="100"
+                      r="88"
+                      fill="none"
+                      strokeWidth="1"
+                      strokeOpacity=".45"
+                      className="stroke-gold"
+                    />
                   </svg>
                   <ProductArt kind={ART[index] ?? "jar"} width={120} className="relative" />
                 </span>

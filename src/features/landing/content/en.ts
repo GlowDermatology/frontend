@@ -188,8 +188,7 @@ export const en = {
     googlePlay: "Get it on Google Play",
   },
   footer: {
-    tagline:
-      "Cosmetology and dermatology store. Products, specialists and cashback — in one app.",
+    tagline: "Cosmetology and dermatology store. Products, specialists and cashback — in one app.",
     appHeading: "App",
     contactHeading: "Contact",
     address: "[Store address]",

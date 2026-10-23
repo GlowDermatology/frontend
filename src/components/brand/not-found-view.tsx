@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { Rings } from "@/components/brand/rings";
 import { buttonStyles } from "@/components/ui/button";
 
@@ -24,9 +26,9 @@ export function NotFoundView() {
         <p className="m-0 text-[17px] leading-7 text-banner-ink-soft">
           Havola eskirgan yoki manzil noto‘g‘ri yozilgan bo‘lishi mumkin.
         </p>
-        <a href="/" className={buttonStyles({ size: "lg", lift: true })}>
+        <Link href="/" className={buttonStyles({ size: "lg", lift: true })}>
           Bosh sahifaga qaytish
-        </a>
+        </Link>
       </div>
     </main>
   );

@@ -26,7 +26,9 @@ export function LanguageSwitcher({ current, label }: LanguageSwitcherProps) {
                 aria-current={active ? "true" : undefined}
                 className={cn(
                   "flex h-9 min-w-11 items-center justify-center rounded-full px-2.5 text-[12px] leading-none font-bold tracking-[0.04em] no-underline transition-colors duration-150",
-                  active ? "bg-ink text-surface" : "text-ink-muted hover:bg-gold-soft hover:text-ink",
+                  active
+                    ? "bg-ink text-surface"
+                    : "text-ink-muted hover:bg-gold-soft hover:text-ink",
                 )}
               >
                 <span aria-hidden="true">{LOCALE_INFO[locale].short}</span>

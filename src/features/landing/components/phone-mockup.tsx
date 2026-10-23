@@ -103,7 +103,9 @@ export function PhoneMockup({ dict, label }: { dict: LandingDictionary["phone"];
               <div className="flex h-[92px] items-center justify-center rounded-[9px] bg-gold-soft">
                 <ProductArt kind={PRODUCT_ART[index] ?? "dropper"} detail="card" width={54} />
               </div>
-              <div className="px-0.5 text-[9.5px] leading-3 font-semibold text-ink">{product.name}</div>
+              <div className="px-0.5 text-[9.5px] leading-3 font-semibold text-ink">
+                {product.name}
+              </div>
               <div className="px-0.5 text-[8px] text-ink-muted">{product.meta}</div>
               {index === 0 ? (
                 <div className="flex h-6 items-center justify-center rounded-[7px] bg-gold text-[10px] font-bold text-on-gold tabular-nums">

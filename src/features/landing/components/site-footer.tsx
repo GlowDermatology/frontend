@@ -16,8 +16,12 @@ export function SiteFooter({ dict }: { dict: LandingDictionary }) {
       <div className={cn("mx-auto flex max-w-[1280px] flex-col gap-12 pt-14 pb-8", gutter)}>
         <div className="grid grid-cols-[repeat(auto-fit,minmax(min(200px,100%),1fr))] gap-10">
           <div className="flex flex-col gap-3.5">
-            <span className="font-serif text-[30px] leading-9 font-semibold text-ink">Glow Derma</span>
-            <p className="m-0 max-w-[260px] text-[14px] leading-[22px] text-ink-muted">{footer.tagline}</p>
+            <span className="font-serif text-[30px] leading-9 font-semibold text-ink">
+              Glow Derma
+            </span>
+            <p className="m-0 max-w-[260px] text-[14px] leading-[22px] text-ink-muted">
+              {footer.tagline}
+            </p>
           </div>
           <nav aria-labelledby="footer-app" className="flex flex-col gap-3">
             <h2 id="footer-app" className={heading}>
@@ -38,7 +42,9 @@ export function SiteFooter({ dict }: { dict: LandingDictionary }) {
           </nav>
           <div className="flex flex-col gap-3">
             <h2 className={heading}>{footer.contactHeading}</h2>
-            <address className="text-[15px] leading-[22px] text-ink not-italic">{footer.address}</address>
+            <address className="text-[15px] leading-[22px] text-ink not-italic">
+              {footer.address}
+            </address>
             <a href={links.phone ? `tel:${links.phone}` : top} className={footerLink}>
               {footer.phone}
             </a>

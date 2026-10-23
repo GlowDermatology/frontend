@@ -3,13 +3,7 @@ import type { ButtonHTMLAttributes } from "react";
 import { cn } from "@/lib/cn";
 
 export type ButtonVariant =
-  | "primary"
-  | "secondary"
-  | "ghost"
-  | "danger"
-  | "destructive"
-  | "dashed"
-  | "outline";
+  "primary" | "secondary" | "ghost" | "danger" | "destructive" | "dashed" | "outline";
 export type ButtonSize = "sm" | "md" | "lg" | "xl";
 
 const VARIANTS: Record<ButtonVariant, string> = {
@@ -59,15 +53,10 @@ export function buttonStyles({
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>, ButtonStyleOptions {}
 
-export function Button({
-  variant,
-  size,
-  lift,
-  className,
-  type = "button",
-  ...rest
-}: ButtonProps) {
-  return <button type={type} className={buttonStyles({ variant, size, lift, className })} {...rest} />;
+export function Button({ variant, size, lift, className, type = "button", ...rest }: ButtonProps) {
+  return (
+    <button type={type} className={buttonStyles({ variant, size, lift, className })} {...rest} />
+  );
 }
 
 interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {

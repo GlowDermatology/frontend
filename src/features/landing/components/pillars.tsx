@@ -31,7 +31,10 @@ export function Pillars({ dict }: { dict: LandingDictionary["pillars"] }) {
                   <IconBadge>
                     <Icon name={ICONS[index] ?? "sparkle"} size={24} />
                   </IconBadge>
-                  <span aria-hidden="true" className="font-serif text-[28px] font-medium text-ink-muted">
+                  <span
+                    aria-hidden="true"
+                    className="font-serif text-[28px] font-medium text-ink-muted"
+                  >
                     {String(index + 1).padStart(2, "0")}
                   </span>
                 </div>

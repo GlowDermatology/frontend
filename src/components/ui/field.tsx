@@ -15,7 +15,11 @@ export const labelClass = "text-label text-ink";
 
 interface FieldProps {
   label: ReactNode;
-  children: (control: { id: string; "aria-describedby"?: string; "aria-invalid"?: true }) => ReactNode;
+  children: (control: {
+    id: string;
+    "aria-describedby"?: string;
+    "aria-invalid"?: true;
+  }) => ReactNode;
   hint?: ReactNode;
   error?: string;
   /** Right-aligned helper next to the label, e.g. a character counter. */

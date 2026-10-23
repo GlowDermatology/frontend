@@ -37,7 +37,9 @@ export function DownloadCta({ dict }: { dict: LandingDictionary["download"] }) {
           >
             {dict.title}
           </SectionTitle>
-          <p className="m-0 max-w-[460px] text-[17px] leading-7 text-banner-ink-soft">{dict.lead}</p>
+          <p className="m-0 max-w-[460px] text-[17px] leading-7 text-banner-ink-soft">
+            {dict.lead}
+          </p>
         </div>
         <div className="relative flex w-full max-w-[340px] flex-col gap-3 justify-self-start">
           <a

@@ -23,7 +23,12 @@ export function SiteHeader({ dict, locale }: SiteHeaderProps) {
 
   return (
     <header className="relative border-b border-line bg-surface">
-      <div className={cn("mx-auto flex max-w-[1280px] items-center justify-between gap-6 py-4", gutter)}>
+      <div
+        className={cn(
+          "mx-auto flex max-w-[1280px] items-center justify-between gap-6 py-4",
+          gutter,
+        )}
+      >
         <a
           href={`#${SECTION_IDS.top}`}
           aria-label={dict.header.home}
@@ -51,7 +56,11 @@ export function SiteHeader({ dict, locale }: SiteHeaderProps) {
           <LanguageSwitcher current={locale} label={dict.header.languageLabel} />
           <a
             href={`#${SECTION_IDS.download}`}
-            className={buttonStyles({ size: "md", lift: true, className: "hidden px-5 leading-[normal] sm:inline-flex" })}
+            className={buttonStyles({
+              size: "md",
+              lift: true,
+              className: "hidden px-5 leading-[normal] sm:inline-flex",
+            })}
           >
             {dict.header.download}
           </a>

@@ -54,7 +54,12 @@ export function SelectMenu<T extends string>({
         <Icon name="chevron-down" size={16} />
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
-        <DropdownMenu.Content align={align} sideOffset={6} aria-label={label} className={contentClass}>
+        <DropdownMenu.Content
+          align={align}
+          sideOffset={6}
+          aria-label={label}
+          className={contentClass}
+        >
           <DropdownMenu.RadioGroup value={value} onValueChange={(v) => onValueChange(v as T)}>
             {options.map((option) => (
               <DropdownMenu.RadioItem
@@ -95,12 +100,24 @@ interface ActionMenuProps {
 }
 
 /** A menu of commands, e.g. "Holatni o‘zgartirish". */
-export function ActionMenu({ trigger, label, items, triggerClassName, align = "end", empty }: ActionMenuProps) {
+export function ActionMenu({
+  trigger,
+  label,
+  items,
+  triggerClassName,
+  align = "end",
+  empty,
+}: ActionMenuProps) {
   return (
     <DropdownMenu.Root modal={false}>
       <DropdownMenu.Trigger className={triggerClassName}>{trigger}</DropdownMenu.Trigger>
       <DropdownMenu.Portal>
-        <DropdownMenu.Content align={align} sideOffset={6} aria-label={label} className={contentClass}>
+        <DropdownMenu.Content
+          align={align}
+          sideOffset={6}
+          aria-label={label}
+          className={contentClass}
+        >
           {items.length === 0 && empty && (
             <div className="max-w-[260px] px-3 py-2.5 text-body-sm text-ink-muted">{empty}</div>
           )}
@@ -109,10 +126,15 @@ export function ActionMenu({ trigger, label, items, triggerClassName, align = "e
               key={item.key}
               disabled={item.disabled}
               onSelect={item.onSelect}
-              className={cn(itemClass, "h-auto min-h-10 flex-col items-start justify-center gap-0 py-2 pr-3")}
+              className={cn(
+                itemClass,
+                "h-auto min-h-10 flex-col items-start justify-center gap-0 py-2 pr-3",
+              )}
             >
               {item.label}
-              {item.hint && <span className="text-caption font-normal text-ink-muted">{item.hint}</span>}
+              {item.hint && (
+                <span className="text-caption font-normal text-ink-muted">{item.hint}</span>
+              )}
             </DropdownMenu.Item>
           ))}
         </DropdownMenu.Content>

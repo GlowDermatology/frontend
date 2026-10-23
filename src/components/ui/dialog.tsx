@@ -24,7 +24,14 @@ interface DialogProps {
 }
 
 /** Modal dialog: focus trap, Escape/overlay to close, focus returns on close. */
-export function Dialog({ open, onOpenChange, title, description, children, className }: DialogProps) {
+export function Dialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  children,
+  className,
+}: DialogProps) {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>

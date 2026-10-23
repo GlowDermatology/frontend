@@ -47,7 +47,9 @@ export function Badge({ tone, children, dot = true, className }: BadgeProps) {
         className,
       )}
     >
-      {dot && <span aria-hidden="true" className={cn("size-[7px] shrink-0 rounded-full", DOTS[tone])} />}
+      {dot && (
+        <span aria-hidden="true" className={cn("size-[7px] shrink-0 rounded-full", DOTS[tone])} />
+      )}
       {children}
     </span>
   );

@@ -13,8 +13,14 @@ export type ProductArtTone = "default" | "night" | "dark-cap";
 
 export type ProductArtDetail = "mini" | "glyph" | "thumb" | "card" | "full";
 
-/** Admin table thumbnails ("mini") drop the pump nozzle that app glyphs draw. */
-const LEVEL: Record<ProductArtDetail, number> = { mini: 0, glyph: 0.5, thumb: 1, card: 2, full: 3 };
+/**
+ * "mini" is the admin table thumbnail: as simple as a glyph, but drawn with a
+ * couple of different shapes (no pump nozzle, dropper label kept).
+ */
+const LEVEL: Record<ProductArtDetail, number> = { mini: 0, glyph: 0, thumb: 1, card: 2, full: 3 };
+
+const NOT_MINI: ReadonlyArray<ProductArtDetail> = ["glyph", "thumb", "card", "full"];
+const WITH_MINI: ReadonlyArray<ProductArtDetail> = ["mini", "thumb", "card", "full"];
 
 const INK = "#2a2418";
 
@@ -63,7 +69,8 @@ const PALETTES: Record<ProductArtKind, Record<ProductArtTone, Palette>> = {
   },
 };
 
-type Layer = [minLevel: number, node: ReactNode];
+/** Shape, the lowest detail level that draws it, and optionally an explicit list of levels. */
+type Layer = [minLevel: number, node: ReactNode, only?: ReadonlyArray<ProductArtDetail>];
 
 function shadow(cx: number, rx: number): Layer {
   return [3, <ellipse key="shadow" cx={cx} cy="151" rx={rx} ry="4" fill={INK} fillOpacity=".12" />];
@@ -74,7 +81,7 @@ function layers(kind: ProductArtKind, p: Palette): Layer[] {
     case "pump":
       return [
         shadow(61, 28),
-        [0.5, <rect key="n" x="58" y="12" width="32" height="8" rx="4" fill={p.cap} />],
+        [0, <rect key="n" x="58" y="12" width="32" height="8" rx="4" fill={p.cap} />, NOT_MINI],
         [0, <rect key="s" x="56" y="14" width="10" height="22" rx="2" fill={p.cap} />],
         [0, <rect key="c" x="49" y="34" width="24" height="14" rx="3" fill={p.cap} />],
         [0, <rect key="b" x="36" y="48" width="50" height="100" rx="18" fill={p.body} />],
@@ -169,7 +176,11 @@ function layers(kind: ProductArtKind, p: Palette): Layer[] {
             fillOpacity=".28"
           />,
         ],
-        [1, <rect key="lab" x="43" y="82" width="34" height="38" rx="3" fill={p.label} />],
+        [
+          1,
+          <rect key="lab" x="43" y="82" width="34" height="38" rx="3" fill={p.label} />,
+          WITH_MINI,
+        ],
         [
           2,
           <rect
@@ -332,7 +343,7 @@ export function ProductArt({
   const square = kind === "texture";
   const level = LEVEL[detail];
   const shapes = layers(kind, PALETTES[kind][tone])
-    .filter(([min]) => min <= level)
+    .filter(([min, , only]) => (only ? only.includes(detail) : min <= level))
     .map(([, node]) => node);
 
   return (

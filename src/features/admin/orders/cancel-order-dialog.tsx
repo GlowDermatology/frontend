@@ -66,6 +66,8 @@ export function CancelOrderDialog({
   onCancelled,
   onCloseAutoFocus,
 }: CancelOrderDialogProps) {
+  // See ProductEditor: React Hook Form must re-run `register` after `reset()`.
+  "use no memo";
   const [formError, setFormError] = useState<string | null>(null);
   const {
     register,

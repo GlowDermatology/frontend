@@ -2,8 +2,9 @@ import type { OrderStatus } from "./order";
 import type { ContentLanguage } from "./product";
 
 export type NotificationKind = "promo" | "general";
-export type NotificationAudience = "all" | "group" | "one";
-export type NotificationState = "scheduled" | "sent";
+
+/** `queued` = accepted and being sent in batches; counts arrive later. */
+export type NotificationState = "scheduled" | "queued" | "sent";
 
 export interface NotificationRecord {
   id: string;
@@ -22,10 +23,24 @@ export interface StatusTemplate {
   translations: Record<ContentLanguage, boolean>;
 }
 
-export interface AudienceOption {
-  id: NotificationAudience;
-  label: string;
-  detail: string;
+/** Customer segment that can receive a push (size = devices with push on). */
+export interface AudienceSegment {
+  id: string;
+  name: string;
+  size: number;
+}
+
+export type NotificationLink =
+  { kind: "none" } | { kind: "product"; productId: string; label: string };
+
+export type NotificationAudience =
+  { type: "all" } | { type: "group"; segmentId: string } | { type: "one"; phone: string };
+
+export interface NotificationDraft {
+  kind: NotificationKind;
+  title: string;
+  body: string;
+  link: NotificationLink;
 }
 
 export const TITLE_MAX = 60;

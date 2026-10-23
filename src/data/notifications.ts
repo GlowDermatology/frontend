@@ -1,30 +1,43 @@
 import "server-only";
 
-import type { AudienceOption, NotificationRecord, StatusTemplate } from "@/domain/notification";
+import type {
+  AudienceSegment,
+  NotificationDraft,
+  NotificationLink,
+  NotificationRecord,
+  StatusTemplate,
+} from "@/domain/notification";
 
 import {
-  AUDIENCES,
   DEFAULT_SCHEDULE,
-  DRAFT_LINK,
+  DRAFT,
+  LINK_OPTIONS,
   NOTIFICATION_HISTORY,
+  SEGMENTS,
   STATUS_TEMPLATES,
+  TOTAL_DEVICES,
 } from "./mock/notifications";
 
 export interface NotificationsOverview {
   history: ReadonlyArray<NotificationRecord>;
   templates: ReadonlyArray<StatusTemplate>;
-  audiences: ReadonlyArray<AudienceOption>;
+  segments: ReadonlyArray<AudienceSegment>;
+  totalDevices: number;
+  linkOptions: ReadonlyArray<NotificationLink>;
+  /** Suggested slot when "Rejalashtirish" is chosen. */
   defaultSchedule: string;
-  draftLink: { kind: "product"; label: string };
+  draft: NotificationDraft | null;
 }
 
-/** `GET /api/v1/admin/notifications/` plus templates and audience sizes. */
+/** `GET /api/v1/admin/notifications/` plus templates, segments and the saved draft. */
 export async function getNotificationsOverview(): Promise<NotificationsOverview> {
   return {
     history: NOTIFICATION_HISTORY,
     templates: STATUS_TEMPLATES,
-    audiences: AUDIENCES,
+    segments: SEGMENTS,
+    totalDevices: TOTAL_DEVICES,
+    linkOptions: LINK_OPTIONS,
     defaultSchedule: DEFAULT_SCHEDULE,
-    draftLink: DRAFT_LINK,
+    draft: DRAFT,
   };
 }

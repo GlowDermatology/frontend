@@ -1,11 +1,19 @@
-import type { AudienceOption, NotificationRecord, StatusTemplate } from "@/domain/notification";
+import type {
+  AudienceSegment,
+  NotificationDraft,
+  NotificationLink,
+  NotificationRecord,
+  StatusTemplate,
+} from "@/domain/notification";
 
 const t = (iso: string) => `${iso}+05:00`;
 
-export const AUDIENCES: ReadonlyArray<AudienceOption> = [
-  { id: "all", label: "Barcha mijozlar", detail: "4 751 ta qurilma" },
-  { id: "group", label: "Guruh", detail: "Doimiy mijozlar · 612" },
-  { id: "one", label: "Bitta mijoz", detail: "Telefon bo‘yicha qidirish" },
+/** Devices with push enabled. */
+export const TOTAL_DEVICES = 4751;
+
+export const SEGMENTS: ReadonlyArray<AudienceSegment> = [
+  { id: "regular", name: "Doimiy mijozlar", size: 612 },
+  { id: "10m", name: "10 mln+ xarid", size: 318 },
 ];
 
 /** Default schedule slot offered when "Rejalashtirish" is chosen. */
@@ -77,5 +85,18 @@ export const STATUS_TEMPLATES: ReadonlyArray<StatusTemplate> = [
   },
 ];
 
-/** Product linked in the draft ("Bosilganda: mahsulot"). */
-export const DRAFT_LINK = { kind: "product" as const, label: "Seramidli namlantiruvchi krem" };
+/** Screens a push can open when tapped. */
+export const LINK_OPTIONS: ReadonlyArray<NotificationLink> = [
+  { kind: "none" },
+  { kind: "product", productId: "4", label: "Seramidli namlantiruvchi krem" },
+  { kind: "product", productId: "1", label: "Gialuron kislotali serum" },
+  { kind: "product", productId: "2", label: "Quyoshdan himoya kremi SPF 50" },
+];
+
+/** The admin's unsent draft, as on the design. */
+export const DRAFT: NotificationDraft = {
+  kind: "promo",
+  title: "Kuzgi namlik to‘plami",
+  body: "Tanlangan namlantiruvchi kremlarga 20% chegirma — 30-noyabrgacha.",
+  link: { kind: "product", productId: "4", label: "Seramidli namlantiruvchi krem" },
+};

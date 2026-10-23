@@ -1,0 +1,292 @@
+@import "tailwindcss";
+
+/*
+ * Glow Derma design system — tokens mirror the canvas design system
+ * (project/ds/glow-derma/tokens.json). Raw values live in `--gd-*` custom
+ * properties so a subtree can switch theme with `data-theme`; Tailwind
+ * utilities read them through `@theme inline`.
+ *
+ * The delivered web designs are light. Dark values are kept so a future
+ * theme setting only needs to set `data-theme="dark"`.
+ */
+
+:root,
+[data-theme="light"] {
+  --gd-gold: #c9a24b;
+  --gd-gold-ink: #9a7424;
+  --gd-gold-soft: #f6ebd0;
+  --gd-on-gold: #2a2418;
+  --gd-surface: #fbf8f2;
+  --gd-surface-raised: #ffffff;
+  --gd-ink: #2a2418;
+  --gd-ink-muted: #7a705d;
+  --gd-line: #eae3d3;
+  --gd-line-strong: var(--gd-ink-muted);
+  --gd-nav: #2b2620;
+  --gd-nav-line: var(--gd-nav);
+  --gd-nav-ink-muted: #a39882;
+  --gd-banner: #2b2620;
+  --gd-banner-ink: var(--gd-gold);
+  --gd-banner-ink-soft: #f6ebd0;
+  --gd-success-soft: #4e9a6b1f;
+  --gd-danger-soft: #d645451f;
+  --gd-warning-soft: #e08a2e24;
+  --gd-scrim: #2a241866;
+  --gd-shadow-sm: 0 1px 2px #2a24180f, 0 2px 8px #2a24180d;
+  --gd-shadow-lg: 0 8px 28px -6px #2a241829;
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --gd-gold: #e2bc6a;
+  --gd-gold-ink: #ebcb7c;
+  --gd-gold-soft: #1c2438;
+  --gd-on-gold: #151107;
+  --gd-surface: #0d1322;
+  --gd-surface-raised: #151c2f;
+  --gd-ink: #f3eee2;
+  --gd-ink-muted: #98a2b8;
+  --gd-line: #263049;
+  --gd-nav: #1b2338;
+  --gd-nav-line: #2d3957;
+  --gd-nav-ink-muted: #98a2b8;
+  --gd-banner: #1b2338;
+  --gd-banner-ink: #ebcb7c;
+  --gd-banner-ink-soft: #f3eee2;
+  --gd-success-soft: #4e9a6b2e;
+  --gd-danger-soft: #d645452e;
+  --gd-warning-soft: #e08a2e2e;
+  --gd-scrim: #05080fb3;
+  --gd-shadow-sm: 0 1px 2px #00000066;
+  --gd-shadow-lg: 0 12px 32px -6px #000000b3;
+  color-scheme: dark;
+}
+
+@theme inline {
+  /* Only design-system colours are available as utilities. */
+  --color-*: initial;
+  --color-white: #ffffff;
+  --color-gold: var(--gd-gold);
+  --color-gold-ink: var(--gd-gold-ink);
+  --color-gold-soft: var(--gd-gold-soft);
+  --color-on-gold: var(--gd-on-gold);
+  --color-surface: var(--gd-surface);
+  --color-surface-raised: var(--gd-surface-raised);
+  --color-ink: var(--gd-ink);
+  --color-ink-muted: var(--gd-ink-muted);
+  --color-line: var(--gd-line);
+  --color-line-strong: var(--gd-line-strong);
+  --color-nav: var(--gd-nav);
+  --color-nav-line: var(--gd-nav-line);
+  --color-nav-ink-muted: var(--gd-nav-ink-muted);
+  --color-banner: var(--gd-banner);
+  --color-banner-ink: var(--gd-banner-ink);
+  --color-banner-ink-soft: var(--gd-banner-ink-soft);
+  --color-success: #4e9a6b;
+  --color-danger: #d64545;
+  --color-warning: #e08a2e;
+  --color-success-soft: var(--gd-success-soft);
+  --color-danger-soft: var(--gd-danger-soft);
+  --color-warning-soft: var(--gd-warning-soft);
+  --color-scrim: var(--gd-scrim);
+
+  --font-serif: var(--font-cormorant), Georgia, "Times New Roman", serif;
+  --font-sans: var(--font-manrope), "Segoe UI", system-ui, -apple-system, sans-serif;
+
+  /* Type scale (design system "Display" and "Interface" groups). */
+  --text-*: initial;
+  --text-display: 34px;
+  --text-display--line-height: 40px;
+  --text-display--font-weight: 600;
+  --text-display--letter-spacing: -0.01em;
+  --text-title: 26px;
+  --text-title--line-height: 32px;
+  --text-title--font-weight: 600;
+  --text-heading: 18px;
+  --text-heading--line-height: 24px;
+  --text-heading--font-weight: 700;
+  --text-subheading: 16px;
+  --text-subheading--line-height: 22px;
+  --text-subheading--font-weight: 600;
+  --text-body: 15px;
+  --text-body--line-height: 22px;
+  --text-body-sm: 13px;
+  --text-body-sm--line-height: 18px;
+  --text-label: 14px;
+  --text-label--line-height: 18px;
+  --text-label--font-weight: 600;
+  --text-caption: 12px;
+  --text-caption--line-height: 16px;
+  --text-caption--font-weight: 500;
+  --text-overline: 11px;
+  --text-overline--line-height: 14px;
+  --text-overline--font-weight: 700;
+  --text-overline--letter-spacing: 0.08em;
+  --text-price: 17px;
+  --text-price--line-height: 22px;
+  --text-price--font-weight: 700;
+  --text-price-lg: 24px;
+  --text-price-lg--line-height: 30px;
+  --text-price-lg--font-weight: 800;
+  --text-price-lg--letter-spacing: -0.01em;
+
+  --radius-*: initial;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+
+  --shadow-*: initial;
+  --shadow-sm: var(--gd-shadow-sm);
+  --shadow-lg: var(--gd-shadow-lg);
+
+  /* Landing breakpoints: 600px hides secondary header actions, `nav` is the
+     width at which the full header row fits without wrapping. */
+  --breakpoint-sm: 37.5rem;
+  --breakpoint-nav: 72rem;
+
+  --ease-soft: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  --animate-fade-in: fade-in 0.18s ease-out;
+  --animate-fade-out: fade-out 0.14s ease-in;
+  --animate-pop-in: pop-in 0.2s var(--ease-soft);
+  --animate-pop-out: pop-out 0.14s ease-in;
+  --animate-rise-in: rise-in 0.6s var(--ease-soft) both;
+  --animate-toast-in: toast-in 0.28s var(--ease-soft);
+  --animate-drawer-in: drawer-in 0.24s var(--ease-soft);
+  --animate-drawer-out: drawer-out 0.18s ease-in;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+}
+@keyframes pop-out {
+  to {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+}
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+@keyframes drawer-in {
+  from {
+    transform: translateX(-100%);
+  }
+}
+@keyframes drawer-out {
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    /* The design specifies line heights explicitly and relies on the
+       browser default elsewhere; preflight's 1.5 would shift layouts. */
+    line-height: normal;
+  }
+
+  body {
+    background: var(--gd-surface);
+    color: var(--gd-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::placeholder {
+    color: var(--gd-ink-muted);
+    opacity: 1;
+  }
+
+  /*
+   * Focus ring from the design system ("2px screen-colour gap, then 2px
+   * gold-ink"). An outline instead of the canvas' box-shadow keeps component
+   * shadows intact and survives forced-colours mode.
+   */
+  :focus-visible {
+    outline: 2px solid var(--gd-gold-ink);
+    outline-offset: 2px;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  label[for],
+  summary {
+    cursor: pointer;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@layer components {
+  /* Admin data tables (design: `.gd-table`). */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    line-height: 18px;
+  }
+  .data-table th {
+    text-align: left;
+    font-size: 11px;
+    line-height: 14px;
+    letter-spacing: 0.06em;
+    font-weight: 700;
+    color: var(--gd-ink-muted);
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--gd-line);
+    white-space: nowrap;
+    background: var(--gd-surface-raised);
+  }
+  .data-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--gd-line);
+    color: var(--gd-ink);
+    vertical-align: middle;
+  }
+  .data-table tbody tr:last-child td {
+    border-bottom: 0;
+  }
+  .data-table tbody tr:hover td {
+    background: var(--gd-surface);
+  }
+}

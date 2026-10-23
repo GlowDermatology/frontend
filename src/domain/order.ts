@@ -5,6 +5,7 @@
  * change is appended to the status history with its source (system, BTS or
  * admin). Money is an integer number of so‘m (UZS).
  */
+import type { ProductArtRef } from "./product";
 
 export const ORDER_STATUSES = [
   "awaiting_payment",
@@ -60,6 +61,8 @@ export interface OrderSummary {
 export interface OrderItem {
   productId: string;
   name: string;
+  /** Thumbnail illustration (a photo URL once products have images). */
+  art: ProductArtRef | null;
   billzId: string;
   quantity: number;
   unitPrice: number;

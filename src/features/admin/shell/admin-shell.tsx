@@ -10,7 +10,8 @@ import type { AdminSection } from "./nav-items";
 import { SidebarContent } from "./sidebar";
 
 interface AdminShellProps {
-  section: AdminSection;
+  /** Highlighted nav item; omitted on pages outside the menu (e.g. 404). */
+  section?: AdminSection;
   children: ReactNode;
 }
 

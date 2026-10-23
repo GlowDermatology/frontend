@@ -21,6 +21,8 @@ interface DialogProps {
   description?: ReactNode;
   children: ReactNode;
   className?: string;
+  /** Where focus goes on close when the trigger no longer exists. */
+  onCloseAutoFocus?: (event: Event) => void;
 }
 
 /** Modal dialog: focus trap, Escape/overlay to close, focus returns on close. */
@@ -31,6 +33,7 @@ export function Dialog({
   description,
   children,
   className,
+  onCloseAutoFocus,
 }: DialogProps) {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
@@ -38,6 +41,7 @@ export function Dialog({
         <DialogPrimitive.Overlay className={overlayClass} />
         <DialogPrimitive.Content
           className={cn(contentClass, "max-w-[480px]", className)}
+          onCloseAutoFocus={onCloseAutoFocus}
           {...(description ? {} : { "aria-describedby": undefined })}
         >
           <DialogPrimitive.Title className={titleClass}>{title}</DialogPrimitive.Title>
@@ -64,12 +68,16 @@ export function AlertDialog({
   description,
   children,
   className,
+  onCloseAutoFocus,
 }: DialogProps) {
   return (
     <AlertPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <AlertPrimitive.Portal>
         <AlertPrimitive.Overlay className={overlayClass} />
-        <AlertPrimitive.Content className={cn(contentClass, "max-w-[520px] gap-3.5", className)}>
+        <AlertPrimitive.Content
+          className={cn(contentClass, "max-w-[520px] gap-3.5", className)}
+          onCloseAutoFocus={onCloseAutoFocus}
+        >
           <AlertPrimitive.Title className={titleClass}>{title}</AlertPrimitive.Title>
           <AlertPrimitive.Description asChild>
             <div>{description}</div>

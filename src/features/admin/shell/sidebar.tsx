@@ -31,7 +31,7 @@ async function NavCount({ kind }: { kind: NonNullable<NavItem["badge"]> }) {
 const itemClass =
   "flex h-10 items-center gap-3 rounded-md px-3 text-label text-ink no-underline transition-colors duration-150 hover:bg-gold-soft";
 
-export function SidebarContent({ section }: { section: AdminSection }) {
+export function SidebarContent({ section }: { section?: AdminSection }) {
   return (
     <div className="flex h-full flex-col gap-5 px-3 py-5">
       <div className="flex items-baseline gap-2.5 px-3 pt-1">

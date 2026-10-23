@@ -413,6 +413,7 @@ function toItems(seed: OrderSeed): OrderItem[] {
     return {
       productId: product.id,
       name: product.texts.uz.name || product.billzName,
+      art: product.art,
       billzId,
       quantity,
       unitPrice: product.price,

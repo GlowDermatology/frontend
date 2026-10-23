@@ -11,9 +11,10 @@ export type ProductArtKind = "pump" | "jar" | "dropper" | "tube" | "toner" | "bo
 /** Colour variants that appear on the canvas (e.g. the dark retinol bottle). */
 export type ProductArtTone = "default" | "night" | "dark-cap";
 
-export type ProductArtDetail = "glyph" | "thumb" | "card" | "full";
+export type ProductArtDetail = "mini" | "glyph" | "thumb" | "card" | "full";
 
-const LEVEL: Record<ProductArtDetail, number> = { glyph: 0, thumb: 1, card: 2, full: 3 };
+/** Admin table thumbnails ("mini") drop the pump nozzle that app glyphs draw. */
+const LEVEL: Record<ProductArtDetail, number> = { mini: 0, glyph: 0.5, thumb: 1, card: 2, full: 3 };
 
 const INK = "#2a2418";
 
@@ -73,7 +74,7 @@ function layers(kind: ProductArtKind, p: Palette): Layer[] {
     case "pump":
       return [
         shadow(61, 28),
-        [0, <rect key="n" x="58" y="12" width="32" height="8" rx="4" fill={p.cap} />],
+        [0.5, <rect key="n" x="58" y="12" width="32" height="8" rx="4" fill={p.cap} />],
         [0, <rect key="s" x="56" y="14" width="10" height="22" rx="2" fill={p.cap} />],
         [0, <rect key="c" x="49" y="34" width="24" height="14" rx="3" fill={p.cap} />],
         [0, <rect key="b" x="36" y="48" width="50" height="100" rx="18" fill={p.body} />],

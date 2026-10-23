@@ -97,6 +97,7 @@ interface ActionMenuProps {
   align?: "start" | "end";
   /** Shown when there are no items. */
   empty?: ReactNode;
+  disabled?: boolean;
 }
 
 /** A menu of commands, e.g. "Holatni o‘zgartirish". */
@@ -107,10 +108,13 @@ export function ActionMenu({
   triggerClassName,
   align = "end",
   empty,
+  disabled,
 }: ActionMenuProps) {
   return (
     <DropdownMenu.Root modal={false}>
-      <DropdownMenu.Trigger className={triggerClassName}>{trigger}</DropdownMenu.Trigger>
+      <DropdownMenu.Trigger className={triggerClassName} disabled={disabled}>
+        {trigger}
+      </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content
           align={align}

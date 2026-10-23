@@ -39,6 +39,8 @@ export interface PolicyVersion {
   author: string;
   period: string;
   active: boolean;
+  /** Saved but not yet in effect. */
+  scheduled?: boolean;
 }
 
 export type LedgerEntryKind = "credit" | "debit" | "adjustment" | "reversal";

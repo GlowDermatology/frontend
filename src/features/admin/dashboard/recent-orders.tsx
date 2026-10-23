@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Route } from "next";
 
 import { Icon } from "@/components/ui/icon";
+import { ScrollRegion } from "@/components/ui/scroll-region";
 import type { OrderSummary } from "@/domain/order";
 import { formatNumber, formatRelativeDateTime } from "@/lib/format";
 
@@ -25,7 +26,7 @@ export function RecentOrders({ orders, now }: { orders: OrderSummary[]; now: Dat
           <Icon name="chevron-right" size={16} />
         </Link>
       </div>
-      <div className="overflow-x-auto">
+      <ScrollRegion label="So‘nggi buyurtmalar">
         <table className="data-table">
           <thead>
             <tr>
@@ -63,7 +64,7 @@ export function RecentOrders({ orders, now }: { orders: OrderSummary[]; now: Dat
             ))}
           </tbody>
         </table>
-      </div>
+      </ScrollRegion>
     </section>
   );
 }

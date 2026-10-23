@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Route } from "next";
 
 import { Icon } from "@/components/ui/icon";
+import { ScrollRegion } from "@/components/ui/scroll-region";
 import type { OrderSummary } from "@/domain/order";
 import { formatDateTimeShort, formatNumber, formatPhone } from "@/lib/format";
 
@@ -48,7 +49,10 @@ interface OrdersTableProps {
 
 export function OrdersTable({ orders, sortHref, sortedAscending }: OrdersTableProps) {
   return (
-    <div className="overflow-x-auto transition-opacity duration-150 group-data-[pending]:opacity-60">
+    <ScrollRegion
+      label="Buyurtmalar jadvali"
+      className="transition-opacity duration-150 group-data-[pending]:opacity-60"
+    >
       <table className="data-table min-w-[1040px]">
         <thead>
           <tr>
@@ -131,6 +135,6 @@ export function OrdersTable({ orders, sortHref, sortedAscending }: OrdersTablePr
           ))}
         </tbody>
       </table>
-    </div>
+    </ScrollRegion>
   );
 }

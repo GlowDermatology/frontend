@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Route } from "next";
 
 import { ProductArt } from "@/components/brand/product-art";
+import { ScrollRegion } from "@/components/ui/scroll-region";
 import { Badge } from "@/components/ui/badge";
 import { Icon } from "@/components/ui/icon";
 import { productDisplayName, stockLevel, type Product } from "@/domain/product";
@@ -56,7 +57,10 @@ function StockCell({ stock }: { stock: number }) {
 export function ProductsTable({ products, sort, sortHref }: ProductsTableProps) {
   const ascending = sort !== "name_desc";
   return (
-    <div className="overflow-x-auto transition-opacity duration-150 group-data-[pending]:opacity-60">
+    <ScrollRegion
+      label="Mahsulotlar jadvali"
+      className="transition-opacity duration-150 group-data-[pending]:opacity-60"
+    >
       <table className="data-table min-w-[1040px]">
         <thead>
           <tr>
@@ -174,6 +178,6 @@ export function ProductsTable({ products, sort, sortHref }: ProductsTableProps) 
           })}
         </tbody>
       </table>
-    </div>
+    </ScrollRegion>
   );
 }

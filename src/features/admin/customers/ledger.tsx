@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Route } from "next";
 
 import { Badge, type Tone } from "@/components/ui/badge";
+import { ScrollRegion } from "@/components/ui/scroll-region";
 import type { LedgerEntry, LedgerEntryKind } from "@/domain/cashback";
 import type { CustomerPurchase } from "@/domain/customer";
 import { formatDateTimeShort, formatNumber, formatSigned } from "@/lib/format";
@@ -25,7 +26,7 @@ export function withRunningBalance(entries: ReadonlyArray<LedgerEntry>) {
 
 export function LedgerTable({ rows }: { rows: ReturnType<typeof withRunningBalance> }) {
   return (
-    <div className="overflow-x-auto">
+    <ScrollRegion label="Cashback yozuvlari">
       <table className="data-table min-w-[760px]">
         <caption className="sr-only">Cashback yozuvlari, eng yangisi birinchi</caption>
         <thead>
@@ -62,13 +63,13 @@ export function LedgerTable({ rows }: { rows: ReturnType<typeof withRunningBalan
           })}
         </tbody>
       </table>
-    </div>
+    </ScrollRegion>
   );
 }
 
 export function PurchasesTable({ purchases }: { purchases: ReadonlyArray<CustomerPurchase> }) {
   return (
-    <div className="overflow-x-auto">
+    <ScrollRegion label="Xaridlar">
       <table className="data-table min-w-[760px]">
         <thead>
           <tr>
@@ -112,6 +113,6 @@ export function PurchasesTable({ purchases }: { purchases: ReadonlyArray<Custome
           ))}
         </tbody>
       </table>
-    </div>
+    </ScrollRegion>
   );
 }

@@ -5,6 +5,7 @@ import type { Route } from "next";
 import { useState, useTransition } from "react";
 
 import { Avatar } from "@/components/ui/avatar";
+import { ScrollRegion } from "@/components/ui/scroll-region";
 import { Badge, type Tone } from "@/components/ui/badge";
 import { Button, buttonStyles } from "@/components/ui/button";
 import { Card, CardTitle, DetailRow } from "@/components/ui/card";
@@ -219,7 +220,7 @@ export function AppointmentsView({
             </li>
           </ul>
 
-          <div className="overflow-x-auto">
+          <ScrollRegion label="Kunlik jadval">
             <div className="min-w-[720px]">
               <div
                 className="grid border-b border-line"
@@ -353,7 +354,7 @@ export function AppointmentsView({
                 ))}
               </div>
             </div>
-          </div>
+          </ScrollRegion>
           {appointments.length === 0 && (
             <p className="m-0 border-t border-line px-5 py-3.5 text-body-sm text-ink-muted">
               Bu kunga qabullar yo‘q.

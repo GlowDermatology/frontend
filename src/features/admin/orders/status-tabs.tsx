@@ -52,7 +52,7 @@ export function StatusTabs({ query, counts }: StatusTabsProps) {
                   />
                 )}
                 {tab.label}
-                <span className="text-[12px] font-bold tabular-nums opacity-80">
+                <span className="text-[12px] font-bold tabular-nums">
                   {formatNumber(tab.count)}
                 </span>
               </Link>

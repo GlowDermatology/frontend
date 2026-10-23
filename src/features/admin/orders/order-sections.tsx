@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Route } from "next";
 
 import { ProductArt } from "@/components/brand/product-art";
+import { ScrollRegion } from "@/components/ui/scroll-region";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge, type Tone } from "@/components/ui/badge";
 import { Card, CardTitle, DetailRow } from "@/components/ui/card";
@@ -41,7 +42,7 @@ export function OrderItemsCard({ order }: { order: Order }) {
       <CardTitle id="order-items-title" className="px-5 py-4">
         Mahsulotlar
       </CardTitle>
-      <div className="overflow-x-auto">
+      <ScrollRegion label="Buyurtma mahsulotlari">
         <table className="data-table min-w-[600px]">
           <thead>
             <tr>
@@ -93,7 +94,7 @@ export function OrderItemsCard({ order }: { order: Order }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </ScrollRegion>
       <div className="flex justify-end border-t border-line px-5 py-4">
         <dl className="flex w-full max-w-[360px] flex-col gap-2 text-[14px] leading-5 text-ink">
           <TotalRow label="Mahsulotlar" value={formatSom(subtotal)} />
@@ -167,7 +168,7 @@ export function OrderHistoryCard({
           return (
             <li
               key={`${event.at}-${event.title}`}
-              className="grid grid-cols-[112px_20px_1fr] gap-3"
+              className="grid grid-cols-[84px_20px_1fr] gap-3 sm:grid-cols-[112px_20px_1fr]"
             >
               <time
                 dateTime={event.at}

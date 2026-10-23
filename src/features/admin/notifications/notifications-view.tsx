@@ -6,6 +6,7 @@ import { Controller, useForm, useWatch, type Path } from "react-hook-form";
 import { z } from "zod";
 
 import { Rings } from "@/components/brand/rings";
+import { ScrollRegion } from "@/components/ui/scroll-region";
 import { Badge, type Tone } from "@/components/ui/badge";
 import { Button, buttonStyles } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
@@ -398,7 +399,7 @@ export function NotificationsView({
                       {...register("audience")}
                       className="peer absolute inset-0 m-0 cursor-pointer appearance-none rounded-md focus-visible:outline-none"
                     />
-                    <span className="pointer-events-none flex min-h-16 w-full flex-col items-start gap-0.5 rounded-md border border-line-strong bg-surface-raised px-3.5 py-2.5 text-ink transition-colors duration-150 peer-checked:border-2 peer-checked:border-gold peer-checked:bg-gold-soft peer-hover:peer-not-checked:bg-surface peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-gold-ink">
+                    <span className="pointer-events-none flex min-h-16 w-full flex-col items-start gap-0.5 rounded-md border border-line-strong bg-surface-raised px-3.5 py-2.5 text-ink transition-colors duration-150 peer-checked:border-2 peer-checked:border-gold peer-checked:bg-gold-soft peer-hover:peer-not-checked:bg-surface peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-gold-ink peer-checked:[&>span:last-child]:text-ink">
                       <span className="text-[14px] leading-5 font-bold">{card.label}</span>
                       <span className="text-caption font-normal text-ink-muted tabular-nums">
                         {card.detail}
@@ -565,7 +566,7 @@ export function NotificationsView({
             Buyurtma holati xabarlari avtomatik yuboriladi va bu yerda ko‘rsatilmaydi
           </span>
         </div>
-        <div className="overflow-x-auto">
+        <ScrollRegion label="Yuborilgan xabarlar">
           <table className="data-table min-w-[860px]">
             <thead>
               <tr>
@@ -617,7 +618,7 @@ export function NotificationsView({
               })}
             </tbody>
           </table>
-        </div>
+        </ScrollRegion>
       </section>
 
       <AlertDialog

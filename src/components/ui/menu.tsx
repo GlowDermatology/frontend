@@ -132,12 +132,14 @@ export function ActionMenu({
               onSelect={item.onSelect}
               className={cn(
                 itemClass,
-                "h-auto min-h-10 flex-col items-start justify-center gap-0 py-2 pr-3",
+                "group h-auto min-h-10 flex-col items-start justify-center gap-0 py-2 pr-3",
               )}
             >
               {item.label}
               {item.hint && (
-                <span className="text-caption font-normal text-ink-muted">{item.hint}</span>
+                <span className="text-caption font-normal text-ink-muted group-data-[highlighted]:text-ink">
+                  {item.hint}
+                </span>
               )}
             </DropdownMenu.Item>
           ))}

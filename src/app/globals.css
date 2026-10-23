@@ -290,3 +290,8 @@
     background: var(--gd-surface);
   }
 }
+
+/* Diagonal hatching for unavailable time in the appointment grid. */
+@utility hatch {
+  background-image: repeating-linear-gradient(135deg, var(--gd-line) 0 3px, transparent 3px 8px);
+}

@@ -77,7 +77,7 @@ function malika(): Customer {
     totals: { store: 9_940_000, online: 3_640_000 },
     onlineOrders: { count: 12, lastOrderId: 10248, lastOrderAt: t("2026-10-23T14:02:00") },
     upcomingAppointments: 1,
-    groups: [{ name: "Doimiy mijozlar", rule: "10 mln+ xarid" }],
+    groups: ["Doimiy mijozlar", "10 mln+ xarid"],
     ledger: [...MALIKA_LEDGER],
     purchases: MALIKA_PURCHASES,
     device: {
@@ -174,12 +174,16 @@ function fromOrders(id: string): Customer {
     totals: { store, online },
     onlineOrders: { count: orders.length, lastOrderId: last?.id, lastOrderAt: last?.createdAt },
     upcomingAppointments: 0,
-    groups: lifetime >= 10_000_000 ? [{ name: "Doimiy mijozlar", rule: "10 mln+ xarid" }] : [],
+    groups: [
+      ...(orders.length >= 3 ? ["Doimiy mijozlar"] : []),
+      ...(lifetime >= 10_000_000 ? ["10 mln+ xarid"] : []),
+    ],
     ledger,
     purchases,
     device: {
-      model: random.chance(0.55) ? "iPhone 13" : "Samsung Galaxy A54",
-      os: random.chance(0.55) ? "iOS 18.1" : "Android 14",
+      ...(random.chance(0.55)
+        ? { model: "iPhone 13", os: "iOS 18.1" }
+        : { model: "Samsung Galaxy A54", os: "Android 14" }),
       appVersion: "1.0.0",
       lastActiveAt: t("2026-10-23T20:15:00"),
       pushEnabled: random.chance(0.8),

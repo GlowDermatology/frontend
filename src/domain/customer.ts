@@ -34,7 +34,8 @@ export interface Customer {
   totals: { store: number; online: number };
   onlineOrders: { count: number; lastOrderId?: number; lastOrderAt?: string };
   upcomingAppointments: number;
-  groups: Array<{ name: string; rule: string }>;
+  /** Audience segments the customer belongs to (used for notifications). */
+  groups: string[];
   ledger: LedgerEntry[];
   purchases: CustomerPurchase[];
   device?: CustomerDevice;

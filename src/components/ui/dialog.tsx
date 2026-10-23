@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertDialog as AlertPrimitive, Dialog as DialogPrimitive } from "radix-ui";
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 
 import { cn } from "@/lib/cn";
 
@@ -12,6 +12,27 @@ const contentClass =
   "fixed top-[clamp(24px,14vh,160px)] left-1/2 z-50 flex max-h-[calc(100dvh-48px)] w-[calc(100%-48px)] -translate-x-1/2 flex-col gap-4 overflow-y-auto rounded-lg bg-surface-raised p-6 text-ink shadow-lg focus-visible:outline-none data-[state=closed]:animate-pop-out data-[state=open]:animate-pop-in";
 
 const titleClass = "text-heading text-ink";
+
+/**
+ * Radix returns focus to its own `Trigger` on close. These dialogs are opened
+ * from state (buttons elsewhere on the page), so remember what had focus when
+ * the dialog opened and return there, unless the caller moved focus itself.
+ */
+function useReturnFocus(onCloseAutoFocus?: (event: Event) => void) {
+  const previous = useRef<HTMLElement | null>(null);
+  return {
+    onOpenAutoFocus: () => {
+      previous.current =
+        document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    },
+    onCloseAutoFocus: (event: Event) => {
+      onCloseAutoFocus?.(event);
+      if (event.defaultPrevented) return;
+      event.preventDefault();
+      if (previous.current?.isConnected) previous.current.focus();
+    },
+  };
+}
 
 interface DialogProps {
   open: boolean;
@@ -35,13 +56,14 @@ export function Dialog({
   className,
   onCloseAutoFocus,
 }: DialogProps) {
+  const focus = useReturnFocus(onCloseAutoFocus);
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className={overlayClass} />
         <DialogPrimitive.Content
           className={cn(contentClass, "max-w-[480px]", className)}
-          onCloseAutoFocus={onCloseAutoFocus}
+          {...focus}
           {...(description ? {} : { "aria-describedby": undefined })}
         >
           <DialogPrimitive.Title className={titleClass}>{title}</DialogPrimitive.Title>
@@ -70,13 +92,14 @@ export function AlertDialog({
   className,
   onCloseAutoFocus,
 }: DialogProps) {
+  const focus = useReturnFocus(onCloseAutoFocus);
   return (
     <AlertPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <AlertPrimitive.Portal>
         <AlertPrimitive.Overlay className={overlayClass} />
         <AlertPrimitive.Content
           className={cn(contentClass, "max-w-[520px] gap-3.5", className)}
-          onCloseAutoFocus={onCloseAutoFocus}
+          {...focus}
         >
           <AlertPrimitive.Title className={titleClass}>{title}</AlertPrimitive.Title>
           <AlertPrimitive.Description asChild>

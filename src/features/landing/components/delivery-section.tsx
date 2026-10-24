@@ -34,7 +34,9 @@ export function DeliverySection({ dict }: { dict: LandingDictionary["delivery"] 
                 <IconBadge size={48}>
                   <Icon name={OPTION_ICONS[index] ?? "truck"} size={24} />
                 </IconBadge>
-                <h3 className="m-0 text-[19px] leading-[26px] font-bold text-ink">{option.title}</h3>
+                <h3 className="m-0 text-[19px] leading-[26px] font-bold text-ink">
+                  {option.title}
+                </h3>
                 <p className="m-0 text-[15px] leading-6 text-ink-muted">{option.body}</p>
               </article>
             </li>
@@ -75,7 +77,10 @@ export function DeliverySection({ dict }: { dict: LandingDictionary["delivery"] 
                     {!last && <span className={cn("h-0.5 flex-1", done ? "bg-gold" : "bg-line")} />}
                   </span>
                   <span
-                    className={cn("text-[15px] leading-5 font-bold", done || current ? "text-ink" : "text-ink-muted")}
+                    className={cn(
+                      "text-[15px] leading-5 font-bold",
+                      done || current ? "text-ink" : "text-ink-muted",
+                    )}
                   >
                     {step.title}
                     {current && <span className="sr-only"> ({tracker.currentStep})</span>}

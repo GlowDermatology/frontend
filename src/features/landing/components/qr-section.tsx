@@ -48,7 +48,10 @@ export function QrSection({ dict }: { dict: LandingDictionary["qr"] }) {
                 key={step.title}
                 className="grid grid-cols-[64px_1fr] gap-5 border-t border-line py-[22px] last:border-b"
               >
-                <span aria-hidden="true" className="font-serif text-[40px] leading-none font-medium text-gold-ink">
+                <span
+                  aria-hidden="true"
+                  className="font-serif text-[40px] leading-none font-medium text-gold-ink"
+                >
                   {String(index + 1).padStart(2, "0")}
                 </span>
                 <span className="flex flex-col gap-1.5">

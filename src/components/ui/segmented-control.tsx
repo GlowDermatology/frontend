@@ -7,6 +7,9 @@ import { cn } from "@/lib/cn";
 export interface SegmentOption<T extends string> {
   value: T;
   label: ReactNode;
+  disabled?: boolean;
+  /** Tooltip, e.g. why an option is unavailable. */
+  title?: string;
 }
 
 interface SegmentedControlProps<T extends string> {
@@ -52,20 +55,22 @@ export function SegmentedControl<T extends string>({
       )}
     >
       {options.map((option) => (
-        <label key={option.value} className="relative flex">
+        <label key={option.value} className="relative flex" title={option.title}>
           <input
             type="radio"
             name={name}
             value={option.value}
             checked={value === option.value}
+            disabled={option.disabled}
             onChange={() => onChange(option.value)}
-            className="peer absolute inset-0 m-0 cursor-pointer appearance-none rounded-[9px] focus-visible:outline-none"
+            className="peer absolute inset-0 m-0 cursor-pointer appearance-none rounded-[9px] focus-visible:outline-none disabled:cursor-not-allowed"
           />
           <span
             className={cn(
               "pointer-events-none flex w-full items-center justify-center gap-2 rounded-[9px] font-semibold whitespace-nowrap text-ink transition-[background-color,box-shadow] duration-150",
               "peer-checked:bg-surface-raised peer-checked:shadow-sm peer-hover:peer-not-checked:bg-surface-raised/50",
               "peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-gold-ink",
+              "peer-disabled:text-ink-muted peer-disabled:peer-hover:bg-transparent",
               ITEM_SIZES[size],
             )}
           >

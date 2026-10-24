@@ -41,7 +41,12 @@ export function Hero({ dict }: { dict: LandingDictionary }) {
             </a>
             <a
               href={`#${SECTION_IDS.specialists}`}
-              className={buttonStyles({ variant: "outline", size: "lg", lift: true, className: "px-6" })}
+              className={buttonStyles({
+                variant: "outline",
+                size: "lg",
+                lift: true,
+                className: "px-6",
+              })}
             >
               {hero.secondaryCta}
             </a>
@@ -79,7 +84,9 @@ export function Hero({ dict }: { dict: LandingDictionary }) {
               <Icon name="check" size={18} strokeWidth={2} />
             </span>
             <span className="flex flex-col">
-              <span className="text-[13px] leading-[18px] font-bold text-ink">{hero.toastTitle}</span>
+              <span className="text-[13px] leading-[18px] font-bold text-ink">
+                {hero.toastTitle}
+              </span>
               <span className="text-[12px] leading-4 text-ink-muted">{hero.toastBody}</span>
             </span>
           </div>
@@ -87,7 +94,10 @@ export function Hero({ dict }: { dict: LandingDictionary }) {
           <div className="absolute bottom-10 left-5 flex w-[228px] animate-rise-in flex-col gap-2 rounded-lg bg-surface-raised p-[18px] shadow-lg [animation-delay:200ms]">
             <span className="text-overline text-ink-muted uppercase">{hero.balanceLabel}</span>
             <span className="text-price-lg text-ink tabular-nums">{hero.balanceValue}</span>
-            <span aria-hidden="true" className="flex h-1.5 overflow-hidden rounded-full bg-gold-soft">
+            <span
+              aria-hidden="true"
+              className="flex h-1.5 overflow-hidden rounded-full bg-gold-soft"
+            >
               <span className="h-full w-[68%] rounded-full bg-gold" />
             </span>
             <span className="text-[12px] leading-4 text-ink-muted">{hero.balanceNote}</span>

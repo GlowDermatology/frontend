@@ -1,10 +1,10 @@
 "use client";
 
-import type { ButtonHTMLAttributes } from "react";
+import type { ComponentProps } from "react";
 
 import { cn } from "@/lib/cn";
 
-interface SwitchProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "onChange"> {
+interface SwitchProps extends Omit<ComponentProps<"button">, "onChange"> {
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
   /** Accessible name; required because the visual label sits elsewhere. */

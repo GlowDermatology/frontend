@@ -3,13 +3,7 @@ import type { ButtonHTMLAttributes } from "react";
 import { cn } from "@/lib/cn";
 
 export type ButtonVariant =
-  | "primary"
-  | "secondary"
-  | "ghost"
-  | "danger"
-  | "destructive"
-  | "dashed"
-  | "outline";
+  "primary" | "secondary" | "ghost" | "danger" | "destructive" | "dashed" | "outline";
 export type ButtonSize = "sm" | "md" | "lg" | "xl";
 
 const VARIANTS: Record<ButtonVariant, string> = {
@@ -20,8 +14,9 @@ const VARIANTS: Record<ButtonVariant, string> = {
   outline: "border-[1.5px] border-line-strong bg-transparent text-ink hover:bg-surface-raised",
   ghost: "bg-transparent text-ink hover:bg-gold-soft",
   danger: "border-[1.5px] border-danger bg-transparent text-ink hover:bg-danger-soft",
-  /* White on danger is 4.4:1, so the label stays 15px bold (design-system rule). */
-  destructive: "bg-danger text-[15px] text-white hover:brightness-95 disabled:opacity-60",
+  /* White on the design's danger red is 4.4:1, below AA for 15px text, so the
+     fill uses a slightly deeper red (5.0:1). */
+  destructive: "bg-danger-strong text-[15px] text-white hover:brightness-95 disabled:opacity-60",
   dashed:
     "border-[1.5px] border-dashed border-line-strong bg-transparent text-ink hover:bg-surface-raised",
 };
@@ -59,15 +54,10 @@ export function buttonStyles({
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>, ButtonStyleOptions {}
 
-export function Button({
-  variant,
-  size,
-  lift,
-  className,
-  type = "button",
-  ...rest
-}: ButtonProps) {
-  return <button type={type} className={buttonStyles({ variant, size, lift, className })} {...rest} />;
+export function Button({ variant, size, lift, className, type = "button", ...rest }: ButtonProps) {
+  return (
+    <button type={type} className={buttonStyles({ variant, size, lift, className })} {...rest} />
+  );
 }
 
 interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {

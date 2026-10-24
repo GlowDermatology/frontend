@@ -78,7 +78,9 @@ export function BookingPreview({ dict }: { dict: BookingDict }) {
                 selectedClassName="bg-gold text-on-gold"
                 idleClassName="border border-line-strong"
               >
-                <span className={cn("text-[12px]", !selected && "text-ink-muted")}>{item.weekday}</span>
+                <span className={cn("text-[12px]", !selected && "text-ink-muted")}>
+                  {item.weekday}
+                </span>
                 <span className="text-[18px] font-bold tabular-nums">{item.day}</span>
               </Choice>
             );
@@ -98,7 +100,10 @@ export function BookingPreview({ dict }: { dict: BookingDict }) {
                 checked={selected}
                 disabled={booked}
                 onSelect={() => setTime(slot)}
-                className={cn("h-11 justify-center text-[14px] leading-none tabular-nums", selected ? "font-bold" : "font-semibold")}
+                className={cn(
+                  "h-11 justify-center text-[14px] leading-none",
+                  selected ? "font-bold" : "font-semibold",
+                )}
                 selectedClassName="bg-gold text-on-gold"
                 idleClassName={
                   booked

@@ -63,7 +63,7 @@ export function TabletMenu({ links, openLabel, closeLabel }: TabletMenuProps) {
           open && "animate-pop-in",
         )}
       >
-        <ul className="mx-auto m-0 flex max-w-[1280px] list-none flex-col px-[clamp(16px,4vw,48px)] py-2">
+        <ul className="m-0 mx-auto flex max-w-[1280px] list-none flex-col px-[clamp(16px,4vw,48px)] py-2">
           {links.map((link) => (
             <li key={link.href} className="border-b border-line last:border-b-0">
               <a

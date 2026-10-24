@@ -84,6 +84,8 @@
   --color-banner-ink-soft: var(--gd-banner-ink-soft);
   --color-success: #4e9a6b;
   --color-danger: #d64545;
+  /* Fill behind white labels: #d64545 is 4.4:1 with white, this is 5.0:1 (AA). */
+  --color-danger-strong: #c93b3b;
   --color-warning: #e08a2e;
   --color-success-soft: var(--gd-success-soft);
   --color-danger-soft: var(--gd-danger-soft);
@@ -289,4 +291,9 @@
   .data-table tbody tr:hover td {
     background: var(--gd-surface);
   }
+}
+
+/* Diagonal hatching for unavailable time in the appointment grid. */
+@utility hatch {
+  background-image: repeating-linear-gradient(135deg, var(--gd-line) 0 3px, transparent 3px 8px);
 }

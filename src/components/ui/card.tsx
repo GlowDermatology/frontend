@@ -9,7 +9,12 @@ type CardProps<T extends ElementType> = {
 } & Omit<ComponentProps<T>, "as" | "children" | "className">;
 
 /** Raised surface used for every admin panel block (20px radius, soft shadow). */
-export function Card<T extends ElementType = "section">({ as, className, children, ...rest }: CardProps<T>) {
+export function Card<T extends ElementType = "section">({
+  as,
+  className,
+  children,
+  ...rest
+}: CardProps<T>) {
   const Component: ElementType = as ?? "section";
   return (
     <Component className={cn("rounded-lg bg-surface-raised p-5 shadow-sm", className)} {...rest}>
@@ -18,7 +23,15 @@ export function Card<T extends ElementType = "section">({ as, className, childre
   );
 }
 
-export function CardTitle({ id, children, className }: { id?: string; children: ReactNode; className?: string }) {
+export function CardTitle({
+  id,
+  children,
+  className,
+}: {
+  id?: string;
+  children: ReactNode;
+  className?: string;
+}) {
   return (
     <h2 id={id} className={cn("m-0 text-[16px] leading-[22px] font-bold text-ink", className)}>
       {children}

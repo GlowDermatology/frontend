@@ -18,10 +18,15 @@ export function SpecialistsSection({ dict }: { dict: LandingDictionary["speciali
         <div className="flex flex-col gap-6">
           <Eyebrow>{dict.eyebrow}</Eyebrow>
           <SectionTitle id="pro-title">{dict.title}</SectionTitle>
-          <p className="m-0 max-w-[500px] text-[17px] leading-7 text-pretty text-ink-muted">{dict.lead}</p>
+          <p className="m-0 max-w-[500px] text-[17px] leading-7 text-pretty text-ink-muted">
+            {dict.lead}
+          </p>
           <ul className="m-0 flex list-none flex-col gap-3.5 p-0">
             {dict.benefits.map((benefit) => (
-              <li key={benefit} className="flex items-center gap-3 text-[15px] leading-[22px] text-ink">
+              <li
+                key={benefit}
+                className="flex items-center gap-3 text-[15px] leading-[22px] text-ink"
+              >
                 <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-gold-soft text-gold-ink">
                   <Icon name="check" size={16} strokeWidth={2} />
                 </span>
@@ -30,7 +35,10 @@ export function SpecialistsSection({ dict }: { dict: LandingDictionary["speciali
             ))}
           </ul>
           <div>
-            <a href={`#${SECTION_IDS.download}`} className={buttonStyles({ size: "lg", lift: true })}>
+            <a
+              href={`#${SECTION_IDS.download}`}
+              className={buttonStyles({ size: "lg", lift: true })}
+            >
               {dict.cta}
             </a>
           </div>

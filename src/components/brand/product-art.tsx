@@ -11,9 +11,16 @@ export type ProductArtKind = "pump" | "jar" | "dropper" | "tube" | "toner" | "bo
 /** Colour variants that appear on the canvas (e.g. the dark retinol bottle). */
 export type ProductArtTone = "default" | "night" | "dark-cap";
 
-export type ProductArtDetail = "glyph" | "thumb" | "card" | "full";
+export type ProductArtDetail = "mini" | "glyph" | "thumb" | "card" | "full";
 
-const LEVEL: Record<ProductArtDetail, number> = { glyph: 0, thumb: 1, card: 2, full: 3 };
+/**
+ * "mini" is the admin table thumbnail: as simple as a glyph, but drawn with a
+ * couple of different shapes (no pump nozzle, dropper label kept).
+ */
+const LEVEL: Record<ProductArtDetail, number> = { mini: 0, glyph: 0, thumb: 1, card: 2, full: 3 };
+
+const NOT_MINI: ReadonlyArray<ProductArtDetail> = ["glyph", "thumb", "card", "full"];
+const WITH_MINI: ReadonlyArray<ProductArtDetail> = ["mini", "thumb", "card", "full"];
 
 const INK = "#2a2418";
 
@@ -62,7 +69,8 @@ const PALETTES: Record<ProductArtKind, Record<ProductArtTone, Palette>> = {
   },
 };
 
-type Layer = [minLevel: number, node: ReactNode];
+/** Shape, the lowest detail level that draws it, and optionally an explicit list of levels. */
+type Layer = [minLevel: number, node: ReactNode, only?: ReadonlyArray<ProductArtDetail>];
 
 function shadow(cx: number, rx: number): Layer {
   return [3, <ellipse key="shadow" cx={cx} cy="151" rx={rx} ry="4" fill={INK} fillOpacity=".12" />];
@@ -73,26 +81,80 @@ function layers(kind: ProductArtKind, p: Palette): Layer[] {
     case "pump":
       return [
         shadow(61, 28),
-        [0, <rect key="n" x="58" y="12" width="32" height="8" rx="4" fill={p.cap} />],
+        [0, <rect key="n" x="58" y="12" width="32" height="8" rx="4" fill={p.cap} />, NOT_MINI],
         [0, <rect key="s" x="56" y="14" width="10" height="22" rx="2" fill={p.cap} />],
         [0, <rect key="c" x="49" y="34" width="24" height="14" rx="3" fill={p.cap} />],
         [0, <rect key="b" x="36" y="48" width="50" height="100" rx="18" fill={p.body} />],
-        [2, <rect key="h" x="42" y="58" width="6" height="78" rx="3" fill={p.label} fillOpacity=".5" />],
-        [2, <rect key="l1" x="49" y="88" width="24" height="3" rx="1.5" fill={INK} fillOpacity=".6" />],
-        [2, <rect key="l2" x="52" y="96" width="18" height="2" rx="1" fill={INK} fillOpacity=".3" />],
+        [
+          2,
+          <rect
+            key="h"
+            x="42"
+            y="58"
+            width="6"
+            height="78"
+            rx="3"
+            fill={p.label}
+            fillOpacity=".5"
+          />,
+        ],
+        [
+          2,
+          <rect
+            key="l1"
+            x="49"
+            y="88"
+            width="24"
+            height="3"
+            rx="1.5"
+            fill={INK}
+            fillOpacity=".6"
+          />,
+        ],
+        [
+          2,
+          <rect key="l2" x="52" y="96" width="18" height="2" rx="1" fill={INK} fillOpacity=".3" />,
+        ],
       ];
     case "jar":
       return [
         shadow(60, 38),
         [0, <rect key="lid" x="24" y="74" width="72" height="22" rx="6" fill={p.cap} />],
-        [2, <rect key="rim" x="26" y="90" width="68" height="4" fill={p.accent} fillOpacity=".45" />],
+        [
+          2,
+          <rect key="rim" x="26" y="90" width="68" height="4" fill={p.accent} fillOpacity=".45" />,
+        ],
         [
           0,
-          <rect key="b" x="27" y="94" width="66" height="54" rx="16" fill={p.body} stroke="#e5dcc8" />,
+          <rect
+            key="b"
+            x="27"
+            y="94"
+            width="66"
+            height="54"
+            rx="16"
+            fill={p.body}
+            stroke="#e5dcc8"
+          />,
         ],
         [2, <rect key="h" x="33" y="102" width="5" height="36" rx="2.5" fill={p.label} />],
-        [2, <rect key="l1" x="44" y="112" width="32" height="3" rx="1.5" fill={INK} fillOpacity=".55" />],
-        [3, <rect key="l2" x="48" y="120" width="24" height="2" rx="1" fill={INK} fillOpacity=".3" />],
+        [
+          2,
+          <rect
+            key="l1"
+            x="44"
+            y="112"
+            width="32"
+            height="3"
+            rx="1.5"
+            fill={INK}
+            fillOpacity=".55"
+          />,
+        ],
+        [
+          3,
+          <rect key="l2" x="48" y="120" width="24" height="2" rx="1" fill={INK} fillOpacity=".3" />,
+        ],
       ];
     case "dropper":
       return [
@@ -101,11 +163,45 @@ function layers(kind: ProductArtKind, p: Palette): Layer[] {
         [0, <rect key="c" x="47" y="30" width="26" height="18" rx="3" fill={p.accent} />],
         [2, <rect key="r" x="49" y="46" width="22" height="4" fill="#9a7424" />],
         [0, <rect key="b" x="34" y="50" width="52" height="98" rx="13" fill={p.body} />],
-        [2, <rect key="h" x="40" y="58" width="6" height="80" rx="3" fill="#ffffff" fillOpacity=".28" />],
-        [1, <rect key="lab" x="43" y="82" width="34" height="38" rx="3" fill={p.label} />],
-        [2, <rect key="l1" x="49" y="92" width="22" height="3" rx="1.5" fill={INK} fillOpacity=".6" />],
-        [3, <rect key="l2" x="52" y="100" width="16" height="2" rx="1" fill={INK} fillOpacity=".3" />],
-        [3, <rect key="l3" x="52" y="106" width="16" height="2" rx="1" fill={INK} fillOpacity=".3" />],
+        [
+          2,
+          <rect
+            key="h"
+            x="40"
+            y="58"
+            width="6"
+            height="80"
+            rx="3"
+            fill="#ffffff"
+            fillOpacity=".28"
+          />,
+        ],
+        [
+          1,
+          <rect key="lab" x="43" y="82" width="34" height="38" rx="3" fill={p.label} />,
+          WITH_MINI,
+        ],
+        [
+          2,
+          <rect
+            key="l1"
+            x="49"
+            y="92"
+            width="22"
+            height="3"
+            rx="1.5"
+            fill={INK}
+            fillOpacity=".6"
+          />,
+        ],
+        [
+          3,
+          <rect key="l2" x="52" y="100" width="16" height="2" rx="1" fill={INK} fillOpacity=".3" />,
+        ],
+        [
+          3,
+          <rect key="l3" x="52" y="106" width="16" height="2" rx="1" fill={INK} fillOpacity=".3" />,
+        ],
       ];
     case "tube":
       return [
@@ -113,9 +209,36 @@ function layers(kind: ProductArtKind, p: Palette): Layer[] {
         [0, <rect key="seal" x="34" y="14" width="52" height="9" rx="2" fill={p.accent} />],
         [0, <path key="b" d="M36 22h48l-8 100H44z" fill={p.body} stroke="#e5dcc8" />],
         [2, <rect key="h" x="44" y="30" width="5" height="60" rx="2.5" fill={p.label} />],
-        [2, <rect key="l1" x="47" y="50" width="26" height="3" rx="1.5" fill={INK} fillOpacity=".6" />],
-        [2, <rect key="l2" x="50" y="58" width="20" height="2" rx="1" fill={INK} fillOpacity=".3" />],
-        [2, <rect key="badge" x="51" y="74" width="18" height="12" rx="2" fill="#c9a24b" fillOpacity=".35" />],
+        [
+          2,
+          <rect
+            key="l1"
+            x="47"
+            y="50"
+            width="26"
+            height="3"
+            rx="1.5"
+            fill={INK}
+            fillOpacity=".6"
+          />,
+        ],
+        [
+          2,
+          <rect key="l2" x="50" y="58" width="20" height="2" rx="1" fill={INK} fillOpacity=".3" />,
+        ],
+        [
+          2,
+          <rect
+            key="badge"
+            x="51"
+            y="74"
+            width="18"
+            height="12"
+            rx="2"
+            fill="#c9a24b"
+            fillOpacity=".35"
+          />,
+        ],
         [0, <rect key="cap" x="44" y="120" width="32" height="28" rx="6" fill={p.cap} />],
       ];
     case "toner":
@@ -123,18 +246,69 @@ function layers(kind: ProductArtKind, p: Palette): Layer[] {
         shadow(60, 24),
         [0, <rect key="cap" x="48" y="10" width="24" height="28" rx="5" fill={p.cap} />],
         [0, <rect key="b" x="40" y="38" width="40" height="110" rx="12" fill={p.body} />],
-        [2, <rect key="h" x="45" y="46" width="5" height="92" rx="2.5" fill={p.label} fillOpacity=".5" />],
-        [2, <rect key="l1" x="48" y="86" width="24" height="3" rx="1.5" fill={INK} fillOpacity=".6" />],
-        [2, <rect key="l2" x="51" y="94" width="18" height="2" rx="1" fill={INK} fillOpacity=".3" />],
+        [
+          2,
+          <rect
+            key="h"
+            x="45"
+            y="46"
+            width="5"
+            height="92"
+            rx="2.5"
+            fill={p.label}
+            fillOpacity=".5"
+          />,
+        ],
+        [
+          2,
+          <rect
+            key="l1"
+            x="48"
+            y="86"
+            width="24"
+            height="3"
+            rx="1.5"
+            fill={INK}
+            fillOpacity=".6"
+          />,
+        ],
+        [
+          2,
+          <rect key="l2" x="51" y="94" width="18" height="2" rx="1" fill={INK} fillOpacity=".3" />,
+        ],
       ];
     case "box":
       return [
         [
           0,
-          <rect key="b" x="30" y="20" width="60" height="128" rx="6" fill={p.body} stroke={p.accent} />,
+          <rect
+            key="b"
+            x="30"
+            y="20"
+            width="60"
+            height="128"
+            rx="6"
+            fill={p.body}
+            stroke={p.accent}
+          />,
         ],
-        [0, <rect key="l1" x="40" y="60" width="40" height="4" rx="2" fill={INK} fillOpacity=".55" />],
-        [0, <rect key="l2" x="45" y="70" width="30" height="3" rx="1.5" fill={INK} fillOpacity=".3" />],
+        [
+          0,
+          <rect key="l1" x="40" y="60" width="40" height="4" rx="2" fill={INK} fillOpacity=".55" />,
+        ],
+        [
+          0,
+          <rect
+            key="l2"
+            x="45"
+            y="70"
+            width="30"
+            height="3"
+            rx="1.5"
+            fill={INK}
+            fillOpacity=".3"
+          />,
+        ],
         [0, <rect key="seal" x="50" y="110" width="20" height="20" rx="10" fill={p.cap} />],
       ];
     case "texture":
@@ -169,7 +343,7 @@ export function ProductArt({
   const square = kind === "texture";
   const level = LEVEL[detail];
   const shapes = layers(kind, PALETTES[kind][tone])
-    .filter(([min]) => min <= level)
+    .filter(([min, , only]) => (only ? only.includes(detail) : min <= level))
     .map(([, node]) => node);
 
   return (

@@ -1,6 +1,7 @@
 import { requireStaff } from "@/data/auth";
 import { getCustomer } from "@/data/customers";
 import { getNotificationsOverview } from "@/data/notifications";
+import { requestNow } from "@/data/now";
 
 import { firstParam, type SearchParams } from "../shared/url-state";
 import { NotificationsView } from "./notifications-view";
@@ -13,9 +14,10 @@ export async function NotificationsContent({
 }) {
   await requireStaff();
   const customerId = firstParam(await searchParams, "customer");
-  const [overview, customer] = await Promise.all([
+  const [overview, customer, now] = await Promise.all([
     getNotificationsOverview(),
     customerId ? getCustomer(customerId) : null,
+    requestNow(),
   ]);
 
   return (
@@ -28,6 +30,7 @@ export async function NotificationsContent({
         defaultSchedule={overview.defaultSchedule}
         draft={overview.draft}
         recipient={customer ? { name: customer.name, phone: customer.phone } : null}
+        now={now.toISOString()}
       />
       <TemplatesSection templates={overview.templates} />
     </>

@@ -2,8 +2,8 @@ import { notFound } from "next/navigation";
 
 import { requireStaff } from "@/data/auth";
 import { getCashbackSettings } from "@/data/cashback";
-import { referenceNow } from "@/data/config";
 import { getCustomer } from "@/data/customers";
+import { requestNow } from "@/data/now";
 import { nextTier, rateFor } from "@/domain/cashback";
 import { lifetimeTotal } from "@/domain/customer";
 
@@ -12,7 +12,11 @@ import { CustomerView, type TierInfo } from "./customer-view";
 export async function CustomerContent({ params }: { params: Promise<{ customerId: string }> }) {
   await requireStaff();
   const { customerId } = await params;
-  const [customer, settings] = await Promise.all([getCustomer(customerId), getCashbackSettings()]);
+  const [customer, settings, now] = await Promise.all([
+    getCustomer(customerId),
+    getCashbackSettings(),
+    requestNow(),
+  ]);
   if (!customer) notFound();
 
   const lifetime = lifetimeTotal(customer);
@@ -27,5 +31,5 @@ export async function CustomerContent({ params }: { params: Promise<{ customerId
     },
   };
 
-  return <CustomerView customer={customer} tier={tier} now={referenceNow().toISOString()} />;
+  return <CustomerView customer={customer} tier={tier} now={now.toISOString()} />;
 }

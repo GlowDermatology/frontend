@@ -7,13 +7,14 @@ import { Button, buttonStyles } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { ActionMenu, type ActionMenuItem } from "@/components/ui/menu";
 import { useToast } from "@/components/ui/toast";
-import { referenceNow } from "@/data/config";
 import { changeOrderStatus, retryShipment } from "@/data/orders.actions";
 import type { ActionResult } from "@/data/types";
 import { canCancel, manualTransitions, type Order, type OrderStatus } from "@/domain/order";
 import { cn } from "@/lib/cn";
 import { formatDateTimeLong } from "@/lib/format";
 
+import { runAction } from "../shared/action-client";
+import { useIdempotencyKey } from "../shared/idempotency";
 import { FULFILMENT_LABEL, ORDER_STATUS_META, OrderStatusBadge } from "../shared/status";
 import { CancelOrderDialog } from "./cancel-order-dialog";
 import {
@@ -50,6 +51,15 @@ function noTransitionsMessage(status: OrderStatus): string {
 
 const headerButton = "px-4";
 
+/**
+ * "Now" after a mutation: the server stamped the newest history row at the
+ * moment of the change, so it is the reference for "hozir" (the client clock
+ * is not: in demo mode the server runs on the fixed demo instant).
+ */
+function latestEventAt(order: Order, fallback: string): string {
+  return order.history[0]?.at ?? fallback;
+}
+
 interface OrderDetailViewProps {
   initialOrder: Order;
   /** Render time, used to show events that just happened as "hozir". */
@@ -70,6 +80,9 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
   const headingRef = useRef<HTMLHeadingElement>(null);
   const focusHeadingOnClose = useRef(false);
   const toast = useToast();
+  // One key per pending change; the two buttons never run at the same time.
+  const statusKey = useIdempotencyKey();
+  const shipmentKey = useIdempotencyKey();
 
   const apply = (result: ActionResult<Order>, success: { title: string; description?: string }) => {
     if (!result.ok) {
@@ -77,7 +90,7 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
       return false;
     }
     setOrder(result.data);
-    setNow(referenceNow().toISOString());
+    setNow((current) => latestEventAt(result.data, current));
     toast(success);
     return true;
   };
@@ -85,7 +98,9 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
   const runStatusChange = (status: OrderStatus) => {
     setPendingAction("status");
     startTransition(async () => {
-      const result = await changeOrderStatus(order, status);
+      const result = statusKey.settle(
+        await runAction((csrf) => changeOrderStatus(order.id, status, statusKey.key, csrf)),
+      );
       apply(result, {
         title: "Holat yangilandi",
         description: `«${ORDER_STATUS_META[status].label}» · mijozga push yuborildi`,
@@ -97,7 +112,9 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
   const runShipmentRetry = () => {
     setPendingAction("shipment");
     startTransition(async () => {
-      const result = await retryShipment(order);
+      const result = shipmentKey.settle(
+        await runAction((csrf) => retryShipment(order.id, shipmentKey.key, csrf)),
+      );
       const ok = apply(result, {
         title: "BTS buyurtmasi yaratildi",
         description:
@@ -230,7 +247,7 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
           const paid = order.payment.status === "paid";
           focusHeadingOnClose.current = true;
           setOrder(cancelled);
-          setNow(referenceNow().toISOString());
+          setNow((current) => latestEventAt(cancelled, current));
           setCancelOpen(false);
           toast({
             title: "Buyurtma bekor qilindi",

@@ -13,6 +13,8 @@ import { cancelOrder } from "@/data/orders.actions";
 import type { Order } from "@/domain/order";
 import { formatSom } from "@/lib/format";
 
+import { runAction } from "../shared/action-client";
+import { useIdempotencyKey } from "../shared/idempotency";
 import { PROVIDER_LABEL } from "../shared/status";
 
 const schema = z.object({
@@ -69,6 +71,8 @@ export function CancelOrderDialog({
   // See ProductEditor: React Hook Form must re-run `register` after `reset()`.
   "use no memo";
   const [formError, setFormError] = useState<string | null>(null);
+  // One key per dialog instance: reused on retries and re-opens, renewed on success.
+  const idempotency = useIdempotencyKey();
   const {
     register,
     handleSubmit,
@@ -79,7 +83,9 @@ export function CancelOrderDialog({
 
   const onSubmit = handleSubmit(async ({ reason }) => {
     setFormError(null);
-    const result = await cancelOrder(order, reason);
+    const result = idempotency.settle(
+      await runAction((csrf) => cancelOrder(order.id, reason, idempotency.key, csrf)),
+    );
     if (!result.ok) {
       if (result.fieldErrors?.reason) {
         setError("reason", { message: result.fieldErrors.reason }, { shouldFocus: true });

@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import type { Route } from "next";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useState } from "react";
@@ -30,8 +31,14 @@ import { Icon } from "@/components/ui/icon";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/toast";
-import { saveProduct } from "@/data/products.actions";
+import {
+  deleteProductImage,
+  reorderProductImages,
+  saveProduct,
+  uploadProductImage,
+} from "@/data/products.actions";
 import { productFormSchema, type ProductFormValues } from "@/data/products.schema";
+import type { ActionResult } from "@/data/types";
 import {
   CATEGORY_IDS,
   CONTENT_LANGUAGES,
@@ -39,10 +46,12 @@ import {
   productDisplayName,
   type ContentLanguage,
   type Product,
+  type ProductImage,
 } from "@/domain/product";
 import { cn } from "@/lib/cn";
 import { formatDateTimeShort, formatNumber } from "@/lib/format";
 
+import { runAction } from "../shared/action-client";
 import { ImageManager } from "./image-manager";
 import { CATEGORY_LABEL, PRODUCT_STATUS_META } from "./labels";
 import { LanguageTabs } from "./language-tabs";
@@ -92,9 +101,111 @@ interface ProductEditorProps {
   product: Product | null;
   /** "2 daqiqa oldin" — when stock was last read from Billz. */
   lastSyncLabel: string;
+  /**
+   * After creating a product, go to its edit route (api mode: the id is
+   * routable). In demo mode the draft id is not, so the editor stays in place.
+   */
+  redirectOnCreate?: boolean;
 }
 
-export function ProductEditor({ product, lastSyncLabel }: ProductEditorProps) {
+/** Product images as the form holds them, with the upload state kept outside the form. */
+interface PendingUploads {
+  /** Temporary `upload-…` id → the picked file, until it is uploaded. */
+  files: Map<string, File>;
+  /** Temporary id → the server's image, once uploaded (a retry does not re-upload). */
+  uploaded: Map<string, ProductImage>;
+}
+
+/**
+ * Product save orchestration (spec "Frontend wiring › Product save
+ * orchestration"): 1. create the product (forced hidden) or patch it; 2.
+ * upload the new files; 3. delete removed images; 4. save the image order;
+ * 5. patch `status` to active when requested. Each step is a Server Action
+ * run through `runAction` (csrf + refresh-and-retry). Activation waits for
+ * the images, so "active needs an image" is validated against the real set.
+ */
+async function persistProduct(
+  saved: Product | null,
+  targetId: string | null,
+  values: ProductFormValues,
+  pending: PendingUploads,
+): Promise<{ result: ActionResult<Product>; createdId: string | null }> {
+  const existingIds = new Set(saved?.images.map((image) => image.id) ?? []);
+  const isNew = (image: ProductImage) =>
+    pending.files.has(image.id) || pending.uploaded.has(image.id);
+  const keptExisting = values.images.filter((image) => existingIds.has(image.id));
+  const removed = (saved?.images ?? []).filter(
+    (image) => !values.images.some((kept) => kept.id === image.id),
+  );
+  const wantActive = values.status === "active";
+  // An already-active product stays active through the patch when its kept
+  // images still satisfy the rule; otherwise activation is the last step.
+  const firstStatus =
+    wantActive && saved?.status === "active" && keptExisting.length > 0 ? "active" : "hidden";
+
+  const first = await runAction((csrf) =>
+    saveProduct(targetId, { ...values, status: firstStatus, images: keptExisting }, csrf),
+  );
+  if (!first.ok) return { result: first, createdId: null };
+  let product = first.data;
+  const id = product.id;
+  const createdId = targetId === null ? id : null;
+  const fail = (failure: Extract<ActionResult<never>, { ok: false }>, message?: string) => ({
+    result: { ...failure, error: message ?? failure.error, fieldErrors: undefined },
+    createdId,
+  });
+
+  const finalImages: ProductImage[] = [];
+  for (const image of values.images) {
+    if (!isNew(image)) {
+      finalImages.push(image);
+      continue;
+    }
+    const known = pending.uploaded.get(image.id);
+    if (known) {
+      finalImages.push(known);
+      continue;
+    }
+    const file = pending.files.get(image.id)!;
+    const formData = new FormData();
+    formData.set("file", file, file.name);
+    const upload = await runAction((csrf) => uploadProductImage(id, formData, csrf));
+    if (!upload.ok) return fail(upload, upload.fieldErrors?.file);
+    // Keep the local preview when the server sent no URL (demo mode).
+    const uploaded = { ...upload.data, src: upload.data.src ?? image.src };
+    pending.uploaded.set(image.id, uploaded);
+    pending.files.delete(image.id);
+    finalImages.push(uploaded);
+  }
+
+  for (const image of removed) {
+    const deleted = await runAction((csrf) => deleteProductImage(id, image.id, csrf));
+    if (!deleted.ok) return fail(deleted);
+  }
+
+  if (finalImages.length > 0 || removed.length > 0) {
+    const ordered = await runAction((csrf) =>
+      reorderProductImages(
+        id,
+        finalImages.map((image) => image.id),
+        csrf,
+      ),
+    );
+    if (!ordered.ok) return fail(ordered);
+  }
+  product = { ...product, images: finalImages };
+
+  if (wantActive && firstStatus !== "active") {
+    const activated = await runAction((csrf) =>
+      saveProduct(id, { ...values, status: "active", images: finalImages }, csrf),
+    );
+    if (!activated.ok) return { result: activated, createdId };
+    product = { ...activated.data, images: finalImages };
+  }
+  return { result: { ok: true, data: product }, createdId };
+}
+
+export function ProductEditor({ product, lastSyncLabel, redirectOnCreate }: ProductEditorProps) {
   // React Hook Form re-registers fields during render after `reset()`; the
   // compiler's memoisation of `register(...)` calls would skip that.
   "use no memo";
@@ -102,6 +213,11 @@ export function ProductEditor({ product, lastSyncLabel }: ProductEditorProps) {
   const toast = useToast();
   const idBase = useId();
   const [saved, setSaved] = useState<Product | null>(product);
+  // The id to patch: set as soon as a create succeeds, even if a later step
+  // of the orchestration failed, so a retry never creates a duplicate.
+  const [targetId, setTargetId] = useState<string | null>(product?.id ?? null);
+  // A stable mutable holder (not React state: nothing renders from it).
+  const [pending] = useState<PendingUploads>(() => ({ files: new Map(), uploaded: new Map() }));
   const [lang, setLang] = useState<ContentLanguage>("uz");
   const [leaveOpen, setLeaveOpen] = useState(false);
 
@@ -145,7 +261,8 @@ export function ProductEditor({ product, lastSyncLabel }: ProductEditorProps) {
   };
 
   const onSubmit = handleSubmit(async (values) => {
-    const result = await saveProduct(saved, values);
+    const { result, createdId } = await persistProduct(saved, targetId, values, pending);
+    if (createdId) setTargetId(createdId);
     if (!result.ok) {
       const entries = Object.entries(result.fieldErrors ?? {});
       for (const [path, message] of entries) {
@@ -156,8 +273,11 @@ export function ProductEditor({ product, lastSyncLabel }: ProductEditorProps) {
       }
       return;
     }
+    pending.files.clear();
+    pending.uploaded.clear();
     setSaved(result.data);
     toast({ title: "Mahsulot saqlandi", description: "O‘zgarishlar amallar jurnaliga yozildi" });
+    if (createdId && redirectOnCreate) router.replace(`/admin/products/${createdId}` as Route);
   }, focusFirstError);
 
   const complete = Object.fromEntries(
@@ -296,8 +416,18 @@ export function ProductEditor({ product, lastSyncLabel }: ProductEditorProps) {
               <ImageManager
                 images={images.fields}
                 onMove={images.move}
-                onRemove={images.remove}
-                onAdd={(added) => images.append(added)}
+                onRemove={(index) => {
+                  const id = images.fields[index]?.id;
+                  if (id) {
+                    pending.files.delete(id);
+                    pending.uploaded.delete(id);
+                  }
+                  images.remove(index);
+                }}
+                onAdd={(added, files) => {
+                  for (const [id, file] of files) pending.files.set(id, file);
+                  images.append(added);
+                }}
                 error={errors.images?.message ?? errors.images?.root?.message}
               />
             </Card>

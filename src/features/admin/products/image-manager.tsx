@@ -13,7 +13,11 @@ interface ImageManagerProps {
   images: ReadonlyArray<ProductImage>;
   onMove: (from: number, to: number) => void;
   onRemove: (index: number) => void;
-  onAdd: (images: ProductImage[]) => void;
+  /**
+   * New tiles with their files, keyed by the temporary `upload-…` id. The
+   * editor keeps the files until it uploads them on save.
+   */
+  onAdd: (images: ProductImage[], files: ReadonlyMap<string, File>) => void;
   error?: string;
 }
 
@@ -24,7 +28,8 @@ const tileButton =
  * Product images: the first one is the main image. Order changes by dragging
  * a tile (mouse) or from each tile's "tartib" menu (keyboard, touch and a
  * single-pointer alternative to dragging, WCAG 2.5.7). Uploads are previewed
- * locally with object URLs until the form is saved.
+ * locally with object URLs; the files themselves go to the server when the
+ * form is saved (`uploadProductImage`, one call per file).
  */
 export function ImageManager({ images, onMove, onRemove, onAdd, error }: ImageManagerProps) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -68,6 +73,7 @@ export function ImageManager({ images, onMove, onRemove, onAdd, error }: ImageMa
     event.target.value = "";
     const errors: string[] = [];
     const added: ProductImage[] = [];
+    const addedFiles = new Map<string, File>();
     for (const file of files) {
       if (images.length + added.length >= MAX_IMAGES) {
         errors.push(`Ko‘pi bilan ${MAX_IMAGES} ta rasm qo‘shish mumkin.`);
@@ -83,11 +89,13 @@ export function ImageManager({ images, onMove, onRemove, onAdd, error }: ImageMa
       }
       const src = URL.createObjectURL(file);
       createdUrls.current.add(src);
-      added.push({ id: `upload-${crypto.randomUUID()}`, label: file.name, src });
+      const id = `upload-${crypto.randomUUID()}`;
+      added.push({ id, label: file.name, src });
+      addedFiles.set(id, file);
     }
     setUploadErrors(errors);
     if (added.length > 0) {
-      onAdd(added);
+      onAdd(added, addedFiles);
       setAnnouncement(`${added.length} ta rasm qo‘shildi. Saqlash tugmasini bosing.`);
     }
   };

@@ -8,10 +8,12 @@ import { Button, buttonStyles } from "@/components/ui/button";
 import { Dialog, DialogClose } from "@/components/ui/dialog";
 import { AffixInput, Field, TextArea } from "@/components/ui/field";
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import { adjustCashback } from "@/data/customers.actions";
-import type { LedgerEntry } from "@/domain/cashback";
+import { adjustCashback, type CashbackAdjustment } from "@/data/customers.actions";
 import { cn } from "@/lib/cn";
 import { formatNumber } from "@/lib/format";
+
+import { runAction } from "../shared/action-client";
+import { useIdempotencyKey } from "../shared/idempotency";
 
 const schema = z.object({
   direction: z.enum(["add", "subtract"]),
@@ -34,18 +36,24 @@ const DEFAULTS: Values = { direction: "add", amount: Number.NaN, reason: "" };
 interface AdjustCashbackDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  customerId: string;
   balance: number;
-  onAdjusted: (entry: LedgerEntry) => void;
+  onAdjusted: (adjustment: CashbackAdjustment) => void;
+  onError?: (message: string) => void;
 }
 
 export function AdjustCashbackDialog({
   open,
   onOpenChange,
+  customerId,
   balance,
   onAdjusted,
+  onError,
 }: AdjustCashbackDialogProps) {
   // React Hook Form must re-run `register` after `reset()` (see ProductEditor).
   "use no memo";
+  // One key per dialog instance: reused on retries and re-opens, renewed on success.
+  const idempotency = useIdempotencyKey();
   const {
     control,
     register,
@@ -65,11 +73,15 @@ export function AdjustCashbackDialog({
       setError("amount", { message: "Balansdan ko‘p ayirib bo‘lmaydi." }, { shouldFocus: true });
       return;
     }
-    const result = await adjustCashback(balance, values);
+    const result = idempotency.settle(
+      await runAction((csrf) => adjustCashback(customerId, values, idempotency.key, csrf)),
+    );
     if (!result.ok) {
-      for (const [path, message] of Object.entries(result.fieldErrors ?? {})) {
+      const entries = Object.entries(result.fieldErrors ?? {});
+      for (const [path, message] of entries) {
         setError(path as Path<Values>, { message });
       }
+      if (entries.length === 0) onError?.(result.error);
       return;
     }
     reset(DEFAULTS);

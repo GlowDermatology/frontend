@@ -16,7 +16,6 @@ import { Icon } from "@/components/ui/icon";
 import { SelectMenu, filterTriggerClass } from "@/components/ui/menu";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { useToast } from "@/components/ui/toast";
-import { referenceNow } from "@/data/config";
 import { sendNotification } from "@/data/notifications.actions";
 import {
   BODY_MAX,
@@ -30,6 +29,9 @@ import {
 } from "@/domain/notification";
 import { cn } from "@/lib/cn";
 import { formatDateTimeShort, formatNumber, formatPhone } from "@/lib/format";
+
+import { runAction } from "../shared/action-client";
+import { useIdempotencyKey } from "../shared/idempotency";
 
 const KIND_LABEL: Record<NotificationKind, string> = { promo: "Aksiya", general: "Umumiy" };
 
@@ -51,47 +53,49 @@ const fromLocalInput = (value: string) => `${value}:00+05:00`;
 
 const phoneDigits = (value: string) => value.replace(/\D/g, "");
 
-const schema = z
-  .object({
-    kind: z.enum(["promo", "general"]),
-    title: z
-      .string()
-      .trim()
-      .min(3, "Sarlavhani kiriting (kamida 3 belgi).")
-      .max(TITLE_MAX, `${TITLE_MAX} belgidan oshmasin.`),
-    body: z
-      .string()
-      .trim()
-      .min(5, "Xabar matnini kiriting.")
-      .max(BODY_MAX, `${BODY_MAX} belgidan oshmasin.`),
-    link: z.string(),
-    audience: z.enum(["all", "group", "one"]),
-    segmentId: z.string(),
-    phone: z.string(),
-    when: z.enum(["now", "later"]),
-    scheduledAt: z.string(),
-  })
-  .superRefine((values, ctx) => {
-    if (values.audience === "one" && !/^998\d{9}$/.test(phoneDigits(values.phone))) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["phone"],
-        message: "Telefon raqamni +998 XX XXX XX XX ko‘rinishida kiriting.",
-      });
-    }
-    if (
-      values.when === "later" &&
-      (!values.scheduledAt || new Date(fromLocalInput(values.scheduledAt)) <= referenceNow())
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["scheduledAt"],
-        message: "Kelajakdagi vaqtni tanlang.",
-      });
-    }
-  });
+/** `now` is the server's render time: the schedule must be in its future. */
+const buildSchema = (now: string) =>
+  z
+    .object({
+      kind: z.enum(["promo", "general"]),
+      title: z
+        .string()
+        .trim()
+        .min(3, "Sarlavhani kiriting (kamida 3 belgi).")
+        .max(TITLE_MAX, `${TITLE_MAX} belgidan oshmasin.`),
+      body: z
+        .string()
+        .trim()
+        .min(5, "Xabar matnini kiriting.")
+        .max(BODY_MAX, `${BODY_MAX} belgidan oshmasin.`),
+      link: z.string(),
+      audience: z.enum(["all", "group", "one"]),
+      segmentId: z.string(),
+      phone: z.string(),
+      when: z.enum(["now", "later"]),
+      scheduledAt: z.string(),
+    })
+    .superRefine((values, ctx) => {
+      if (values.audience === "one" && !/^998\d{9}$/.test(phoneDigits(values.phone))) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["phone"],
+          message: "Telefon raqamni +998 XX XXX XX XX ko‘rinishida kiriting.",
+        });
+      }
+      if (
+        values.when === "later" &&
+        (!values.scheduledAt || new Date(fromLocalInput(values.scheduledAt)) <= new Date(now))
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["scheduledAt"],
+          message: "Kelajakdagi vaqtni tanlang.",
+        });
+      }
+    });
 
-type Values = z.infer<typeof schema>;
+type Values = z.infer<ReturnType<typeof buildSchema>>;
 
 const linkKey = (link: NotificationLink) =>
   link.kind === "none" ? "none" : `product:${link.productId}`;
@@ -107,6 +111,8 @@ interface NotificationsViewProps {
   draft: NotificationDraft | null;
   /** Pre-selected single recipient (from a customer card). */
   recipient: { name: string; phone: string } | null;
+  /** Server render time (ISO); the earliest allowed schedule. */
+  now: string;
 }
 
 export function NotificationsView({
@@ -117,6 +123,7 @@ export function NotificationsView({
   defaultSchedule,
   draft,
   recipient,
+  now,
 }: NotificationsViewProps) {
   // React Hook Form must re-run `register` after `reset()` (see ProductEditor).
   "use no memo";
@@ -124,9 +131,13 @@ export function NotificationsView({
   const idBase = useId();
   const [history, setHistory] = useState(initialHistory);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [image, setImage] = useState<{ name: string; src: string } | null>(null);
+  // The picked file travels with the FormData; the object URL is only the preview.
+  const [image, setImage] = useState<{ name: string; src: string; file: File } | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  // One key per compose form: reused on retries, renewed after each sent message.
+  const idempotency = useIdempotencyKey();
+  const [schema] = useState(() => buildSchema(now));
 
   const defaults: Values = {
     kind: draft?.kind ?? "promo",
@@ -165,27 +176,29 @@ export function NotificationsView({
   const recipients =
     audience === "all" ? totalDevices : audience === "group" ? (segment?.size ?? 0) : 1;
 
-  const audienceLabel = (values: Values) =>
-    values.audience === "all"
-      ? `Barcha · ${formatNumber(totalDevices)}`
-      : values.audience === "group" && segment
-        ? `${segment.name} · ${formatNumber(segment.size)}`
-        : `Bitta mijoz · ${formatPhone(`+${phoneDigits(values.phone)}`)}`;
-
   const submit = async (values: Values) => {
     const scheduled = values.when === "later" ? fromLocalInput(values.scheduledAt) : null;
-    const result = await sendNotification({
-      kind: values.kind,
-      title: values.title,
-      body: values.body,
-      link: selectedLink,
-      audienceLabel: audienceLabel(values),
-      scheduledAt: scheduled,
-    });
+    const formData = new FormData();
+    formData.set("kind", values.kind);
+    formData.set("title", values.title);
+    formData.set("body", values.body);
+    formData.set("link", linkKey(selectedLink));
+    formData.set("audience", values.audience);
+    formData.set("segmentId", values.audience === "group" ? values.segmentId : "");
+    formData.set("phone", values.audience === "one" ? `+${phoneDigits(values.phone)}` : "");
+    formData.set("scheduledAt", scheduled ?? "");
+    if (image) formData.set("image", image.file, image.name);
+    const result = idempotency.settle(
+      await runAction((csrf) => sendNotification(formData, idempotency.key, csrf)),
+    );
     setConfirmOpen(false);
     if (!result.ok) {
-      for (const [path, message] of Object.entries(result.fieldErrors ?? {})) {
+      const entries = Object.entries(result.fieldErrors ?? {});
+      for (const [path, message] of entries) {
         setError(path as Path<Values>, { message });
+      }
+      if (entries.length === 0) {
+        toast({ tone: "info", title: "Yuborilmadi", description: result.error });
       }
       return;
     }
@@ -215,7 +228,7 @@ export function NotificationsView({
     if (!IMAGE_TYPES.includes(file.type)) return setImageError("Faqat JPG yoki PNG.");
     if (file.size > IMAGE_MAX_BYTES) return setImageError("Rasm 2 MB dan katta.");
     setImageError(null);
-    setImage({ name: file.name, src: URL.createObjectURL(file) });
+    setImage({ name: file.name, src: URL.createObjectURL(file), file });
   };
 
   const audienceCards = [
@@ -469,7 +482,7 @@ export function NotificationsView({
                   <input
                     type="datetime-local"
                     {...register("scheduledAt")}
-                    min={toLocalInput(referenceNow().toISOString())}
+                    min={toLocalInput(now)}
                     aria-invalid={errors.scheduledAt ? true : undefined}
                     aria-describedby={errors.scheduledAt ? `${idBase}-when-error` : undefined}
                     className="bg-transparent text-[14px] font-semibold tabular-nums focus-visible:outline-none"

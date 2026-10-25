@@ -1,7 +1,7 @@
 import { DASHBOARD_RANGES } from "@/domain/dashboard";
 import { requireStaff } from "@/data/auth";
-import { referenceNow } from "@/data/config";
 import { getDashboard } from "@/data/dashboard";
+import { requestNow } from "@/data/now";
 import { getRecentOrders } from "@/data/orders";
 import { formatDayMonthWeekday, formatNumber } from "@/lib/format";
 
@@ -16,8 +16,11 @@ import { StatCard } from "./stat-card";
 export async function DashboardContent({ searchParams }: { searchParams: Promise<SearchParams> }) {
   await requireStaff();
   const range = oneOf(firstParam(await searchParams, "range"), DASHBOARD_RANGES) ?? "today";
-  const [data, recent] = await Promise.all([getDashboard(range), getRecentOrders(6)]);
-  const now = referenceNow();
+  const [data, recent, now] = await Promise.all([
+    getDashboard(range),
+    getRecentOrders(6),
+    requestNow(),
+  ]);
   const orders = data.series.reduce((sum, p) => sum + p.orders, 0);
   const revenue = data.series.reduce((sum, p) => sum + p.revenue, 0);
 

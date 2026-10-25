@@ -70,11 +70,14 @@ const tabTrigger =
 export function CustomerView({ customer, tier, now }: CustomerViewProps) {
   const toast = useToast();
   const [ledger, setLedger] = useState<LedgerEntry[]>(customer.ledger);
+  // The server balance after the last adjustment, when the API sent one;
+  // otherwise the balance is the sum of the ledger rows (the demo rule).
+  const [serverBalance, setServerBalance] = useState<number | null>(null);
   const [tab, setTab] = useState("cashback");
   const [showAll, setShowAll] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
 
-  const balance = ledgerBalance(ledger);
+  const balance = serverBalance ?? ledgerBalance(ledger);
   const rows = withRunningBalance(ledger);
   const visibleRows = showAll ? rows : rows.slice(0, LEDGER_PREVIEW);
   const lifetime = lifetimeTotal(customer);
@@ -310,9 +313,14 @@ export function CustomerView({ customer, tier, now }: CustomerViewProps) {
       <AdjustCashbackDialog
         open={adjustOpen}
         onOpenChange={setAdjustOpen}
+        customerId={customer.id}
         balance={balance}
-        onAdjusted={(entry) => {
+        onError={(message) =>
+          toast({ tone: "info", title: "Amal bajarilmadi", description: message })
+        }
+        onAdjusted={({ entry, balance: next }) => {
           setLedger((current) => [entry, ...current]);
+          if (next !== undefined) setServerBalance(next);
           setTab("cashback");
           setAdjustOpen(false);
           toast({

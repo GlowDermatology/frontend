@@ -30,6 +30,9 @@ import {
   tashkentParts,
 } from "@/lib/format";
 
+import { runAction } from "../shared/action-client";
+import { useIdempotencyKey } from "../shared/idempotency";
+
 /** The sample customer from the design: 19.5 mln lifetime, 1 mln purchase. */
 const SAMPLE = {
   lifetimeBefore: 19_500_000,
@@ -87,6 +90,8 @@ export function CashbackEditor({
   const [earnOnCashbackPaid, setEarnOnCashbackPaid] = useState(policy.earnOnCashbackPaid);
   const [effectiveFrom, setEffectiveFrom] = useState(nextEffectiveFrom);
   const [saving, setSaving] = useState(false);
+  // One key per editor instance: reused on retries, renewed after each saved version.
+  const idempotency = useIdempotencyKey();
 
   const parsed: CashbackTier[] = tiers.map((t) => ({ ...t, percent: parsePercent(t.percent) }));
   const analysis = analyzeTiers(parsed);
@@ -132,7 +137,10 @@ export function CashbackEditor({
       return;
     }
     setSaving(true);
-    const result = await saveCashbackPolicy(baseline, { ...baseline, ...rules, effectiveFrom });
+    const draft = { ...baseline, ...rules, effectiveFrom };
+    const result = idempotency.settle(
+      await runAction((csrf) => saveCashbackPolicy(draft, idempotency.key, csrf)),
+    );
     setSaving(false);
     if (!result.ok) {
       toast({ tone: "info", title: "Saqlanmadi", description: result.error });
@@ -144,6 +152,9 @@ export function CashbackEditor({
       title: `Siyosat v${result.data.version.version} saqlandi`,
       description: `${formatDayMonth(effectiveFrom)}dan boshlab yangi xaridlarga qo‘llanadi`,
     });
+    if (result.data.warnings?.length) {
+      toast({ tone: "info", title: "Eslatma", description: result.data.warnings.join(" ") });
+    }
   };
 
   const scheduled = versions.find((v) => v.scheduled);

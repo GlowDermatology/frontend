@@ -10,12 +10,24 @@ import { Badge, type Tone } from "@/components/ui/badge";
 import { Button, buttonStyles } from "@/components/ui/button";
 import { Card, CardTitle, DetailRow } from "@/components/ui/card";
 import { AlertDialog, AlertDialogCancel } from "@/components/ui/dialog";
+import { Field, TextArea } from "@/components/ui/field";
 import { Icon } from "@/components/ui/icon";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { useToast } from "@/components/ui/toast";
-import { updateAppointment, type AppointmentAction } from "@/data/appointments.actions";
-import type { DayAppointment } from "@/data/appointments";
-import { appointmentActions, type AppointmentStatus, type Specialist } from "@/domain/appointment";
+import {
+  cancelAppointment,
+  updateAppointment,
+  type AppointmentAction,
+} from "@/data/appointments.actions";
+import type { AppointmentDay, DayAppointment, PendingAppointments } from "@/data/appointments";
+import {
+  CANCEL_REASON_MAX,
+  appointmentActions,
+  canChangeAppointment,
+  type AppointmentStatus,
+  type BookingMeta,
+  type Specialist,
+} from "@/domain/appointment";
 import { cn } from "@/lib/cn";
 import {
   WEEKDAYS_SHORT,
@@ -25,12 +37,14 @@ import {
   formatSom,
   formatTime,
   formatWeekdayDayMonth,
+  formatWeekdayShortDateTime,
   tashkentParts,
+  toLocalIsoDate,
 } from "@/lib/format";
 
 import { runAction } from "../shared/action-client";
 import { useIdempotencyKey } from "../shared/idempotency";
-import { useNotConnected } from "../shell/not-connected";
+import { BookingDialog } from "./booking-dialog";
 
 /** Height of one hour row in the day grid, px (as drawn). */
 const HOUR = 88;
@@ -63,6 +77,21 @@ const STATUS_LOOK: Record<
     box: "border border-transparent bg-gold-soft",
     dot: "bg-gold",
   },
+  cancelled: {
+    label: "Bekor qilindi",
+    tone: "muted",
+    box: "border border-dashed border-line-strong bg-surface opacity-75",
+    dot: "bg-ink-muted",
+  },
+};
+
+/** Cancelled and rejected visits are drawn first, so a new booking in their slot sits on top. */
+const DRAW_ORDER: Record<AppointmentStatus, number> = {
+  cancelled: 0,
+  rejected: 0,
+  requested: 1,
+  confirmed: 1,
+  attended: 1,
 };
 
 const minutesOf = (hhmm: string) => {
@@ -78,27 +107,65 @@ interface AppointmentsViewProps {
   day: string;
   specialists: ReadonlyArray<Specialist>;
   appointments: DayAppointment[];
+  /** Requests still ahead (`appointments/pending-summary/`), for the header line. */
+  pendingSummary: PendingAppointments;
+  /** What the booking dialogs offer (`appointments/meta/`). */
+  meta: BookingMeta;
+  /** Server render time (ISO): today's date and the earliest bookable start. */
+  now: string;
   prevHref: Route;
   nextHref: Route;
 }
+
+type BookingState = { kind: "create" } | { kind: "reschedule"; appointment: DayAppointment } | null;
+
+const requestedCount = (list: ReadonlyArray<DayAppointment>) =>
+  list.filter((a) => a.status === "requested").length;
 
 export function AppointmentsView({
   day,
   specialists,
   appointments: initial,
+  pendingSummary,
+  meta,
+  now,
   prevHref,
   nextHref,
 }: AppointmentsViewProps) {
   const toast = useToast();
-  const notConnected = useNotConnected();
+  // The server's day replaces the local copy whenever a newer one arrives
+  // (the route refresh after an api-mode action, or a navigation back to the
+  // kept-mounted route); actions update the local copy from their answer so
+  // mock mode, which persists nothing, shows the change too.
+  const [source, setSource] = useState(initial);
   const [appointments, setAppointments] = useState(initial);
+  if (initial !== source) {
+    setSource(initial);
+    setAppointments(initial);
+  }
   const [selectedId, setSelectedId] = useState(
     () => (initial.find((a) => a.status === "requested") ?? initial[0])?.id ?? null,
   );
   const [rejectOpen, setRejectOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const [booking, setBooking] = useState<BookingState>(null);
+  // Mounts a fresh booking dialog (and form) for every opening.
+  const [bookingInstance, setBookingInstance] = useState(0);
   const [pending, startTransition] = useTransition();
   // One key per pending change; actions run one at a time (`pending` disables the buttons).
   const idempotency = useIdempotencyKey();
+  // The dialogs' keys survive re-opens until a success (contract §1.7).
+  const createKey = useIdempotencyKey();
+  const rescheduleKey = useIdempotencyKey();
+  const cancelKey = useIdempotencyKey();
+  const dayData: AppointmentDay = { date: day, specialists, appointments };
+
+  const openBooking = (state: Exclude<BookingState, null>) => {
+    setBookingInstance((current) => current + 1);
+    setBooking(state);
+  };
 
   const dayStart = Math.min(...specialists.map((s) => minutesOf(s.workingHours.start)), 9 * 60);
   const dayEnd = Math.max(...specialists.map((s) => minutesOf(s.workingHours.end)), 18 * 60);
@@ -107,8 +174,61 @@ export function AppointmentsView({
   const height = (from: number, to: number) => Math.max(40, ((to - from) * HOUR) / 60 - 4);
 
   const selected = appointments.find((a) => a.id === selectedId) ?? null;
-  const pendingCount = appointments.filter((a) => a.status === "requested").length;
+  // The server's count of requests still ahead, adjusted by what this board
+  // changed locally since the server answered (0 once the refresh lands).
+  const pendingCount = Math.max(
+    0,
+    pendingSummary.count + requestedCount(appointments) - requestedCount(source),
+  );
   const specialistOf = (id: string) => specialists.find((s) => s.id === id);
+
+  const focusVisit = (id: string) =>
+    requestAnimationFrame(() =>
+      document.querySelector<HTMLElement>(`[data-appointment-id="${id}"]`)?.focus(),
+    );
+
+  const onBooked = (appointment: DayAppointment, kind: "create" | "reschedule") => {
+    const sameDay = toLocalIsoDate(appointment.start) === day;
+    setAppointments((current) => {
+      const others = current.filter((a) => a.id !== appointment.id);
+      return sameDay ? [...others, appointment] : others;
+    });
+    if (sameDay) {
+      setSelectedId(appointment.id);
+      focusVisit(appointment.id);
+    }
+    const when = formatWeekdayShortDateTime(appointment.start);
+    toast(
+      kind === "create"
+        ? { title: "Qabul yozildi", description: `${appointment.customer.name} · ${when}` }
+        : { title: "Qabul ko‘chirildi", description: `${appointment.customer.name} · ${when}` },
+    );
+  };
+
+  const confirmCancel = () => {
+    if (!selected) return;
+    const { id } = selected;
+    startTransition(async () => {
+      setCancelError(null);
+      const result = cancelKey.settle(
+        await runAction((csrf) =>
+          cancelAppointment(id, { reason: cancelReason }, cancelKey.key, csrf),
+        ),
+      );
+      if (!result.ok) {
+        setCancelError(result.fieldErrors?.reason ?? result.error);
+        return;
+      }
+      setCancelOpen(false);
+      setCancelReason("");
+      setAppointments((current) => current.map((a) => (a.id === result.data.id ? result.data : a)));
+      focusVisit(id);
+      toast({
+        title: "Qabul bekor qilindi",
+        description: `${result.data.customer.name} · ${formatTime(result.data.start)}`,
+      });
+    });
+  };
 
   const run = (action: AppointmentAction) => {
     if (!selected) return;
@@ -124,9 +244,7 @@ export function AppointmentsView({
       }
       setAppointments((current) => current.map((a) => (a.id === result.data.id ? result.data : a)));
       // The pressed action button disappears with the new status; keep focus on the visit.
-      requestAnimationFrame(() =>
-        document.querySelector<HTMLElement>(`[data-appointment-id="${id}"]`)?.focus(),
-      );
+      focusVisit(id);
       toast(
         action === "confirm"
           ? { title: "Qabul tasdiqlandi", description: "Mijozga push yuborildi" }
@@ -146,10 +264,14 @@ export function AppointmentsView({
     <>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
-          <span className="text-body-sm text-ink-muted" aria-live="polite">
+          <span className="text-body-sm text-ink-muted tabular-nums" aria-live="polite">
             {pendingCount > 0
               ? `${pendingCount} ta so‘rov tasdiq kutmoqda`
               : "Barcha so‘rovlar ko‘rib chiqildi"}
+            {pendingCount > 0 &&
+              pendingSummary.nextAt &&
+              pendingSummary.count === pendingCount &&
+              ` · eng yaqini ${formatWeekdayShortDateTime(pendingSummary.nextAt)}`}
           </span>
           <h1 className="m-0 font-serif text-display leading-10 tracking-normal text-ink">
             Qabullar
@@ -190,11 +312,8 @@ export function AppointmentsView({
             ]}
           />
           <Button
-            onClick={() =>
-              notConnected(
-                "Qabul qo‘shish formasi hali loyihalanmagan; hozircha qabullar ilovadan keladi.",
-              )
-            }
+            onClick={() => openBooking({ kind: "create" })}
+            disabled={meta.specialists.length === 0}
           >
             <Icon name="plus" size={18} />
             Qabul qo‘shish
@@ -302,6 +421,7 @@ export function AppointmentsView({
                     })}
                     {appointments
                       .filter((a) => a.specialistId === specialist.id)
+                      .sort((a, b) => DRAW_ORDER[a.status] - DRAW_ORDER[b.status])
                       .map((appointment) => {
                         const from = minutesOfIso(appointment.start);
                         const to = minutesOfIso(appointment.end);
@@ -435,9 +555,7 @@ export function AppointmentsView({
                     <Button
                       variant="outline"
                       disabled={pending}
-                      onClick={() =>
-                        notConnected("Vaqtni o‘zgartirish oynasi hali loyihalanmagan.")
-                      }
+                      onClick={() => openBooking({ kind: "reschedule", appointment: selected })}
                     >
                       Vaqtni o‘zgartirish
                     </Button>
@@ -458,11 +576,26 @@ export function AppointmentsView({
                   <Button
                     variant="outline"
                     disabled={pending}
-                    onClick={() => notConnected("Qabulni ko‘chirish oynasi hali loyihalanmagan.")}
+                    onClick={() => openBooking({ kind: "reschedule", appointment: selected })}
                   >
                     Ko‘chirish
                   </Button>
                 </div>
+              )}
+              {canChangeAppointment(selected.status) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={pending}
+                  className="self-start text-danger-strong"
+                  onClick={() => {
+                    setCancelError(null);
+                    setCancelOpen(true);
+                  }}
+                >
+                  <Icon name="close" size={16} />
+                  Qabulni bekor qilish
+                </Button>
               )}
             </>
           ) : (
@@ -498,6 +631,69 @@ export function AppointmentsView({
           </Button>
         </div>
       </AlertDialog>
+
+      <AlertDialog
+        open={cancelOpen}
+        onOpenChange={(open) => !pending && setCancelOpen(open)}
+        title="Qabulni bekor qilasizmi?"
+        description={
+          selected && (
+            <p className="m-0 text-[14px] leading-5 text-ink">
+              {selected.customer.name}ning {formatWeekdayShortDateTime(selected.start)} dagi qabuli
+              bekor qilinadi, vaqt bo‘shaydi va mijozga xabar yuboriladi.
+            </p>
+          )
+        }
+      >
+        <Field
+          label="Sabab (ixtiyoriy)"
+          error={cancelError ?? undefined}
+          aside={
+            <span className="text-caption text-ink-muted tabular-nums">
+              {cancelReason.length} / {CANCEL_REASON_MAX}
+            </span>
+          }
+        >
+          {(c) => (
+            <TextArea
+              {...c}
+              rows={2}
+              maxLength={CANCEL_REASON_MAX}
+              value={cancelReason}
+              onChange={(event) => setCancelReason(event.target.value)}
+            />
+          )}
+        </Field>
+        <div className="mt-1.5 flex flex-wrap justify-end gap-2">
+          <AlertDialogCancel disabled={pending} className={buttonStyles({ variant: "outline" })}>
+            Orqaga
+          </AlertDialogCancel>
+          <Button
+            variant="destructive"
+            disabled={pending}
+            aria-busy={pending}
+            onClick={confirmCancel}
+          >
+            {pending ? "Bekor qilinmoqda…" : "Qabulni bekor qilish"}
+          </Button>
+        </div>
+      </AlertDialog>
+
+      {booking && (
+        <BookingDialog
+          key={bookingInstance}
+          open
+          onOpenChange={(open) => {
+            if (!open) setBooking(null);
+          }}
+          mode={booking}
+          meta={meta}
+          day={dayData}
+          now={now}
+          idempotency={booking.kind === "create" ? createKey : rescheduleKey}
+          onSaved={(appointment) => onBooked(appointment, booking.kind)}
+        />
+      )}
     </>
   );
 }

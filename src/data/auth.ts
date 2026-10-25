@@ -33,7 +33,10 @@ export type StaffSession =
 export interface VerifyStaffOptions {
   /**
    * The double-submit token presented by the caller (Server Action argument,
-   * `X-CSRF-Token` header). When given, it must equal the `gd_csrf` cookie.
+   * `X-CSRF-Token` header). When the property is present — even as
+   * `undefined` or `null` — it must equal the `gd_csrf` cookie; an absent or
+   * empty token fails with `reason: "csrf"`. Omit the property only for
+   * reads (page content, GET route handlers).
    */
   csrf?: string | null;
 }
@@ -59,7 +62,7 @@ export async function verifyStaff(options: VerifyStaffOptions = {}): Promise<Sta
   const claims = decodeJwtPayload(token);
   if (!claims) return { ok: false, reason: "no_session" };
   if (claims.exp * 1000 <= Date.now()) return { ok: false, reason: "expired" };
-  if (options.csrf !== undefined && !csrfMatches(store.get(names.csrf)?.value, options.csrf)) {
+  if ("csrf" in options && !csrfMatches(store.get(names.csrf)?.value, options.csrf)) {
     return { ok: false, reason: "csrf" };
   }
   return { ok: true, mode: "api", token, sid: claims.sid };

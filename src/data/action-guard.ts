@@ -34,10 +34,20 @@ export const INVALID_FORM_MESSAGE = "Maydonlarni tekshiring.";
 
 export type Guarded = { ok: true; session: VerifiedStaff } | ActionFailure;
 
+const CSRF_FAILURE: ActionFailure = { ok: false, error: CSRF_MESSAGE, code: "csrf" };
+
+/**
+ * A Server Action is a public POST endpoint whose arguments are attacker
+ * controlled; the `csrf: string` signature does not exist at runtime. A call
+ * that omits the token (or sends anything but a non-empty string) is refused
+ * here, before `verifyStaff`, so the double-submit check can never be skipped
+ * by leaving the argument out.
+ */
 export async function guardAction(csrf: string): Promise<Guarded> {
+  if (typeof csrf !== "string" || csrf.length === 0) return CSRF_FAILURE;
   const session = await verifyStaff({ csrf });
   if (session.ok) return { ok: true, session };
-  if (session.reason === "csrf") return { ok: false, error: CSRF_MESSAGE, code: "csrf" };
+  if (session.reason === "csrf") return CSRF_FAILURE;
   return { ok: false, error: SESSION_EXPIRED_MESSAGE, code: "session_expired" };
 }
 

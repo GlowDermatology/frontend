@@ -4,7 +4,7 @@ import { appointmentActions } from "@/domain/appointment";
 import { ledgerBalance } from "@/domain/cashback";
 import { canCancel, manualTransitions } from "@/domain/order";
 
-import type { StaffSession } from "./auth";
+import type { StaffSession, VerifyStaffOptions } from "./auth";
 
 /**
  * The Server Actions in mock mode: session/csrf gate, zod re-validation and
@@ -14,12 +14,14 @@ import type { StaffSession } from "./auth";
  * stubbed; `refresh()` must never run in mock mode.
  */
 
-const verifyStaff = vi.fn<() => Promise<StaffSession>>();
+const verifyStaff = vi.fn<(options?: VerifyStaffOptions) => Promise<StaffSession>>();
 const refresh = vi.fn();
 
 vi.mock("next/server", () => ({ connection: vi.fn(async () => undefined) }));
 vi.mock("next/cache", () => ({ refresh: () => refresh() }));
-vi.mock("./auth", () => ({ verifyStaff: () => verifyStaff() }));
+vi.mock("./auth", () => ({
+  verifyStaff: (options?: VerifyStaffOptions) => verifyStaff(options),
+}));
 vi.mock("./mock/delay", () => ({ delay: async () => undefined }));
 
 import { updateAppointment } from "./appointments.actions";
@@ -48,6 +50,7 @@ const originalSource = process.env.GLOWDERMA_DATA_SOURCE;
 
 beforeEach(() => {
   delete process.env.GLOWDERMA_DATA_SOURCE;
+  verifyStaff.mockReset();
   verifyStaff.mockResolvedValue({ ok: true, mode: "mock" });
   refresh.mockClear();
 });
@@ -75,7 +78,21 @@ function notificationForm(overrides: Record<string, string | File> = {}): FormDa
   return form;
 }
 
+const CSRF_FAILURE = {
+  ok: false,
+  error: "Xavfsizlik tekshiruvi o‘tmadi. Sahifani yangilang.",
+  code: "csrf",
+};
+
 describe("session and csrf gate", () => {
+  it("passes the presented token to verifyStaff on every call", async () => {
+    await changeOrderStatus(10248, "handed_to_courier", KEY, CSRF);
+    expect(verifyStaff).toHaveBeenCalledTimes(1);
+    expect(verifyStaff).toHaveBeenCalledWith({ csrf: CSRF });
+    await deleteProductImage("1", "img-1", "other-token");
+    expect(verifyStaff).toHaveBeenLastCalledWith({ csrf: "other-token" });
+  });
+
   it("returns session_expired when verifyStaff reports no session or an expired one", async () => {
     verifyStaff.mockResolvedValue({ ok: false, reason: "expired" });
     const result = await changeOrderStatus(10248, "handed_to_courier", KEY, CSRF);
@@ -98,11 +115,37 @@ describe("session and csrf gate", () => {
       KEY,
       "wrong",
     );
-    expect(result).toEqual({
-      ok: false,
-      error: "Xavfsizlik tekshiruvi o‘tmadi. Sahifani yangilang.",
-      code: "csrf",
-    });
+    expect(result).toEqual(CSRF_FAILURE);
+    expect(verifyStaff).toHaveBeenCalledWith({ csrf: "wrong" });
+  });
+
+  it("refuses a call that omits the token without consulting the session (every action family)", async () => {
+    // Server Action arguments are attacker-controlled: the `csrf: string`
+    // signature does not exist at runtime. Even in mock mode (where
+    // `verifyStaff` is open) the guard answers `csrf` and runs nothing.
+    const missing = undefined as never;
+    const calls: Array<() => Promise<unknown>> = [
+      () => cancelOrder(10248, "mijoz so‘rovi bilan", KEY, missing),
+      () => changeOrderStatus(10248, "handed_to_courier", KEY, missing),
+      () => retryShipment(10248, KEY, missing),
+      () => saveProduct("1", {} as ProductFormValues, missing),
+      () => uploadProductImage("1", new FormData(), missing),
+      () => deleteProductImage("1", "img-1", missing),
+      () => reorderProductImages("1", ["img-1"], missing),
+      () => adjustCashback("5", { direction: "add", amount: 1, reason: "abc" }, KEY, missing),
+      () => saveCashbackPolicy(ACTIVE_POLICY, KEY, missing),
+      () => sendNotification(notificationForm(), KEY, missing),
+      () => updateAppointment("a1", "confirm", KEY, missing),
+    ];
+    for (const call of calls) expect(await call()).toEqual(CSRF_FAILURE);
+    expect(verifyStaff).not.toHaveBeenCalled();
+
+    // Other non-token values are refused the same way.
+    expect(await retryShipment(10248, KEY, "")).toEqual(CSRF_FAILURE);
+    expect(await retryShipment(10248, KEY, null as never)).toEqual(CSRF_FAILURE);
+    expect(await retryShipment(10248, KEY, 42 as never)).toEqual(CSRF_FAILURE);
+    expect(await retryShipment(10248, KEY, { csrf: CSRF } as never)).toEqual(CSRF_FAILURE);
+    expect(verifyStaff).not.toHaveBeenCalled();
   });
 
   it("rejects a non-UUID idempotency key before touching the data", async () => {

@@ -4,6 +4,16 @@ import categoriesFixture from "./api/__fixtures__/categories.json";
 import productFixture from "./api/__fixtures__/product-1.json";
 import pageFixture from "./api/__fixtures__/products-page.json";
 import statsFixture from "./api/__fixtures__/stats.json";
+import dayFixture from "./api/__fixtures__/appointments-day.json";
+import appointmentsMetaFixture from "./api/__fixtures__/appointments-meta.json";
+import auditFixture from "./api/__fixtures__/audit-page.json";
+import navCountsFixture from "./api/__fixtures__/nav-counts.json";
+import notificationsMetaFixture from "./api/__fixtures__/notifications-meta.json";
+import notificationsPageFixture from "./api/__fixtures__/notifications-page.json";
+import pendingFixture from "./api/__fixtures__/pending-summary.json";
+import membersFixture from "./api/__fixtures__/segment-1-members.json";
+import segmentsFixture from "./api/__fixtures__/segments-page.json";
+import settingsFixture from "./api/__fixtures__/settings.json";
 
 /**
  * The dispatchers in `src/data/<resource>.ts` pick the mock or the api branch
@@ -26,6 +36,7 @@ vi.mock("./api/client", () => ({
 vi.mock("./auth", () => ({
   requireApiToken: async () => "staff-token",
   verifyStaff: async () => ({ ok: true, mode: "api", token: "staff-token", sid: null }),
+  getMe: async () => null,
 }));
 
 async function loadDispatchers() {
@@ -41,6 +52,10 @@ async function loadDispatchers() {
     notifications: await import("./notifications"),
     appointments: await import("./appointments"),
     dashboard: await import("./dashboard"),
+    segments: await import("./segments"),
+    settings: await import("./settings"),
+    audit: await import("./audit"),
+    shell: await import("./shell"),
     now: await import("./now"),
     source: await import("./source"),
   };
@@ -289,24 +304,6 @@ describe("dispatchers in api mode", () => {
     expect(cashback.nextEffectiveFrom).toMatch(/^\d{4}-\d{2}-01T00:00:00\+05:00$/);
     expect(Number.isNaN(Date.parse(cashback.policy.effectiveFrom))).toBe(false);
 
-    const overview = await d.notifications.getNotificationsOverview();
-    expect(overview).toMatchObject({
-      history: [],
-      templates: [],
-      segments: [],
-      totalDevices: 0,
-      linkOptions: [],
-      draft: null,
-    });
-    expect(overview.defaultSchedule).toMatch(/^\d{4}-\d{2}-\d{2}T10:00:00\+05:00$/);
-
-    expect(await d.appointments.getAppointmentDay("2026-10-26")).toEqual({
-      date: "2026-10-26",
-      specialists: [],
-      appointments: [],
-    });
-    expect(await d.appointments.getPendingAppointments()).toEqual({ count: 0, nextAt: null });
-
     expect(await d.dashboard.getDashboard("week")).toEqual({
       range: "week",
       axisNote: "",
@@ -328,15 +325,89 @@ describe("dispatchers in api mode", () => {
     });
 
     const resources = warn.mock.calls.map((call) => String(call[0]).match(/^\[data\] (\w+):/)?.[1]);
-    expect(resources.sort()).toEqual([
-      "appointments",
-      "cashback",
-      "customers",
-      "dashboard",
-      "notifications",
-      "orders",
-    ]);
+    expect(resources.sort()).toEqual(["cashback", "customers", "dashboard", "orders"]);
     expect(cachedGet).not.toHaveBeenCalled();
+  });
+
+  it("reads the M1d shell resources from the API and maps them", async () => {
+    const respond = (data: unknown) => ({ status: 200, data, headers: new Headers() });
+    cachedGet.mockImplementation(async (path: string) => {
+      const fixtures: Record<string, unknown> = {
+        "/api/v1/admin/appointments/": dayFixture,
+        "/api/v1/admin/appointments/pending-summary/": pendingFixture,
+        "/api/v1/admin/appointments/meta/": appointmentsMetaFixture,
+        "/api/v1/admin/notifications/": notificationsPageFixture,
+        "/api/v1/admin/notifications/meta/": notificationsMetaFixture,
+        "/api/v1/admin/segments/": segmentsFixture,
+        "/api/v1/admin/segments/1/members/": membersFixture,
+        "/api/v1/admin/settings/": settingsFixture,
+        "/api/v1/admin/audit-log/": auditFixture,
+        "/api/v1/admin/nav-counts/": navCountsFixture,
+      };
+      if (!(path in fixtures)) throw new Error(`unexpected GET ${path}`);
+      return respond(fixtures[path]);
+    });
+    const d = await loadDispatchers();
+    const day = await d.appointments.getAppointmentDay("2026-10-26");
+    expect(cachedGet).toHaveBeenCalledWith(
+      "/api/v1/admin/appointments/",
+      { date: "2026-10-26" },
+      "staff-token",
+    );
+    expect(day.specialists).toHaveLength(3);
+    expect(day.appointments).toHaveLength(8);
+    expect(await d.appointments.getPendingAppointments()).toEqual({
+      count: 3,
+      nextAt: "2026-10-26T09:00:00+05:00",
+    });
+    expect((await d.appointments.getBookingMeta()).specialists).toHaveLength(3);
+    const today = await d.appointments.defaultAppointmentDay();
+    expect(today).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+
+    const overview = await d.notifications.getNotificationsOverview();
+    expect(overview.history.map((r) => r.id)).toEqual(["4", "3", "2", "1"]);
+    expect(overview).toMatchObject({ historyTotal: 4, totalDevices: 360, draft: null });
+    expect(overview.templates).toHaveLength(4);
+    expect(overview.defaultSchedule).toMatch(/^\d{4}-\d{2}-\d{2}T10:00:00\+05:00$/);
+    expect(cachedGet).toHaveBeenCalledWith(
+      "/api/v1/admin/notifications/",
+      { page_size: 20 },
+      "staff-token",
+    );
+
+    expect((await d.segments.listSegments(1)).items.map((s) => s.name)).toEqual([
+      "Doimiy mijozlar",
+      "10 mln+ xarid",
+    ]);
+    expect((await d.segments.listSegmentMembers("1", 1)).items[0]?.name).toBe("Malika Karimova");
+    expect(await d.segments.getSegment("s-1")).toBeNull();
+    expect((await d.settings.getSettings()).integrationsMode).toBe("fake");
+    const audit = await d.audit.listAuditLog({
+      ordering: "at",
+      page: 2,
+      action: "auth.login_failed",
+    });
+    expect(cachedGet).toHaveBeenCalledWith(
+      "/api/v1/admin/audit-log/",
+      expect.objectContaining({
+        ordering: "at",
+        page: 2,
+        page_size: 20,
+        action: "auth.login_failed",
+      }),
+      "staff-token",
+    );
+    expect(audit.items).toHaveLength(4);
+    expect(await d.shell.getNavCounts()).toEqual({ ordersProcessing: 0, appointmentsPending: 3 });
+  });
+
+  it("degrades the nav counts to null when the API fails", async () => {
+    const d = await loadDispatchers();
+    const { ApiError } = await import("./api/errors");
+    cachedGet.mockRejectedValue(
+      new ApiError(503, { code: "http_503", message: "x", errors: [], request_id: "" }),
+    );
+    expect(await d.shell.getNavCounts()).toBeNull();
   });
 
   it("rejects an unknown value", async () => {

@@ -1,0 +1,27 @@
+{
+  "date": "2026-10-25",
+  "specialists": [
+    {
+      "id": 1,
+      "name": "Nodira Rahimova",
+      "role": "dermatologist",
+      "working_hours": null,
+      "blocks": []
+    },
+    {
+      "id": 2,
+      "name": "Jasur Aliyev",
+      "role": "dermatologist",
+      "working_hours": null,
+      "blocks": []
+    },
+    {
+      "id": 3,
+      "name": "Dilnoza Yusupova",
+      "role": "cosmetologist",
+      "working_hours": null,
+      "blocks": []
+    }
+  ],
+  "appointments": []
+}

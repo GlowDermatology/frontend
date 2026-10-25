@@ -1,0 +1,12 @@
+{
+  "code": "validation_error",
+  "message": "Maydonlarni tekshiring.",
+  "errors": [
+    {
+      "field": "audience.phone",
+      "code": "customer_not_found",
+      "message": "Bu raqam bilan mijoz topilmadi."
+    }
+  ],
+  "request_id": "2e0b547d-3a77-43da-b6f3-475cbc791347"
+}

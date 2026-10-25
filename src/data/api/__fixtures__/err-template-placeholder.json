@@ -1,0 +1,12 @@
+{
+  "code": "validation_error",
+  "message": "Maydonlarni tekshiring.",
+  "errors": [
+    {
+      "field": "texts.uz",
+      "code": "unknown_placeholder",
+      "message": "Faqat {raqam} o‘rinbosari ishlatiladi."
+    }
+  ],
+  "request_id": "cba3a6a5-58b2-4792-9d9d-8af5eef282ae"
+}

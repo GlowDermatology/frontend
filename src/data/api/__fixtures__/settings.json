@@ -1,0 +1,14 @@
+{
+  "reservation_minutes": 15,
+  "support_phone": "+998712000000",
+  "pickup_address": {
+    "uz": "Toshkent, Chilonzor tumani, Bunyodkor shoh ko‘chasi, 12",
+    "ru": "",
+    "en": ""
+  },
+  "integrations": {
+    "mode": "fake"
+  },
+  "updated_at": "2026-10-25T23:02:33+05:00",
+  "updated_by": null
+}

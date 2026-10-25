@@ -1,0 +1,12 @@
+{
+  "code": "validation_error",
+  "message": "Maydonlarni tekshiring.",
+  "errors": [
+    {
+      "field": "start",
+      "code": "slot_unavailable",
+      "message": "Bu vaqt band."
+    }
+  ],
+  "request_id": "67592bfa-62d1-42d3-a5ae-971af58c235b"
+}

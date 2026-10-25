@@ -214,8 +214,6 @@ describe("api mode (endpoints not wired yet)", () => {
     expect(await cancelOrder(10248, "mijoz so‘rovi bilan", KEY, CSRF)).toEqual(notWired);
     expect(await changeOrderStatus(10248, "handed_to_courier", KEY, CSRF)).toEqual(notWired);
     expect(await retryShipment(10248, KEY, CSRF)).toEqual(notWired);
-    expect(await updateAppointment("a1", "confirm", KEY, CSRF)).toEqual(notWired);
-    expect(await sendNotification(notificationForm(), KEY, CSRF)).toEqual(notWired);
     expect(await saveCashbackPolicy(ACTIVE_POLICY, KEY, CSRF)).toEqual(notWired);
     expect(
       await adjustCashback("5", { direction: "add", amount: 1, reason: "abc" }, KEY, CSRF),
@@ -1013,11 +1011,19 @@ describe("sendNotification", () => {
 
   it("folds image problems into the top-level error", async () => {
     const result = await sendNotification(
-      notificationForm({ image: new File(["x"], "banner.webp", { type: "image/webp" }) }),
+      notificationForm({ image: new File(["x"], "banner.gif", { type: "image/gif" }) }),
       KEY,
       CSRF,
     );
-    expect(result).toEqual({ ok: false, error: "Faqat JPG yoki PNG." });
+    expect(result).toEqual({ ok: false, error: "Faqat JPEG, PNG yoki WebP rasm." });
+    const big = await sendNotification(
+      notificationForm({
+        image: new File([new Uint8Array(5 * 1024 * 1024 + 1)], "big.png", { type: "image/png" }),
+      }),
+      KEY,
+      CSRF,
+    );
+    expect(big).toEqual({ ok: false, error: "Rasm 5 MB dan oshmasin." });
   });
 
   it("returns the queued record for a send-now and the scheduled one for a later send", async () => {
@@ -1038,8 +1044,12 @@ describe("sendNotification", () => {
         title: "Yangi aksiya",
         audienceLabel: "Barcha · 4\u00a0751",
         sent: null,
+        failed: null,
         delivered: null,
         state: "queued",
+        scheduledAt: null,
+        sentAt: null,
+        author: "Administrator",
       });
     }
     const later = await sendNotification(
@@ -1060,7 +1070,7 @@ describe("sendNotification", () => {
       });
     }
     const group = await sendNotification(
-      notificationForm({ audience: "group", segmentId: "regular" }),
+      notificationForm({ audience: "group", segmentId: "1" }),
       KEY,
       CSRF,
     );
@@ -1085,6 +1095,7 @@ describe("updateAppointment", () => {
     expect(await updateAppointment(requested.id, "attend", KEY, CSRF)).toEqual({
       ok: false,
       error: "Bu amal ushbu holatda mumkin emas.",
+      code: "invalid_transition",
     });
     expect(await updateAppointment("nope", "confirm", KEY, CSRF)).toMatchObject({
       code: "not_found",

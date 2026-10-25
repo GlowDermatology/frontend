@@ -1,0 +1,10 @@
+{
+  "status": "processing",
+  "texts": {
+    "uz": "To‘lov qabul qilindi. Buyurtma №{raqam} tayyorlanmoqda.",
+    "ru": "Оплата принята. Заказ №{raqam} готовится.",
+    "en": "Payment received. Order №{raqam} is being prepared."
+  },
+  "updated_at": "2026-10-26T00:17:47+05:00",
+  "updated_by": null
+}

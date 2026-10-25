@@ -1,0 +1,71 @@
+{
+  "total_devices": 360,
+  "segments": [
+    {
+      "id": 1,
+      "name": "Doimiy mijozlar",
+      "size": 1
+    },
+    {
+      "id": 2,
+      "name": "10 mln+ xarid",
+      "size": 1
+    }
+  ],
+  "templates": [
+    {
+      "status": "processing",
+      "texts": {
+        "uz": "To‘lov qabul qilindi. Buyurtma №{raqam} tayyorlanmoqda.",
+        "ru": "Оплата принята. Заказ №{raqam} готовится.",
+        "en": "Payment received. Order №{raqam} is being prepared."
+      },
+      "updated_at": "2026-10-26T00:17:47+05:00",
+      "updated_by": null
+    },
+    {
+      "status": "handed_to_courier",
+      "texts": {
+        "uz": "Buyurtma №{raqam} kuryerga topshirildi. Holatni ilovada kuzating.",
+        "ru": "Заказ №{raqam} передан курьеру. Следите за статусом в приложении.",
+        "en": "Order №{raqam} has been handed to the courier. Track it in the app."
+      },
+      "updated_at": "2026-10-26T00:17:47+05:00",
+      "updated_by": null
+    },
+    {
+      "status": "delivered",
+      "texts": {
+        "uz": "Buyurtma №{raqam} yetkazildi. Xaridingiz uchun rahmat.",
+        "ru": "Заказ №{raqam} доставлен. Спасибо за покупку.",
+        "en": ""
+      },
+      "updated_at": "2026-10-26T00:17:47+05:00",
+      "updated_by": null
+    },
+    {
+      "status": "cancelled",
+      "texts": {
+        "uz": "Buyurtma №{raqam} bekor qilindi. To‘lov qaytariladi.",
+        "ru": "Заказ №{raqam} отменён. Оплата будет возвращена.",
+        "en": "Order №{raqam} has been cancelled. The payment will be refunded."
+      },
+      "updated_at": "2026-10-26T00:17:47+05:00",
+      "updated_by": null
+    }
+  ],
+  "link_options": [
+    {
+      "product_id": 100,
+      "label": "Aloe verali balzam"
+    },
+    {
+      "product_id": 62,
+      "label": "Aloe verali essensiya"
+    },
+    {
+      "product_id": 168,
+      "label": "Aloe verali ko‘z atrofi kremi"
+    }
+  ]
+}

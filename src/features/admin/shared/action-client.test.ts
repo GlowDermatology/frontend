@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { ActionResult } from "@/data/types";
 
-import { runAction, type ActionClientEnv } from "./action-client";
+import { NETWORK_ERROR_MESSAGE, runAction, type ActionClientEnv } from "./action-client";
 import { readCsrfCookie } from "./csrf";
 
 const EXPIRED: ActionResult<never> = {
@@ -81,6 +81,37 @@ describe("runAction", () => {
     expect(assign).toHaveBeenCalledWith(
       "/admin/login?next=%2Fadmin%2Forders%2F10248%3Ftab%3Dhistory",
     );
+  });
+
+  it("turns a rejected action call into a plain failure instead of throwing", async () => {
+    const { env: e, fetchMock, assign } = env();
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const invoke = vi.fn(async (): Promise<ActionResult<string>> => {
+      throw new TypeError("Failed to fetch");
+    });
+    await expect(runAction(invoke, e)).resolves.toEqual({
+      ok: false,
+      error: NETWORK_ERROR_MESSAGE,
+      code: "network_error",
+    });
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(assign).not.toHaveBeenCalled();
+    error.mockRestore();
+  });
+
+  it("turns a rejection of the retry after a refresh into the same failure", async () => {
+    const { env: e, fetchMock, assign } = env();
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const invoke = vi
+      .fn<(csrf: string) => Promise<ActionResult<string>>>()
+      .mockResolvedValueOnce(EXPIRED)
+      .mockRejectedValueOnce(new Error("Invalid Server Actions request."));
+    expect(await runAction(invoke, e)).toMatchObject({ ok: false, code: "network_error" });
+    expect(invoke).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(assign).not.toHaveBeenCalled();
+    error.mockRestore();
   });
 
   it("does not retry when the refresh route answered with its 5xx retry page or threw", async () => {

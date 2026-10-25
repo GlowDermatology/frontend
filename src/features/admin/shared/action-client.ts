@@ -15,7 +15,17 @@ import { readCsrfCookie } from "./csrf";
  *
  * `idempotency key` reuse across the retry is the caller's job: pass the same
  * key inside `invoke` (see `useIdempotencyKey`).
+ *
+ * A Server Action call can also reject: a dropped connection, Next's own
+ * "Invalid Server Actions request" (Origin/`allowedOrigins` mismatch, stale
+ * action id after a deploy) or an exception inside the action. The call
+ * sites await `runAction` inside a transition without a try/catch, so such a
+ * rejection is turned into a plain `ActionResult` failure here (the toast
+ * "Amal bajarilmadi" shows it and the kept idempotency key gets its replay)
+ * instead of escaping to the route's error boundary.
  */
+
+export const NETWORK_ERROR_MESSAGE = "API bilan bog‘lanib bo‘lmadi. Qayta urinib ko‘ring.";
 
 export interface ActionClientEnv {
   fetch: typeof fetch;
@@ -53,15 +63,27 @@ export async function refreshSession(env: ActionClientEnv): Promise<boolean> {
   }
 }
 
+async function invokeSafely<T>(
+  invoke: (csrf: string) => Promise<ActionResult<T>>,
+  csrf: string,
+): Promise<ActionResult<T>> {
+  try {
+    return await invoke(csrf);
+  } catch (cause) {
+    if (process.env.NODE_ENV !== "production") console.error("[action] call failed", cause);
+    return { ok: false, error: NETWORK_ERROR_MESSAGE, code: "network_error" };
+  }
+}
+
 export async function runAction<T>(
   invoke: (csrf: string) => Promise<ActionResult<T>>,
   env: ActionClientEnv = defaultEnv(),
 ): Promise<ActionResult<T>> {
-  const first = await invoke(env.csrf());
+  const first = await invokeSafely(invoke, env.csrf());
   if (first.ok || first.code !== "session_expired") return first;
 
   const refreshed = await refreshSession(env);
-  const second = refreshed ? await invoke(env.csrf()) : first;
+  const second = refreshed ? await invokeSafely(invoke, env.csrf()) : first;
   if (second.ok || second.code !== "session_expired") return second;
 
   env.location.assign(`/admin/login?next=${encodeURIComponent(currentPath(env.location))}`);

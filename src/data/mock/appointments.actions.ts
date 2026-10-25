@@ -2,6 +2,7 @@ import { appointmentActions, type AppointmentStatus } from "@/domain/appointment
 
 import type { AppointmentAction } from "../appointments.actions";
 import type { ActionResult } from "../types";
+import { delay } from "./delay";
 import { APPOINTMENTS, type MockAppointment } from "./appointments";
 
 /**
@@ -16,13 +17,11 @@ const NEXT_STATUS: Record<AppointmentAction, AppointmentStatus> = {
   attend: "attended",
 };
 
-const delay = (ms = 450) => new Promise((resolve) => setTimeout(resolve, ms));
-
 export async function updateAppointment(
   id: string,
   action: AppointmentAction,
 ): Promise<ActionResult<MockAppointment>> {
-  await delay();
+  await delay(450);
   const appointment = APPOINTMENTS.find((a) => a.id === id);
   if (!appointment) return { ok: false, error: "Qabul topilmadi.", code: "not_found" };
   if (!appointmentActions(appointment.status).includes(action)) {

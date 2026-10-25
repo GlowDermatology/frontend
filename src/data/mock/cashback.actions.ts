@@ -3,6 +3,7 @@ import { formatDayMonthShort, formatMillions, tashkentParts } from "@/lib/format
 
 import type { SavedPolicy } from "../cashback.actions";
 import type { ActionResult } from "../types";
+import { delay } from "./delay";
 import { getCashbackSettings } from "./cashback.queries";
 
 /**
@@ -12,9 +13,7 @@ import { getCashbackSettings } from "./cashback.queries";
  * is persisted.
  */
 
-const delay = (ms = 600) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const NBSP = " ";
+const NBSP = "\u00a0";
 
 /** "20–30 mln" / "50 mln dan" (`formatMillions` emits an NBSP before "mln"). */
 const range = (from: number, to: number | null) =>
@@ -40,7 +39,7 @@ export function summarize(before: CashbackPolicy, after: CashbackPolicy): string
 export async function saveCashbackPolicy(
   draft: CashbackPolicy,
 ): Promise<ActionResult<SavedPolicy>> {
-  await delay();
+  await delay(600);
   const { policy: active } = await getCashbackSettings();
   const version = active.version + 1;
   const p = tashkentParts(draft.effectiveFrom);

@@ -1,7 +1,8 @@
 import { canCancel, manualTransitions, type Order, type OrderStatus } from "@/domain/order";
 
-import type { ActionResult } from "../types";
 import { referenceNow } from "../config";
+import type { ActionResult } from "../types";
+import { delay } from "./delay";
 import { getOrder } from "./orders.queries";
 
 /**
@@ -10,8 +11,6 @@ import { getOrder } from "./orders.queries";
  * object), applies the same transformation the demo always did and returns
  * the updated order; nothing is persisted, so a reload restores the dataset.
  */
-
-const delay = (ms = 450) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const NOT_FOUND: ActionResult<never> = {
   ok: false,
@@ -28,7 +27,7 @@ const STATUS_TITLE: Record<OrderStatus, string> = {
 };
 
 export async function cancelOrder(orderId: number, reason: string): Promise<ActionResult<Order>> {
-  await delay();
+  await delay(450);
   const order = await getOrder(orderId);
   if (!order) return NOT_FOUND;
   if (!canCancel(order)) {
@@ -66,7 +65,7 @@ export async function changeOrderStatus(
   orderId: number,
   status: OrderStatus,
 ): Promise<ActionResult<Order>> {
-  await delay();
+  await delay(450);
   const order = await getOrder(orderId);
   if (!order) return NOT_FOUND;
   if (!manualTransitions(order).includes(status)) {

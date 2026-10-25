@@ -150,4 +150,32 @@ describe("POST /admin/auth/logout", () => {
     expect(response.headers.get("location")).toBe("/admin/settings");
     expect(response.cookies.getAll()).toHaveLength(0);
   });
+
+  it("treats scope=others without a refresh cookie as an ended session in api mode", async () => {
+    process.env.GLOWDERMA_DATA_SOURCE = "api";
+    process.env.GLOWDERMA_API_URL = "http://api.test:8000";
+    process.env.GLOWDERMA_INTERNAL_SECRET = "s3cret";
+    const response = await POST(
+      logoutRequest(token, {
+        headers: { "sec-fetch-site": "same-origin", origin: `https://${HOST}` },
+        body: `csrf=${encodeURIComponent(token)}&scope=others`,
+      }),
+    );
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe("/admin/login");
+    const cleared = response.cookies.getAll().map((cookie) => cookie.name);
+    expect(cleared).toEqual(expect.arrayContaining([names.access, names.refresh, names.csrf]));
+  });
+
+  it("keeps the session on scope=others in mock mode", async () => {
+    const response = await POST(
+      logoutRequest(token, {
+        headers: { "sec-fetch-site": "same-origin", origin: `https://${HOST}` },
+        body: `csrf=${encodeURIComponent(token)}&scope=others`,
+      }),
+    );
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe("/admin/settings");
+    expect(response.cookies.getAll()).toEqual([]);
+  });
 });

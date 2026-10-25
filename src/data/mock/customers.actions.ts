@@ -3,6 +3,7 @@ import { ledgerBalance, type LedgerEntry } from "@/domain/cashback";
 import { referenceNow } from "../config";
 import type { CashbackAdjustmentInput } from "../customers.actions";
 import type { ActionResult } from "../types";
+import { delay } from "./delay";
 import { getCustomer } from "./customers.queries";
 
 /**
@@ -12,13 +13,11 @@ import { getCustomer } from "./customers.queries";
  * server balance, so the card keeps deriving it from the ledger rows.
  */
 
-const delay = (ms = 500) => new Promise((resolve) => setTimeout(resolve, ms));
-
 export async function adjustCashback(
   customerId: string,
   input: CashbackAdjustmentInput,
 ): Promise<ActionResult<{ entry: LedgerEntry; balance?: number }>> {
-  await delay();
+  await delay(500);
   const customer = await getCustomer(customerId);
   if (!customer) return { ok: false, error: "Mijoz topilmadi.", code: "not_found" };
   const balance = ledgerBalance(customer.ledger);

@@ -42,6 +42,54 @@ describe("apiFetch", () => {
     vi.unstubAllGlobals();
   });
 
+  it("never follows redirects and rejects a 2xx without a JSON body", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ ok: true }));
+    await apiFetch("/api/v1/admin/auth/me/");
+    expect(lastRequest(fetchMock).init.redirect).toBe("error");
+
+    fetchMock.mockResolvedValue(
+      new Response("<html>edge</html>", {
+        status: 200,
+        headers: { "content-type": "text/html", "x-request-id": "r-1" },
+      }),
+    );
+    await expect(apiFetch("/api/v1/admin/auth/me/")).rejects.toMatchObject({
+      name: "ApiError",
+      status: 200,
+      code: "invalid_json",
+      body: { request_id: "r-1" },
+    });
+
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+    expect((await apiFetch("/api/v1/admin/auth/logout/")).data).toBeUndefined();
+  });
+
+  it("drops malformed errors[] entries from the envelope", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(
+        {
+          code: "validation_error",
+          message: "Maydonlarni tekshiring.",
+          errors: [
+            { field: "title", code: "blank", message: "Kiriting." },
+            { field: 3, code: "x", message: "bad field" },
+            "junk",
+            null,
+            { field: null, code: "non_field" },
+          ],
+          request_id: "r-2",
+        },
+        { status: 400 },
+      ),
+    );
+    await expect(
+      apiFetch("/api/v1/admin/notifications/", { method: "POST", body: {} }),
+    ).rejects.toMatchObject({
+      status: 400,
+      body: { errors: [{ field: "title", code: "blank", message: "Kiriting." }] },
+    });
+  });
+
   it("sends exactly the contract headers on a bare GET", async () => {
     requestHeaders.set("x-forwarded-for", "1.2.3.4, 203.0.113.7");
     fetchMock.mockResolvedValue(jsonResponse({ ok: true }));

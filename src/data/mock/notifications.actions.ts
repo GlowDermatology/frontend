@@ -4,6 +4,7 @@ import { formatNumber, formatPhone } from "@/lib/format";
 import { referenceNow } from "../config";
 import type { NotificationInput } from "../notifications.actions";
 import type { ActionResult } from "../types";
+import { delay } from "./delay";
 import { SEGMENTS, TOTAL_DEVICES } from "./notifications";
 
 /**
@@ -11,8 +12,6 @@ import { SEGMENTS, TOTAL_DEVICES } from "./notifications";
  * history record the demo always produced. The audience label comes from the
  * fixtures (segment name and size, device count), never from the client.
  */
-
-const delay = (ms = 600) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function audienceLabel(input: NotificationInput): string | null {
   if (input.audience === "all") return `Barcha · ${formatNumber(TOTAL_DEVICES)}`;
@@ -26,7 +25,7 @@ function audienceLabel(input: NotificationInput): string | null {
 export async function sendNotification(
   input: NotificationInput,
 ): Promise<ActionResult<NotificationRecord>> {
-  await delay();
+  await delay(600);
   const label = audienceLabel(input);
   if (label === null) {
     return {

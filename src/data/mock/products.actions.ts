@@ -9,6 +9,7 @@ import {
   type ProductFormValues,
 } from "../products.schema";
 import type { ActionResult } from "../types";
+import { delay } from "./delay";
 import { getProduct } from "./products.queries";
 
 /**
@@ -17,8 +18,6 @@ import { getProduct } from "./products.queries";
  * way the demo always did; the image actions validate their input and return
  * the shapes the editor's orchestration expects. Nothing is persisted.
  */
-
-const delay = (ms = 600) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function changeNote(before: Product | null, values: ProductFormValues): string {
   if (!before) return "mahsulot yaratildi";
@@ -37,7 +36,7 @@ export async function saveProduct(
   id: string | null,
   data: ProductFormValues,
 ): Promise<ActionResult<Product>> {
-  await delay();
+  await delay(600);
   const before = id === null ? null : await getProduct(id);
   if (id !== null && !before && !id.startsWith("draft-")) {
     return { ok: false, error: "Mahsulot topilmadi.", code: "not_found" };

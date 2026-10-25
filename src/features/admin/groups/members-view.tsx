@@ -333,11 +333,11 @@ function AddMembersDialog({
         if (!open && !busy) onClose();
       }}
       title={`«${segment.name}» guruhiga qo‘shish`}
-      description={`Mijoz ID raqamlari yoki telefonlarini vergul, bo‘sh joy yoki yangi qator bilan ajrating (ko‘pi bilan ${SEGMENT_MEMBERS_MAX} ta).`}
+      description={`Mijoz ID raqamlari yoki telefonlarini vergul yoki yangi qator bilan ajrating (ko‘pi bilan ${SEGMENT_MEMBERS_MAX} ta).`}
       className="max-w-[520px]"
     >
       <form noValidate onSubmit={onSubmit} className="flex flex-col gap-4">
-        <Field label="Mijozlar" error={error ?? undefined} hint="Masalan: 5, 12, +998901234567">
+        <Field label="Mijozlar" error={error ?? undefined} hint="Masalan: 5, 12, +998 90 123 45 67">
           {(c) => (
             <TextArea
               {...c}

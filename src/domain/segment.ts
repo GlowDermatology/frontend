@@ -63,23 +63,37 @@ function formatAmount(value: number): string {
 }
 
 /**
- * The admin's "customer ids or phones" list (comma, space or newline
- * separated) split into ids and E.164 phones; anything else is reported.
+ * The admin's "customer ids or phones" list. Entries are separated by commas,
+ * semicolons or new lines only — never by spaces, because the app writes
+ * phones with spaces ("90 123 45 67") and splitting those would turn one
+ * phone into four customer ids. Inside one entry spaces, parentheses and
+ * dashes are dropped, then:
+ *
+ * - `+998` / `998` + 9 digits, or exactly 9 digits, is a phone (E.164);
+ * - 1–7 digits typed without inner spaces is a customer id;
+ * - digits with inner spaces that do not make a whole phone is reported in
+ *   `incomplete` ("Telefonni to‘liq kiriting");
+ * - anything else is reported in `invalid`.
  */
 export function parseMemberList(input: string): {
   ids: string[];
   phones: string[];
   invalid: string[];
+  incomplete: string[];
 } {
   const ids = new Set<string>();
   const phones = new Set<string>();
   const invalid: string[] = [];
-  for (const raw of input.split(/[\s,;]+/)) {
-    const token = raw.trim();
-    if (!token) continue;
-    if (/^\d{1,9}$/.test(token)) ids.add(String(Number(token)));
-    else if (/^\+?998\d{9}$/.test(token)) phones.add(`+${token.replace(/^\+/, "")}`);
-    else invalid.push(token);
+  const incomplete: string[] = [];
+  for (const raw of input.split(/[,;\n\r]+/)) {
+    const entry = raw.trim();
+    if (!entry) continue;
+    const compact = entry.replace(/[\s()-]/g, "");
+    if (/^\+?998\d{9}$/.test(compact)) phones.add(`+${compact.replace(/^\+/, "")}`);
+    else if (/^\d{9}$/.test(compact)) phones.add(`+998${compact}`);
+    else if (/^\d{1,7}$/.test(entry)) ids.add(String(Number(entry)));
+    else if (/^\+?[\d\s()-]+$/.test(entry) && /\s/.test(entry)) incomplete.push(entry);
+    else invalid.push(entry);
   }
-  return { ids: [...ids], phones: [...phones], invalid };
+  return { ids: [...ids], phones: [...phones], invalid, incomplete };
 }

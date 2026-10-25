@@ -137,11 +137,33 @@ describe("segments rules summary and member list", () => {
   });
 
   it("splits ids and phones, de-duplicated, and reports the rest", () => {
-    expect(parseMemberList("5, 12\n+998901234567 998901234567;007 abc +99890")).toEqual({
+    expect(parseMemberList("5, 12\n+998901234567; 998901234567;007\nabc\n+99890")).toEqual({
       ids: ["5", "12", "7"],
       phones: ["+998901234567"],
       invalid: ["abc", "+99890"],
+      incomplete: [],
     });
+  });
+
+  it("reads a spaced phone as one phone, never as several customer ids", () => {
+    expect(parseMemberList("90 123 45 67")).toEqual({
+      ids: [],
+      phones: ["+998901234567"],
+      invalid: [],
+      incomplete: [],
+    });
+    expect(parseMemberList("+998 90 123 45 67, (90) 765-43-21")).toEqual({
+      ids: [],
+      phones: ["+998901234567", "+998907654321"],
+      invalid: [],
+      incomplete: [],
+    });
+  });
+
+  it("rejects spaced digits that are not a whole phone and space-separated ids", () => {
+    expect(parseMemberList("90 123 45")).toMatchObject({ ids: [], incomplete: ["90 123 45"] });
+    expect(parseMemberList("5 12")).toMatchObject({ ids: [], incomplete: ["5 12"] });
+    expect(parseMemberList("12345678")).toMatchObject({ ids: [], invalid: ["12345678"] });
   });
 });
 

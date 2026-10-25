@@ -135,7 +135,7 @@ const PHONES_NEED_CUSTOMERS =
   "Telefon bo‘yicha qo‘shish mijozlar ro‘yxati API orqali ulangach ishlaydi. Hozircha mijoz ID sini kiriting.";
 
 /**
- * `list` is what the admin typed: customer ids and/or phones (comma, space or
+ * `list` is what the admin typed: customer ids and/or phones (comma, semicolon or
  * newline separated), ≤500. Phones are resolved to customers in mock mode;
  * the API takes ids only (`customer_ids`), and the customers list that would
  * resolve a phone is not on the backend yet, so api mode asks for ids.
@@ -159,12 +159,15 @@ export async function addSegmentMembers(
       fieldErrors: { members: "Ro‘yxat juda uzun." },
     };
   }
-  const { ids, phones, invalid } = parseMemberList(list);
+  const { ids, phones, invalid, incomplete } = parseMemberList(list);
   const fail = (message: string): ActionFailure => ({
     ok: false,
     error: "Maydonlarni tekshiring.",
     fieldErrors: { members: message },
   });
+  if (incomplete.length > 0) {
+    return fail(`Telefonni to‘liq kiriting: ${incomplete.slice(0, 3).join(", ")}`);
+  }
   if (invalid.length > 0) return fail(`Noto‘g‘ri qiymat: ${invalid.slice(0, 3).join(", ")}`);
   if (ids.length + phones.length === 0) return fail("Mijoz ID yoki telefon raqamini kiriting.");
   if (ids.length + phones.length > SEGMENT_MEMBERS_MAX) {

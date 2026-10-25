@@ -21,7 +21,9 @@ import { parseAllowedOrigins } from "@/lib/origins";
  * `scope` ∈ current | others | all (default current). Whatever Django answers
  * — 204, or 401 `SESSION_EXPIRED` for an already-dead session — the browser
  * is logged out: for `current`/`all` the cookies are cleared and the user goes
- * to the login page; `others` keeps this session and returns to settings.
+ * to the login page; `others` keeps this session and returns to settings —
+ * unless, in api mode, there is no refresh cookie to keep: that session has
+ * already ended, so it is treated like `current` (cookies cleared, login).
  */
 
 const NO_STORE = { "Cache-Control": "no-store" } as const;
@@ -99,7 +101,8 @@ export async function POST(request: NextRequest) {
   }
 
   const refresh = request.cookies.get(names.refresh)?.value;
-  if (serverEnv.dataSource() === "api" && refresh) {
+  const apiMode = serverEnv.dataSource() === "api";
+  if (apiMode && refresh) {
     try {
       await apiLogout(refresh, scope);
     } catch (error) {
@@ -109,7 +112,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  if (scope === "others") return seeOther("/admin/settings");
+  if (scope === "others" && (!apiMode || refresh)) return seeOther("/admin/settings");
   const response = seeOther("/admin/login");
   clearSessionCookies(response.cookies, secure);
   return response;

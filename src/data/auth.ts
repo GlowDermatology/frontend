@@ -68,19 +68,23 @@ export async function verifyStaff(options: VerifyStaffOptions = {}): Promise<Sta
 export type VerifiedStaff = Extract<StaffSession, { ok: true }>;
 
 /**
- * For page content components: returns the session or redirects to
- * `/admin/login?next=<current path>`. The current path comes from the
- * `x-gd-next` request header that `src/proxy.ts` stamps on every `/admin`
- * request it handles (path + query, validated with `safeNext`). That is more
- * robust than each page passing its own path: it includes the query string,
- * survives page refactors, and falls back to `/admin` when the header is
- * absent (e.g. a render that did not pass through the proxy).
+ * For page content components: returns the session or redirects. An expired
+ * access token goes to `/admin/auth/refresh?next=…` (the proxy normally does
+ * this on GETs, but a token can lapse between the proxy and the render, and
+ * client-side navigations skip the proxy's redirect); no session goes to
+ * `/admin/login?next=…`. The current path comes from the `x-gd-next` request
+ * header that `src/proxy.ts` stamps on every `/admin` request it handles
+ * (path + query, validated with `safeNext`). That is more robust than each
+ * page passing its own path: it includes the query string, survives page
+ * refactors, and falls back to `/admin` when the header is absent (e.g. a
+ * render that did not pass through the proxy).
  */
 export async function requireStaff(): Promise<VerifiedStaff> {
   const session = await verifyStaff();
   if (session.ok) return session;
-  const next = safeNext((await headers()).get(NEXT_PATH_HEADER));
-  redirect(`/admin/login?next=${encodeURIComponent(next)}`);
+  const next = encodeURIComponent(safeNext((await headers()).get(NEXT_PATH_HEADER)));
+  if (session.reason === "expired") redirect(`/admin/auth/refresh?next=${next}`);
+  redirect(`/admin/login?next=${next}`);
 }
 
 /** Shown in mock mode, matching the design's sidebar user block. */

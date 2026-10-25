@@ -28,8 +28,10 @@ function option(name) {
   const index = args.indexOf(name);
   if (index === -1) return undefined;
   const value = args[index + 1];
-  if (value === undefined || value.startsWith("--")) {
-    console.error(`${name} needs a value`);
+  // A value starting with "-" is another flag, or an argument that git would
+  // read as an option (`--output=…`, `-C …`): refuse it rather than pass it on.
+  if (value === undefined || value.startsWith("-")) {
+    console.error(`${name} needs a value (got ${value === undefined ? "nothing" : `"${value}"`})`);
     process.exit(2);
   }
   return value;

@@ -20,6 +20,15 @@ export interface CashbackSettings {
   nextEffectiveFrom: string;
 }
 
+const pad = (n: number) => String(n).padStart(2, "0");
+
+/** `now` as a Tashkent `+05:00` string with seconds precision (contract §1.4). */
+function tashkentIso(now: Date): string {
+  const p = tashkentParts(now);
+  const seconds = Math.floor((((now.getTime() % 60_000) + 60_000) % 60_000) / 1000);
+  return `${p.year}-${pad(p.month + 1)}-${pad(p.day)}T${pad(p.hours)}:${pad(p.minutes)}:${pad(seconds)}+05:00`;
+}
+
 /** First day of the Tashkent month `offset` months after `now`, at midnight. */
 function monthStart(now: Date, offset: number): string {
   const p = tashkentParts(now);
@@ -36,7 +45,7 @@ export async function getCashbackSettings(): Promise<CashbackSettings> {
     return notWiredYet("cashback", {
       policy: {
         version: 0,
-        effectiveFrom: now.toISOString(),
+        effectiveFrom: tashkentIso(now),
         tiers: [],
         basis: "before_purchase",
         earnOnCashbackPaid: false,

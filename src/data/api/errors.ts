@@ -1,16 +1,21 @@
-/** One entry of the Django error envelope (`docs/api/admin-api-v1.md` §1.6). */
-export interface ErrorItem {
-  /** Dotted snake_case path from the body root (`texts.uz.name`, `tiers.1.percent`) or `null`. */
-  field: string | null;
-  code: string;
-  message: string;
-}
+import type { ErrorEnvelope, ErrorItem } from "./types";
 
-export interface ErrorEnvelope {
-  code: string;
-  message: string;
-  errors: ErrorItem[];
-  request_id: string;
+/**
+ * The Django error envelope (`docs/api/admin-api-v1.md` §1.6) comes from the
+ * generated OpenAPI types; `ErrorItem.field` is the dotted snake_case path
+ * from the body root (`texts.uz.name`, `tiers.1.percent`) or `null`.
+ */
+export type { ErrorEnvelope, ErrorItem };
+
+/** Keeps only well-formed `errors[]` entries; anything else is dropped. */
+function isErrorItem(value: unknown): value is ErrorItem {
+  if (typeof value !== "object" || value === null) return false;
+  const item = value as Record<string, unknown>;
+  return (
+    (item.field === null || typeof item.field === "string") &&
+    typeof item.code === "string" &&
+    typeof item.message === "string"
+  );
 }
 
 /**
@@ -56,7 +61,7 @@ export class ApiError extends Error {
         body = {
           code: parsed.code,
           message: typeof parsed.message === "string" ? parsed.message : body.message,
-          errors: Array.isArray(parsed.errors) ? parsed.errors : [],
+          errors: Array.isArray(parsed.errors) ? parsed.errors.filter(isErrorItem) : [],
           request_id: typeof parsed.request_id === "string" ? parsed.request_id : body.request_id,
         };
       }

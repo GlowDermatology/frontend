@@ -43,9 +43,11 @@ export function proxy(request: NextRequest) {
 
   let response: NextResponse;
   if (decision.kind === "refresh") {
-    // The proxy adapter requires an absolute Location; `nextUrl` carries the
-    // request host (the edge sets X-Forwarded-Host), so the origin is the
-    // one the browser used.
+    // `NextResponse.redirect` needs an absolute URL, so the path is resolved
+    // against `request.nextUrl`. Next relativises a Location that shares that
+    // origin before sending it, so the browser follows a same-origin
+    // redirect whatever host or scheme the edge presented (X-Forwarded-Host
+    // only matters for the same-origin checks in the route handlers).
     const location = new URL(
       `/admin/auth/refresh?next=${encodeURIComponent(decision.next)}`,
       request.nextUrl,

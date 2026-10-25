@@ -104,18 +104,21 @@ function isTimeout(cause: unknown): boolean {
 
 /**
  * Server-to-server call to the Django API (contract §1). Throws `ApiError`
- * for every non-2xx answer and for transport failures (status 0, code
- * `timeout` or `network_error`); callers map those to `ActionResult` or
- * `null` as the contract prescribes. 204 resolves with `data: undefined`.
+ * for every non-2xx answer, for transport failures (status 0, code
+ * `timeout` or `network_error`) and for a 2xx whose body is not JSON (code
+ * `invalid_json`); callers map those to `ActionResult` or `null` as the
+ * contract prescribes. 204 resolves with `data: undefined`.
  */
 export async function apiFetch<T>(path: string, request: ApiRequest = {}): Promise<ApiResponse<T>> {
   const url = `${serverEnv.apiUrl()}${path}${buildQuery(request.query)}`;
+  // Request-time data first: under Cache Components `headers()` marks the
+  // render dynamic, and only then is a per-request random id appropriate.
+  const ip = await clientIp();
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("Accept", "application/json");
   requestHeaders.set("Accept-Language", "uz");
   requestHeaders.set("X-GD-Internal-Secret", serverEnv.internalSecret());
   requestHeaders.set("X-Request-ID", crypto.randomUUID());
-  const ip = await clientIp();
   if (ip) requestHeaders.set("X-GD-Client-IP", ip);
   if (request.token) requestHeaders.set("Authorization", `Bearer ${request.token}`);
   if (request.idempotencyKey) requestHeaders.set("Idempotency-Key", request.idempotencyKey);
@@ -136,6 +139,9 @@ export async function apiFetch<T>(path: string, request: ApiRequest = {}): Promi
       headers: requestHeaders,
       body,
       cache: "no-store",
+      // Django never redirects an API call; a redirect would mean a
+      // misconfigured edge, and following it could leak the bearer token.
+      redirect: "error",
       signal: AbortSignal.timeout(request.timeoutMs ?? DEFAULT_TIMEOUT_MS),
     });
   } catch (cause) {
@@ -151,7 +157,25 @@ export async function apiFetch<T>(path: string, request: ApiRequest = {}): Promi
     );
   }
   if (!response.ok) throw await ApiError.fromResponse(response);
-  const data = response.status === 204 ? (undefined as T) : ((await response.json()) as T);
+  if (response.status === 204)
+    return { status: 204, data: undefined as T, headers: response.headers };
+  let data: T;
+  try {
+    data = (await response.json()) as T;
+  } catch (cause) {
+    // A 2xx without a JSON body (empty, or an edge-proxy page) is not a
+    // success the callers can use; surface it as an API error of that status.
+    throw new ApiError(
+      response.status,
+      {
+        code: "invalid_json",
+        message: "Kutilmagan xato.",
+        errors: [],
+        request_id: response.headers.get("x-request-id") ?? "",
+      },
+      { cause },
+    );
+  }
   return { status: response.status, data, headers: response.headers };
 }
 

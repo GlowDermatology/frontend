@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { Controller, useForm, useWatch, type Path } from "react-hook-form";
 
 import { Button, buttonStyles } from "@/components/ui/button";
@@ -67,6 +67,9 @@ export function CategoryDialog({
     defaultValues: toValues(category),
   });
   const nameUz = useWatch({ control, name: "name.uz" });
+  // Synchronous re-entry guard: `isSubmitting` disables the button only after
+  // a re-render, and React Hook Form's submit handler is re-entrant.
+  const inFlight = useRef(false);
   const editing = category !== null;
 
   // Suggest the slug from the Uzbek name until the admin edits it by hand.
@@ -75,30 +78,36 @@ export function CategoryDialog({
     setValue("slug", suggestSlug(nameUz ?? ""));
   }, [nameUz, editing, slugTouched, setValue]);
 
-  const onSubmit = handleSubmit(async (values) => {
-    setFormError(null);
-    const result = idempotency.settle(
-      await runAction((csrf) =>
-        category
-          ? updateCategory(
-              category.slug,
-              { name: values.name, isActive: values.isActive },
-              idempotency.key,
-              csrf,
-            )
-          : createCategory(values, idempotency.key, csrf),
-      ),
-    );
-    if (!result.ok) {
-      const entries = Object.entries(result.fieldErrors ?? {});
-      for (const [path, message] of entries)
-        setError(path as Path<CategoryFormValues>, { message });
-      if (entries.length === 0) setFormError(result.error);
-      return;
-    }
-    onSaved(result.data, category ? "edit" : "create");
-    onOpenChange(false);
-  });
+  // Built inside the event handler (not during render) so the ref reads are
+  // event-time accesses.
+  const onSubmit = (event: FormEvent<HTMLFormElement>) =>
+    handleSubmit(async (values) => {
+      if (inFlight.current) return;
+      inFlight.current = true;
+      setFormError(null);
+      const result = idempotency.settle(
+        await runAction((csrf) =>
+          category
+            ? updateCategory(
+                category.slug,
+                { name: values.name, isActive: values.isActive },
+                idempotency.key,
+                csrf,
+              )
+            : createCategory(values, idempotency.key, csrf),
+        ),
+      );
+      inFlight.current = false;
+      if (!result.ok) {
+        const entries = Object.entries(result.fieldErrors ?? {});
+        for (const [path, message] of entries)
+          setError(path as Path<CategoryFormValues>, { message });
+        if (entries.length === 0) setFormError(result.error);
+        return;
+      }
+      onSaved(result.data, category ? "edit" : "create");
+      onOpenChange(false);
+    })(event);
 
   return (
     <Dialog

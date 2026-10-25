@@ -9,7 +9,7 @@ import { Icon } from "@/components/ui/icon";
 import { ScrollRegion } from "@/components/ui/scroll-region";
 import { useToast } from "@/components/ui/toast";
 import { deleteCategory, reorderCategories } from "@/data/categories.actions";
-import { moveItem, type Category } from "@/domain/category";
+import type { Category } from "@/domain/category";
 import { formatNumber } from "@/lib/format";
 
 import { runAction } from "../shared/action-client";
@@ -17,6 +17,7 @@ import { ExportMenu } from "../shared/export-menu";
 import { useIdempotencyKey } from "../shared/idempotency";
 import { PageHeader } from "../shared/page-header";
 import { ReorderButtons } from "../shared/reorder-buttons";
+import { upsertRow, useOrderedList } from "../shared/use-ordered-list";
 import { CategoryDialog } from "./category-dialog";
 
 interface CategoriesViewProps {
@@ -34,11 +35,19 @@ const iconButtonClass =
  * confirmation and up/down reordering (`PUT categories/order/` with the
  * exact set). The list is kept in local state and updated from each action's
  * answer, so the demo works without persistence and api mode shows the
- * server's row without waiting for the refresh.
+ * server's row without waiting for the refresh; a newer server list (the
+ * refresh, or a navigation back to the page) replaces it.
  */
+
+const slugOf = (category: Category) => category.slug;
 export function CategoriesView({ categories, exportHref }: CategoriesViewProps) {
   const toast = useToast();
-  const [items, setItems] = useState(categories);
+  const { items, move, apply, announcement } = useOrderedList(categories, {
+    keyOf: slugOf,
+    label: (category) => `«${category.name.uz}»`,
+    send: (slugs) => runAction((csrf) => reorderCategories(slugs, csrf)),
+    onError: (message) => toast({ tone: "info", title: "Amal bajarilmadi", description: message }),
+  });
   const [dialog, setDialog] = useState<DialogState>(null);
   // Mounts a fresh dialog (and form) for every opening.
   const [instance, setInstance] = useState(0);
@@ -46,7 +55,7 @@ export function CategoriesView({ categories, exportHref }: CategoriesViewProps) 
   const [deleting, setDeleting] = useState<Category | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
-  const [moving, setMoving] = useState(false);
+  const deleteInFlight = useRef(false);
   const addButton = useRef<HTMLButtonElement>(null);
   const deletedSlug = useRef<string | null>(null);
 
@@ -55,32 +64,8 @@ export function CategoriesView({ categories, exportHref }: CategoriesViewProps) 
     setDialog(state);
   };
 
-  const move = async (from: number, to: number) => {
-    const before = items;
-    const next = moveItem(items, from, to).map((category, position) => ({ ...category, position }));
-    setItems(next);
-    setMoving(true);
-    const result = await runAction((csrf) =>
-      reorderCategories(
-        next.map((category) => category.slug),
-        csrf,
-      ),
-    );
-    setMoving(false);
-    if (!result.ok) {
-      setItems(before);
-      toast({ tone: "info", title: "Amal bajarilmadi", description: result.error });
-      return;
-    }
-    setItems(result.data);
-  };
-
   const onSaved = (category: Category, mode: "create" | "edit") => {
-    setItems((current) =>
-      mode === "create"
-        ? [...current, category]
-        : current.map((item) => (item.slug === category.slug ? category : item)),
-    );
+    apply((rows) => upsertRow(rows, category, slugOf));
     toast({
       title: mode === "create" ? "Kategoriya qo‘shildi" : "Kategoriya saqlandi",
       description: category.name.uz,
@@ -88,17 +73,21 @@ export function CategoriesView({ categories, exportHref }: CategoriesViewProps) 
   };
 
   const confirmDelete = async () => {
-    if (!deleting) return;
+    // Synchronous guard: a double click must not send a second DELETE.
+    if (!deleting || deleteInFlight.current) return;
+    deleteInFlight.current = true;
     setDeleteBusy(true);
     setDeleteError(null);
     const result = await runAction((csrf) => deleteCategory(deleting.slug, csrf));
+    deleteInFlight.current = false;
     setDeleteBusy(false);
     if (!result.ok) {
       setDeleteError(result.error);
       return;
     }
     deletedSlug.current = deleting.slug;
-    setItems((current) => current.filter((item) => item.slug !== deleting.slug));
+    const slug = deleting.slug;
+    apply((rows) => rows.filter((item) => item.slug !== slug));
     setDeleting(null);
     toast({ title: "Kategoriya o‘chirildi", description: deleting.name.uz });
   };
@@ -123,6 +112,10 @@ export function CategoriesView({ categories, exportHref }: CategoriesViewProps) 
           </>
         }
       />
+
+      <p role="status" aria-live="polite" className="sr-only">
+        {announcement}
+      </p>
 
       <section
         aria-label="Kategoriyalar ro‘yxati"
@@ -154,7 +147,6 @@ export function CategoriesView({ categories, exportHref }: CategoriesViewProps) 
                         index={index}
                         count={items.length}
                         onMove={move}
-                        disabled={moving}
                       />
                     </td>
                     <td>

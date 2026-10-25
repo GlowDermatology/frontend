@@ -16,7 +16,7 @@ import {
   type Banner,
   type BannerScheduleState,
 } from "@/domain/banner";
-import { categoryLabel, moveItem, type Category } from "@/domain/category";
+import { categoryLabel, type Category } from "@/domain/category";
 import { formatDateTimeShort, formatNumber } from "@/lib/format";
 
 import { runAction } from "../shared/action-client";
@@ -24,6 +24,7 @@ import { ExportMenu } from "../shared/export-menu";
 import { useIdempotencyKey } from "../shared/idempotency";
 import { PageHeader } from "../shared/page-header";
 import { ReorderButtons } from "../shared/reorder-buttons";
+import { upsertRow, useOrderedList } from "../shared/use-ordered-list";
 import { BannerDialog } from "./banner-dialog";
 
 interface BannersViewProps {
@@ -74,11 +75,28 @@ function windowLabel(banner: Banner): string {
  * Bannerlar: the ordered list with the create/edit dialog (image upload,
  * link, window), delete confirmation and up/down reordering (`PUT
  * banners/order/` with the exact id set). Local state mirrors the server's
- * answers so the demo works without persistence.
+ * answers so the demo works without persistence; a newer server list (the
+ * refresh, or a navigation back to the page) replaces it.
  */
+
+const idOf = (banner: Banner) => banner.id;
+
+/** Keep local previews (demo mode) that the server does not know about. */
+function keepPreviews(server: Banner[], local: Banner[]): Banner[] {
+  const previews = new Map(local.map((banner) => [banner.id, banner.imageUrl]));
+  return server.map((banner) =>
+    banner.imageUrl ? banner : { ...banner, imageUrl: previews.get(banner.id) ?? "" },
+  );
+}
 export function BannersView({ banners, categories, now, exportHref }: BannersViewProps) {
   const toast = useToast();
-  const [items, setItems] = useState(banners);
+  const { items, move, apply, announcement } = useOrderedList(banners, {
+    keyOf: idOf,
+    label: (banner) => `«${banner.title.uz}»`,
+    send: (ids) => runAction((csrf) => reorderBanners(ids, csrf)),
+    onError: (message) => toast({ tone: "info", title: "Amal bajarilmadi", description: message }),
+    merge: keepPreviews,
+  });
   const [dialog, setDialog] = useState<DialogState>(null);
   // Mounts a fresh dialog (and form) for every opening.
   const [instance, setInstance] = useState(0);
@@ -86,7 +104,7 @@ export function BannersView({ banners, categories, now, exportHref }: BannersVie
   const [deleting, setDeleting] = useState<Banner | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
-  const [moving, setMoving] = useState(false);
+  const deleteInFlight = useRef(false);
   const addButton = useRef<HTMLButtonElement>(null);
   const deleted = useRef(false);
   const nowDate = new Date(now);
@@ -96,32 +114,6 @@ export function BannersView({ banners, categories, now, exportHref }: BannersVie
     setDialog(state);
   };
 
-  const move = async (from: number, to: number) => {
-    const before = items;
-    const next = moveItem(items, from, to).map((banner, position) => ({ ...banner, position }));
-    setItems(next);
-    setMoving(true);
-    const result = await runAction((csrf) =>
-      reorderBanners(
-        next.map((banner) => banner.id),
-        csrf,
-      ),
-    );
-    setMoving(false);
-    if (!result.ok) {
-      setItems(before);
-      toast({ tone: "info", title: "Amal bajarilmadi", description: result.error });
-      return;
-    }
-    // Keep local previews (demo mode) that the server does not know about.
-    const previews = new Map(before.map((banner) => [banner.id, banner.imageUrl]));
-    setItems(
-      result.data.map((banner) =>
-        banner.imageUrl ? banner : { ...banner, imageUrl: previews.get(banner.id) ?? "" },
-      ),
-    );
-  };
-
   const onSaved = (banner: Banner, mode: "create" | "edit", previewUrl: string | null) => {
     const saved = banner.imageUrl
       ? banner
@@ -129,11 +121,7 @@ export function BannersView({ banners, categories, now, exportHref }: BannersVie
           ...banner,
           imageUrl: previewUrl ?? items.find((item) => item.id === banner.id)?.imageUrl ?? "",
         };
-    setItems((current) =>
-      mode === "create"
-        ? [...current, saved]
-        : current.map((item) => (item.id === saved.id ? saved : item)),
-    );
+    apply((rows) => upsertRow(rows, saved, idOf));
     toast({
       title: mode === "create" ? "Banner qo‘shildi" : "Banner saqlandi",
       description: saved.title.uz,
@@ -141,17 +129,21 @@ export function BannersView({ banners, categories, now, exportHref }: BannersVie
   };
 
   const confirmDelete = async () => {
-    if (!deleting) return;
+    // Synchronous guard: a double click must not send a second DELETE.
+    if (!deleting || deleteInFlight.current) return;
+    deleteInFlight.current = true;
     setDeleteBusy(true);
     setDeleteError(null);
     const result = await runAction((csrf) => deleteBanner(deleting.id, csrf));
+    deleteInFlight.current = false;
     setDeleteBusy(false);
     if (!result.ok) {
       setDeleteError(result.error);
       return;
     }
     deleted.current = true;
-    setItems((current) => current.filter((item) => item.id !== deleting.id));
+    const id = deleting.id;
+    apply((rows) => rows.filter((item) => item.id !== id));
     setDeleting(null);
     toast({ title: "Banner o‘chirildi", description: deleting.title.uz });
   };
@@ -185,6 +177,10 @@ export function BannersView({ banners, categories, now, exportHref }: BannersVie
         }
       />
 
+      <p role="status" aria-live="polite" className="sr-only">
+        {announcement}
+      </p>
+
       <section
         aria-label="Bannerlar ro‘yxati"
         className="overflow-hidden rounded-lg bg-surface-raised shadow-sm"
@@ -216,7 +212,6 @@ export function BannersView({ banners, categories, now, exportHref }: BannersVie
                           index={index}
                           count={items.length}
                           onMove={move}
-                          disabled={moving}
                         />
                       </td>
                       <td>

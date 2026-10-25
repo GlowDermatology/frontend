@@ -1,3 +1,4 @@
+import { requireStaff } from "@/data/auth";
 import { getCustomer } from "@/data/customers";
 import { getNotificationsOverview } from "@/data/notifications";
 
@@ -10,6 +11,7 @@ export async function NotificationsContent({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  await requireStaff();
   const customerId = firstParam(await searchParams, "customer");
   const [overview, customer] = await Promise.all([
     getNotificationsOverview(),

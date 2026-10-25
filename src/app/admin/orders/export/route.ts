@@ -1,3 +1,4 @@
+import { verifyStaff } from "@/data/auth";
 import { exportOrders } from "@/data/orders";
 import { parseOrderQuery } from "@/features/admin/orders/query";
 import {
@@ -10,6 +11,14 @@ import { formatDateTimeShort } from "@/lib/format";
 
 /** CSV export of the filtered orders list (opens in Excel; UTF-8 with BOM). */
 export async function GET(request: Request) {
+  // A download, not a page: answer 401 JSON (contract §1.6) instead of redirecting.
+  const session = await verifyStaff();
+  if (!session.ok) {
+    return Response.json(
+      { code: "not_authenticated", message: "Avtorizatsiya talab qilinadi.", errors: [] },
+      { status: 401, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   const params = Object.fromEntries(new URL(request.url).searchParams);
   const orders = await exportOrders(parseOrderQuery(params));
   const escape = (value: string | number) => `"${String(value).replace(/"/g, '""')}"`;

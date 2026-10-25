@@ -4,6 +4,7 @@ import { NETWORK_ERROR_MESSAGE } from "./action-client";
 import {
   downloadFilename,
   EXPORT_FAILED_MESSAGE,
+  EXPORT_SESSION_MESSAGE,
   fallbackFilename,
   fetchExport,
 } from "./export-download";
@@ -27,6 +28,51 @@ describe("fetchExport", () => {
       "/admin/categories/export?format=csv",
       expect.objectContaining({ credentials: "same-origin", cache: "no-store" }),
     );
+  });
+
+  it("treats the login page a redirect chain ends on as a 401, never as the file", async () => {
+    // Expired session: proxy 307 → /admin/auth/refresh → 303 /admin/login → 200 HTML.
+    const login = new Response("<!doctype html><title>Kirish</title>", {
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
+    Object.defineProperty(login, "redirected", { value: true });
+    Object.defineProperty(login, "url", {
+      value: "http://localhost:3105/admin/login?next=%2Fadmin%2Faudit-log",
+    });
+    expect(
+      await fetchExport(
+        "/admin/audit-log/export?format=csv",
+        vi.fn<typeof fetch>(async () => login),
+      ),
+    ).toEqual({ ok: false, status: 401, message: EXPORT_SESSION_MESSAGE });
+
+    // A redirect to the login page without an HTML content type is caught by its URL.
+    const bare = new Response("", { headers: { "content-type": "application/octet-stream" } });
+    Object.defineProperty(bare, "redirected", { value: true });
+    Object.defineProperty(bare, "url", { value: "http://localhost:3105/admin/login" });
+    expect(
+      await fetchExport(
+        "/admin/customers/groups/export",
+        vi.fn<typeof fetch>(async () => bare),
+      ),
+    ).toMatchObject({ ok: false, status: 401 });
+  });
+
+  it("keeps a file that arrives after an in-chain refresh redirect", async () => {
+    const file = new Response("\uFEFFSana;Amal", {
+      headers: {
+        "content-type": "text/csv; charset=utf-8",
+        "content-disposition": 'attachment; filename="harakatlar-jurnali.csv"',
+      },
+    });
+    Object.defineProperty(file, "redirected", { value: true });
+    Object.defineProperty(file, "url", { value: "http://localhost:3105/admin/audit-log/export" });
+    expect(
+      await fetchExport(
+        "/admin/audit-log/export",
+        vi.fn<typeof fetch>(async () => file),
+      ),
+    ).toMatchObject({ ok: true, filename: "harakatlar-jurnali.csv" });
   });
 
   it("turns a 429 envelope into its Uzbek message", async () => {

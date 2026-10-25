@@ -4,7 +4,8 @@ import { NETWORK_ERROR_MESSAGE } from "./action-client";
  * The client side of the export routes (`/admin/<section>/export?…`). The
  * file is fetched (same origin, the session cookie rides along) and handed to
  * the browser as a download only when the route answers 2xx; any refusal —
- * 429 throttled, 400 `export_too_large`, 401, 502 — comes back as the
+ * 429 throttled, 400 `export_too_large`, 401 (also the login page a
+ * redirect chain ends on, see `isLoginPage`), 502 — comes back as the
  * envelope's Uzbek `message` for a toast, so the admin never lands on a raw
  * JSON page.
  */
@@ -28,6 +29,25 @@ export function fallbackFilename(href: string): string {
   return /[?&]format=xlsx\b/.test(href) ? "eksport.xlsx" : "eksport.csv";
 }
 
+export const EXPORT_SESSION_MESSAGE = "Sessiya tugadi. Qaytadan kiring.";
+
+/**
+ * Whether a 2xx answer is the login page instead of a file: with an expired
+ * session the proxy redirects the export GET through `/admin/auth/refresh` to
+ * `/admin/login`, `fetch` follows the chain and ends on a 200 HTML page. An
+ * export is never HTML, so that answer means "401" (refresh, then log in).
+ */
+export function isLoginPage(response: Response): boolean {
+  const type = response.headers.get("content-type") ?? "";
+  if (/^\s*text\/html\b/i.test(type)) return true;
+  if (!response.redirected || !response.url) return false;
+  try {
+    return new URL(response.url).pathname.startsWith("/admin/login");
+  } catch {
+    return false;
+  }
+}
+
 export async function fetchExport(
   href: string,
   fetchImpl: typeof fetch = (input, init) => fetch(input, init),
@@ -42,6 +62,9 @@ export async function fetchExport(
     });
   } catch {
     return { ok: false, status: 0, message: NETWORK_ERROR_MESSAGE };
+  }
+  if (response.ok && isLoginPage(response)) {
+    return { ok: false, status: 401, message: EXPORT_SESSION_MESSAGE };
   }
   if (response.ok) {
     try {

@@ -5,6 +5,7 @@ import { cache } from "react";
 import type { Category } from "@/domain/category";
 
 import { apiListCategories } from "./api/catalog";
+import { collectAllPages } from "./api/pages";
 import { mapCategory } from "./api/mappers";
 import { requireApiToken } from "./auth";
 import * as mock from "./mock/categories.queries";
@@ -19,19 +20,15 @@ import { dataSource } from "./source";
 
 const PAGE_SIZE = 50;
 
-/** `GET /api/v1/admin/categories/?page_size=50` (every page, ordered by position). */
+/** `GET /api/v1/admin/categories/?page_size=50` (every page, bounded, ordered by position). */
 export const getCategories = cache(async (): Promise<Category[]> => {
   if ((await dataSource()) === "api") {
     const token = await requireApiToken();
-    const categories: Category[] = [];
-    let page = 1;
-    for (;;) {
-      const { data } = await apiListCategories(token, { page, page_size: PAGE_SIZE });
-      categories.push(...data.results.map(mapCategory));
-      if (page >= data.page_count) break;
-      page += 1;
-    }
-    return categories.sort((a, b) => a.position - b.position);
+    const rows = await collectAllPages(
+      async (page) => (await apiListCategories(token, { page, page_size: PAGE_SIZE })).data,
+      { pageSize: PAGE_SIZE, path: "categories/" },
+    );
+    return rows.map(mapCategory).sort((a, b) => a.position - b.position);
   }
   return mock.getCategories();
 });

@@ -160,6 +160,65 @@ describe("dispatchers in api mode", () => {
     expect(await d.banners.getBanners()).toEqual([]);
   });
 
+  it("loads every category page but never past a short page, an empty page or the cap", async () => {
+    const d = await loadDispatchers();
+    const respond = (data: unknown) => ({ status: 200, data, headers: new Headers() });
+    const row = (id: number, position: number) => ({
+      ...categoriesFixture.results[0],
+      id,
+      slug: `c${id}`,
+      position,
+    });
+
+    // A proxied answer without `page_count` (and without `page_size`): one request, no loop.
+    cachedGet.mockImplementation(async () =>
+      respond({ count: 2, page: 1, results: [row(2, 2), row(1, 1)] }),
+    );
+    expect((await d.categories.getCategories()).map((c) => c.slug)).toEqual(["c1", "c2"]);
+    expect(cachedGet).toHaveBeenCalledTimes(1);
+
+    // `page_count` that keeps growing with full pages: stops at the cap by throwing, not by looping.
+    cachedGet.mockReset();
+    const d2 = await loadDispatchers();
+    cachedGet.mockImplementation(async (_path: string, params: { page: number }) =>
+      respond({
+        count: 10_000,
+        page: params.page,
+        page_size: 50,
+        page_count: params.page + 1,
+        results: Array.from({ length: 50 }, (_, i) => row(params.page * 100 + i, i)),
+      }),
+    );
+    await expect(d2.categories.getCategories()).rejects.toThrow(/categories\/: more than 20 pages/);
+    expect(cachedGet).toHaveBeenCalledTimes(20);
+
+    // Banners: a honest two-page list is followed to the end.
+    cachedGet.mockReset();
+    const d3 = await loadDispatchers();
+    cachedGet.mockImplementation(async (_path: string, params: { page: number }) =>
+      respond({
+        count: 51,
+        page: params.page,
+        page_size: 50,
+        page_count: 2,
+        results: Array.from({ length: params.page === 1 ? 50 : 1 }, (_, i) => ({
+          id: params.page * 100 + i,
+          position: params.page * 100 + i,
+          title: { uz: `B${i}`, ru: "", en: "" },
+          image_url: "http://localhost:8001/media/banners/x.png",
+          link: { kind: "none", product_id: null, category: null },
+          is_active: true,
+          starts_at: null,
+          ends_at: null,
+          created_at: "2026-10-24T07:00:00Z",
+          updated_at: "2026-10-24T07:00:00Z",
+        })),
+      }),
+    );
+    expect(await d3.banners.getBanners()).toHaveLength(51);
+    expect(cachedGet).toHaveBeenCalledTimes(2);
+  });
+
   it("maps a 404 product to null", async () => {
     const d = await loadDispatchers();
     const { ApiError } = await import("./api/errors");

@@ -23,49 +23,51 @@ const awareDateTime = z
   .refine((value) => !Number.isNaN(Date.parse(value)), { error: "Noto‘g‘ri sana." })
   .nullable();
 
-export const bannerFormSchema = z
-  .object({
-    title: z.object({
-      uz: z
-        .string()
-        .trim()
-        .min(1, "O‘zbekcha sarlavhani kiriting.")
-        .max(80, "80 belgidan oshmasin."),
-      ru: optionalTitle,
-      en: optionalTitle,
-    }),
-    link: z.object({
-      kind: z.enum(BANNER_LINK_KINDS),
-      productId: z
-        .string()
-        .trim()
-        .regex(/^\d{1,18}$/, "Mahsulotni tanlang.")
-        .nullable(),
-      category: z.string().trim().regex(CATEGORY_SLUG_PATTERN, "Kategoriyani tanlang.").nullable(),
-    }),
-    isActive: z.boolean(),
-    startsAt: awareDateTime,
-    endsAt: awareDateTime,
-  })
-  .superRefine((values, ctx) => {
-    if (values.link.kind === "product" && !values.link.productId) {
-      ctx.addIssue({ code: "custom", path: ["link", "productId"], message: "Mahsulotni tanlang." });
-    }
-    if (values.link.kind === "category" && !values.link.category) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["link", "category"],
-        message: "Kategoriyani tanlang.",
-      });
-    }
-    if (!isValidBannerWindow(values.startsAt, values.endsAt)) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["endsAt"],
-        message: "Tugash vaqti boshlanish vaqtidan keyin bo‘lsin.",
-      });
-    }
-  });
+const bannerFields = z.object({
+  title: z.object({
+    uz: z.string().trim().min(1, "O‘zbekcha sarlavhani kiriting.").max(80, "80 belgidan oshmasin."),
+    ru: optionalTitle,
+    en: optionalTitle,
+  }),
+  link: z.object({
+    kind: z.enum(BANNER_LINK_KINDS),
+    productId: z
+      .string()
+      .trim()
+      .regex(/^\d{1,18}$/, "Mahsulotni tanlang.")
+      .nullable(),
+    category: z.string().trim().regex(CATEGORY_SLUG_PATTERN, "Kategoriyani tanlang.").nullable(),
+  }),
+  isActive: z.boolean(),
+  startsAt: awareDateTime,
+  endsAt: awareDateTime,
+});
+
+/**
+ * The banner the dialog loaded, which `saveBanner` diffs an update against
+ * (shape checks only: it is server data).
+ */
+export const bannerBaselineSchema = bannerFields;
+
+export const bannerFormSchema = bannerFields.superRefine((values, ctx) => {
+  if (values.link.kind === "product" && !values.link.productId) {
+    ctx.addIssue({ code: "custom", path: ["link", "productId"], message: "Mahsulotni tanlang." });
+  }
+  if (values.link.kind === "category" && !values.link.category) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["link", "category"],
+      message: "Kategoriyani tanlang.",
+    });
+  }
+  if (!isValidBannerWindow(values.startsAt, values.endsAt)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["endsAt"],
+      message: "Tugash vaqti boshlanish vaqtidan keyin bo‘lsin.",
+    });
+  }
+});
 
 export type BannerFormValues = z.infer<typeof bannerFormSchema>;
 

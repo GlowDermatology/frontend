@@ -379,8 +379,8 @@ describe("banners", () => {
     expect(category.has("image")).toBe(false);
   });
 
-  it("builds the JSON PATCH body with nested nulls", () => {
-    expect(bannerPatchBody(values)).toEqual({
+  it("builds the full JSON PATCH body without a baseline, with nested nulls", () => {
+    expect(bannerPatchBody(null, values)).toEqual({
       title: { uz: "Kuzgi chegirmalar", ru: "", en: "" },
       link: { kind: "product", product_id: 4, category: null },
       is_active: true,
@@ -388,9 +388,59 @@ describe("banners", () => {
       ends_at: "2026-11-30T00:00:00+05:00",
     });
     expect(
-      bannerPatchBody({ ...values, link: { kind: "none", productId: "4", category: "serums" } })
-        .link,
+      bannerPatchBody(null, {
+        ...values,
+        link: { kind: "none", productId: "4", category: "serums" },
+      }).link,
     ).toEqual({ kind: "none", product_id: null, category: null });
+  });
+
+  it("patches only the changed fields against the loaded banner (link left out when unchanged)", () => {
+    // The banner links product 4, which has since been hidden: a title-only
+    // edit or switching the banner off must not resend the link (the server
+    // re-checks a sent product id against the active products).
+    expect(bannerPatchBody(values, values)).toEqual({});
+    expect(bannerPatchBody(values, { ...values, title: { ...values.title, ru: "Осень" } })).toEqual(
+      { title: { ru: "Осень" } },
+    );
+    expect(bannerPatchBody(values, { ...values, isActive: false })).toEqual({
+      is_active: false,
+    });
+    // The same instant spelled differently is not a change; clearing the end is.
+    expect(bannerPatchBody(values, { ...values, endsAt: "2026-11-29T19:00:00Z" })).toEqual({});
+    expect(bannerPatchBody(values, { ...values, endsAt: null })).toEqual({ ends_at: null });
+    // A stale target of another kind is not a change; a new kind sends the whole link.
+    expect(
+      bannerPatchBody(
+        { ...values, link: { kind: "none", productId: null, category: null } },
+        { ...values, link: { kind: "none", productId: "4", category: null } },
+      ),
+    ).toEqual({});
+    expect(
+      bannerPatchBody(values, {
+        ...values,
+        link: { kind: "category", productId: "4", category: "serums" },
+      }),
+    ).toEqual({ link: { kind: "category", product_id: null, category: "serums" } });
+  });
+
+  it("puts only the changed fields next to a new image in a multipart PATCH", () => {
+    const image = new File(["x"], "banner.png", { type: "image/png" });
+    const form = bannerFormData({ ...values, isActive: false }, image, values);
+    expect(Object.fromEntries([...form.entries()].filter(([k]) => k !== "image"))).toEqual({
+      is_active: "false",
+    });
+    expect(form.get("image")).toBeInstanceOf(File);
+    const relinked = bannerFormData(
+      { ...values, link: { kind: "none", productId: null, category: null } },
+      image,
+      values,
+    );
+    expect(Object.fromEntries([...relinked.entries()].filter(([k]) => k !== "image"))).toEqual({
+      "link.kind": "none",
+      "link.product_id": "",
+      "link.category": "",
+    });
   });
 });
 

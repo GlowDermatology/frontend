@@ -48,7 +48,10 @@ export type ApiCategoryResults = Schemas["CategoryResults"];
 
 export type ApiBanner = Schemas["Banner"];
 export type ApiBannerLink = Schemas["BannerLink"];
-export type ApiBannerPatch = Partial<Schemas["PatchedBannerWriteRequest"]>;
+/** `PATCH banners/{id}/` (JSON): changed fields only; `title` merges at leaf level like product texts. */
+export type ApiBannerPatch = Omit<Partial<Schemas["PatchedBannerWriteRequest"]>, "title"> & {
+  title?: Partial<Schemas["BannerTitleRequest"]>;
+};
 export type ApiPaginatedBanners = Schemas["PaginatedBannerList"];
 export type ApiBannerResults = Schemas["BannerResults"];
 

@@ -11,9 +11,16 @@ import {
   idempotencyKeySchema,
   sessionToken,
 } from "./action-guard";
-import { apiCreateBanner, apiDeleteBanner, apiPatchBanner, apiReorderBanners } from "./api/catalog";
+import {
+  apiCreateBanner,
+  apiDeleteBanner,
+  apiGetBanner,
+  apiPatchBanner,
+  apiReorderBanners,
+} from "./api/catalog";
 import { bannerFormData, bannerPatchBody, mapBanner, toActionResult } from "./api/mappers";
 import {
+  bannerBaselineSchema,
   bannerFormSchema,
   bannerImageSchema,
   bannerValuesFromFormData,
@@ -27,8 +34,11 @@ import type { ActionResult } from "./types";
  * Banner mutations (contract §2.5). `saveBanner` takes the dialog's
  * `FormData` (fields plus an optional `image` part): a create is always
  * multipart, an update is multipart when a new image was picked and a JSON
- * `PATCH` otherwise. `deleteBanner` and `reorderBanners` (`PUT banners/order/`
- * with the exact id set) complete the section.
+ * `PATCH` otherwise, and carries only what differs from `baseline` (the
+ * banner as the dialog loaded it): an unchanged link to a since-hidden
+ * product is never resent, so the banner can still be edited or switched
+ * off. `deleteBanner` and `reorderBanners` (`PUT banners/order/` with the
+ * exact id set) complete the section.
  */
 
 const bannerIdSchema = z.string().trim().min(1).max(64);
@@ -37,6 +47,7 @@ const apiIdSchema = z.string().regex(/^\d{1,18}$/);
 export async function saveBanner(
   id: string | null,
   formData: FormData,
+  baseline: BannerFormValues | null,
   key: string,
   csrf: string,
 ): Promise<ActionResult<Banner>> {
@@ -48,6 +59,8 @@ export async function saveBanner(
   if (!parsedKey.success) return fieldErrorsFrom(parsedKey.error);
   const parsed = bannerFormSchema.safeParse(bannerValuesFromFormData(formData));
   if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  const parsedBaseline = bannerBaselineSchema.nullable().safeParse(baseline);
+  if (!parsedBaseline.success) return fieldErrorsFrom(parsedBaseline.error);
   const picked = formData.get("image");
   const parsedImage = bannerImageSchema.safeParse(
     picked instanceof File && picked.size > 0 ? picked : undefined,
@@ -84,10 +97,24 @@ export async function saveBanner(
         if (!apiIdSchema.safeParse(parsedId.data).success) {
           return { ok: false, error: "Banner topilmadi.", code: "not_found" };
         }
+        const before = parsedBaseline.data;
+        if (image) {
+          const { data } = await apiPatchBanner(
+            token,
+            parsedId.data,
+            { formData: bannerFormData(values, image, before) },
+            parsedKey.data.key,
+          );
+          return { ok: true, data: mapBanner(data) };
+        }
+        const body = bannerPatchBody(before, values);
+        if (Object.keys(body).length === 0) {
+          return { ok: true, data: mapBanner((await apiGetBanner(token, parsedId.data)).data) };
+        }
         const { data } = await apiPatchBanner(
           token,
           parsedId.data,
-          image ? { formData: bannerFormData(values, image) } : { json: bannerPatchBody(values) },
+          { json: body },
           parsedKey.data.key,
         );
         return { ok: true, data: mapBanner(data) };
@@ -98,7 +125,7 @@ export async function saveBanner(
   }
   return parsedId.data === null
     ? mock.createBanner(values, image!)
-    : mock.updateBanner(parsedId.data, values, image);
+    : mock.updateBanner(parsedId.data, values, image, parsedBaseline.data);
 }
 
 export async function deleteBanner(

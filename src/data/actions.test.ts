@@ -179,7 +179,7 @@ describe("session and csrf gate", () => {
         ),
       () => deleteCategory("serums", missing),
       () => reorderCategories(["serums"], missing),
-      () => saveBanner(null, new FormData(), KEY, missing),
+      () => saveBanner(null, new FormData(), null, KEY, missing),
       () => deleteBanner("1", missing),
       () => reorderBanners(["1"], missing),
       () => adjustCashback("5", { direction: "add", amount: 1, reason: "abc" }, KEY, missing),
@@ -529,13 +529,13 @@ describe("api mode (catalog actions wired)", () => {
     form.set("isActive", "true");
     form.set("endsAt", "2026-11-30T00:00:00+05:00");
     // Create without an image is refused before the round trip.
-    expect(await saveBanner(null, form, KEY, CSRF)).toMatchObject({
+    expect(await saveBanner(null, form, null, KEY, CSRF)).toMatchObject({
       ok: false,
       fieldErrors: { image: "Banner rasmini tanlang." },
     });
     form.set("image", new File(["x"], "b.png", { type: "image/png" }));
     apiFetch.mockResolvedValueOnce(respond(201, bannerFixture));
-    const created = await saveBanner(null, form, KEY, CSRF);
+    const created = await saveBanner(null, form, null, KEY, CSRF);
     const [path, request] = apiFetch.mock.calls[0]!;
     expect(path).toBe("/api/v1/admin/banners/");
     expect(request.method).toBe("POST");
@@ -558,20 +558,52 @@ describe("api mode (catalog actions wired)", () => {
     expect(created).toMatchObject({ ok: true, data: { id: "1", link: { productId: "4" } } });
 
     form.delete("image");
+    const loaded = {
+      title: { uz: "Kuzgi chegirmalar", ru: "", en: "" },
+      link: { kind: "product" as const, productId: "4", category: null },
+      isActive: true,
+      startsAt: null,
+      endsAt: "2026-11-30T00:00:00+05:00",
+    };
+    // An image-less update is JSON with only the changed fields: the unchanged
+    // link (to a product that may be hidden by now) is not resent.
+    form.set("isActive", "false");
+    apiFetch.mockResolvedValueOnce(respond(200, { ...bannerFixture, is_active: false }));
+    await saveBanner("1", form, loaded, KEY, CSRF);
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/banners/1/",
+      expect.objectContaining({ method: "PATCH", body: { is_active: false } }),
+    );
+    expect(apiFetch.mock.calls[1]![1].formData).toBeUndefined();
+    // A changed link is sent whole.
+    form.set("link.kind", "none");
     apiFetch.mockResolvedValueOnce(respond(200, bannerFixture));
-    await saveBanner("1", form, KEY, CSRF);
+    await saveBanner("1", form, { ...loaded, isActive: false }, KEY, CSRF);
     expect(apiFetch).toHaveBeenLastCalledWith(
       "/api/v1/admin/banners/1/",
       expect.objectContaining({
-        method: "PATCH",
-        body: expect.objectContaining({ link: { kind: "product", product_id: 4, category: null } }),
+        body: { link: { kind: "none", product_id: null, category: null } },
       }),
     );
-    expect(apiFetch.mock.calls[1]![1].formData).toBeUndefined();
+    // Nothing changed → no PATCH; the banner is read back.
+    apiFetch.mockResolvedValueOnce(respond(200, bannerFixture));
+    await saveBanner(
+      "1",
+      form,
+      { ...loaded, isActive: false, link: { kind: "none", productId: null, category: null } },
+      KEY,
+      CSRF,
+    );
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/banners/1/",
+      expect.not.objectContaining({ method: "PATCH" }),
+    );
+    form.set("link.kind", "product");
+    form.set("isActive", "true");
 
     // Window order is checked before the round trip.
     form.set("startsAt", "2026-12-01T00:00:00+05:00");
-    expect(await saveBanner("1", form, KEY, CSRF)).toMatchObject({
+    expect(await saveBanner("1", form, loaded, KEY, CSRF)).toMatchObject({
       ok: false,
       fieldErrors: { endsAt: "Tugash vaqti boshlanish vaqtidan keyin bo‘lsin." },
     });

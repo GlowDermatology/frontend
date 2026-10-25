@@ -121,6 +121,19 @@ describe("mock banners", () => {
       ok: true,
       data: { id: "1", isActive: false, imageUrl: "/mock/banner-autumn.png" },
     });
+    // Like the API, an unchanged link is not re-checked: a banner whose linked
+    // product was hidden since can still be switched off or retitled.
+    const hiddenLink = { kind: "product" as const, productId: "7", category: null };
+    expect(
+      await updateBanner("1", { ...values, link: hiddenLink, isActive: false }, null, {
+        ...values,
+        link: hiddenLink,
+      }),
+    ).toMatchObject({ ok: true, data: { isActive: false } });
+    expect(await updateBanner("1", { ...values, link: hiddenLink }, null, values)).toMatchObject({
+      ok: false,
+      fieldErrors: { "link.productId": "Topilmadi." },
+    });
     expect(await deleteBanner("2")).toEqual({ ok: true, data: { id: "2" } });
     expect(await deleteBanner("9")).toMatchObject({ code: "not_found" });
     const reordered = await reorderBanners(["2", "1"]);

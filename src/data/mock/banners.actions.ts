@@ -29,6 +29,16 @@ function linkErrors(values: BannerFormValues): Record<string, string> | null {
   return null;
 }
 
+function linkChanged(
+  before: Pick<BannerFormValues, "link"> | Pick<Banner, "link"> | null,
+  values: BannerFormValues,
+): boolean {
+  if (!before) return true;
+  const target = (link: BannerFormValues["link"]) =>
+    link.kind === "product" ? link.productId : link.kind === "category" ? link.category : null;
+  return before.link.kind !== values.link.kind || target(before.link) !== target(values.link);
+}
+
 function apply(before: Banner | null, values: BannerFormValues, image: File | null): Banner {
   const now = referenceNow().toISOString();
   return {
@@ -63,13 +73,16 @@ export async function updateBanner(
   id: string,
   values: BannerFormValues,
   image: File | null,
+  baseline: BannerFormValues | null = null,
 ): Promise<ActionResult<Banner>> {
   await delay(400);
   const before = byId(id);
   if (!before && !id.startsWith("draft-")) {
     return { ok: false, error: "Banner topilmadi.", code: "not_found" };
   }
-  const fieldErrors = linkErrors(values);
+  // Like the API: the link targets are checked only when the link is sent,
+  // i.e. when it changed against the loaded banner.
+  const fieldErrors = linkChanged(baseline ?? before, values) ? linkErrors(values) : null;
   if (fieldErrors) return { ok: false, error: "Maydonlarni tekshiring.", fieldErrors };
   return { ok: true, data: apply(before ?? { ...apply(null, values, null), id }, values, image) };
 }

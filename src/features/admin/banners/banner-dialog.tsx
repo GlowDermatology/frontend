@@ -167,6 +167,9 @@ export function BannerDialog({
   } = useForm<FormValues>({ resolver: zodResolver(formSchema), defaultValues: fromBanner(banner) });
   const kind = useWatch({ control, name: "kind" });
   const editing = banner !== null;
+  // Synchronous re-entry guard: `isSubmitting` disables the button only after
+  // a re-render, and React Hook Form's submit handler is re-entrant.
+  const inFlight = useRef(false);
 
   const clearPreview = () => {
     setPreview((current) => {
@@ -216,12 +219,18 @@ export function BannerDialog({
           focusImageButton();
           return;
         }
+        if (inFlight.current) return;
+        inFlight.current = true;
         const formData = bannerFormDataFromValues(toValues(values), file);
+        // The loaded banner, through the same form round trip as the values,
+        // so the action sends only what the admin changed.
+        const baseline = banner ? toValues(fromBanner(banner)) : null;
         const result = idempotency.settle(
           await runAction((csrf) =>
-            saveBanner(banner?.id ?? null, formData, idempotency.key, csrf),
+            saveBanner(banner?.id ?? null, formData, baseline, idempotency.key, csrf),
           ),
         );
+        inFlight.current = false;
         if (!result.ok) {
           const entries = Object.entries(result.fieldErrors ?? {});
           for (const [path, message] of entries) {

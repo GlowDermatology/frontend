@@ -167,6 +167,10 @@ export function apiListBanners(token: string, params: Record<string, QueryValue>
   return cachedGet<ApiPaginatedBanners>(`${BASE}/banners/`, params, token);
 }
 
+export function apiGetBanner(token: string, id: string) {
+  return apiFetch<ApiBanner>(`${BASE}/banners/${encodeURIComponent(id)}/`, { token });
+}
+
 export function apiCreateBanner(token: string, formData: FormData, idempotencyKey: string) {
   return apiFetch<ApiBanner>(`${BASE}/banners/`, {
     method: "POST",

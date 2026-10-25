@@ -3,11 +3,128 @@
  * GENERATED FILE — do not edit by hand. Regenerate with `npm run gen:api`.
  *
  * Source: openapi/schema.yaml of the backend repository
- * Commit: 13021b686841883a30486db74828ffc88ae16c56
- * Generated: 2026-10-25T19:24:19.030Z (openapi-typescript)
+ * Commit: 4e2e6200a13472e4cc20028b5f4944daf1af791b
+ * Generated: 2026-10-25T22:34:30.259Z (openapi-typescript)
  */
 
 export interface paths {
+    "/api/v1/admin/appointments/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["admin_appointments_day"];
+        put?: never;
+        /** @description Staff booking (requested_via=admin, created directly as confirmed). The slot must sit on a 5-minute grid in the future, inside the specialist's hours for that day (a date override wins), outside blocked periods and the recurring break, and must not overlap another open appointment (a concurrent booking of the same slot answers 409 conflict). */
+        post: operations["admin_appointments_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/appointments/{id}/{action}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description confirm / reject (from requested) or attend (from confirmed); otherwise 409 invalid_transition. */
+        post: operations["admin_appointments_action"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/appointments/{id}/cancel/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Cancel an open (requested|confirmed) appointment; the slot is freed and the customer is pushed. */
+        post: operations["admin_appointments_cancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/appointments/{id}/reschedule/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Move an open (requested|confirmed) appointment; the status is kept. Same slot rules as the creation. A new specialist re-snapshots duration and price from that specialist's service link. */
+        post: operations["admin_appointments_reschedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/appointments/meta/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description What the admin booking dialog offers: active specialists (by position, then name) with their active services (the duration and price a booking would snapshot) and the slot grid in minutes. */
+        get: operations["admin_appointments_meta"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/appointments/pending-summary/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["admin_appointments_pending_summary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/audit-log/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["admin_audit_log_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/auth/change-password/": {
         parameters: {
             query?: never;
@@ -253,6 +370,71 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/nav-counts/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["admin_nav_counts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/notification-templates/{status}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["admin_notification_templates_retrieve"];
+        put: operations["admin_notification_templates_update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/notifications/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["admin_notifications_list"];
+        put?: never;
+        /** @description Multipart with dotted keys (`link.kind`, `audience.type`, …) and an optional `image` (JPEG, PNG or WebP, ≤ 5 MiB). Without `scheduled_at` the send starts at once (state queued); with it the campaign waits for its time (state scheduled). */
+        post: operations["admin_notifications_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/notifications/meta/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["admin_notifications_meta"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/products/": {
         parameters: {
             query?: never;
@@ -350,6 +532,87 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/segments/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["admin_segments_list"];
+        put?: never;
+        post: operations["admin_segments_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/segments/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["admin_segments_retrieve"];
+        put?: never;
+        post?: never;
+        delete: operations["admin_segments_destroy"];
+        options?: never;
+        head?: never;
+        patch: operations["admin_segments_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/admin/segments/{id}/members/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["admin_segment_members_list"];
+        put?: never;
+        post: operations["admin_segment_members_add"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/segments/{id}/members/{customer_id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** @description Removes a manual membership; a rule-only member answers 409 conflict. */
+        delete: operations["admin_segment_members_remove"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/settings/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["admin_settings_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["admin_settings_partial_update"];
+        trace?: never;
+    };
     "/api/v1/health/": {
         parameters: {
             query?: never;
@@ -377,10 +640,90 @@ export interface components {
             /** Format: date-time */
             refresh_expires_at: string;
         };
-        /** @description Contract §2.0 ``Actor = {"id", "display_name"}``: the staff full name, else the email. */
+        /**
+         * @description ``Actor = {"id", "display_name"}``: the staff full name, else the email (``null`` = system).
+         *
+         *     Takes any staff user instance; declare it with ``allow_null=True`` where the actor may be the system.
+         */
         Actor: {
             readonly display_name: string;
             id: number;
+        };
+        /** @description ``POST appointments/{id}/cancel/``: optional ``reason`` (≤ 300), kept as the staff note. */
+        AppointmentCancelRequest: {
+            /** @default  */
+            reason: string;
+        };
+        /**
+         * @description ``POST appointments/`` (T10): ``specialist_id``, ``service_id``, ``customer_id`` | ``phone`` (E.164 of
+         *     an active customer), ``start`` (aware, 5-minute grid, inside working hours), ``note`` (≤ 300).
+         */
+        AppointmentCreateRequest: {
+            customer_id?: number;
+            /** @default  */
+            note: string;
+            phone?: string;
+            service_id: number;
+            specialist_id: number;
+            /** Format: date-time */
+            start: string;
+        };
+        /** @description The day-item shape (contract §2.9), also returned by every action endpoint. */
+        AppointmentItem: {
+            customer: components["schemas"]["CustomerRef"];
+            duration_min: number;
+            /** Format: date-time */
+            end: string;
+            id: number;
+            price: number;
+            /** Format: date-time */
+            requested_at: string;
+            requested_via: components["schemas"]["RequestedViaEnum"];
+            service_id: number;
+            service_name: string;
+            service_short_name: string;
+            specialist_id: number;
+            /** Format: date-time */
+            start: string;
+            status: components["schemas"]["AppointmentStatusEnum"];
+        };
+        /** @description ``POST appointments/{id}/reschedule/``: ``start`` (same slot rules), optional ``specialist_id``. */
+        AppointmentRescheduleRequest: {
+            specialist_id?: number;
+            /** Format: date-time */
+            start: string;
+        };
+        AppointmentsMeta: {
+            slot_step_min: number;
+            specialists: components["schemas"]["BookingSpecialist"][];
+        };
+        /**
+         * @description * `requested` - requested
+         *     * `confirmed` - confirmed
+         *     * `rejected` - rejected
+         *     * `attended` - attended
+         *     * `cancelled` - cancelled
+         * @enum {string}
+         */
+        AppointmentStatusEnum: "requested" | "confirmed" | "rejected" | "attended" | "cancelled";
+        /**
+         * @description * `all` - all
+         *     * `segment` - segment
+         *     * `customer` - customer
+         * @enum {string}
+         */
+        AudienceTypeEnum: "all" | "segment" | "customer";
+        AuditEntry: {
+            action: string;
+            readonly actor: components["schemas"]["Actor"] | null;
+            /** Format: date-time */
+            at: string;
+            readonly data: unknown;
+            id: number;
+            ip: string | null;
+            object_id: string;
+            object_type: string;
+            request_id: string;
         };
         /** @description Contract §2.5 ``Banner``; instances come from ``selectors.banner_queryset()``. */
         Banner: {
@@ -459,6 +802,26 @@ export interface components {
             /** Format: date-time */
             last_sync_at: string | null;
         };
+        /**
+         * @description * `busy` - busy
+         *     * `off` - off
+         * @enum {string}
+         */
+        BlockKindEnum: "busy" | "off";
+        /** @description One bookable service of a specialist: the snapshot an admin booking would take (contract §2.9 meta). */
+        BookingService: {
+            duration_min: number;
+            id: number;
+            name: string;
+            price: number;
+            short_name: string;
+        };
+        BookingSpecialist: {
+            id: number;
+            name: string;
+            role: components["schemas"]["SpecialistRoleEnum"];
+            services: components["schemas"]["BookingService"][];
+        };
         /** @description Contract §2.4 ``Category``; instances come from ``selectors.category_queryset()``. */
         Category: {
             /** Format: date-time */
@@ -496,6 +859,44 @@ export interface components {
         ChangePasswordRequest: {
             current_password: string;
             new_password: string;
+        };
+        /** @description Contract §2.6 ``CustomerListItem`` for the members list; loyalty-owned numbers read 0 / null (B4). */
+        CustomerListItem: {
+            readonly balance: number;
+            id: number;
+            lifetime_total: number;
+            name: string;
+            online_orders_count: number;
+            readonly percent: string | null;
+            phone: string;
+            /** Format: date-time */
+            registered_at: string;
+            status: components["schemas"]["CustomerStatusEnum"];
+        };
+        /** @description Contract §2.0 ``CustomerRef``; ``name`` is ``""`` once the customer is deleted (scrubbed). */
+        CustomerRef: {
+            id: number;
+            name: string;
+            phone: string;
+        };
+        /**
+         * @description * `active` - active
+         *     * `deleted` - deleted
+         * @enum {string}
+         */
+        CustomerStatusEnum: "active" | "deleted";
+        DayBlock: {
+            end: string;
+            kind: components["schemas"]["BlockKindEnum"];
+            label: string | null;
+            start: string;
+        };
+        /** @description ``GET appointments/?date=`` (contract §2.9). */
+        DaySchedule: {
+            appointments: components["schemas"]["AppointmentItem"][];
+            /** Format: date */
+            date: string;
+            specialists: components["schemas"]["SpecialistDay"][];
         };
         ErrorEnvelope: {
             code: string;
@@ -544,6 +945,15 @@ export interface components {
         ImagesResponse: {
             images: components["schemas"]["ProductImage"][];
         };
+        Integrations: {
+            mode: components["schemas"]["IntegrationsModeEnum"];
+        };
+        /**
+         * @description * `fake` - fake
+         *     * `live` - live
+         * @enum {string}
+         */
+        IntegrationsModeEnum: "fake" | "live";
         /** @description Contract §2.14 ``Job``. */
         Job: {
             /** Format: date-time */
@@ -582,6 +992,16 @@ export interface components {
             new_price: number | null;
             old_price: number | null;
         };
+        /**
+         * @description * `none` - none
+         *     * `product` - product
+         * @enum {string}
+         */
+        LinkKindEnum: "none" | "product";
+        LinkOption: {
+            label: string;
+            product_id: number;
+        };
         LoginRequest: {
             /** Format: email */
             email: string;
@@ -618,6 +1038,80 @@ export interface components {
             /** Format: date-time */
             session_expires_at: string;
         };
+        MetaSegment: {
+            id: number;
+            name: string;
+            size: number;
+        };
+        NavCounts: {
+            appointments_pending: number;
+            orders_processing: number;
+        };
+        NotificationAudience: {
+            phone: string | null;
+            segment_id: number | null;
+            segment_name: string | null;
+            type: components["schemas"]["AudienceTypeEnum"];
+        };
+        NotificationFormRequest: {
+            "audience.phone"?: string;
+            "audience.segment_id"?: number;
+            "audience.type": components["schemas"]["AudienceTypeEnum"];
+            body: string;
+            /** Format: binary */
+            image?: string;
+            kind: components["schemas"]["NotificationKindEnum"];
+            "link.kind"?: components["schemas"]["LinkKindEnum"];
+            "link.product_id"?: number;
+            /** Format: date-time */
+            scheduled_at?: string;
+            title: string;
+        };
+        /**
+         * @description * `promo` - promo
+         *     * `general` - general
+         * @enum {string}
+         */
+        NotificationKindEnum: "promo" | "general";
+        NotificationLink: {
+            kind: components["schemas"]["LinkKindEnum"];
+            label: string | null;
+            product_id: number | null;
+        };
+        NotificationMeta: {
+            link_options: components["schemas"]["LinkOption"][];
+            segments: components["schemas"]["MetaSegment"][];
+            templates: components["schemas"]["StatusTemplate"][];
+            total_devices: number;
+        };
+        NotificationRecord: {
+            readonly audience: components["schemas"]["NotificationAudience"];
+            author: components["schemas"]["Actor"] | null;
+            body: string;
+            /** Format: date-time */
+            created_at: string;
+            delivered: number | null;
+            failed: number | null;
+            id: number;
+            readonly image_url: string | null;
+            kind: components["schemas"]["NotificationKindEnum"];
+            readonly link: components["schemas"]["NotificationLink"];
+            recipient_count: number;
+            /** Format: date-time */
+            scheduled_at: string | null;
+            sent: number | null;
+            /** Format: date-time */
+            sent_at: string | null;
+            readonly state: components["schemas"]["NotificationStateEnum"];
+            title: string;
+        };
+        /**
+         * @description * `scheduled` - scheduled
+         *     * `queued` - queued
+         *     * `sent` - sent
+         * @enum {string}
+         */
+        NotificationStateEnum: "scheduled" | "queued" | "sent";
         /**
          * @description Body of ``POST auth/oauth/{provider}/`` and ``.../link/`` (contract 2.1).
          *
@@ -630,6 +1124,13 @@ export interface components {
             nonce?: string;
             /** Format: uri */
             redirect_uri: string;
+        };
+        PaginatedAuditEntryList: {
+            count: number;
+            page: number;
+            page_count: number;
+            page_size: number;
+            results: components["schemas"]["AuditEntry"][];
         };
         PaginatedBannerList: {
             count: number;
@@ -645,12 +1146,33 @@ export interface components {
             page_size: number;
             results: components["schemas"]["Category"][];
         };
+        PaginatedCustomerListItemList: {
+            count: number;
+            page: number;
+            page_count: number;
+            page_size: number;
+            results: components["schemas"]["CustomerListItem"][];
+        };
+        PaginatedNotificationRecordList: {
+            count: number;
+            page: number;
+            page_count: number;
+            page_size: number;
+            results: components["schemas"]["NotificationRecord"][];
+        };
         PaginatedProductList: {
             count: number;
             page: number;
             page_count: number;
             page_size: number;
             results: components["schemas"]["Product"][];
+        };
+        PaginatedSegmentList: {
+            count: number;
+            page: number;
+            page_count: number;
+            page_size: number;
+            results: components["schemas"]["Segment"][];
         };
         PatchedBannerFormRequest: {
             /** Format: date-time */
@@ -711,6 +1233,35 @@ export interface components {
             /** @default hidden */
             status: components["schemas"]["ProductStatusEnum"];
             texts?: components["schemas"]["ProductTextsRequest"];
+        };
+        /** @description ``POST segments/`` (``name`` 2..60 unique, ``rules``) and ``PATCH segments/{id}/`` (partial). */
+        PatchedSegmentWriteRequest: {
+            name?: string;
+            rules?: components["schemas"]["SegmentRulesRequest"];
+        };
+        /**
+         * @description ``PATCH settings/``: ``reservation_minutes`` 5..60, ``support_phone`` E.164 | null,
+         *     ``pickup_address.*`` ≤ 200; ``integrations`` is read-only (``read_only`` field error).
+         */
+        PatchedSettingsPatchRequest: {
+            pickup_address?: components["schemas"]["PickupAddressRequest"];
+            reservation_minutes?: number;
+            support_phone?: string | null;
+        };
+        PendingSummary: {
+            count: number;
+            /** Format: date-time */
+            next_at: string | null;
+        };
+        PickupAddress: {
+            en?: string;
+            ru?: string;
+            uz?: string;
+        };
+        PickupAddressRequest: {
+            en?: string;
+            ru?: string;
+            uz?: string;
         };
         /** @description Contract §2.3 ``Product``; instances come from ``selectors.product_queryset()``. */
         Product: {
@@ -829,6 +1380,51 @@ export interface components {
         RefreshRequest: {
             refresh: string;
         };
+        /**
+         * @description * `app` - app
+         *     * `admin` - admin
+         * @enum {string}
+         */
+        RequestedViaEnum: "app" | "admin";
+        /** @description Contract §2.8 ``Segment``; the counts come from ``selectors.segment_stats``. */
+        Segment: {
+            /** Format: date-time */
+            created_at: string;
+            id: number;
+            readonly manual_member_count: number;
+            readonly member_count: number;
+            name: string;
+            readonly rules: components["schemas"]["SegmentRules"];
+            readonly size: number;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        SegmentMembersInputRequest: {
+            customer_ids: number[];
+        };
+        SegmentRules: {
+            min_lifetime_amount?: number | null;
+            min_online_orders?: number | null;
+        };
+        SegmentRulesRequest: {
+            min_lifetime_amount?: number | null;
+            min_online_orders?: number | null;
+        };
+        /** @description ``POST segments/`` (``name`` 2..60 unique, ``rules``) and ``PATCH segments/{id}/`` (partial). */
+        SegmentWriteRequest: {
+            name: string;
+            rules?: components["schemas"]["SegmentRulesRequest"];
+        };
+        /** @description ``GET settings/`` (contract §2.11). */
+        Settings: {
+            readonly integrations: components["schemas"]["Integrations"];
+            readonly pickup_address: components["schemas"]["PickupAddress"];
+            reservation_minutes: number;
+            readonly support_phone: string | null;
+            /** Format: date-time */
+            updated_at: string;
+            updated_by: components["schemas"]["Actor"] | null;
+        };
         /** @description Body of ``PUT categories/order/``. */
         SlugOrderRequest: {
             slugs: string[];
@@ -839,6 +1435,51 @@ export interface components {
          * @enum {string}
          */
         SocialProviderEnum: "google" | "facebook";
+        SpecialistDay: {
+            blocks: components["schemas"]["DayBlock"][];
+            id: number;
+            name: string;
+            role: components["schemas"]["SpecialistRoleEnum"];
+            readonly working_hours: components["schemas"]["WorkingHours"] | null;
+        };
+        /**
+         * @description * `dermatologist` - dermatologist
+         *     * `cosmetologist` - cosmetologist
+         * @enum {string}
+         */
+        SpecialistRoleEnum: "dermatologist" | "cosmetologist";
+        StatusTemplate: {
+            status: components["schemas"]["TemplateStatusEnum"];
+            readonly texts: components["schemas"]["TemplateTexts"];
+            /** Format: date-time */
+            updated_at: string;
+            updated_by: components["schemas"]["Actor"] | null;
+        };
+        /**
+         * @description * `processing` - processing
+         *     * `handed_to_courier` - handed_to_courier
+         *     * `delivered` - delivered
+         *     * `cancelled` - cancelled
+         * @enum {string}
+         */
+        TemplateStatusEnum: "processing" | "handed_to_courier" | "delivered" | "cancelled";
+        TemplateTexts: {
+            en: string;
+            ru: string;
+            uz: string;
+        };
+        TemplateTextsRequest: {
+            en: string;
+            ru: string;
+            uz: string;
+        };
+        TemplateUpdateRequest: {
+            texts: components["schemas"]["TemplateTextsRequest"];
+        };
+        WorkingHours: {
+            end: string;
+            start: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -848,6 +1489,646 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    admin_appointments_day: {
+        parameters: {
+            query?: {
+                date?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DaySchedule"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_appointments_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AppointmentCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppointmentItem"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_appointments_action: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                action: "attend" | "confirm" | "reject";
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppointmentItem"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_appointments_cancel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AppointmentCancelRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppointmentItem"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_appointments_reschedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AppointmentRescheduleRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppointmentItem"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_appointments_meta: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppointmentsMeta"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_appointments_pending_summary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingSummary"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_audit_log_list: {
+        parameters: {
+            query?: {
+                action?: string;
+                actor?: number;
+                date_from?: string;
+                date_to?: string;
+                /** @description Download the filtered list as a file instead of the JSON page. */
+                export?: "csv" | "xlsx";
+                object_id?: string;
+                object_type?: string;
+                /**
+                 * @description * `-at` - -at
+                 *     * `at` - at
+                 */
+                ordering?: "-at" | "at";
+                page?: number;
+                page_size?: 20 | 50;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedAuditEntryList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     admin_auth_change_password: {
         parameters: {
             query?: never;
@@ -2410,6 +3691,487 @@ export interface operations {
             };
         };
     };
+    admin_nav_counts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NavCounts"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_notification_templates_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                status: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatusTemplate"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_notification_templates_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                status: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TemplateUpdateRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatusTemplate"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_notifications_list: {
+        parameters: {
+            query?: {
+                /** @description Download the filtered list as a file instead of the JSON page. */
+                export?: "csv" | "xlsx";
+                /**
+                 * @description * `promo` - promo
+                 *     * `general` - general
+                 */
+                kind?: "promo" | "general";
+                page?: number;
+                page_size?: 20 | 50;
+                /**
+                 * @description * `scheduled` - scheduled
+                 *     * `queued` - queued
+                 *     * `sent` - sent
+                 */
+                state?: "scheduled" | "queued" | "sent";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedNotificationRecordList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_notifications_create: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["NotificationFormRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationRecord"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_notifications_meta: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationMeta"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     admin_products_list: {
         parameters: {
             query?: {
@@ -2998,6 +4760,793 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProductStats"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_segments_list: {
+        parameters: {
+            query?: {
+                /** @description Download the filtered list as a file instead of the JSON page. */
+                export?: "csv" | "xlsx";
+                page?: number;
+                page_size?: 20 | 50;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedSegmentList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_segments_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SegmentWriteRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Segment"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_segments_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Segment"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_segments_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_segments_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedSegmentWriteRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Segment"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_segment_members_list: {
+        parameters: {
+            query?: {
+                /** @description Download the filtered list as a file instead of the JSON page. */
+                export?: "csv" | "xlsx";
+                page?: number;
+                page_size?: 20 | 50;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedCustomerListItemList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_segment_members_add: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SegmentMembersInputRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Segment"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_segment_members_remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                customer_id: number;
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_settings_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Settings"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_settings_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedSettingsPatchRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Settings"];
                 };
             };
             400: {

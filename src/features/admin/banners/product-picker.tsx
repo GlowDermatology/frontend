@@ -40,6 +40,8 @@ export function ProductPicker({ value, onChange, error, describedBy }: ProductPi
 
   const search = async (q: string) => {
     const call = ++latest.current;
+    // Drop the previous term's rows so a stale match cannot be picked.
+    setResults([]);
     setSearching(true);
     const result = await runAction((csrf) => searchProducts(q, csrf));
     if (call !== latest.current) return;

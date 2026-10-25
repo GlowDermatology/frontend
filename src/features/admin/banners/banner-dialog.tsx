@@ -198,36 +198,50 @@ export function BannerDialog({
     setPreview(URL.createObjectURL(picked));
   };
 
+  const requireImage = () => {
+    if (editing || file) return true;
+    setImageError("Banner rasmini tanlang.");
+    return false;
+  };
+
   // Built inside the event handler (not during render) so the ref read
-  // inside is an event-time access.
+  // inside is an event-time access. The image lives outside React Hook Form,
+  // so it is checked on both the valid and the invalid path: every error
+  // shows at once.
   const onSubmit = (event: FormEvent<HTMLFormElement>) =>
-    handleSubmit(async (values) => {
-      setFormError(null);
-      if (!editing && !file) {
-        setImageError("Banner rasmini tanlang.");
-        focusImageButton();
-        return;
-      }
-      const formData = bannerFormDataFromValues(toValues(values), file);
-      const result = idempotency.settle(
-        await runAction((csrf) => saveBanner(banner?.id ?? null, formData, idempotency.key, csrf)),
-      );
-      if (!result.ok) {
-        const entries = Object.entries(result.fieldErrors ?? {});
-        for (const [path, message] of entries) {
-          const target = FIELD_ALIAS[path] ?? (path as Path<FormValues>);
-          if (target === "image") setImageError(message);
-          else setError(target, { message });
+    handleSubmit(
+      async (values) => {
+        setFormError(null);
+        if (!requireImage()) {
+          focusImageButton();
+          return;
         }
-        if (entries.length === 0) setFormError(result.error);
-        return;
-      }
-      const previewUrl = preview;
-      setPreview(null); // handed over to the list (demo mode); not revoked here
-      setFile(null);
-      onSaved(result.data, editing ? "edit" : "create", previewUrl);
-      onOpenChange(false);
-    })(event);
+        const formData = bannerFormDataFromValues(toValues(values), file);
+        const result = idempotency.settle(
+          await runAction((csrf) =>
+            saveBanner(banner?.id ?? null, formData, idempotency.key, csrf),
+          ),
+        );
+        if (!result.ok) {
+          const entries = Object.entries(result.fieldErrors ?? {});
+          for (const [path, message] of entries) {
+            const target = FIELD_ALIAS[path] ?? (path as Path<FormValues>);
+            if (target === "image") setImageError(message);
+            else setError(target, { message });
+          }
+          if (entries.length === 0) setFormError(result.error);
+          return;
+        }
+        const previewUrl = preview;
+        setPreview(null); // handed over to the list (demo mode); not revoked here
+        setFile(null);
+        onSaved(result.data, editing ? "edit" : "create", previewUrl);
+        onOpenChange(false);
+      },
+      () => {
+        requireImage();
+      },
+    )(event);
 
   const currentImage = preview ?? banner?.imageUrl ?? null;
   const imageErrorId = imageError ? `${idBase}-image-error` : undefined;

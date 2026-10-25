@@ -16,18 +16,17 @@ import type { SearchParams } from "../shared/url-state";
 import { BillzImport } from "./billz-import";
 import { ProductsTable } from "./products-table";
 import { ProductsToolbar } from "./products-toolbar";
-import { parseProductQuery, productListHref } from "./query";
+import { parseProductQuery, productListHref, withKnownCategory } from "./query";
 
 const NEXT_SORT = { default: "name_asc", name_asc: "name_desc", name_desc: "default" } as const;
 
 export async function ProductsContent({ searchParams }: { searchParams: Promise<SearchParams> }) {
   await requireStaff();
-  const query = parseProductQuery(await searchParams);
-  const [page, stats, categories] = await Promise.all([
-    listProducts(query),
-    getCatalogStats(),
-    getCategories(),
-  ]);
+  const parsed = parseProductQuery(await searchParams);
+  const [categories, stats] = await Promise.all([getCategories(), getCatalogStats()]);
+  // A stale category slug would be a 400 from the API: drop it first.
+  const query = withKnownCategory(parsed, categories);
+  const page = await listProducts(query);
   const exportHref = productListHref({ ...query, page: undefined }, "/admin/products/export");
 
   return (

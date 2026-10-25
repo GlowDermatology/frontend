@@ -24,6 +24,20 @@ export function parseCategoryParam(value: string | undefined): string | undefine
   return value === "none" || CATEGORY_SLUG_PATTERN.test(value) ? value : undefined;
 }
 
+/**
+ * Drops a category slug that is not among `categories` (a bookmarked filter
+ * for a deleted or renamed category): the API answers 400 `invalid_choice`
+ * for it, so both modes show the unfiltered board instead. `none` is kept.
+ */
+export function withKnownCategory<Q extends { category?: string }>(
+  query: Q,
+  categories: ReadonlyArray<{ slug: string }>,
+): Q {
+  if (!query.category || query.category === "none") return query;
+  if (categories.some((category) => category.slug === query.category)) return query;
+  return { ...query, category: undefined };
+}
+
 export function parseProductQuery(params: SearchParams): ProductListQuery {
   return {
     q: firstParam(params, "q")?.slice(0, 64) || undefined,

@@ -98,6 +98,26 @@ describe("dispatchers in api mode", () => {
     process.env.GLOWDERMA_DATA_SOURCE = "api";
   });
 
+  it("lists unfiltered when the API refuses a category deleted in between (400 on category)", async () => {
+    const d = await loadDispatchers();
+    const { ApiError } = await import("./api/errors");
+    cachedGet.mockImplementation(async (_path: string, params: Record<string, unknown>) => {
+      if (params.category === "gone") {
+        throw new ApiError(400, {
+          code: "validation_error",
+          message: "Maydonlarni tekshiring.",
+          errors: [{ field: "category", code: "invalid_choice", message: "Noto‘g‘ri tanlov." }],
+          request_id: "r",
+        });
+      }
+      return { status: 200, data: pageFixture, headers: new Headers() };
+    });
+    const page = await d.products.listProducts({ ...PRODUCT_QUERY, category: "gone" });
+    expect(page.total).toBe(248);
+    expect(cachedGet).toHaveBeenCalledTimes(2);
+    expect(cachedGet.mock.calls[1]![1]).not.toHaveProperty("category", "gone");
+  });
+
   it("wired catalog reads call the API with the mapped parameters and map the answers", async () => {
     const d = await loadDispatchers();
     expect(await d.source.dataSource()).toBe("api");

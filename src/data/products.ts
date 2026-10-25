@@ -55,10 +55,31 @@ export interface CatalogStats {
 export async function listProducts(query: ProductListQuery): Promise<Page<Product>> {
   if ((await dataSource()) === "api") {
     const token = await requireApiToken();
-    const { data } = await apiListProducts(token, productListParams(query));
-    return mapPage(data, mapProduct);
+    try {
+      const { data } = await apiListProducts(token, productListParams(query));
+      return mapPage(data, mapProduct);
+    } catch (error) {
+      // The board drops unknown slugs first (`withKnownCategory`); a category
+      // deleted in between still answers 400 on `category`: list unfiltered.
+      if (query.category && query.category !== "none" && isUnknownCategory(error)) {
+        const { data } = await apiListProducts(
+          token,
+          productListParams({ ...query, category: undefined }),
+        );
+        return mapPage(data, mapProduct);
+      }
+      throw error;
+    }
   }
   return mock.listProducts(query);
+}
+
+function isUnknownCategory(error: unknown): boolean {
+  return (
+    isApiError(error) &&
+    error.status === 400 &&
+    error.body.errors.some((item) => item.field === "category")
+  );
 }
 
 /**

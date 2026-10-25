@@ -5,11 +5,19 @@ import { isApiError } from "@/data/api/errors";
 import { cookieNames } from "@/data/auth/cookie-names";
 import { clearSessionCookies } from "@/data/auth/cookies";
 import { csrfMatches } from "@/data/auth/csrf";
+import { isSameOriginRequest } from "@/data/auth/same-origin";
 import { serverEnv } from "@/lib/env.server";
+import { parseAllowedOrigins } from "@/lib/origins";
 
 /**
- * `POST /admin/auth/logout` (contract §2.1 `auth/logout/`). CSRF-checked with
- * the double-submit token (`X-CSRF-Token` header or `csrf` form field).
+ * `POST /admin/auth/logout` (contract §2.1 `auth/logout/`). Two independent
+ * CSRF defences, both required: the request must be same-origin (fetch
+ * metadata, then Origin/Referer against the request host and
+ * `GLOWDERMA_ALLOWED_ORIGINS` — `gd_csrf` cannot take the `__Host-` prefix, so
+ * this list is what defeats a cookie planted from a sibling subdomain, whose
+ * same-site form post would still carry the SameSite=Strict cookies), and the
+ * double-submit token (`X-CSRF-Token` header or `csrf` form field) must match
+ * the cookie.
  * `scope` ∈ current | others | all (default current). Whatever Django answers
  * — 204, or 401 `SESSION_EXPIRED` for an already-dead session — the browser
  * is logged out: for `current`/`all` the cookies are cleared and the user goes
@@ -20,6 +28,14 @@ const NO_STORE = { "Cache-Control": "no-store" } as const;
 
 function seeOther(location: string): NextResponse {
   return new NextResponse(null, { status: 303, headers: { Location: location, ...NO_STORE } });
+}
+
+/** One envelope for both CSRF defences, so a probe cannot tell which one fired. */
+function csrfRejected(): NextResponse {
+  return NextResponse.json(
+    { code: "csrf_mismatch", message: "Sahifani yangilab, qayta urinib ko‘ring.", errors: [] },
+    { status: 403, headers: NO_STORE },
+  );
 }
 
 interface LogoutInput {
@@ -53,15 +69,19 @@ async function readInput(request: NextRequest): Promise<LogoutInput> {
 export async function POST(request: NextRequest) {
   const secure = serverEnv.cookieSecure();
   const names = cookieNames(secure);
-  const input = await readInput(request);
 
+  const sameOrigin = isSameOriginRequest({
+    secFetchSite: request.headers.get("sec-fetch-site"),
+    origin: request.headers.get("origin"),
+    referer: request.headers.get("referer"),
+    requestHost: request.headers.get("x-forwarded-host") ?? request.headers.get("host"),
+    allowedOrigins: parseAllowedOrigins(process.env.GLOWDERMA_ALLOWED_ORIGINS),
+  });
+  if (!sameOrigin) return csrfRejected();
+
+  const input = await readInput(request);
   const presented = request.headers.get("x-csrf-token") ?? input.csrf;
-  if (!csrfMatches(request.cookies.get(names.csrf)?.value, presented)) {
-    return NextResponse.json(
-      { code: "csrf_mismatch", message: "Sahifani yangilab, qayta urinib ko‘ring.", errors: [] },
-      { status: 403, headers: NO_STORE },
-    );
-  }
+  if (!csrfMatches(request.cookies.get(names.csrf)?.value, presented)) return csrfRejected();
 
   let scope: LogoutScope = "current";
   if (input.scope !== undefined && input.scope !== "") {

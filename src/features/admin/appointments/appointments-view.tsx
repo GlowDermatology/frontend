@@ -327,13 +327,17 @@ export function AppointmentsView({
           className="min-w-0 flex-[3_1_640px] overflow-hidden rounded-lg bg-surface-raised shadow-sm"
         >
           <ul className="m-0 flex list-none flex-wrap gap-4 border-b border-line px-5 py-3.5 text-caption font-semibold text-ink">
-            {(["requested", "confirmed", "rejected"] as const).map((status) => (
+            {(["requested", "confirmed", "rejected", "cancelled"] as const).map((status) => (
               <li key={status} className="flex items-center gap-1.5">
                 <span
                   aria-hidden="true"
                   className={cn("size-2.5 rounded-full", STATUS_LOOK[status].dot)}
                 />
-                {status === "rejected" ? "Rad etilgan" : STATUS_LOOK[status].label}
+                {status === "rejected"
+                  ? "Rad etilgan"
+                  : status === "cancelled"
+                    ? "Bekor qilingan"
+                    : STATUS_LOOK[status].label}
               </li>
             ))}
             <li className="flex items-center gap-1.5">

@@ -8,7 +8,7 @@ import { Icon } from "@/components/ui/icon";
 import { ScrollRegion } from "@/components/ui/scroll-region";
 import { auditActionLabel, auditDataText, auditObjectLabel, type AuditEntry } from "@/domain/audit";
 import { cn } from "@/lib/cn";
-import { formatDateTimeShort, tashkentParts } from "@/lib/format";
+import { formatDayMonthShort, formatTime, tashkentParts } from "@/lib/format";
 
 /**
  * Audit rows. Each row expands to its `data` payload as indented JSON,
@@ -71,7 +71,8 @@ export function AuditTable({
                 <tr data-audit-id={entry.id}>
                   <td className="text-ink-muted! tabular-nums">
                     <time dateTime={entry.at}>
-                      {formatDateTimeShort(entry.at)} {tashkentParts(entry.at).year}
+                      {formatDayMonthShort(entry.at)} {tashkentParts(entry.at).year},{" "}
+                      {formatTime(entry.at)}
                     </time>
                   </td>
                   <td className={cn(!entry.actor && "text-ink-muted!")}>

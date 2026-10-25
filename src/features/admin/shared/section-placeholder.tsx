@@ -9,6 +9,8 @@ interface SectionPlaceholderProps {
   icon: IconName;
   /** What the section will be for, in one sentence. */
   purpose: string;
+  /** Header actions, e.g. a link to a built sub-section. */
+  actions?: ReactNode;
   children?: ReactNode;
 }
 
@@ -16,10 +18,16 @@ interface SectionPlaceholderProps {
  * Sections listed in the sidebar but not drawn yet. They state that plainly
  * instead of showing an invented screen.
  */
-export function SectionPlaceholder({ title, icon, purpose, children }: SectionPlaceholderProps) {
+export function SectionPlaceholder({
+  title,
+  icon,
+  purpose,
+  actions,
+  children,
+}: SectionPlaceholderProps) {
   return (
     <>
-      <PageHeader title={title} />
+      <PageHeader title={title} actions={actions} />
       <section className="flex flex-col items-center gap-4 rounded-lg bg-surface-raised px-6 py-16 text-center shadow-sm">
         <span className="flex size-14 items-center justify-center rounded-full bg-gold-soft text-gold-ink">
           <Icon name={icon} size={26} />

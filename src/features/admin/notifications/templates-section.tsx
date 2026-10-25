@@ -15,6 +15,7 @@ import { CONTENT_LANGUAGES, type ContentLanguage } from "@/domain/product";
 import { formatDateTimeShort } from "@/lib/format";
 
 import { runAction } from "../shared/action-client";
+import { partitionFieldErrors } from "../shared/field-errors";
 import { useIdempotencyKey, type IdempotencyKey } from "../shared/idempotency";
 import { ORDER_STATUS_META } from "../shared/status";
 
@@ -151,9 +152,12 @@ function TemplateDialog({
     inFlight.current = false;
     setBusy(false);
     if (!result.ok) {
-      const fieldErrors = result.fieldErrors ?? {};
+      const { fieldErrors, formError: message } = partitionFieldErrors(
+        result,
+        CONTENT_LANGUAGES.map((l) => `texts.${l}`),
+      );
       setErrors(fieldErrors);
-      if (Object.keys(fieldErrors).length === 0) setFormError(result.error);
+      setFormError(message);
       return;
     }
     onSaved(result.data);

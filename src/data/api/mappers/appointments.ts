@@ -8,7 +8,7 @@ import type {
   ApiPendingSummary,
   ApiSpecialistDay,
 } from "../types";
-import type { FieldRemap } from "./errors";
+import { toActionResult, type ActionFailure, type FieldRemap } from "./errors";
 import { idString } from "./common";
 
 /**
@@ -121,3 +121,28 @@ export const BOOKING_FIELD_REMAP: FieldRemap = {
   note: "note",
   reason: "reason",
 };
+
+/**
+ * A move shows no service field (the service stays): `service_id`
+ * `does_not_exist` ("Mutaxassis bu xizmatni ko‘rsatmaydi.") means the picked
+ * specialist does not offer it, so it lands on the specialist.
+ */
+export const RESCHEDULE_FIELD_REMAP: FieldRemap = {
+  ...BOOKING_FIELD_REMAP,
+  service_id: "specialistId",
+};
+
+/**
+ * API failure of a booking call → the dialog's fields (`remap`); the 409
+ * `conflict` of a lost race is shown on the time like `slot_unavailable`.
+ */
+export function bookingFailure(
+  error: unknown,
+  remap: FieldRemap = BOOKING_FIELD_REMAP,
+): ActionFailure {
+  const failure = toActionResult(error, remap);
+  if (failure.code === "conflict") {
+    return { ...failure, fieldErrors: { ...failure.fieldErrors, time: failure.error } };
+  }
+  return failure;
+}

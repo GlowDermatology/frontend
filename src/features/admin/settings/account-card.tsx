@@ -15,6 +15,7 @@ import type { StaffAccount } from "@/domain/settings";
 import { formatDateTimeShort } from "@/lib/format";
 
 import { runAction } from "../shared/action-client";
+import { partitionFieldErrors } from "../shared/field-errors";
 import { readCsrfCookie } from "../shared/csrf";
 import { useNotConnected } from "../shell/not-connected";
 
@@ -24,6 +25,7 @@ const PROVIDERS = [
 ] as const;
 
 const EMPTY: ChangePasswordValues = { currentPassword: "", newPassword: "", confirmPassword: "" };
+const PASSWORD_FIELDS = Object.keys(EMPTY);
 
 /**
  * The signed-in staff member (contract §2.1): password change through a
@@ -55,9 +57,9 @@ export function AccountCard({ account }: { account: StaffAccount | null }) {
     inFlight.current = false;
     setBusy(false);
     if (!result.ok) {
-      const fieldErrors = result.fieldErrors ?? {};
+      const { fieldErrors, formError: message } = partitionFieldErrors(result, PASSWORD_FIELDS);
       setErrors(fieldErrors);
-      if (Object.keys(fieldErrors).length === 0) setFormError(result.error);
+      setFormError(message);
       return;
     }
     setValues(EMPTY);

@@ -20,6 +20,8 @@ import {
 } from "./api/admin";
 import {
   BOOKING_FIELD_REMAP,
+  RESCHEDULE_FIELD_REMAP,
+  bookingFailure,
   mapAppointmentDay,
   mapDayAppointment,
 } from "./api/mappers/appointments";
@@ -69,19 +71,6 @@ const statusSchema = z.object({
 
 /** Numeric API id, or `null` (a mock id such as `s-1` reaching api mode). */
 const apiId = (value: string): number | null => (/^\d{1,12}$/.test(value) ? Number(value) : null);
-
-/**
- * API failure of a booking call → the dialog's fields (`BOOKING_FIELD_REMAP`);
- * the 409 `conflict` of a lost race is shown on the time like
- * `slot_unavailable`.
- */
-function bookingFailure(error: unknown): ActionFailure {
-  const failure = toActionResult(error, BOOKING_FIELD_REMAP);
-  if (failure.code === "conflict") {
-    return { ...failure, fieldErrors: { ...failure.fieldErrors, time: failure.error } };
-  }
-  return failure;
-}
 
 export async function updateAppointment(
   id: string,
@@ -208,7 +197,7 @@ export async function rescheduleAppointment(
         );
         return { ok: true, data: mapDayAppointment(data) };
       } catch (error) {
-        return bookingFailure(error);
+        return bookingFailure(error, RESCHEDULE_FIELD_REMAP);
       }
     });
   }

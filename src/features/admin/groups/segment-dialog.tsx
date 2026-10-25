@@ -13,7 +13,11 @@ import { SEGMENT_NAME_MAX, segmentRulesSummary, type Segment } from "@/domain/se
 import { formatNumber, parseAmount } from "@/lib/format";
 
 import { runAction } from "../shared/action-client";
+import { partitionFieldErrors } from "../shared/field-errors";
 import type { IdempotencyKey } from "../shared/idempotency";
+
+/** Fields with an error slot; `rules` is shown above the buttons. */
+const SEGMENT_FIELDS = ["name", "rules", "rules.minOnlineOrders", "rules.minLifetimeAmount"];
 
 interface SegmentDialogProps {
   open: boolean;
@@ -81,6 +85,8 @@ export function SegmentDialog({
       const next: Record<string, string> = {};
       for (const issue of local.error.issues) next[issue.path.join(".")] ??= issue.message;
       setErrors(next);
+      // A server message from the previous attempt no longer applies.
+      setFormError(null);
       return;
     }
     inFlight.current = true;
@@ -97,9 +103,9 @@ export function SegmentDialog({
     inFlight.current = false;
     setBusy(false);
     if (!result.ok) {
-      const fieldErrors = result.fieldErrors ?? {};
+      const { fieldErrors, formError: message } = partitionFieldErrors(result, SEGMENT_FIELDS);
       setErrors(fieldErrors);
-      if (Object.keys(fieldErrors).length === 0) setFormError(result.error);
+      setFormError(message);
       return;
     }
     onSaved(result.data, segment ? "edit" : "create");
@@ -189,7 +195,7 @@ export function SegmentDialog({
             className="m-0 flex items-start gap-1.5 text-body-sm font-semibold text-ink"
           >
             <Icon name="alert-circle" size={16} className="mt-px shrink-0 text-danger" />
-            {errors.rules ?? formError}
+            {[errors.rules, formError].filter(Boolean).join(" ")}
           </p>
         )}
         <div className="flex flex-wrap justify-end gap-2">

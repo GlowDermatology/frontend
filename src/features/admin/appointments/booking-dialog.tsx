@@ -31,6 +31,7 @@ import { formatSom, formatTime, toLocalIsoDate } from "@/lib/format";
 import { maskPhone, normalizePhone } from "@/lib/phone";
 
 import { runAction } from "../shared/action-client";
+import { partitionFieldErrors } from "../shared/field-errors";
 import type { IdempotencyKey } from "../shared/idempotency";
 
 /**
@@ -211,9 +212,18 @@ export function BookingDialog({
       );
       inFlight.current = false;
       if (!result.ok) {
-        const entries = Object.entries(result.fieldErrors ?? {});
-        for (const [path, message] of entries) setError(path as Path<FormValues>, { message });
-        if (entries.length === 0) setFormError(result.error);
+        // A move renders no service, phone or note field: anything aimed at a
+        // field the dialog does not show becomes the form-level message.
+        const { fieldErrors, formError: message } = partitionFieldErrors(
+          result,
+          editing
+            ? ["specialistId", "date", "time"]
+            : ["specialistId", "serviceId", "phone", "date", "time", "note"],
+        );
+        for (const [path, message] of Object.entries(fieldErrors)) {
+          setError(path as Path<FormValues>, { message });
+        }
+        setFormError(message);
         return;
       }
       onSaved(result.data);

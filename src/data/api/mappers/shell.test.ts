@@ -31,6 +31,8 @@ import type {
 } from "../types";
 import {
   BOOKING_FIELD_REMAP,
+  RESCHEDULE_FIELD_REMAP,
+  bookingFailure,
   mapAppointmentDay,
   mapBookingMeta,
   mapDayAppointment,
@@ -180,6 +182,37 @@ describe("appointments", () => {
     expect(toActionResult(apiError(400, notFound), BOOKING_FIELD_REMAP).fieldErrors).toEqual({
       phone: "Bu raqam bilan mijoz topilmadi.",
       serviceId: "Xizmat topilmadi.",
+    });
+  });
+
+  it("puts a move's service_id error on the specialist, which the dialog renders", () => {
+    const wrongSpecialist = {
+      code: "validation_error",
+      message: "Maydonlarni tekshiring.",
+      errors: [
+        {
+          field: "service_id",
+          code: "does_not_exist",
+          message: "Mutaxassis bu xizmatni ko‘rsatmaydi.",
+        },
+      ],
+      request_id: "r",
+    };
+    expect(
+      bookingFailure(apiError(400, wrongSpecialist), RESCHEDULE_FIELD_REMAP).fieldErrors,
+    ).toEqual({ specialistId: "Mutaxassis bu xizmatni ko‘rsatmaydi." });
+    expect(bookingFailure(apiError(400, wrongSpecialist)).fieldErrors).toEqual({
+      serviceId: "Mutaxassis bu xizmatni ko‘rsatmaydi.",
+    });
+  });
+
+  it("shows a 409 race on the time field", () => {
+    const race = { code: "conflict", message: "Bu vaqt band.", errors: [], request_id: "r" };
+    expect(bookingFailure(apiError(409, race), RESCHEDULE_FIELD_REMAP)).toEqual({
+      ok: false,
+      error: "Bu vaqt band.",
+      code: "conflict",
+      fieldErrors: { time: "Bu vaqt band." },
     });
   });
 });

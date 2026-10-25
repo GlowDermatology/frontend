@@ -20,9 +20,17 @@ import { formatDateTimeShort, formatPhone } from "@/lib/format";
 import { maskPhone, normalizePhone } from "@/lib/phone";
 
 import { runAction } from "../shared/action-client";
+import { partitionFieldErrors } from "../shared/field-errors";
 import { useIdempotencyKey } from "../shared/idempotency";
 
 const LANGUAGE_LABEL = { uz: "o‘zbekcha", ru: "ruscha", en: "inglizcha" } as const;
+
+/** Fields with an error slot on the form. */
+const SETTINGS_FIELDS = [
+  "reservationMinutes",
+  "supportPhone",
+  ...Object.keys(LANGUAGE_LABEL).map((l) => `pickupAddress.${l}`),
+];
 
 function toValues(settings: SiteSettings): SettingsFormValues {
   return {
@@ -78,6 +86,8 @@ export function SettingsForm({ settings: initial }: { settings: SiteSettings }) 
       const next: Record<string, string> = {};
       for (const issue of local.error.issues) next[issue.path.join(".")] ??= issue.message;
       setErrors(next);
+      // A server message from the previous attempt no longer applies.
+      setFormError(null);
       return;
     }
     inFlight.current = true;
@@ -90,9 +100,9 @@ export function SettingsForm({ settings: initial }: { settings: SiteSettings }) 
     inFlight.current = false;
     setBusy(false);
     if (!result.ok) {
-      const fieldErrors = result.fieldErrors ?? {};
+      const { fieldErrors, formError: message } = partitionFieldErrors(result, SETTINGS_FIELDS);
       setErrors(fieldErrors);
-      if (Object.keys(fieldErrors).length === 0) setFormError(result.error);
+      setFormError(message);
       return;
     }
     load(result.data);

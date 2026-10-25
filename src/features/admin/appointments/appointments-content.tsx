@@ -1,3 +1,4 @@
+import { requireStaff } from "@/data/auth";
 import { getAppointmentDay } from "@/data/appointments";
 import { addDays } from "@/lib/format";
 
@@ -10,6 +11,7 @@ export async function AppointmentsContent({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  await requireStaff();
   const day = parseDay(await searchParams);
   const data = await getAppointmentDay(day);
 

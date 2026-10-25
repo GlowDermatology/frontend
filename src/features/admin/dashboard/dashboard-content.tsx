@@ -1,4 +1,5 @@
 import { DASHBOARD_RANGES } from "@/domain/dashboard";
+import { requireStaff } from "@/data/auth";
 import { referenceNow } from "@/data/config";
 import { getDashboard } from "@/data/dashboard";
 import { getRecentOrders } from "@/data/orders";
@@ -13,6 +14,7 @@ import { RecentOrders } from "./recent-orders";
 import { StatCard } from "./stat-card";
 
 export async function DashboardContent({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  await requireStaff();
   const range = oneOf(firstParam(await searchParams, "range"), DASHBOARD_RANGES) ?? "today";
   const [data, recent] = await Promise.all([getDashboard(range), getRecentOrders(6)]);
   const now = referenceNow();

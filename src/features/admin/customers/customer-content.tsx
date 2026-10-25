@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 
+import { requireStaff } from "@/data/auth";
 import { getCashbackSettings } from "@/data/cashback";
 import { referenceNow } from "@/data/config";
 import { getCustomer } from "@/data/customers";
@@ -9,6 +10,7 @@ import { lifetimeTotal } from "@/domain/customer";
 import { CustomerView, type TierInfo } from "./customer-view";
 
 export async function CustomerContent({ params }: { params: Promise<{ customerId: string }> }) {
+  await requireStaff();
   const { customerId } = await params;
   const [customer, settings] = await Promise.all([getCustomer(customerId), getCashbackSettings()]);
   if (!customer) notFound();

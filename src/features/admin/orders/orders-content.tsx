@@ -2,6 +2,7 @@ import type { Route } from "next";
 
 import { buttonStyles } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { requireStaff } from "@/data/auth";
 import { referenceNow } from "@/data/config";
 import { getOrderStatusCounts, listOrders, type OrderPeriod } from "@/data/orders";
 import { formatNumber } from "@/lib/format";
@@ -16,6 +17,7 @@ import { orderListHref, parseOrderQuery, periodLabel } from "./query";
 import { StatusTabs } from "./status-tabs";
 
 export async function OrdersContent({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  await requireStaff();
   const query = parseOrderQuery(await searchParams);
   const [page, counts] = await Promise.all([listOrders(query), getOrderStatusCounts(query)]);
   const now = referenceNow();

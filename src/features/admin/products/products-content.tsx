@@ -3,6 +3,7 @@ import type { Route } from "next";
 
 import { buttonStyles } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { requireStaff } from "@/data/auth";
 import { getCatalogStats, listProducts } from "@/data/products";
 import { formatNumber } from "@/lib/format";
 
@@ -18,6 +19,7 @@ import { parseProductQuery, productListHref } from "./query";
 const NEXT_SORT = { default: "name_asc", name_asc: "name_desc", name_desc: "default" } as const;
 
 export async function ProductsContent({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  await requireStaff();
   const query = parseProductQuery(await searchParams);
   const [page, stats] = await Promise.all([listProducts(query), getCatalogStats()]);
 

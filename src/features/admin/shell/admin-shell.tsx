@@ -1,9 +1,9 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 
 import { Icon } from "@/components/ui/icon";
-import { IS_DEMO } from "@/data/config";
 
+import { DemoBadge } from "./demo-badge";
 import { GlobalSearch } from "./global-search";
 import { MobileNav } from "./mobile-nav";
 import type { AdminSection } from "./nav-items";
@@ -39,15 +39,9 @@ export function AdminShell({ section, children }: AdminShellProps) {
           </MobileNav>
           <GlobalSearch />
           <span className="flex-1" />
-          {IS_DEMO && (
-            <span
-              title="Ma’lumotlar namuna uchun; o‘zgarishlar sahifa yangilanganda tiklanadi."
-              className="inline-flex h-8 items-center gap-1.5 rounded-full border border-dashed border-line-strong px-3 text-caption text-ink-muted"
-            >
-              <Icon name="info" size={14} />
-              Demo ma’lumotlar
-            </span>
-          )}
+          <Suspense fallback={null}>
+            <DemoBadge />
+          </Suspense>
           <Link
             href="/admin/notifications"
             aria-label="Bildirishnomalar"

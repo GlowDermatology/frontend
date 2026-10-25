@@ -2,7 +2,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError, type ErrorEnvelope } from "../errors";
 import { camelKey, idString, isoOrUndefined, nullToUndefined } from "./common";
-import { isSessionExpired, mapFieldPath, SESSION_EXPIRED, toActionResult } from "./errors";
+import {
+  type FieldRemap,
+  isSessionExpired,
+  mapFieldPath,
+  SESSION_EXPIRED,
+  TOP_LEVEL_ERROR,
+  toActionResult,
+} from "./errors";
 import { mapPage } from "./page";
 
 function envelope(partial: Partial<ErrorEnvelope>): ErrorEnvelope {
@@ -138,8 +145,8 @@ describe("toActionResult", () => {
     expect(toActionResult(error)).toEqual({ ok: false, error: "Maydonlarni tekshiring." });
   });
 
-  it("applies the notification remap, folding image into a top-level error", () => {
-    const remap = { "audience.phone": "phone", image: "" };
+  it("applies the notification remap, folding image into the top-level error", () => {
+    const remap: FieldRemap = { "audience.phone": "phone", image: TOP_LEVEL_ERROR };
     const error = new ApiError(
       400,
       envelope({
@@ -149,10 +156,43 @@ describe("toActionResult", () => {
         ],
       }),
     );
-    const result = toActionResult(error, remap);
-    expect(result.fieldErrors).toEqual({
-      phone: "Noto‘g‘ri qiymat.",
-      "": "Rasm 5 MB dan oshmasin.",
+    expect(toActionResult(error, remap)).toEqual({
+      ok: false,
+      error: "Rasm 5 MB dan oshmasin.",
+      fieldErrors: { phone: "Noto‘g‘ri qiymat." },
+    });
+  });
+
+  it("treats an empty-string remap target as the top-level error too", () => {
+    const error = new ApiError(
+      400,
+      envelope({
+        errors: [
+          { field: "image", code: "unsupported_image", message: "Faqat JPEG, PNG yoki WebP rasm." },
+        ],
+      }),
+    );
+    expect(toActionResult(error, { image: "" })).toEqual({
+      ok: false,
+      error: "Faqat JPEG, PNG yoki WebP rasm.",
+    });
+    expect(mapFieldPath("image", { image: "" })).toBeNull();
+    expect(mapFieldPath("link.product_id", { "link.*": "" })).toBeNull();
+  });
+
+  it("keeps the first non-field message when both a field:null entry and a remapped one exist", () => {
+    const error = new ApiError(
+      400,
+      envelope({
+        errors: [
+          { field: null, code: "invalid", message: "Avval yuborish vaqtini tanlang." },
+          { field: "image", code: "file_too_large", message: "Rasm 5 MB dan oshmasin." },
+        ],
+      }),
+    );
+    expect(toActionResult(error, { image: TOP_LEVEL_ERROR })).toEqual({
+      ok: false,
+      error: "Avval yuborish vaqtini tanlang.",
     });
   });
 

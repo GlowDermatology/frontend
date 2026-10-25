@@ -9,9 +9,17 @@ export type ActionFailure = Extract<ActionResult<never>, { ok: false }>;
  * Per-action field remaps, keyed by the API's dotted snake_case path
  * (contract §7.1), e.g. `{"audience.phone": "phone"}`. A key ending in `.*`
  * matches every path under that prefix (`"link.*": "link"`). The value is the
- * form field name the UI expects.
+ * form field name the UI expects, or `TOP_LEVEL_ERROR` (`null`) when the
+ * contract says "→ top-level error" (`sendNotification`: `image`): that
+ * entry's message then becomes `ActionResult.error` instead of a
+ * `fieldErrors` key, with the same first-wins precedence as a `field: null`
+ * entry. The empty string is accepted as an alias of `null`, since no form
+ * has a field named `""`.
  */
-export type FieldRemap = Record<string, string>;
+export type FieldRemap = Record<string, string | null>;
+
+/** Remap target meaning "show this field's message as the top-level error". */
+export const TOP_LEVEL_ERROR = null;
 
 /** `ActionResult.error` for a 401 that ends the session; the client refreshes or goes to login. */
 export const SESSION_EXPIRED = "session_expired";
@@ -37,13 +45,16 @@ export function isSessionExpired(error: unknown): boolean {
  * API field path → form field name: the remap table first (exact, then `.*`
  * prefix), otherwise each dotted segment camelised, numeric segments kept
  * (`tiers.1.percent`, `texts.uz.name`, `scheduled_at` → `scheduledAt`).
+ * Returns `null` when the remap routes the path to the top-level error.
  */
-export function mapFieldPath(field: string, remap?: FieldRemap): string {
+export function mapFieldPath(field: string, remap?: FieldRemap): string | null {
   if (remap) {
     const exact = remap[field];
-    if (exact !== undefined) return exact;
+    if (exact !== undefined) return exact || TOP_LEVEL_ERROR;
     for (const [pattern, target] of Object.entries(remap)) {
-      if (pattern.endsWith(".*") && field.startsWith(pattern.slice(0, -1))) return target;
+      if (pattern.endsWith(".*") && field.startsWith(pattern.slice(0, -1))) {
+        return target || TOP_LEVEL_ERROR;
+      }
     }
   }
   return field.split(".").map(camelKey).join(".");
@@ -54,8 +65,9 @@ export function mapFieldPath(field: string, remap?: FieldRemap): string {
  * (contract §1.6):
  *
  * - 400 `validation_error` → `error` is the first `errors[]` entry with
- *   `field: null`, else the envelope message; `fieldErrors` keeps the first
- *   message per field, paths mapped with `mapFieldPath`.
+ *   `field: null` (or remapped to `TOP_LEVEL_ERROR`), else the envelope
+ *   message; `fieldErrors` keeps the first message per field, paths mapped
+ *   with `mapFieldPath`.
  * - 401 session codes → `error: "session_expired"` (see `isSessionExpired`);
  *   `invalid_credentials` keeps its message so the login form can show it.
  * - 429 → the contract template with the `Retry-After` seconds when present.
@@ -76,11 +88,11 @@ export function toActionResult(error: unknown, remap?: FieldRemap): ActionFailur
     const fieldErrors: Record<string, string> = {};
     let nonField: string | undefined;
     for (const item of error.body.errors) {
-      if (item.field === null) {
+      const key = item.field === null ? TOP_LEVEL_ERROR : mapFieldPath(item.field, remap);
+      if (key === TOP_LEVEL_ERROR) {
         nonField ??= item.message;
         continue;
       }
-      const key = mapFieldPath(item.field, remap);
       if (!(key in fieldErrors)) fieldErrors[key] = item.message;
     }
     const result: ActionFailure = { ok: false, error: nonField ?? error.body.message };

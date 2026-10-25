@@ -43,17 +43,54 @@ export function buildQuery(query: Record<string, QueryValue> | undefined): strin
   return encoded ? `?${encoded}` : "";
 }
 
+const IPV4 = /^(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$/;
+const HEX_GROUP = /^[0-9a-f]{1,4}$/i;
+
+function isIpv6(value: string): boolean {
+  if (value.length > 45 || !/^[0-9a-f:.]+$/i.test(value)) return false;
+  const halves = value.split("::");
+  if (halves.length > 2) return false;
+  const groups = halves.flatMap((half) => (half === "" ? [] : half.split(":")));
+  let count = 0;
+  for (const [index, group] of groups.entries()) {
+    if (index === groups.length - 1 && group.includes(".")) {
+      // Embedded IPv4 tail (`::ffff:203.0.113.7`) counts as two groups.
+      if (!IPV4.test(group)) return false;
+      count += 2;
+    } else {
+      if (!HEX_GROUP.test(group)) return false;
+      count += 1;
+    }
+  }
+  return halves.length === 2 ? count <= 7 : count === 8;
+}
+
+/** Whether a string is a bare IPv4 or IPv6 literal (no port, brackets or zone id). */
+export function isIpLiteral(value: string): boolean {
+  return IPV4.test(value) || isIpv6(value);
+}
+
 /**
  * End-user IP as seen by the edge proxy, forwarded to Django as
- * `X-GD-Client-IP` (honoured there only together with the internal secret).
- * The edge overwrites `X-Forwarded-For`, so its first hop is the client.
+ * `X-GD-Client-IP` (honoured there only together with the internal secret, and
+ * used for the per-client-IP throttles and `AuditEntry.ip`).
+ *
+ * Deployment assumption (spec "Edge contract"): the Next server is reachable
+ * only through a single trusted edge that appends or overwrites
+ * `X-Forwarded-For`. In both cases the RIGHTMOST hop is the one that edge
+ * wrote from the TCP peer; every hop to its left came from the browser and
+ * can be forged, so it is ignored. The hop must be a bare IP literal,
+ * otherwise `X-Real-IP` (also edge-written) is tried, then nothing is sent and
+ * Django falls back to its own `TRUSTED_PROXIES` resolution.
  */
 export async function clientIp(): Promise<string | undefined> {
   const requestHeaders = await headers();
   const forwarded = requestHeaders.get("x-forwarded-for");
-  const first = forwarded?.split(",")[0]?.trim();
-  if (first) return first;
-  return requestHeaders.get("x-real-ip") ?? undefined;
+  const last = forwarded?.split(",").at(-1)?.trim();
+  if (last && isIpLiteral(last)) return last;
+  const real = requestHeaders.get("x-real-ip")?.trim();
+  if (real && isIpLiteral(real)) return real;
+  return undefined;
 }
 
 function isTimeout(cause: unknown): boolean {

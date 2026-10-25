@@ -6,7 +6,7 @@ vi.mock("next/headers", () => ({
   headers: vi.fn(async () => requestHeaders),
 }));
 
-import { apiFetch, buildQuery, cachedGet } from "./client";
+import { apiFetch, buildQuery, cachedGet, isIpLiteral } from "./client";
 import { ApiError, parseRetryAfter } from "./errors";
 
 type FetchMock = ReturnType<typeof vi.fn<typeof fetch>>;
@@ -43,7 +43,7 @@ describe("apiFetch", () => {
   });
 
   it("sends exactly the contract headers on a bare GET", async () => {
-    requestHeaders.set("x-forwarded-for", "203.0.113.7, 10.0.0.1");
+    requestHeaders.set("x-forwarded-for", "1.2.3.4, 203.0.113.7");
     fetchMock.mockResolvedValue(jsonResponse({ ok: true }));
 
     const result = await apiFetch<{ ok: boolean }>("/api/v1/admin/auth/me/");
@@ -81,6 +81,39 @@ describe("apiFetch", () => {
     requestHeaders.set("x-real-ip", "198.51.100.2");
     await apiFetch("/x/");
     expect(lastRequest(fetchMock).headers.get("x-gd-client-ip")).toBe("198.51.100.2");
+  });
+
+  it("ignores forged left-hand X-Forwarded-For hops and keeps the edge-written one", async () => {
+    fetchMock.mockImplementation(async () => jsonResponse({}));
+
+    requestHeaders.set("x-forwarded-for", "1.2.3.4, 203.0.113.7");
+    await apiFetch("/x/");
+    expect(lastRequest(fetchMock).headers.get("x-gd-client-ip")).toBe("203.0.113.7");
+
+    requestHeaders.set("x-forwarded-for", "9.9.9.9,8.8.8.8 , 2001:db8::1 ");
+    await apiFetch("/x/");
+    expect(lastRequest(fetchMock).headers.get("x-gd-client-ip")).toBe("2001:db8::1");
+
+    requestHeaders.set("x-forwarded-for", "203.0.113.7");
+    await apiFetch("/x/");
+    expect(lastRequest(fetchMock).headers.get("x-gd-client-ip")).toBe("203.0.113.7");
+  });
+
+  it("drops a rightmost hop that is not an IP literal and falls back to x-real-ip", async () => {
+    fetchMock.mockImplementation(async () => jsonResponse({}));
+
+    requestHeaders.set("x-forwarded-for", "203.0.113.7, unknown");
+    await apiFetch("/x/");
+    expect(lastRequest(fetchMock).headers.has("x-gd-client-ip")).toBe(false);
+
+    requestHeaders.set("x-forwarded-for", "203.0.113.7:8443");
+    requestHeaders.set("x-real-ip", "198.51.100.2");
+    await apiFetch("/x/");
+    expect(lastRequest(fetchMock).headers.get("x-gd-client-ip")).toBe("198.51.100.2");
+
+    requestHeaders.set("x-real-ip", "not-an-ip; drop table");
+    await apiFetch("/x/");
+    expect(lastRequest(fetchMock).headers.has("x-gd-client-ip")).toBe(false);
   });
 
   it("adds bearer, idempotency key, JSON content type and the query string", async () => {
@@ -237,5 +270,46 @@ describe("parseRetryAfter", () => {
     expect(parseRetryAfter("Sat, 24 Oct 2026 07:00:45 GMT", now)).toBe(45);
     expect(parseRetryAfter("Sat, 24 Oct 2026 06:00:00 GMT", now)).toBe(0);
     expect(parseRetryAfter("soon")).toBeUndefined();
+  });
+});
+
+describe("isIpLiteral", () => {
+  it("accepts bare IPv4 and IPv6 literals", () => {
+    for (const ip of [
+      "203.0.113.7",
+      "0.0.0.0",
+      "255.255.255.255",
+      "::1",
+      "::",
+      "2001:db8::1",
+      "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+      "fe80::1:2:3:4:5:6",
+      "::ffff:203.0.113.7",
+    ]) {
+      expect(isIpLiteral(ip), ip).toBe(true);
+    }
+  });
+
+  it("rejects ports, brackets, zones, names and malformed addresses", () => {
+    for (const value of [
+      "",
+      "unknown",
+      "256.0.0.1",
+      "1.2.3",
+      "1.2.3.4.5",
+      "203.0.113.7:8443",
+      "[2001:db8::1]",
+      "[2001:db8::1]:443",
+      "fe80::1%eth0",
+      "2001:db8:::1",
+      "1::2::3",
+      "1:2:3:4:5:6:7:8:9",
+      "1:2:3:4:5:6:7",
+      "gggg::1",
+      "203.0.113.7 ",
+      "evil.example",
+    ]) {
+      expect(isIpLiteral(value), value).toBe(false);
+    }
   });
 });

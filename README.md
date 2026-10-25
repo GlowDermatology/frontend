@@ -35,6 +35,8 @@ npm run check        # lint + typecheck + test + format:check
 
 See `.env.example`.
 
+**Deployment assumption (edge contract).** The Next server must be reachable only through a single trusted edge proxy that appends or overwrites `X-Forwarded-For` (and `X-Real-IP`). The API client forwards the rightmost `X-Forwarded-For` hop to Django as `X-GD-Client-IP` (`clientIp()` in `src/data/api/client.ts`), because that hop is the one the edge wrote from the TCP peer; hops to its left come from the browser and are ignored. If a second proxy is ever chained in front, it must collapse the header, or Django's per-client-IP throttles and `AuditEntry.ip` would see the inner proxy's address.
+
 ---
 
 ## Architecture

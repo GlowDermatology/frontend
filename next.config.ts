@@ -27,6 +27,14 @@ function mediaRemotePatterns(value: string | undefined) {
 }
 
 const nextConfig: NextConfig = {
+  // Self-contained server (`.next/standalone/server.js`) for the Docker image.
+  // It embeds this config as evaluated by `next build`, so every
+  // process.env read in this file is a build-time value (Docker build args).
+  output: "standalone",
+  // Version-skew protection across releases: a browser holding pages from
+  // the previous image gets a hard navigation instead of "Failed to find
+  // Server Action". The commit SHA comes from the Docker build arg.
+  deploymentId: process.env.GLOWDERMA_BUILD_SHA || undefined,
   cacheComponents: true,
   partialPrefetching: true,
   reactCompiler: true,
@@ -61,6 +69,9 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },
+      // Streamed (partially prerendered) responses must reach the browser
+      // chunk by chunk; nginx honours this header and stops buffering.
+      { source: "/:path*", headers: [{ key: "X-Accel-Buffering", value: "no" }] },
       { source: "/admin/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
     ];
   },

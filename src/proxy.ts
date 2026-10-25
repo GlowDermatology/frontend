@@ -43,13 +43,15 @@ export function proxy(request: NextRequest) {
 
   let response: NextResponse;
   if (decision.kind === "refresh") {
-    response = new NextResponse(null, {
-      status: 307,
-      headers: {
-        Location: `/admin/auth/refresh?next=${encodeURIComponent(decision.next)}`,
-        "Cache-Control": "no-store",
-      },
-    });
+    // The proxy adapter requires an absolute Location; `nextUrl` carries the
+    // request host (the edge sets X-Forwarded-Host), so the origin is the
+    // one the browser used.
+    const location = new URL(
+      `/admin/auth/refresh?next=${encodeURIComponent(decision.next)}`,
+      request.nextUrl,
+    );
+    response = NextResponse.redirect(location, 307);
+    response.headers.set("Cache-Control", "no-store");
   } else {
     const requestHeaders = new Headers(request.headers);
     // Always overwritten, so a client-supplied value never reaches the DAL.

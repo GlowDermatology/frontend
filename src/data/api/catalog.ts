@@ -87,17 +87,25 @@ export function apiReorderProductImages(token: string, id: string, imageIds: num
   });
 }
 
-/** Streams `GET <list>/?export=csv|xlsx` (raw response; the route handler forwards the body). */
+/**
+ * Streams `GET <list>/?export=csv|xlsx` (raw response; the route handler
+ * forwards the body). The 60 s deadline covers the answer's headers only, so
+ * a large file is never cut off mid-transfer; `signal` (the browser request's)
+ * cancels the upstream transfer when the download is abandoned.
+ */
 export function apiExport(
   token: string,
   resource: "products" | "categories" | "banners",
   params: Record<string, QueryValue>,
+  signal?: AbortSignal,
 ): Promise<Response> {
   return apiFetchRaw(`${BASE}/${resource}/`, {
     query: params,
     token,
     headers: { Accept: "*/*" },
     timeoutMs: 60_000,
+    streamBody: true,
+    signal,
   });
 }
 

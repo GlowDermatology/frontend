@@ -12,6 +12,7 @@ export async function GET(request: Request) {
     name: "bannerlar",
     format: parseExportFormat(params.format),
     apiParams: {},
+    signal: request.signal,
     mock: async () => ({
       header: ["ID", "Sarlavha", "Havola", "Faol", "Boshlanishi", "Tugashi", "Tartib"],
       rows: (await exportBanners()).map((b) => [

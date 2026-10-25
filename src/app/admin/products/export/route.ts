@@ -6,7 +6,7 @@ import { exportProducts } from "@/data/mock/products.queries";
 import { categoryLabel } from "@/domain/category";
 import { productDisplayName } from "@/domain/product";
 import { PRODUCT_STATUS_META } from "@/features/admin/products/labels";
-import { parseProductQuery } from "@/features/admin/products/query";
+import { parseProductQuery, withKnownCategory } from "@/features/admin/products/query";
 
 /**
  * Products export (contract §1.8 `mahsulotlar`): streams
@@ -20,9 +20,12 @@ export async function GET(request: Request) {
     resource: "products",
     name: "mahsulotlar",
     format: parseExportFormat(params.format),
-    apiParams: productFilterParams(query),
+    // An unknown category slug (a stale bookmark) is dropped, as on the board.
+    apiParams: async () => productFilterParams(withKnownCategory(query, await getCategories())),
+    signal: request.signal,
     mock: async () => {
-      const [products, categories] = await Promise.all([exportProducts(query), getCategories()]);
+      const categories = await getCategories();
+      const products = await exportProducts(withKnownCategory(query, categories));
       return {
         header: [
           "ID",

@@ -27,8 +27,14 @@ export interface ExportRouteOptions {
   /** Contract §1.8 `<name>`: `mahsulotlar`, `kategoriyalar`, `bannerlar`. */
   name: string;
   format: ExportFormat;
-  /** API filter parameters (the UI params already translated). */
-  apiParams: Record<string, QueryValue>;
+  /**
+   * API filter parameters (the UI params already translated). A function is
+   * called only after the session check (it may read other API data, e.g.
+   * the categories to drop an unknown slug).
+   */
+  apiParams: Record<string, QueryValue> | (() => Promise<Record<string, QueryValue>>);
+  /** The incoming request's signal: an abandoned download cancels the upstream transfer. */
+  signal?: AbortSignal;
   /** Mock mode: the local CSV's header and rows. */
   mock: () => Promise<{ header: ReadonlyArray<string>; rows: ReadonlyArray<CsvCell[]> }>;
 }
@@ -51,12 +57,16 @@ export async function exportRoute(options: ExportRouteOptions): Promise<Response
     return csvResponse(options.name, header, rows);
   }
 
+  const apiParams =
+    typeof options.apiParams === "function" ? await options.apiParams() : options.apiParams;
   let upstream: Response;
   try {
-    upstream = await apiExport(session.token, options.resource, {
-      ...options.apiParams,
-      export: options.format,
-    });
+    upstream = await apiExport(
+      session.token,
+      options.resource,
+      { ...apiParams, export: options.format },
+      options.signal,
+    );
   } catch (error) {
     if (isApiError(error)) {
       // 400 export_too_large, 401, 429 throttled, …: pass the envelope on.

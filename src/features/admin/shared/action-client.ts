@@ -33,7 +33,8 @@ export interface ActionClientEnv {
   csrf: () => string;
 }
 
-function defaultEnv(): ActionClientEnv {
+/** The real browser environment (`fetch`, `location`, the `gd_csrf` cookie). */
+export function browserActionEnv(): ActionClientEnv {
   return {
     fetch: (input, init) => fetch(input, init),
     location: window.location,
@@ -77,7 +78,7 @@ async function invokeSafely<T>(
 
 export async function runAction<T>(
   invoke: (csrf: string) => Promise<ActionResult<T>>,
-  env: ActionClientEnv = defaultEnv(),
+  env: ActionClientEnv = browserActionEnv(),
 ): Promise<ActionResult<T>> {
   const first = await invokeSafely(invoke, env.csrf());
   if (first.ok || first.code !== "session_expired") return first;

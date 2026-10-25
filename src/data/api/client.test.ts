@@ -6,7 +6,7 @@ vi.mock("next/headers", () => ({
   headers: vi.fn(async () => requestHeaders),
 }));
 
-import { apiFetch, buildQuery, cachedGet, isIpLiteral } from "./client";
+import { apiFetch, apiFetchRaw, buildQuery, cachedGet, isIpLiteral } from "./client";
 import { ApiError, parseRetryAfter } from "./errors";
 
 type FetchMock = ReturnType<typeof vi.fn<typeof fetch>>;
@@ -268,6 +268,60 @@ describe("apiFetch", () => {
     fetchMock.mockResolvedValue(jsonResponse({ detail: "nope" }, { status: 404 }));
     const error = (await apiFetch("/x/").catch((e: unknown) => e)) as ApiError;
     expect(error.code).toBe("http_404");
+  });
+});
+
+describe("apiFetchRaw with streamBody (exports)", () => {
+  let fetchMock: FetchMock;
+
+  beforeEach(() => {
+    process.env.GLOWDERMA_API_URL = "http://api.test:8000/";
+    process.env.GLOWDERMA_INTERNAL_SECRET = "s3cret";
+    fetchMock = vi.fn<typeof fetch>();
+    vi.stubGlobal("fetch", fetchMock);
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("applies the deadline to the headers only: a long body transfer is not aborted", async () => {
+    fetchMock.mockResolvedValue(new Response("a;b\r\n", { status: 200 }));
+    const response = await apiFetchRaw("/api/v1/admin/products/", {
+      timeoutMs: 60_000,
+      streamBody: true,
+    });
+    const { signal } = lastRequest(fetchMock).init;
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(signal?.aborted).toBe(false);
+    expect(await response.text()).toBe("a;b\r\n");
+  });
+
+  it("times out when the headers do not arrive, and follows the caller's signal", async () => {
+    fetchMock.mockImplementation(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(init.signal!.reason));
+        }),
+    );
+    const pending = apiFetchRaw("/api/v1/admin/products/", { timeoutMs: 60_000, streamBody: true });
+    const assertion = expect(pending).rejects.toMatchObject({ name: "ApiError", code: "timeout" });
+    // Let the request reach fetch (it awaits the request headers first).
+    while (fetchMock.mock.calls.length === 0) await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(60_000);
+    await assertion;
+
+    const browser = new AbortController();
+    const cancelled = apiFetchRaw("/api/v1/admin/products/", {
+      streamBody: true,
+      signal: browser.signal,
+    });
+    const cancelledAssertion = expect(cancelled).rejects.toMatchObject({ name: "ApiError" });
+    while (fetchMock.mock.calls.length < 2) await Promise.resolve();
+    browser.abort();
+    await cancelledAssertion;
   });
 });
 

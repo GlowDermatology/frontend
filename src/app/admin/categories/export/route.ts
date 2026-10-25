@@ -10,6 +10,7 @@ export async function GET(request: Request) {
     name: "kategoriyalar",
     format: parseExportFormat(params.format),
     apiParams: {},
+    signal: request.signal,
     mock: async () => ({
       header: ["Slug", "Nomi", "Tartib", "Faol", "Mahsulotlar"],
       rows: (await exportCategories()).map((c) => [

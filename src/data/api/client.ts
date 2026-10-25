@@ -21,7 +21,15 @@ export interface ApiRequest {
   /** Sent as `Idempotency-Key` (contract §1.7). */
   idempotencyKey?: string;
   headers?: Record<string, string>;
+  /**
+   * Deadline in ms. By default it covers the whole exchange, body included
+   * (JSON answers are small). With `streamBody` it covers the response
+   * headers only: the caller streams the body on (exports).
+   */
   timeoutMs?: number;
+  streamBody?: boolean;
+  /** Extra cancellation (e.g. the incoming request's signal), combined with the deadline. */
+  signal?: AbortSignal;
 }
 
 export interface ApiResponse<T> {
@@ -131,6 +139,19 @@ export async function apiFetchRaw(path: string, request: ApiRequest = {}): Promi
     body = JSON.stringify(request.body);
   }
 
+  const timeoutMs = request.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  // A fetch signal also aborts reading the body. For a streamed body the
+  // deadline is a timer cleared once the headers are in.
+  const deadline = new AbortController();
+  const timer = request.streamBody
+    ? setTimeout(
+        () => deadline.abort(new DOMException("API deadline exceeded", "TimeoutError")),
+        timeoutMs,
+      )
+    : null;
+  const signals = [request.streamBody ? deadline.signal : AbortSignal.timeout(timeoutMs)];
+  if (request.signal) signals.push(request.signal);
+
   let response: Response;
   try {
     response = await fetch(url, {
@@ -141,9 +162,10 @@ export async function apiFetchRaw(path: string, request: ApiRequest = {}): Promi
       // Django never redirects an API call; a redirect would mean a
       // misconfigured edge, and following it could leak the bearer token.
       redirect: "error",
-      signal: AbortSignal.timeout(request.timeoutMs ?? DEFAULT_TIMEOUT_MS),
+      signal: signals.length === 1 ? signals[0] : AbortSignal.any(signals),
     });
   } catch (cause) {
+    if (timer) clearTimeout(timer);
     throw new ApiError(
       0,
       {
@@ -155,7 +177,11 @@ export async function apiFetchRaw(path: string, request: ApiRequest = {}): Promi
       { cause },
     );
   }
-  if (!response.ok) throw await ApiError.fromResponse(response);
+  try {
+    if (!response.ok) throw await ApiError.fromResponse(response);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
   return response;
 }
 

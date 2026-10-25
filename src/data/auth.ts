@@ -90,6 +90,18 @@ export async function requireStaff(): Promise<VerifiedStaff> {
   redirect(`/admin/login?next=${next}`);
 }
 
+/**
+ * For the api branches of the read dispatchers: the bearer token of the
+ * verified session, with `requireStaff()`'s redirects when it is missing or
+ * expired. Calling it in mock mode is a programming error (the dispatchers
+ * branch on `dataSource()` first).
+ */
+export async function requireApiToken(): Promise<string> {
+  const session = await requireStaff();
+  if (session.mode !== "api") throw new Error("requireApiToken() called in mock mode");
+  return session.token;
+}
+
 /** Shown in mock mode, matching the design's sidebar user block. */
 export const MOCK_ME: Me = {
   id: 0,

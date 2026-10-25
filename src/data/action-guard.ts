@@ -51,6 +51,17 @@ export async function guardAction(csrf: string): Promise<Guarded> {
   return { ok: false, error: SESSION_EXPIRED_MESSAGE, code: "session_expired" };
 }
 
+/**
+ * The bearer token of a guarded api-mode session, for the `apiMutation`
+ * calls. The actions only reach their api branch when `dataSource()` is
+ * `api`, where `verifyStaff` always returns an api session, so a mock session
+ * here is a programming error.
+ */
+export function sessionToken(session: VerifiedStaff): string {
+  if (session.mode !== "api") throw new Error("sessionToken() called with a mock session");
+  return session.token;
+}
+
 /** Client-generated idempotency key (contract §1.7): one UUID per dialog instance. */
 export const idempotencyKeySchema = z.uuid({ error: "Noto‘g‘ri so‘rov kaliti." });
 

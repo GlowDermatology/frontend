@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest";
 import { ledgerBalance } from "@/domain/cashback";
 import { itemsSubtotal } from "@/domain/order";
 
-import { getCustomer } from "./customers";
-import { getOrder, getOrderStatusCounts, listOrders } from "./orders";
-import { getCatalogStats, listProducts } from "./products";
+import { getCustomer } from "./mock/customers.queries";
+import { getOrder, getOrderStatusCounts, listOrders } from "./mock/orders.queries";
+import { getCatalogStats, listProducts } from "./mock/products.queries";
 
 /** The mock dataset must reproduce the numbers drawn in the design. */
 describe("mock dataset", () => {

@@ -2,9 +2,17 @@ import "server-only";
 
 import type { Customer } from "@/domain/customer";
 
-import { buildCustomer } from "./mock/customers";
+import * as mock from "./mock/customers.queries";
+import { dataSource, notWiredYet } from "./source";
 
-/** `GET /api/v1/admin/customers/{id}/` (ledger and purchases included). */
+/**
+ * Customers read seam. Dispatches on `dataSource()`: the mock body lives in
+ * `./mock/customers.queries.ts`; the api branch is not wired yet (F2) and
+ * returns `null` via `notWiredYet`.
+ */
+
+/** `GET /api/v1/admin/customers/{id}/` (ledger and purchases included); `null` on 404. */
 export async function getCustomer(id: string): Promise<Customer | null> {
-  return buildCustomer(id);
+  if ((await dataSource()) === "api") return notWiredYet("customers", null);
+  return mock.getCustomer(id);
 }

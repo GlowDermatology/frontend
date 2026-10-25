@@ -14,6 +14,11 @@ export interface Page<T> {
 export type ActionResult<T> =
   { ok: true; data: T } | { ok: false; error: string; fieldErrors?: Record<string, string> };
 
+/** The page an empty list produces: no items, `page` 1 of 1 (contract §1.5). */
+export function emptyPage<T>(pageSize: number): Page<T> {
+  return { items: [], total: 0, page: 1, pageSize, pageCount: 1 };
+}
+
 export function paginate<T>(items: ReadonlyArray<T>, page: number, pageSize: number): Page<T> {
   const total = items.length;
   const pageCount = Math.max(1, Math.ceil(total / pageSize));

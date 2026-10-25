@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { Avatar } from "@/components/ui/avatar";
 import { CountPill } from "@/components/ui/badge";
 import { Icon } from "@/components/ui/icon";
 import { getOrderStatusCounts } from "@/data/orders";
@@ -9,7 +8,7 @@ import { getPendingAppointments } from "@/data/appointments";
 import { cn } from "@/lib/cn";
 
 import { NAV_ITEMS, type AdminSection, type NavItem } from "./nav-items";
-import { NotConnectedButton } from "./not-connected";
+import { SidebarUser, SidebarUserFallback } from "./sidebar-user";
 
 /** Count of work waiting for the admin; streamed so it never blocks the shell. */
 async function NavCount({ kind }: { kind: NonNullable<NavItem["badge"]> }) {
@@ -90,19 +89,9 @@ export function SidebarContent({ section }: { section?: AdminSection }) {
             Sinxronlangan: 2 daqiqa oldin
           </span>
         </div>
-        <div className="flex items-center gap-2.5 px-1">
-          <Avatar name="Administrator" initials="AD" />
-          <span className="flex flex-1 flex-col">
-            <span className="text-body-sm font-bold text-ink">Administrator</span>
-            <span className="text-caption font-normal text-ink-muted">admin</span>
-          </span>
-          <NotConnectedButton
-            label="Chiqish"
-            description="Tizimga kirish va chiqish backend bilan birga ulanadi."
-          >
-            <Icon name="logout" size={20} />
-          </NotConnectedButton>
-        </div>
+        <Suspense fallback={<SidebarUserFallback />}>
+          <SidebarUser />
+        </Suspense>
       </div>
     </div>
   );

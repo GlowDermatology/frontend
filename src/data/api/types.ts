@@ -20,3 +20,31 @@ export type LoginRequest = Schemas["LoginRequest"];
 export type RefreshRequest = Schemas["RefreshRequest"];
 export type LogoutRequest = Schemas["LogoutRequest"];
 export type ChangePasswordRequest = Schemas["ChangePasswordRequest"];
+
+/* --- Catalog (contract §2.3–§2.5, §2.14) --- */
+
+export type ApiProduct = Schemas["Product"];
+export type ApiProductImage = Schemas["ProductImage"];
+export type ApiProductTexts = Schemas["ProductTexts"];
+export type ApiProductStats = Schemas["ProductStats"];
+export type ApiLastChange = Schemas["LastChange"];
+export type ApiProductWrite = Schemas["ProductWriteRequest"];
+export type ApiProductPatch = Partial<Schemas["PatchedProductWriteRequest"]>;
+export type ApiPaginatedProducts = Schemas["PaginatedProductList"];
+export type ApiImagesResponse = Schemas["ImagesResponse"];
+
+export type ApiCategory = Schemas["Category"];
+export type ApiCategoryWrite = Schemas["CategoryWriteRequest"];
+export type ApiCategoryPatch = Partial<Schemas["PatchedCategoryWriteRequest"]>;
+export type ApiPaginatedCategories = Schemas["PaginatedCategoryList"];
+export type ApiCategoryResults = Schemas["CategoryResults"];
+
+export type ApiBanner = Schemas["Banner"];
+export type ApiBannerLink = Schemas["BannerLink"];
+export type ApiBannerPatch = Partial<Schemas["PatchedBannerWriteRequest"]>;
+export type ApiPaginatedBanners = Schemas["PaginatedBannerList"];
+export type ApiBannerResults = Schemas["BannerResults"];
+
+export type ApiJob = Schemas["Job"];
+export type ApiJobState = Schemas["JobStateEnum"];
+export type ApiBillzImportRequest = Partial<Schemas["BillzImportRequest"]>;

@@ -1,0 +1,73 @@
+{
+  "count": 5,
+  "page": 1,
+  "page_size": 20,
+  "page_count": 1,
+  "results": [
+    {
+      "slug": "serums",
+      "name": {
+        "uz": "Serumlar",
+        "ru": "Сыворотки",
+        "en": "Serums"
+      },
+      "position": 0,
+      "is_active": true,
+      "product_count": 20,
+      "created_at": "2026-10-25T23:02:37+05:00",
+      "updated_at": "2026-10-25T23:02:37+05:00"
+    },
+    {
+      "slug": "cleansing",
+      "name": {
+        "uz": "Tozalash",
+        "ru": "Очищение",
+        "en": "Cleansing"
+      },
+      "position": 1,
+      "is_active": true,
+      "product_count": 55,
+      "created_at": "2026-10-25T23:02:37+05:00",
+      "updated_at": "2026-10-25T23:02:37+05:00"
+    },
+    {
+      "slug": "moisturizing",
+      "name": {
+        "uz": "Namlantirish",
+        "ru": "Увлажнение",
+        "en": "Moisturising"
+      },
+      "position": 2,
+      "is_active": true,
+      "product_count": 92,
+      "created_at": "2026-10-25T23:02:37+05:00",
+      "updated_at": "2026-10-25T23:02:37+05:00"
+    },
+    {
+      "slug": "sun",
+      "name": {
+        "uz": "Quyoshdan himoya",
+        "ru": "Защита от солнца",
+        "en": "Sun care"
+      },
+      "position": 3,
+      "is_active": true,
+      "product_count": 41,
+      "created_at": "2026-10-25T23:02:37+05:00",
+      "updated_at": "2026-10-25T23:02:37+05:00"
+    },
+    {
+      "slug": "toners",
+      "name": {
+        "uz": "Tonerlar",
+        "ru": "Тонеры",
+        "en": "Toners"
+      },
+      "position": 4,
+      "is_active": true,
+      "product_count": 36,
+      "created_at": "2026-10-25T23:02:37+05:00",
+      "updated_at": "2026-10-25T23:02:37+05:00"
+    }
+  ]
+}

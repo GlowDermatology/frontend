@@ -103,19 +103,18 @@ function isTimeout(cause: unknown): boolean {
 }
 
 /**
- * Server-to-server call to the Django API (contract §1). Throws `ApiError`
- * for every non-2xx answer, for transport failures (status 0, code
- * `timeout` or `network_error`) and for a 2xx whose body is not JSON (code
- * `invalid_json`); callers map those to `ActionResult` or `null` as the
- * contract prescribes. 204 resolves with `data: undefined`.
+ * Sends one request and returns the raw `Response` for a 2xx; throws
+ * `ApiError` for every non-2xx answer and for transport failures (status 0,
+ * code `timeout` or `network_error`). `apiFetch` adds JSON parsing on top;
+ * the export route handlers use this directly to stream a file body through.
  */
-export async function apiFetch<T>(path: string, request: ApiRequest = {}): Promise<ApiResponse<T>> {
+export async function apiFetchRaw(path: string, request: ApiRequest = {}): Promise<Response> {
   const url = `${serverEnv.apiUrl()}${path}${buildQuery(request.query)}`;
   // Request-time data first: under Cache Components `headers()` marks the
   // render dynamic, and only then is a per-request random id appropriate.
   const ip = await clientIp();
   const requestHeaders = new Headers(request.headers);
-  requestHeaders.set("Accept", "application/json");
+  if (!requestHeaders.has("Accept")) requestHeaders.set("Accept", "application/json");
   requestHeaders.set("Accept-Language", "uz");
   requestHeaders.set("X-GD-Internal-Secret", serverEnv.internalSecret());
   requestHeaders.set("X-Request-ID", crypto.randomUUID());
@@ -157,6 +156,18 @@ export async function apiFetch<T>(path: string, request: ApiRequest = {}): Promi
     );
   }
   if (!response.ok) throw await ApiError.fromResponse(response);
+  return response;
+}
+
+/**
+ * Server-to-server call to the Django API (contract §1). Throws `ApiError`
+ * for every non-2xx answer, for transport failures (status 0, code
+ * `timeout` or `network_error`) and for a 2xx whose body is not JSON (code
+ * `invalid_json`); callers map those to `ActionResult` or `null` as the
+ * contract prescribes. 204 resolves with `data: undefined`.
+ */
+export async function apiFetch<T>(path: string, request: ApiRequest = {}): Promise<ApiResponse<T>> {
+  const response = await apiFetchRaw(path, request);
   if (response.status === 204)
     return { status: 204, data: undefined as T, headers: response.headers };
   let data: T;

@@ -1,0 +1,26 @@
+{
+  "id": 1,
+  "kind": "billz_import",
+  "state": "succeeded",
+  "params": {
+    "mode": "delta"
+  },
+  "created_at": "2026-10-24T12:03:00+05:00",
+  "started_at": "2026-10-24T12:03:00+05:00",
+  "finished_at": "2026-10-24T12:03:00+05:00",
+  "progress": {
+    "done": 248,
+    "total": 248
+  },
+  "result": {
+    "created": 0,
+    "updated": 248,
+    "unchanged": 0,
+    "new_from_billz": 0
+  },
+  "error": null,
+  "created_by": {
+    "id": 1,
+    "display_name": "Administrator"
+  }
+}

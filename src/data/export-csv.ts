@@ -5,18 +5,21 @@ import { contentDisposition } from "./api/mappers/export";
 /**
  * Local CSV files for mock mode, in the API's own format (contract §1.8):
  * UTF-8 BOM, `;` separator, CRLF, every cell double-quoted with `"` doubled,
- * a leading `'` on text cells that could be read as a formula.
+ * a leading `'` on text cells that could be read as a formula — except a
+ * value that is exactly an E.164 phone (`+` then 7–15 digits, no leading
+ * zero), which stays plain text like the API's.
  */
 
 export type CsvCell = string | number | boolean | null | undefined;
 
 const FORMULA_START = /^[=+\-@\t\r]/;
+const E164_PHONE = /^\+[1-9]\d{6,14}$/;
 
 export function csvCell(value: CsvCell): string {
   if (value === null || value === undefined) return '""';
   if (typeof value === "number") return `"${String(value)}"`;
   if (typeof value === "boolean") return `"${value ? "Ha" : "Yo‘q"}"`;
-  const safe = FORMULA_START.test(value) ? `'${value}` : value;
+  const safe = FORMULA_START.test(value) && !E164_PHONE.test(value) ? `'${value}` : value;
   return `"${safe.replace(/"/g, '""')}"`;
 }
 

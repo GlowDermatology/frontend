@@ -63,10 +63,24 @@ export class ApiError extends Error {
     } catch {
       // Non-JSON error body: keep the synthetic envelope.
     }
-    const retry = response.headers.get("retry-after");
-    const retryAfter = retry && /^\d+$/.test(retry) ? Number(retry) : undefined;
-    return new ApiError(response.status, body, { retryAfter });
+    return new ApiError(response.status, body, {
+      retryAfter: parseRetryAfter(response.headers.get("retry-after")),
+    });
   }
+}
+
+/**
+ * Seconds from a `Retry-After` header: the contract sends delta-seconds, an
+ * edge proxy may send an HTTP-date (converted relative to `now`, never below
+ * 0). Anything else is `undefined`.
+ */
+export function parseRetryAfter(value: string | null, now: Date = new Date()): number | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  if (/^\d+$/.test(trimmed)) return Number(trimmed);
+  const at = Date.parse(trimmed);
+  if (Number.isNaN(at)) return undefined;
+  return Math.max(0, Math.ceil((at - now.getTime()) / 1000));
 }
 
 export function isApiError(error: unknown): error is ApiError {

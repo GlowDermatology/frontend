@@ -1,6 +1,7 @@
 import "server-only";
 
 import { headers } from "next/headers";
+import { cache } from "react";
 
 import { serverEnv } from "@/lib/env.server";
 
@@ -55,10 +56,20 @@ export async function clientIp(): Promise<string | undefined> {
   return requestHeaders.get("x-real-ip") ?? undefined;
 }
 
+function isTimeout(cause: unknown): boolean {
+  return (
+    typeof cause === "object" &&
+    cause !== null &&
+    "name" in cause &&
+    (cause.name === "TimeoutError" || cause.name === "AbortError")
+  );
+}
+
 /**
- * Server-to-server call to the Django API. Throws `ApiError` for every non-2xx
- * answer and for transport failures (status 0); callers map those to
- * `ActionResult` or `null` as the contract prescribes.
+ * Server-to-server call to the Django API (contract §1). Throws `ApiError`
+ * for every non-2xx answer and for transport failures (status 0, code
+ * `timeout` or `network_error`); callers map those to `ActionResult` or
+ * `null` as the contract prescribes. 204 resolves with `data: undefined`.
  */
 export async function apiFetch<T>(path: string, request: ApiRequest = {}): Promise<ApiResponse<T>> {
   const url = `${serverEnv.apiUrl()}${path}${buildQuery(request.query)}`;
@@ -74,6 +85,7 @@ export async function apiFetch<T>(path: string, request: ApiRequest = {}): Promi
 
   let body: BodyInit | undefined;
   if (request.formData) {
+    // Let fetch set the multipart boundary.
     body = request.formData;
   } else if (request.body !== undefined) {
     requestHeaders.set("Content-Type", "application/json");
@@ -93,7 +105,7 @@ export async function apiFetch<T>(path: string, request: ApiRequest = {}): Promi
     throw new ApiError(
       0,
       {
-        code: "network_error",
+        code: isTimeout(cause) ? "timeout" : "network_error",
         message: "API bilan bog‘lanib bo‘lmadi.",
         errors: [],
         request_id: "",
@@ -104,4 +116,26 @@ export async function apiFetch<T>(path: string, request: ApiRequest = {}): Promi
   if (!response.ok) throw await ApiError.fromResponse(response);
   const data = response.status === 204 ? (undefined as T) : ((await response.json()) as T);
   return { status: response.status, data, headers: response.headers };
+}
+
+const cachedGetByKey = cache(
+  <T>(
+    path: string,
+    queryString: string,
+    token: string | null | undefined,
+  ): Promise<ApiResponse<T>> => apiFetch<T>(`${path}${queryString}`, { token }),
+);
+
+/**
+ * `GET` deduplicated per server render with React `cache()`: the same
+ * request from `generateMetadata` and the page body (or from two components)
+ * hits Django once. The query is serialised so equal queries share the entry
+ * regardless of object identity. Reads only; mutations go through `apiFetch`.
+ */
+export function cachedGet<T>(
+  path: string,
+  query?: Record<string, QueryValue>,
+  token?: string | null,
+): Promise<ApiResponse<T>> {
+  return cachedGetByKey<T>(path, buildQuery(query), token ?? null);
 }

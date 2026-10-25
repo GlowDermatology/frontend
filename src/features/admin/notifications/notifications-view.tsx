@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import Link from "next/link";
 import { useEffect, useId, useRef, useState, type ChangeEvent } from "react";
 import { Controller, useForm, useWatch, type Path } from "react-hook-form";
 import { z } from "zod";
@@ -19,7 +20,9 @@ import { useToast } from "@/components/ui/toast";
 import { sendNotification } from "@/data/notifications.actions";
 import {
   BODY_MAX,
+  NOTIFICATION_IMAGE_TYPES,
   TITLE_MAX,
+  notificationImageProblem,
   type AudienceSegment,
   type NotificationDraft,
   type NotificationKind,
@@ -29,6 +32,7 @@ import {
 } from "@/domain/notification";
 import { cn } from "@/lib/cn";
 import { formatDateTimeShort, formatNumber, formatPhone } from "@/lib/format";
+import { maskPhone } from "@/lib/phone";
 
 import { runAction } from "../shared/action-client";
 import { useIdempotencyKey } from "../shared/idempotency";
@@ -40,9 +44,6 @@ const STATE_BADGE: Record<NotificationState, { label: string; tone: Tone }> = {
   queued: { label: "Navbatda", tone: "warning" },
   sent: { label: "Yuborildi", tone: "success" },
 };
-
-const IMAGE_TYPES = ["image/jpeg", "image/png"];
-const IMAGE_MAX_BYTES = 2 * 1024 * 1024;
 
 /** "2026-10-26T10:00" (datetime-local, Tashkent) ↔ ISO with +05:00. */
 const toLocalInput = (iso: string) => {
@@ -104,6 +105,8 @@ const linkLabel = (link: NotificationLink) =>
 
 interface NotificationsViewProps {
   history: ReadonlyArray<NotificationRecord>;
+  /** All campaigns on the server; the history shows the first page. */
+  historyTotal: number;
   segments: ReadonlyArray<AudienceSegment>;
   totalDevices: number;
   linkOptions: ReadonlyArray<NotificationLink>;
@@ -117,6 +120,7 @@ interface NotificationsViewProps {
 
 export function NotificationsView({
   history: initialHistory,
+  historyTotal,
   segments,
   totalDevices,
   linkOptions,
@@ -129,7 +133,15 @@ export function NotificationsView({
   "use no memo";
   const toast = useToast();
   const idBase = useId();
+  // A newer server history (the refresh after an api-mode send, a navigation
+  // back to the kept-mounted route) replaces the local one; a send prepends
+  // its answer locally so mock mode, which persists nothing, shows it too.
+  const [historySource, setHistorySource] = useState(initialHistory);
   const [history, setHistory] = useState(initialHistory);
+  if (initialHistory !== historySource) {
+    setHistorySource(initialHistory);
+    setHistory(initialHistory);
+  }
   const [confirmOpen, setConfirmOpen] = useState(false);
   // The picked file travels with the FormData; the object URL is only the preview.
   const [image, setImage] = useState<{ name: string; src: string; file: File } | null>(null);
@@ -157,6 +169,7 @@ export function NotificationsView({
     handleSubmit,
     reset,
     setError,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<Values>({ resolver: zodResolver(schema), defaultValues: defaults });
   const [title, body, audience, segmentId, when, scheduledAt, link] = useWatch({
@@ -211,7 +224,12 @@ export function NotificationsView({
             title: `Xabar ${formatDateTimeShort(scheduled)} ga rejalashtirildi`,
             description: "Tarixda ko‘rinadi",
           }
-        : { title: "Xabar yuborilmoqda", description: "Navbatga qo‘yildi, qismlab yuboriladi" },
+        : result.data.state === "sent"
+          ? {
+              title: "Xabar yuborildi",
+              description: `${formatNumber(result.data.sent ?? 0)} ta qurilmaga yetkazishga topshirildi`,
+            }
+          : { title: "Xabar yuborilmoqda", description: "Navbatga qo‘yildi, qismlab yuboriladi" },
     );
   };
 
@@ -225,8 +243,9 @@ export function NotificationsView({
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    if (!IMAGE_TYPES.includes(file.type)) return setImageError("Faqat JPG yoki PNG.");
-    if (file.size > IMAGE_MAX_BYTES) return setImageError("Rasm 2 MB dan katta.");
+    // Checked before upload with the contract's messages; the server re-checks.
+    const problem = notificationImageProblem(file);
+    if (problem) return setImageError(problem);
     setImageError(null);
     setImage({ name: file.name, src: URL.createObjectURL(file), file });
   };
@@ -333,7 +352,7 @@ export function NotificationsView({
                     <span className="flex flex-col">
                       <span className="text-[14px] leading-5 font-bold">Rasm (ixtiyoriy)</span>
                       <span className="text-caption font-normal text-ink-muted">
-                        JPG yoki PNG, 2:1
+                        JPEG, PNG yoki WebP · 5 MB gacha, 2:1
                       </span>
                     </span>
                   </button>
@@ -341,7 +360,7 @@ export function NotificationsView({
                 <input
                   ref={fileRef}
                   type="file"
-                  accept={IMAGE_TYPES.join(",")}
+                  accept={NOTIFICATION_IMAGE_TYPES.join(",")}
                   className="sr-only"
                   tabIndex={-1}
                   aria-hidden="true"
@@ -423,31 +442,48 @@ export function NotificationsView({
               </div>
             </div>
 
-            {audience === "group" && segments.length > 0 && (
-              <Controller
-                control={control}
-                name="segmentId"
-                render={({ field }) => (
-                  <SelectMenu<string>
-                    label="Guruh"
-                    value={field.value}
-                    onValueChange={field.onChange}
-                    triggerClassName="self-start"
-                    trigger={`Guruh: ${segment?.name ?? ""}`}
-                    options={segments.map((s) => ({
-                      value: s.id,
-                      label: `${s.name} · ${formatNumber(s.size)}`,
-                    }))}
+            {audience === "group" && (
+              <div className="flex flex-wrap items-center gap-3">
+                {segments.length > 0 && (
+                  <Controller
+                    control={control}
+                    name="segmentId"
+                    render={({ field }) => (
+                      <SelectMenu<string>
+                        label="Guruh"
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        trigger={`Guruh: ${segment?.name ?? ""}`}
+                        options={segments.map((s) => ({
+                          value: s.id,
+                          label: `${s.name} · ${formatNumber(s.size)}`,
+                        }))}
+                      />
+                    )}
                   />
                 )}
-              />
+                <Link
+                  href="/admin/customers/groups"
+                  className="text-body-sm font-semibold text-ink underline decoration-gold underline-offset-4"
+                >
+                  {segments.length > 0 ? "Guruhlarni boshqarish" : "Guruh yaratish"}
+                </Link>
+                {errors.segmentId && (
+                  <p className="m-0 flex basis-full items-start gap-1.5 text-body-sm font-semibold text-ink">
+                    <Icon name="alert-circle" size={16} className="mt-px shrink-0 text-danger" />
+                    {errors.segmentId.message}
+                  </p>
+                )}
+              </div>
             )}
             {audience === "one" && (
               <Field label="Mijoz telefoni" error={errors.phone?.message} className="max-w-[320px]">
                 {(c) => (
                   <TextInput
                     {...c}
-                    {...register("phone")}
+                    {...register("phone", {
+                      onChange: (event) => setValue("phone", maskPhone(event.target.value)),
+                    })}
                     type="tel"
                     inputMode="tel"
                     autoComplete="off"
@@ -576,6 +612,9 @@ export function NotificationsView({
             Tarix
           </CardTitle>
           <span className="text-caption font-normal text-ink-muted">
+            {historyTotal > history.length
+              ? `Oxirgi ${formatNumber(history.length)} ta xabar (jami ${formatNumber(historyTotal)}). `
+              : ""}
             Buyurtma holati xabarlari avtomatik yuboriladi va bu yerda ko‘rsatilmaydi
           </span>
         </div>
@@ -605,7 +644,18 @@ export function NotificationsView({
                       <time dateTime={record.at}>{formatDateTimeShort(record.at)}</time>
                     </td>
                     <td>{KIND_LABEL[record.kind]}</td>
-                    <td className="font-semibold">{record.title}</td>
+                    <td>
+                      <span className="flex flex-col">
+                        <span className="font-semibold">{record.title}</span>
+                        {(record.linkLabel || record.author) && (
+                          <span className="text-[12px] text-ink-muted">
+                            {[record.linkLabel && `→ ${record.linkLabel}`, record.author]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </span>
+                        )}
+                      </span>
+                    </td>
                     <td className="tabular-nums">{record.audienceLabel}</td>
                     <td
                       className={cn(
@@ -614,6 +664,11 @@ export function NotificationsView({
                       )}
                     >
                       {record.sent === null ? "—" : formatNumber(record.sent)}
+                      {record.failed ? (
+                        <span className="block text-[12px] text-danger-strong">
+                          {formatNumber(record.failed)} ta xato
+                        </span>
+                      ) : null}
                     </td>
                     <td
                       className={cn(

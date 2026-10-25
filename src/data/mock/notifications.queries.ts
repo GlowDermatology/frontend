@@ -13,6 +13,7 @@ import {
 export async function getNotificationsOverview(): Promise<NotificationsOverview> {
   return {
     history: NOTIFICATION_HISTORY,
+    historyTotal: NOTIFICATION_HISTORY.length,
     templates: STATUS_TEMPLATES,
     segments: SEGMENTS,
     totalDevices: TOTAL_DEVICES,

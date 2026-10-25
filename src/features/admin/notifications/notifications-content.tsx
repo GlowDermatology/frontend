@@ -24,6 +24,7 @@ export async function NotificationsContent({
     <>
       <NotificationsView
         history={overview.history}
+        historyTotal={overview.historyTotal}
         segments={overview.segments}
         totalDevices={overview.totalDevices}
         linkOptions={overview.linkOptions}

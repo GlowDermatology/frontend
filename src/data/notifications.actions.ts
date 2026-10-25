@@ -2,9 +2,35 @@
 
 import { z } from "zod";
 
-import { BODY_MAX, TITLE_MAX, type NotificationRecord } from "@/domain/notification";
+import {
+  BODY_MAX,
+  IMAGE_TOO_LARGE_MESSAGE,
+  IMAGE_TYPE_MESSAGE,
+  NOTIFICATION_IMAGE_MAX_BYTES,
+  NOTIFICATION_IMAGE_TYPES,
+  TEMPLATE_MAX,
+  TEMPLATE_UZ_MIN,
+  TITLE_MAX,
+  type NotificationRecord,
+  type StatusTemplate,
+  type TemplateStatus,
+} from "@/domain/notification";
 
-import { apiMutation, fieldErrorsFrom, guardAction, idempotencyKeySchema } from "./action-guard";
+import {
+  apiMutation,
+  fieldErrorsFrom,
+  guardAction,
+  idempotencyKeySchema,
+  sessionToken,
+} from "./action-guard";
+import { apiCreateNotification, apiUpdateTemplate } from "./api/admin";
+import { toActionResult } from "./api/mappers/errors";
+import {
+  mapNotificationRecord,
+  mapStatusTemplate,
+  NOTIFICATION_FIELD_REMAP,
+  notificationFormData,
+} from "./api/mappers/notifications";
 import * as mock from "./mock/notifications.actions";
 import { requestNow } from "./now";
 import { dataSource } from "./source";
@@ -16,13 +42,20 @@ import type { ActionResult } from "./types";
  * `audience` (`all` | `group` | `one`), `segmentId`, `phone` (`+998…`),
  * `scheduledAt` (ISO with offset, empty = send now) and an optional `image`
  * file. The mock body lives in `./mock/notifications.actions.ts`; the api
- * branch (F2) posts multipart to `notifications/` with `Idempotency-Key`
- * (audience `group` → `segment`, `one` → `customer`; `image` errors map to the
- * top-level error).
+ * branch builds the multipart body with dotted keys from the validated input
+ * (`notificationFormData`: audience `group` → `segment`, `one` → `customer`,
+ * `scheduled_at` as an aware Tashkent time) and posts it to `notifications/`
+ * with `Idempotency-Key`; field errors are remapped per §7.1 (`audience.phone`
+ * → `phone`, `image` → the top-level error). A send without `scheduled_at`
+ * runs inside the request (eager Celery in local settings), so the answer may
+ * already be `sent`.
+ *
+ * `updateNotificationTemplate` PUTs `notification-templates/{status}/` with
+ * all three languages; the backend is the authority on the placeholder rule
+ * (`unknown_placeholder` "Faqat {raqam} o‘rinbosari ishlatiladi.").
  */
 
-const IMAGE_TYPES = ["image/jpeg", "image/png"];
-const IMAGE_MAX_BYTES = 2 * 1024 * 1024;
+const IMAGE_TYPES: ReadonlyArray<string> = NOTIFICATION_IMAGE_TYPES;
 
 /** The validated payload handed to the mock / api bodies. */
 export interface NotificationInput {
@@ -61,8 +94,10 @@ function buildSchema(now: Date) {
       scheduledAt: z.string().trim(),
       image: z
         .instanceof(File)
-        .refine((file) => IMAGE_TYPES.includes(file.type), { error: "Faqat JPG yoki PNG." })
-        .refine((file) => file.size <= IMAGE_MAX_BYTES, { error: "Rasm 2 MB dan katta." })
+        .refine((file) => IMAGE_TYPES.includes(file.type), { error: IMAGE_TYPE_MESSAGE })
+        .refine((file) => file.size <= NOTIFICATION_IMAGE_MAX_BYTES, {
+          error: IMAGE_TOO_LARGE_MESSAGE,
+        })
         .nullable(),
       key: idempotencyKeySchema,
     })
@@ -136,6 +171,71 @@ export async function sendNotification(
     scheduledAt: data.scheduledAt || null,
     image: data.image,
   };
-  if ((await dataSource()) === "api") return apiMutation("sendNotification");
+  if ((await dataSource()) === "api") {
+    return apiMutation("sendNotification", async () => {
+      try {
+        const { data } = await apiCreateNotification(
+          sessionToken(guard.session),
+          notificationFormData(input),
+          key,
+        );
+        return { ok: true, data: mapNotificationRecord(data) };
+      } catch (error) {
+        return toActionResult(error, NOTIFICATION_FIELD_REMAP);
+      }
+    });
+  }
   return mock.sendNotification(input);
+}
+
+const TEMPLATE_STATUSES = ["processing", "handed_to_courier", "delivered", "cancelled"] as const;
+
+export interface TemplateTextsInput {
+  uz: string;
+  ru: string;
+  en: string;
+}
+
+const templateSchema = z.object({
+  status: z.enum(TEMPLATE_STATUSES),
+  texts: z.object({
+    uz: z
+      .string()
+      .trim()
+      .min(TEMPLATE_UZ_MIN, `Kamida ${TEMPLATE_UZ_MIN} ta belgi kiriting.`)
+      .max(TEMPLATE_MAX, `${TEMPLATE_MAX} belgidan oshmasin.`),
+    ru: z.string().trim().max(TEMPLATE_MAX, `${TEMPLATE_MAX} belgidan oshmasin.`),
+    en: z.string().trim().max(TEMPLATE_MAX, `${TEMPLATE_MAX} belgidan oshmasin.`),
+  }),
+  key: idempotencyKeySchema,
+});
+
+/** `PUT notification-templates/{status}/` (contract §2.8): the whole `texts` object. */
+export async function updateNotificationTemplate(
+  status: TemplateStatus,
+  texts: TemplateTextsInput,
+  key: string,
+  csrf: string,
+): Promise<ActionResult<StatusTemplate>> {
+  const guard = await guardAction(csrf);
+  if (!guard.ok) return guard;
+  const parsed = templateSchema.safeParse({ status, texts, key });
+  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  const input = parsed.data;
+  if ((await dataSource()) === "api") {
+    return apiMutation("updateNotificationTemplate", async () => {
+      try {
+        const { data } = await apiUpdateTemplate(
+          sessionToken(guard.session),
+          input.status,
+          { texts: input.texts },
+          input.key,
+        );
+        return { ok: true, data: mapStatusTemplate(data) };
+      } catch (error) {
+        return toActionResult(error);
+      }
+    });
+  }
+  return mock.updateNotificationTemplate(input.status, input.texts);
 }

@@ -17,12 +17,36 @@ import type { StaffSession, VerifyStaffOptions } from "./auth";
 const verifyStaff = vi.fn<(options?: VerifyStaffOptions) => Promise<StaffSession>>();
 const refresh = vi.fn();
 
+const apiFetch = vi.fn();
+const cachedGet = vi.fn();
+
 vi.mock("next/server", () => ({ connection: vi.fn(async () => undefined) }));
 vi.mock("next/cache", () => ({ refresh: () => refresh() }));
 vi.mock("./auth", () => ({
   verifyStaff: (options?: VerifyStaffOptions) => verifyStaff(options),
+  requireApiToken: async () => "t",
 }));
 vi.mock("./mock/delay", () => ({ delay: async () => undefined }));
+vi.mock("./api/client", () => ({
+  apiFetch: (...args: unknown[]) => apiFetch(...args),
+  cachedGet: (...args: unknown[]) => cachedGet(...args),
+  apiFetchRaw: vi.fn(),
+  buildQuery: () => "",
+}));
+
+import bannerFixture from "./api/__fixtures__/banner.json";
+import categoryErrorFixture from "./api/__fixtures__/category-error.json";
+import productFixture from "./api/__fixtures__/product-1.json";
+import { ApiError } from "./api/errors";
+import { mapProduct } from "./api/mappers/products";
+import type { ApiProduct } from "./api/types";
+import { deleteBanner, reorderBanners, saveBanner } from "./banners.actions";
+import {
+  createCategory,
+  deleteCategory,
+  reorderCategories,
+  updateCategory,
+} from "./categories.actions";
 
 import { updateAppointment } from "./appointments.actions";
 import { saveCashbackPolicy } from "./cashback.actions";
@@ -36,8 +60,11 @@ import { sendNotification } from "./notifications.actions";
 import { cancelOrder, changeOrderStatus, retryShipment } from "./orders.actions";
 import {
   deleteProductImage,
+  importFromBillz,
+  pollJob,
   reorderProductImages,
   saveProduct,
+  searchProducts,
   uploadProductImage,
 } from "./products.actions";
 import type { ProductFormValues } from "./products.schema";
@@ -53,6 +80,8 @@ beforeEach(() => {
   verifyStaff.mockReset();
   verifyStaff.mockResolvedValue({ ok: true, mode: "mock" });
   refresh.mockClear();
+  apiFetch.mockReset();
+  cachedGet.mockReset();
 });
 
 afterEach(() => {
@@ -132,6 +161,27 @@ describe("session and csrf gate", () => {
       () => uploadProductImage("1", new FormData(), missing),
       () => deleteProductImage("1", "img-1", missing),
       () => reorderProductImages("1", ["img-1"], missing),
+      () => importFromBillz(KEY, missing),
+      () => pollJob("1", missing),
+      () => searchProducts("serum", missing),
+      () =>
+        createCategory(
+          { slug: "a1", name: { uz: "Ab", ru: "", en: "" }, isActive: true },
+          KEY,
+          missing,
+        ),
+      () =>
+        updateCategory(
+          "serums",
+          { name: { uz: "Ab", ru: "", en: "" }, isActive: true },
+          KEY,
+          missing,
+        ),
+      () => deleteCategory("serums", missing),
+      () => reorderCategories(["serums"], missing),
+      () => saveBanner(null, new FormData(), KEY, missing),
+      () => deleteBanner("1", missing),
+      () => reorderBanners(["1"], missing),
       () => adjustCashback("5", { direction: "add", amount: 1, reason: "abc" }, KEY, missing),
       () => saveCashbackPolicy(ACTIVE_POLICY, KEY, missing),
       () => sendNotification(notificationForm(), KEY, missing),
@@ -170,10 +220,346 @@ describe("api mode (endpoints not wired yet)", () => {
     expect(
       await adjustCashback("5", { direction: "add", amount: 1, reason: "abc" }, KEY, CSRF),
     ).toEqual(notWired);
-    expect(await deleteProductImage("1", "img-1", CSRF)).toEqual(notWired);
-    expect(await reorderProductImages("1", ["img-1"], CSRF)).toEqual(notWired);
     expect(refresh).not.toHaveBeenCalled();
     warn.mockRestore();
+  });
+});
+
+describe("api mode (catalog actions wired)", () => {
+  const respond = (status: number, data: unknown) => ({ status, data, headers: new Headers() });
+  const values: ProductFormValues = {
+    texts: mapProduct(productFixture as ApiProduct).texts,
+    price: 185_000,
+    category: "serums",
+    billzId: "4607012301",
+    promo: false,
+    status: "hidden",
+    images: [],
+  };
+
+  beforeEach(() => {
+    process.env.GLOWDERMA_DATA_SOURCE = "api";
+    verifyStaff.mockResolvedValue({ ok: true, mode: "api", token: "t", sid: null });
+  });
+
+  it("saveProduct creates hidden with JSON, maps the answer and refreshes the route", async () => {
+    apiFetch.mockResolvedValueOnce(respond(201, productFixture));
+    const result = await saveProduct(null, { ...values, category: "" }, CSRF);
+    expect(apiFetch).toHaveBeenCalledWith(
+      "/api/v1/admin/products/",
+      expect.objectContaining({
+        method: "POST",
+        token: "t",
+        body: expect.objectContaining({ billz_id: "4607012301", status: "hidden", category: null }),
+      }),
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      data: { id: "1", lastChange: { by: "Administrator" } },
+    });
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("saveProduct patches only the diff against the current product", async () => {
+    cachedGet.mockResolvedValueOnce(respond(200, productFixture));
+    apiFetch.mockResolvedValueOnce(respond(200, { ...productFixture, price: 190_000 }));
+    const image = { id: "1", label: "Rasm 1", src: "http://m/a.webp" };
+    const result = await saveProduct(
+      "1",
+      { ...values, price: 190_000, status: "active", images: [image] },
+      CSRF,
+    );
+    expect(cachedGet).toHaveBeenCalledWith("/api/v1/admin/products/1/", undefined, "t");
+    expect(apiFetch).toHaveBeenCalledWith(
+      "/api/v1/admin/products/1/",
+      expect.objectContaining({ method: "PATCH", body: { price: 190_000 } }),
+    );
+    expect(result).toMatchObject({ ok: true, data: { price: 190_000 } });
+    // Nothing changed → no PATCH, the current product is returned.
+    apiFetch.mockClear();
+    cachedGet.mockResolvedValueOnce(respond(200, productFixture));
+    const unchanged = await saveProduct(
+      "1",
+      { ...values, status: "active", images: [image] },
+      CSRF,
+    );
+    expect(unchanged.ok).toBe(true);
+    expect(apiFetch).not.toHaveBeenCalled();
+  });
+
+  it("saveProduct maps a 400 with billz_id → billzId and the active-rule fields", async () => {
+    cachedGet.mockResolvedValueOnce(
+      respond(200, { ...productFixture, images: [], status: "hidden" }),
+    );
+    apiFetch.mockRejectedValueOnce(
+      new ApiError(400, {
+        code: "validation_error",
+        message: "Maydonlarni tekshiring.",
+        errors: [
+          {
+            field: "images",
+            code: "required_for_active",
+            message: "Faol mahsulotda kamida bitta rasm bo‘lsin.",
+          },
+          {
+            field: "billz_id",
+            code: "billz_not_found",
+            message: "Billz’da bunday mahsulot topilmadi.",
+          },
+        ],
+        request_id: "r",
+      }),
+    );
+    // The client-side rule passes (the form still lists an image); the server
+    // judges the real set and answers 400 on `images` and `billz_id`.
+    const result = await saveProduct(
+      "1",
+      { ...values, billzId: "4607010000", status: "active", images: [{ id: "9", label: "x" }] },
+      CSRF,
+    );
+    expect(result).toEqual({
+      ok: false,
+      error: "Maydonlarni tekshiring.",
+      code: "validation_error",
+      fieldErrors: {
+        images: "Faol mahsulotda kamida bitta rasm bo‘lsin.",
+        billzId: "Billz’da bunday mahsulot topilmadi.",
+      },
+    });
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("image actions post multipart, delete and put the exact order", async () => {
+    apiFetch.mockResolvedValueOnce(respond(201, { id: 32, url: "http://m/x.webp", position: 1 }));
+    const form = new FormData();
+    form.set("file", new File(["x"], "photo.png", { type: "image/png" }));
+    const uploaded = await uploadProductImage("1", form, CSRF);
+    const [, request] = apiFetch.mock.calls[0]!;
+    expect(request.formData).toBeInstanceOf(FormData);
+    expect(request.body).toBeUndefined();
+    expect(request.formData.get("file")).toBeInstanceOf(File);
+    expect(uploaded).toEqual({
+      ok: true,
+      data: { id: "32", src: "http://m/x.webp", label: "Rasm 2" },
+    });
+
+    apiFetch.mockRejectedValueOnce(
+      new ApiError(400, {
+        code: "validation_error",
+        message: "Maydonlarni tekshiring.",
+        errors: [{ field: "images", code: "max_items", message: "Ko‘pi bilan 8 ta rasm." }],
+        request_id: "r",
+      }),
+    );
+    expect(await uploadProductImage("1", form, CSRF)).toMatchObject({
+      ok: false,
+      error: "Ko‘pi bilan 8 ta rasm.",
+    });
+
+    apiFetch.mockResolvedValueOnce(respond(204, undefined));
+    expect(await deleteProductImage("1", "31", CSRF)).toEqual({ ok: true, data: { id: "31" } });
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/products/1/images/31/",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+
+    apiFetch.mockResolvedValueOnce(
+      respond(200, {
+        images: [
+          { id: 31, url: "a", position: 1 },
+          { id: 32, url: "b", position: 0 },
+        ],
+      }),
+    );
+    expect(await reorderProductImages("1", ["32", "31"], CSRF)).toEqual({
+      ok: true,
+      data: { imageIds: ["32", "31"] },
+    });
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/products/1/images/order/",
+      expect.objectContaining({ method: "PUT", body: { image_ids: [32, 31] } }),
+    );
+    expect(refresh).toHaveBeenCalledTimes(3);
+  });
+
+  it("importFromBillz posts with the idempotency key and pollJob reads jobs/{id}/", async () => {
+    const job = {
+      id: 12,
+      kind: "billz_import",
+      state: "running",
+      params: { mode: "delta" },
+      created_at: "2026-10-24T12:03:00+05:00",
+      started_at: null,
+      finished_at: null,
+      progress: null,
+      result: null,
+      error: null,
+      created_by: null,
+    };
+    apiFetch.mockResolvedValueOnce(respond(202, job));
+    expect(await importFromBillz(KEY, CSRF)).toMatchObject({
+      ok: true,
+      data: { id: "12", state: "running" },
+    });
+    expect(apiFetch).toHaveBeenCalledWith(
+      "/api/v1/admin/integrations/billz/import/",
+      expect.objectContaining({ method: "POST", idempotencyKey: KEY, body: {} }),
+    );
+    apiFetch.mockResolvedValueOnce(
+      respond(200, {
+        ...job,
+        state: "succeeded",
+        result: { created: 3, updated: 245, unchanged: 0, new_from_billz: 3 },
+      }),
+    );
+    expect(await pollJob("12", CSRF)).toMatchObject({
+      ok: true,
+      data: { state: "succeeded", result: { created: 3, updated: 245, unchanged: 0 } },
+    });
+    expect(apiFetch).toHaveBeenLastCalledWith("/api/v1/admin/jobs/12/", { token: "t" });
+    apiFetch.mockRejectedValueOnce(
+      new ApiError(404, { code: "not_found", message: "Topilmadi.", errors: [], request_id: "" }),
+    );
+    expect(await pollJob("99", CSRF)).toMatchObject({ ok: false, code: "not_found" });
+    expect(await importFromBillz("nope", CSRF)).toMatchObject({
+      ok: false,
+      fieldErrors: { key: expect.any(String) },
+    });
+  });
+
+  it("category actions map the contract's answers (400 fields, 409 conflict, order)", async () => {
+    apiFetch.mockRejectedValueOnce(new ApiError(400, categoryErrorFixture));
+    expect(
+      await createCategory(
+        { slug: "no-ne", name: { uz: "Ab", ru: "", en: "" }, isActive: true },
+        KEY,
+        CSRF,
+      ),
+    ).toEqual({
+      ok: false,
+      error: "Maydonlarni tekshiring.",
+      code: "validation_error",
+      fieldErrors: { slug: "Bu slug band.", "name.uz": "Kamida 2 ta belgi kiriting." },
+    });
+    // The reserved slugs are refused before the round trip.
+    expect(
+      await createCategory(
+        { slug: "none", name: { uz: "Ab", ru: "", en: "" }, isActive: true },
+        KEY,
+        CSRF,
+      ),
+    ).toMatchObject({ fieldErrors: { slug: "Bu slug band." } });
+    expect(apiFetch).toHaveBeenCalledTimes(1);
+
+    apiFetch.mockRejectedValueOnce(
+      new ApiError(409, {
+        code: "conflict",
+        message: "Kategoriyada mahsulotlar bor.",
+        errors: [],
+        request_id: "",
+      }),
+    );
+    expect(await deleteCategory("serums", CSRF)).toEqual({
+      ok: false,
+      error: "Kategoriyada mahsulotlar bor.",
+      code: "conflict",
+    });
+
+    const category = {
+      slug: "masks",
+      name: { uz: "Niqoblar", ru: "", en: "" },
+      position: 1,
+      is_active: true,
+      product_count: 0,
+      created_at: "2026-10-26T00:00:00+05:00",
+      updated_at: "2026-10-26T00:00:00+05:00",
+    };
+    apiFetch.mockResolvedValueOnce(respond(200, { ...category, is_active: false }));
+    expect(
+      await updateCategory("masks", { name: category.name, isActive: false }, KEY, CSRF),
+    ).toMatchObject({ ok: true, data: { slug: "masks", isActive: false } });
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/categories/masks/",
+      expect.objectContaining({
+        method: "PATCH",
+        idempotencyKey: KEY,
+        body: { name: category.name, is_active: false },
+      }),
+    );
+    apiFetch.mockResolvedValueOnce(respond(200, { results: [{ ...category, position: 0 }] }));
+    expect(await reorderCategories(["masks"], CSRF)).toMatchObject({
+      ok: true,
+      data: [{ slug: "masks", position: 0 }],
+    });
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/categories/order/",
+      expect.objectContaining({ method: "PUT", body: { slugs: ["masks"] } }),
+    );
+  });
+
+  it("saveBanner posts multipart with dotted keys on create and JSON on an image-less update", async () => {
+    const form = new FormData();
+    form.set("title.uz", "Kuzgi chegirmalar");
+    form.set("link.kind", "product");
+    form.set("link.productId", "4");
+    form.set("isActive", "true");
+    form.set("endsAt", "2026-11-30T00:00:00+05:00");
+    // Create without an image is refused before the round trip.
+    expect(await saveBanner(null, form, KEY, CSRF)).toMatchObject({
+      ok: false,
+      fieldErrors: { image: "Banner rasmini tanlang." },
+    });
+    form.set("image", new File(["x"], "b.png", { type: "image/png" }));
+    apiFetch.mockResolvedValueOnce(respond(201, bannerFixture));
+    const created = await saveBanner(null, form, KEY, CSRF);
+    const [path, request] = apiFetch.mock.calls[0]!;
+    expect(path).toBe("/api/v1/admin/banners/");
+    expect(request.method).toBe("POST");
+    expect(request.idempotencyKey).toBe(KEY);
+    expect(
+      Object.fromEntries(
+        [...request.formData.entries()].filter(([k]: [string, unknown]) => k !== "image"),
+      ),
+    ).toEqual({
+      "title.uz": "Kuzgi chegirmalar",
+      "title.ru": "",
+      "title.en": "",
+      "link.kind": "product",
+      "link.product_id": "4",
+      "link.category": "",
+      is_active: "true",
+      starts_at: "",
+      ends_at: "2026-11-30T00:00:00+05:00",
+    });
+    expect(created).toMatchObject({ ok: true, data: { id: "1", link: { productId: "4" } } });
+
+    form.delete("image");
+    apiFetch.mockResolvedValueOnce(respond(200, bannerFixture));
+    await saveBanner("1", form, KEY, CSRF);
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/banners/1/",
+      expect.objectContaining({
+        method: "PATCH",
+        body: expect.objectContaining({ link: { kind: "product", product_id: 4, category: null } }),
+      }),
+    );
+    expect(apiFetch.mock.calls[1]![1].formData).toBeUndefined();
+
+    // Window order is checked before the round trip.
+    form.set("startsAt", "2026-12-01T00:00:00+05:00");
+    expect(await saveBanner("1", form, KEY, CSRF)).toMatchObject({
+      ok: false,
+      fieldErrors: { endsAt: "Tugash vaqti boshlanish vaqtidan keyin bo‘lsin." },
+    });
+
+    apiFetch.mockResolvedValueOnce(respond(204, undefined));
+    expect(await deleteBanner("1", CSRF)).toEqual({ ok: true, data: { id: "1" } });
+    apiFetch.mockResolvedValueOnce(respond(200, { results: [bannerFixture] }));
+    expect(await reorderBanners(["1"], CSRF)).toMatchObject({ ok: true, data: [{ id: "1" }] });
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/banners/order/",
+      expect.objectContaining({ method: "PUT", body: { ids: [1] } }),
+    );
   });
 });
 
@@ -343,7 +729,7 @@ describe("products", () => {
     form.set("file", new File(["x"], "photo.gif", { type: "image/gif" }));
     expect(await uploadProductImage(product.id, form, CSRF)).toMatchObject({
       ok: false,
-      fieldErrors: { file: "Faqat JPG, PNG yoki WebP." },
+      fieldErrors: { file: "Faqat JPEG, PNG yoki WebP rasm." },
     });
     form.set("file", new File(["x"], "photo.jpg", { type: "image/jpeg" }));
     const uploaded = await uploadProductImage(product.id, form, CSRF);

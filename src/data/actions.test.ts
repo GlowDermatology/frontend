@@ -157,7 +157,7 @@ describe("session and csrf gate", () => {
       () => cancelOrder(10248, "mijoz so‘rovi bilan", KEY, missing),
       () => changeOrderStatus(10248, "handed_to_courier", KEY, missing),
       () => retryShipment(10248, KEY, missing),
-      () => saveProduct("1", {} as ProductFormValues, missing),
+      () => saveProduct("1", {} as ProductFormValues, null, KEY, missing),
       () => uploadProductImage("1", new FormData(), missing),
       () => deleteProductImage("1", "img-1", missing),
       () => reorderProductImages("1", ["img-1"], missing),
@@ -242,14 +242,15 @@ describe("api mode (catalog actions wired)", () => {
     verifyStaff.mockResolvedValue({ ok: true, mode: "api", token: "t", sid: null });
   });
 
-  it("saveProduct creates hidden with JSON, maps the answer and refreshes the route", async () => {
+  it("saveProduct creates hidden with JSON and an idempotency key, maps the answer and refreshes the route", async () => {
     apiFetch.mockResolvedValueOnce(respond(201, productFixture));
-    const result = await saveProduct(null, { ...values, category: "" }, CSRF);
+    const result = await saveProduct(null, { ...values, category: "" }, null, KEY, CSRF);
     expect(apiFetch).toHaveBeenCalledWith(
       "/api/v1/admin/products/",
       expect.objectContaining({
         method: "POST",
         token: "t",
+        idempotencyKey: KEY,
         body: expect.objectContaining({ billz_id: "4607012301", status: "hidden", category: null }),
       }),
     );
@@ -260,37 +261,58 @@ describe("api mode (catalog actions wired)", () => {
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
-  it("saveProduct patches only the diff against the current product", async () => {
-    cachedGet.mockResolvedValueOnce(respond(200, productFixture));
+  it("saveProduct patches only the diff against the editor's baseline (no re-read)", async () => {
+    const baseline = { ...values, status: "active" as const };
     apiFetch.mockResolvedValueOnce(respond(200, { ...productFixture, price: 190_000 }));
     const image = { id: "1", label: "Rasm 1", src: "http://m/a.webp" };
     const result = await saveProduct(
       "1",
-      { ...values, price: 190_000, status: "active", images: [image] },
+      {
+        ...values,
+        price: 190_000,
+        status: "active",
+        images: [image],
+        texts: { ...values.texts, en: { ...values.texts.en, usage: "At night." } },
+      },
+      baseline,
+      KEY,
       CSRF,
     );
-    expect(cachedGet).toHaveBeenCalledWith("/api/v1/admin/products/1/", undefined, "t");
+    // The baseline is what the editor loaded: no GET before the PATCH.
+    expect(cachedGet).not.toHaveBeenCalled();
+    expect(apiFetch).toHaveBeenCalledTimes(1);
     expect(apiFetch).toHaveBeenCalledWith(
       "/api/v1/admin/products/1/",
-      expect.objectContaining({ method: "PATCH", body: { price: 190_000 } }),
+      expect.objectContaining({
+        method: "PATCH",
+        body: { price: 190_000, texts: { en: { usage: "At night." } } },
+      }),
     );
+    // A PATCH is not keyed (the activation PATCH would replay the first one).
+    expect(apiFetch.mock.calls[0]![1].idempotencyKey).toBeUndefined();
     expect(result).toMatchObject({ ok: true, data: { price: 190_000 } });
-    // Nothing changed → no PATCH, the current product is returned.
+    // Nothing changed → no PATCH, the current product is read and returned.
     apiFetch.mockClear();
     cachedGet.mockResolvedValueOnce(respond(200, productFixture));
     const unchanged = await saveProduct(
       "1",
       { ...values, status: "active", images: [image] },
+      baseline,
+      KEY,
       CSRF,
     );
-    expect(unchanged.ok).toBe(true);
+    expect(unchanged).toMatchObject({ ok: true, data: { id: "1" } });
+    expect(apiFetch).not.toHaveBeenCalled();
+    expect(cachedGet).toHaveBeenCalledWith("/api/v1/admin/products/1/", undefined, "t");
+  });
+
+  it("saveProduct refuses a malformed baseline before the round trip", async () => {
+    const result = await saveProduct("1", values, { ...values, price: "x" } as never, KEY, CSRF);
+    expect(result.ok).toBe(false);
     expect(apiFetch).not.toHaveBeenCalled();
   });
 
   it("saveProduct maps a 400 with billz_id → billzId and the active-rule fields", async () => {
-    cachedGet.mockResolvedValueOnce(
-      respond(200, { ...productFixture, images: [], status: "hidden" }),
-    );
     apiFetch.mockRejectedValueOnce(
       new ApiError(400, {
         code: "validation_error",
@@ -315,6 +337,8 @@ describe("api mode (catalog actions wired)", () => {
     const result = await saveProduct(
       "1",
       { ...values, billzId: "4607010000", status: "active", images: [{ id: "9", label: "x" }] },
+      values,
+      KEY,
       CSRF,
     );
     expect(result).toEqual({
@@ -678,6 +702,8 @@ describe("products", () => {
     const result = await saveProduct(
       product.id,
       { ...values, texts: { ...values.texts, uz: { ...values.texts.uz, name: "A" } }, price: 10 },
+      null,
+      KEY,
       CSRF,
     );
     expect(result).toEqual({
@@ -691,7 +717,7 @@ describe("products", () => {
   });
 
   it("saveProduct patches an existing product and notes the price change", async () => {
-    const result = await saveProduct(product.id, values, CSRF);
+    const result = await saveProduct(product.id, values, null, KEY, CSRF);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.data.id).toBe(product.id);
@@ -705,6 +731,8 @@ describe("products", () => {
     const created = await saveProduct(
       null,
       { ...values, billzId: "123456789", status: "hidden", images: [] },
+      null,
+      KEY,
       CSRF,
     );
     expect(created.ok).toBe(true);
@@ -715,13 +743,17 @@ describe("products", () => {
     const activated = await saveProduct(
       created.data.id,
       { ...values, billzId: "123456789", status: "active", images: [{ id: "img-1", label: "a" }] },
+      null,
+      KEY,
       CSRF,
     );
     expect(activated.ok).toBe(true);
     if (activated.ok)
       expect(activated.data).toMatchObject({ id: "draft-123456789", status: "active" });
 
-    expect(await saveProduct("missing", values, CSRF)).toMatchObject({ code: "not_found" });
+    expect(await saveProduct("missing", values, null, KEY, CSRF)).toMatchObject({
+      code: "not_found",
+    });
   });
 
   it("image actions validate the file, ids and order", async () => {

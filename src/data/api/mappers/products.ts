@@ -9,7 +9,7 @@ import {
 import { formatDateTimeShort, formatNumber } from "@/lib/format";
 
 import type { CatalogStats, ProductListQuery } from "../../products";
-import type { ProductFormValues } from "../../products.schema";
+import type { ProductBaseline, ProductFormValues } from "../../products.schema";
 import type { QueryValue } from "../client";
 import type {
   ApiLastChange,
@@ -164,28 +164,58 @@ export function productCreateBody(values: ProductFormValues): ApiProductWrite {
   };
 }
 
-function sameTexts(
-  a: Record<ContentLanguage, ProductTexts>,
-  b: Record<ContentLanguage, ProductTexts>,
-) {
-  return CONTENT_LANGUAGES.every((language) =>
-    PRODUCT_TEXT_FIELDS.every((field) => a[language][field] === b[language][field]),
-  );
+/** Body of `PATCH products/{id}/` (changed fields, `texts` as changed leaves). */
+export type ProductPatchBody = ApiProductPatch;
+
+/**
+ * The scalar fields a PATCH is diffed against: what the editor loaded (or
+ * what the server holds after a partially failed save), never a fresh read,
+ * so another admin's concurrent change to a field this admin did not touch is
+ * not written back.
+ */
+export type ProductPatchBaseline = ProductBaseline;
+
+/** The changed text leaves only (`{ru: {name: "…"}}`); `undefined` when none changed. */
+export function textsPatch(
+  baseline: Record<ContentLanguage, ProductTexts>,
+  values: Record<ContentLanguage, ProductTexts>,
+): ProductPatchBody["texts"] {
+  const out: NonNullable<ProductPatchBody["texts"]> = {};
+  for (const language of CONTENT_LANGUAGES) {
+    for (const field of PRODUCT_TEXT_FIELDS) {
+      const value = values[language][field];
+      if (value === baseline[language][field]) continue;
+      (out[language] ??= {})[field] = value;
+    }
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 /**
- * Body of `PATCH products/{id}/`: only what differs from the current product,
- * so an unchanged `billz_id` never triggers a Billz lookup and the server's
- * `last_change.kind` reflects the real edit. `texts` is sent whole when any
- * leaf changed (the server merges leaves; `uz.name` is required in the shape).
+ * Body of `PATCH products/{id}/`: only the fields that differ from the
+ * editor's baseline, `texts` as changed leaves (the server merges them, §2.3).
+ * An unchanged `billz_id` never triggers a Billz lookup, the server's
+ * `last_change.kind` reflects the real edit, and a field another admin
+ * changed meanwhile is left alone unless this admin edited it too.
  */
-export function productPatchBody(current: Product, values: ProductFormValues): ApiProductPatch {
-  const body: ApiProductPatch = {};
-  if (values.billzId !== current.billzId) body.billz_id = values.billzId;
-  if (!sameTexts(values.texts, current.texts)) body.texts = values.texts;
-  if (values.price !== current.price) body.price = values.price;
-  if ((values.category || null) !== current.category) body.category = values.category || null;
-  if (values.promo !== current.promo) body.promo = values.promo;
-  if (values.status !== current.status) body.status = values.status;
+export function productPatchBody(
+  baseline: ProductPatchBaseline,
+  values: ProductFormValues,
+): ProductPatchBody {
+  const body: ProductPatchBody = {};
+  if (values.billzId !== baseline.billzId) body.billz_id = values.billzId;
+  const texts = textsPatch(baseline.texts, values.texts);
+  if (texts) body.texts = texts;
+  if (values.price !== baseline.price) body.price = values.price;
+  if ((values.category || null) !== (baseline.category || null)) {
+    body.category = values.category || null;
+  }
+  if (values.promo !== baseline.promo) body.promo = values.promo;
+  if (values.status !== baseline.status) body.status = values.status;
   return body;
+}
+
+/** Every editable field, for a PATCH without a baseline. */
+export function productFullPatchBody(values: ProductFormValues): ProductPatchBody {
+  return { ...productCreateBody(values), status: values.status };
 }

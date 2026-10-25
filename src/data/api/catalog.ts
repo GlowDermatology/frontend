@@ -44,8 +44,14 @@ export function apiProductStats(token: string) {
   return cachedGet<ApiProductStats>(`${BASE}/products/stats/`, undefined, token);
 }
 
-export function apiCreateProduct(token: string, body: ApiProductWrite) {
-  return apiFetch<ApiProduct>(`${BASE}/products/`, { method: "POST", body, token });
+/** Keyed (contract §1.7 optional): a replay answers the stored 201 with the product id. */
+export function apiCreateProduct(token: string, body: ApiProductWrite, idempotencyKey: string) {
+  return apiFetch<ApiProduct>(`${BASE}/products/`, {
+    method: "POST",
+    body,
+    token,
+    idempotencyKey,
+  });
 }
 
 export function apiPatchProduct(token: string, id: string, body: ApiProductPatch) {

@@ -28,14 +28,21 @@ import {
   toActionResult,
   TOP_LEVEL_ERROR,
 } from "./api/mappers";
-import { PRODUCT_FIELD_REMAP, productCreateBody, productPatchBody } from "./api/mappers/products";
+import {
+  PRODUCT_FIELD_REMAP,
+  productCreateBody,
+  productFullPatchBody,
+  productPatchBody,
+} from "./api/mappers/products";
 import { getJob } from "./jobs";
 import * as mock from "./mock/products.actions";
 import { searchActiveProducts } from "./products";
 import {
   imageFileSchema,
   MAX_IMAGES,
+  productBaselineSchema,
   productFormSchema,
+  type ProductBaseline,
   type ProductFormValues,
 } from "./products.schema";
 import { dataSource } from "./source";
@@ -50,7 +57,9 @@ import type { ActionResult } from "./types";
  * Mock bodies live in `./mock/products.actions.ts`; the api branch maps to
  * `POST products/`, `PATCH products/{id}/`, `POST products/{id}/images/`,
  * `DELETE products/{id}/images/{imageId}/` and `PUT products/{id}/images/order/`.
- * Images are not idempotent-keyed: the client posts each file once.
+ * The create is idempotent-keyed (a lost answer is replayed with the id);
+ * the patches carry only what changed against the editor's baseline. Images
+ * are not keyed: the client posts each file once and remembers the answer.
  */
 
 const productIdSchema = z.string().trim().min(1).max(64);
@@ -62,18 +71,24 @@ async function apiSaveProduct(
   token: string,
   id: string | null,
   values: ProductFormValues,
+  baseline: ProductBaseline | null,
+  key: string,
 ): Promise<ActionResult<Product>> {
   try {
     if (id === null) {
-      const { data } = await apiCreateProduct(token, productCreateBody(values));
+      // Keyed (contract §1.7): a create whose answer was lost is replayed
+      // with its id instead of failing on `billz_id` `unique`.
+      const { data } = await apiCreateProduct(token, productCreateBody(values), key);
       return { ok: true, data: mapProduct(data) };
     }
     if (!apiIdSchema.safeParse(id).success) {
       return { ok: false, error: "Mahsulot topilmadi.", code: "not_found" };
     }
-    const current = mapProduct((await apiGetProduct(token, id)).data);
-    const body = productPatchBody(current, values);
-    if (Object.keys(body).length === 0) return { ok: true, data: current };
+    // No baseline (a caller outside the editor): every editable field is sent.
+    const body = baseline ? productPatchBody(baseline, values) : productFullPatchBody(values);
+    if (Object.keys(body).length === 0) {
+      return { ok: true, data: mapProduct((await apiGetProduct(token, id)).data) };
+    }
     const { data } = await apiPatchProduct(token, id, body);
     return { ok: true, data: mapProduct(data) };
   } catch (error) {
@@ -81,20 +96,37 @@ async function apiSaveProduct(
   }
 }
 
+/**
+ * Creates the product (`id: null`, always hidden, keyed with `key`) or
+ * patches it with what differs from `baseline` — the values the editor
+ * loaded — so concurrent edits by another admin to other fields survive.
+ */
 export async function saveProduct(
   id: string | null,
   values: ProductFormValues,
+  baseline: ProductBaseline | null,
+  key: string,
   csrf: string,
 ): Promise<ActionResult<Product>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
   const parsedId = z.union([productIdSchema, z.null()]).safeParse(id);
   if (!parsedId.success) return { ok: false, error: "Mahsulot topilmadi.", code: "not_found" };
+  const parsedKey = z.object({ key: idempotencyKeySchema }).safeParse({ key });
+  if (!parsedKey.success) return fieldErrorsFrom(parsedKey.error);
   const parsed = productFormSchema.safeParse(values);
   if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  const parsedBaseline = productBaselineSchema.nullable().safeParse(baseline);
+  if (!parsedBaseline.success) return fieldErrorsFrom(parsedBaseline.error);
   if ((await dataSource()) === "api") {
     return apiMutation("saveProduct", () =>
-      apiSaveProduct(sessionToken(guard.session), parsedId.data, parsed.data),
+      apiSaveProduct(
+        sessionToken(guard.session),
+        parsedId.data,
+        parsed.data,
+        parsedBaseline.data,
+        parsedKey.data.key,
+      ),
     );
   }
   return mock.saveProduct(parsedId.data, parsed.data);

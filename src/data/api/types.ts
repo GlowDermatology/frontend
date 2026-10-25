@@ -29,7 +29,14 @@ export type ApiProductTexts = Schemas["ProductTexts"];
 export type ApiProductStats = Schemas["ProductStats"];
 export type ApiLastChange = Schemas["LastChange"];
 export type ApiProductWrite = Schemas["ProductWriteRequest"];
-export type ApiProductPatch = Partial<Schemas["PatchedProductWriteRequest"]>;
+/**
+ * `PATCH products/{id}/`. The generated schema reuses the create shape for
+ * `texts` (`uz.name` required), but the server merges `texts` at leaf level
+ * (contract §2.3), so a patch carries only the changed leaves.
+ */
+export type ApiProductPatch = Omit<Partial<Schemas["PatchedProductWriteRequest"]>, "texts"> & {
+  texts?: Partial<Record<"uz" | "ru" | "en", Schemas["ProductTextRequest"]>>;
+};
 export type ApiPaginatedProducts = Schemas["PaginatedProductList"];
 export type ApiImagesResponse = Schemas["ImagesResponse"];
 

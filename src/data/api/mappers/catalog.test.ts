@@ -246,25 +246,49 @@ describe("product write bodies", () => {
     });
   });
 
-  it("patches only what changed, texts as a whole", () => {
-    const current = mapProduct(product);
-    expect(productPatchBody(current, values)).toEqual({});
+  it("patches only what changed against the baseline, texts as changed leaves", () => {
+    const baseline = { ...values, category: "serums" };
+    expect(productPatchBody(baseline, values)).toEqual({});
     const edited = {
       ...values,
       price: 190_000,
       category: "",
       texts: { ...values.texts, ru: { ...values.texts.ru, usage: "Вечером." } },
     };
-    expect(productPatchBody(current, edited)).toEqual({
+    expect(productPatchBody(baseline, edited)).toEqual({
       price: 190_000,
       category: null,
-      texts: edited.texts,
+      texts: { ru: { usage: "Вечером." } },
     });
     expect(
-      productPatchBody(current, { ...values, billzId: "4607019901", status: "hidden" }),
+      productPatchBody(baseline, { ...values, billzId: "4607019901", status: "hidden" }),
     ).toEqual({
       billz_id: "4607019901",
       status: "hidden",
+    });
+  });
+
+  it("leaves a concurrent edit of an untouched field alone (lost-update regression)", () => {
+    // The editor loaded price 185 000 and an empty ru name. Meanwhile another
+    // admin set price 131 000 and ru name "B edit" on the server. This admin
+    // changed only the uz description: the PATCH must carry only that leaf,
+    // so the server keeps the other admin's price and ru name.
+    const loaded = mapProduct(product);
+    const baseline = {
+      texts: loaded.texts,
+      price: loaded.price,
+      category: loaded.category ?? "",
+      billzId: loaded.billzId,
+      promo: loaded.promo,
+      status: loaded.status,
+    };
+    const edited = {
+      ...values,
+      texts: { ...loaded.texts, uz: { ...loaded.texts.uz, description: "Yangi tavsif." } },
+      price: loaded.price,
+    };
+    expect(productPatchBody(baseline, edited)).toEqual({
+      texts: { uz: { description: "Yangi tavsif." } },
     });
   });
 });

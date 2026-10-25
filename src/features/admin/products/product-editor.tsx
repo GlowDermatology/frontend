@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import type { Route } from "next";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { flushSync } from "react-dom";
 import {
   Controller,
@@ -38,7 +38,6 @@ import {
   uploadProductImage,
 } from "@/data/products.actions";
 import { productFormSchema, type ProductFormValues } from "@/data/products.schema";
-import type { ActionResult } from "@/data/types";
 import type { Category } from "@/domain/category";
 import {
   CONTENT_LANGUAGES,
@@ -46,15 +45,21 @@ import {
   productDisplayName,
   type ContentLanguage,
   type Product,
-  type ProductImage,
 } from "@/domain/product";
 import { cn } from "@/lib/cn";
 import { formatDateTimeShort, formatNumber } from "@/lib/format";
 
 import { runAction } from "../shared/action-client";
+import { useIdempotencyKey } from "../shared/idempotency";
 import { ImageManager } from "./image-manager";
 import { PRODUCT_STATUS_META } from "./labels";
 import { LanguageTabs } from "./language-tabs";
+import {
+  clearPendingImages,
+  createPendingImages,
+  persistProduct,
+  type PersistActions,
+} from "./persist-product";
 
 const LANGUAGE_NAME: Record<ContentLanguage, string> = {
   uz: "O‘zbekcha",
@@ -110,103 +115,6 @@ interface ProductEditorProps {
   redirectOnCreate?: boolean;
 }
 
-/** Product images as the form holds them, with the upload state kept outside the form. */
-interface PendingUploads {
-  /** Temporary `upload-…` id → the picked file, until it is uploaded. */
-  files: Map<string, File>;
-  /** Temporary id → the server's image, once uploaded (a retry does not re-upload). */
-  uploaded: Map<string, ProductImage>;
-}
-
-/**
- * Product save orchestration (spec "Frontend wiring › Product save
- * orchestration"): 1. create the product (forced hidden) or patch it; 2.
- * upload the new files; 3. delete removed images; 4. save the image order;
- * 5. patch `status` to active when requested. Each step is a Server Action
- * run through `runAction` (csrf + refresh-and-retry). Activation waits for
- * the images, so "active needs an image" is validated against the real set.
- */
-async function persistProduct(
-  saved: Product | null,
-  targetId: string | null,
-  values: ProductFormValues,
-  pending: PendingUploads,
-): Promise<{ result: ActionResult<Product>; createdId: string | null }> {
-  const existingIds = new Set(saved?.images.map((image) => image.id) ?? []);
-  const isNew = (image: ProductImage) =>
-    pending.files.has(image.id) || pending.uploaded.has(image.id);
-  const keptExisting = values.images.filter((image) => existingIds.has(image.id));
-  const removed = (saved?.images ?? []).filter(
-    (image) => !values.images.some((kept) => kept.id === image.id),
-  );
-  const wantActive = values.status === "active";
-  // An already-active product stays active through the patch when its kept
-  // images still satisfy the rule; otherwise activation is the last step.
-  const firstStatus =
-    wantActive && saved?.status === "active" && keptExisting.length > 0 ? "active" : "hidden";
-
-  const first = await runAction((csrf) =>
-    saveProduct(targetId, { ...values, status: firstStatus, images: keptExisting }, csrf),
-  );
-  if (!first.ok) return { result: first, createdId: null };
-  let product = first.data;
-  const id = product.id;
-  const createdId = targetId === null ? id : null;
-  const fail = (failure: Extract<ActionResult<never>, { ok: false }>, message?: string) => ({
-    result: { ...failure, error: message ?? failure.error, fieldErrors: undefined },
-    createdId,
-  });
-
-  const finalImages: ProductImage[] = [];
-  for (const image of values.images) {
-    if (!isNew(image)) {
-      finalImages.push(image);
-      continue;
-    }
-    const known = pending.uploaded.get(image.id);
-    if (known) {
-      finalImages.push(known);
-      continue;
-    }
-    const file = pending.files.get(image.id)!;
-    const formData = new FormData();
-    formData.set("file", file, file.name);
-    const upload = await runAction((csrf) => uploadProductImage(id, formData, csrf));
-    if (!upload.ok) return fail(upload, upload.fieldErrors?.file);
-    // Keep the local preview when the server sent no URL (demo mode).
-    const uploaded = { ...upload.data, src: upload.data.src ?? image.src };
-    pending.uploaded.set(image.id, uploaded);
-    pending.files.delete(image.id);
-    finalImages.push(uploaded);
-  }
-
-  for (const image of removed) {
-    const deleted = await runAction((csrf) => deleteProductImage(id, image.id, csrf));
-    if (!deleted.ok) return fail(deleted);
-  }
-
-  if (finalImages.length > 0 || removed.length > 0) {
-    const ordered = await runAction((csrf) =>
-      reorderProductImages(
-        id,
-        finalImages.map((image) => image.id),
-        csrf,
-      ),
-    );
-    if (!ordered.ok) return fail(ordered);
-  }
-  product = { ...product, images: finalImages };
-
-  if (wantActive && firstStatus !== "active") {
-    const activated = await runAction((csrf) =>
-      saveProduct(id, { ...values, status: "active", images: finalImages }, csrf),
-    );
-    if (!activated.ok) return { result: activated, createdId };
-    product = { ...activated.data, images: finalImages };
-  }
-  return { result: { ok: true, data: product }, createdId };
-}
-
 export function ProductEditor({
   product,
   categories,
@@ -219,12 +127,19 @@ export function ProductEditor({
   const router = useRouter();
   const toast = useToast();
   const idBase = useId();
+  // The editor's baseline: what it loaded or last saved. A PATCH carries only
+  // what differs from it, so another admin's change to a field this admin
+  // did not touch is never written back.
   const [saved, setSaved] = useState<Product | null>(product);
   // The id to patch: set as soon as a create succeeds, even if a later step
   // of the orchestration failed, so a retry never creates a duplicate.
   const [targetId, setTargetId] = useState<string | null>(product?.id ?? null);
   // A stable mutable holder (not React state: nothing renders from it).
-  const [pending] = useState<PendingUploads>(() => ({ files: new Map(), uploaded: new Map() }));
+  const [pending] = useState(createPendingImages);
+  const idempotency = useIdempotencyKey();
+  // Synchronous re-entry guard: `isSubmitting` disables the button only after
+  // a re-render, and React Hook Form's submit handler is re-entrant.
+  const inFlight = useRef(false);
   const [lang, setLang] = useState<ContentLanguage>("uz");
   const [leaveOpen, setLeaveOpen] = useState(false);
 
@@ -245,11 +160,23 @@ export function ProductEditor({
   const billzId = useWatch({ control, name: "billzId" });
   const promo = useWatch({ control, name: "promo" });
 
-  // New baseline after a successful save. React Hook Form recommends resetting
+  // A fresh `product` from the server (a route refresh after a save, a
+  // client navigation back) becomes the baseline only while the form holds
+  // no unsaved edits; otherwise the admin's edits and their baseline stay.
+  const [seenProduct, setSeenProduct] = useState(product);
+  if (product !== seenProduct) {
+    setSeenProduct(product);
+    if (product && !isDirty && !isSubmitting) setSaved(product);
+  }
+
+  // Reset the form to a new baseline. React Hook Form recommends resetting
   // after the submit cycle has finished rather than inside the submit handler.
+  const formBaseline = useRef(saved);
   useEffect(() => {
-    if (saved !== product && saved) reset(toFormValues(saved));
-  }, [saved, product, reset]);
+    if (!saved || saved === formBaseline.current) return;
+    formBaseline.current = saved;
+    reset(toFormValues(saved));
+  }, [saved, reset]);
 
   const focusFirstError = (fieldErrors: FieldErrors<ProductFormValues>) => {
     const languageWithError = CONTENT_LANGUAGES.find((l) => fieldErrors.texts?.[l]);
@@ -267,8 +194,38 @@ export function ProductEditor({
     if (first) setFocus(first);
   };
 
-  const onSubmit = handleSubmit(async (values) => {
-    const { result, createdId } = await persistProduct(saved, targetId, values, pending);
+  const actions: PersistActions = {
+    save: async (id, values, baseline) =>
+      idempotency.settle(
+        await runAction((csrf) => saveProduct(id, values, baseline, idempotency.key, csrf)),
+      ),
+    upload: (id, file) => {
+      const formData = new FormData();
+      formData.set("file", file, file.name);
+      return runAction((csrf) => uploadProductImage(id, formData, csrf));
+    },
+    remove: (id, imageId) => runAction((csrf) => deleteProductImage(id, imageId, csrf)),
+    reorder: (id, imageIds) => runAction((csrf) => reorderProductImages(id, imageIds, csrf)),
+  };
+
+  const submit = async (values: ProductFormValues) => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    try {
+      await save(values);
+    } finally {
+      inFlight.current = false;
+    }
+  };
+
+  const save = async (values: ProductFormValues) => {
+    const { result, createdId } = await persistProduct({
+      saved,
+      targetId,
+      values,
+      pending,
+      actions,
+    });
     if (createdId) setTargetId(createdId);
     if (!result.ok) {
       const entries = Object.entries(result.fieldErrors ?? {});
@@ -280,12 +237,17 @@ export function ProductEditor({
       }
       return;
     }
-    pending.files.clear();
-    pending.uploaded.clear();
+    clearPendingImages(pending);
     setSaved(result.data);
     toast({ title: "Mahsulot saqlandi", description: "O‘zgarishlar amallar jurnaliga yozildi" });
-    if (createdId && redirectOnCreate) router.replace(`/admin/products/${createdId}` as Route);
-  }, focusFirstError);
+    const newId = createdId ?? (saved === null ? result.data.id : null);
+    if (newId && redirectOnCreate) router.replace(`/admin/products/${newId}` as Route);
+  };
+
+  // Built inside the event handler (not during render) so the ref reads in
+  // `submit` are event-time accesses.
+  const onSubmit = (event: FormEvent<HTMLFormElement>) =>
+    handleSubmit(submit, focusFirstError)(event);
 
   const complete = Object.fromEntries(
     CONTENT_LANGUAGES.map((l) => [l, isTextComplete(texts[l])]),

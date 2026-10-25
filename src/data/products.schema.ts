@@ -76,6 +76,31 @@ export const productFormSchema = z
 
 export type ProductFormValues = z.infer<typeof productFormSchema>;
 
+const baselineText = z.string().max(5000);
+const baselineTexts = z.object({
+  name: baselineText,
+  description: baselineText,
+  ingredients: baselineText,
+  usage: baselineText,
+});
+
+/**
+ * The editor's baseline (what it loaded, or what the server holds after a
+ * partially failed save) that `saveProduct` diffs a PATCH against. Shape
+ * checks only: a baseline is server data and may break the form rules (an
+ * imported draft carries `price: 0`).
+ */
+export const productBaselineSchema = z.object({
+  texts: z.object({ uz: baselineTexts, ru: baselineTexts, en: baselineTexts }),
+  price: z.number().int().min(0).max(1_000_000_000),
+  category: z.string().max(40),
+  billzId: z.string().max(14),
+  promo: z.boolean(),
+  status: z.enum(["active", "hidden"]),
+});
+
+export type ProductBaseline = z.infer<typeof productBaselineSchema>;
+
 export const MAX_IMAGES = 8;
 /** 5 MiB (contract §2.3 `file_too_large`); checked client-side before the round trip. */
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;

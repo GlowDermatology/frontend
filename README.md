@@ -7,7 +7,7 @@ The Glow Derma web frontend, built from the Claude Design board "Glow Derma". It
 
 It runs on **mock data** behind a small data layer. That layer has the same shape as the planned Django REST Framework API, so connecting the backend replaces function bodies without touching the UI.
 
-> **Demo mode:** admin mutations are simulated on the client and are not saved. A reload restores the dataset, and every admin page shows a "Demo ma’lumotlar" marker. Nothing is sent to customers, Billz, BTS, Click/Payme or Firebase.
+> **Demo mode** (`GLOWDERMA_DATA_SOURCE` unset or `mock`): admin reads come from in-memory fixtures and admin mutations are Server Actions whose mock bodies compute the next state from those fixtures without saving it. A reload restores the dataset, and every admin page shows a "Demo ma’lumotlar" marker. Nothing is sent to customers, Billz, BTS, Click/Payme or Firebase.
 
 ---
 
@@ -29,9 +29,16 @@ npm run check        # lint + typecheck + test + format:check
 
 ### Environment
 
-| Variable               | Purpose                                                                                                                                                 |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NEXT_PUBLIC_SITE_URL` | Canonical origin for metadata, Open Graph, `sitemap.xml` and `robots.txt`. Falls back to `VERCEL_PROJECT_PRODUCTION_URL`, then `http://localhost:3000`. |
+| Variable                             | Purpose                                                                                                                                                                                  |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_SITE_URL`               | Canonical origin for metadata, Open Graph, `sitemap.xml` and `robots.txt`. Falls back to `VERCEL_PROJECT_PRODUCTION_URL`, then `http://localhost:3000`.                                  |
+| `GLOWDERMA_DATA_SOURCE`              | `mock` (default) serves the fixtures; `api` talks to Django. Read per request (after `await connection()`), so one build serves both modes.                                              |
+| `GLOWDERMA_API_URL`                  | Django origin without a trailing slash (api mode only), e.g. `http://127.0.0.1:8000`.                                                                                                    |
+| `GLOWDERMA_INTERNAL_SECRET`          | Shared secret sent as `X-GD-Internal-Secret`; must equal Django's `INTERNAL_API_SECRET` (api mode only).                                                                                 |
+| `GLOWDERMA_ALLOWED_ORIGINS`          | Exact `host[:port]` entries allowed to invoke Server Actions and the auth route handlers (the host in the address bar). Read when `next.config.ts` loads (build/start), not per request. |
+| `GLOWDERMA_COOKIE_SECURE`            | `true` behind HTTPS: session cookies get `Secure` and the `__Secure-` prefix. Defaults to `true` in production builds.                                                                   |
+| `GLOWDERMA_MEDIA_HOSTS`              | `host[:port]` entries `next/image` may optimise (Django's public media host). Read when `next.config.ts` loads.                                                                          |
+| `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` | Stable key shared by every Next instance so encrypted Server Action references decrypt everywhere. Required with more than one instance.                                                 |
 
 See `.env.example`.
 
@@ -62,11 +69,15 @@ src/
   domain/                    Framework-free types and business rules (orders, cashback tiers,
                              products, appointments, notifications). Unit-tested.
   data/                      The seam to the backend:
-    *.ts                       server-only queries (`getOrder`, `listProducts`, …)
-    *.actions.ts               mutations returning ActionResult<T>
-    *.schema.ts                Zod schemas shared by forms and (later) Server Actions
-    mock/                      deterministic fixtures that reproduce the design's numbers
-    config.ts                  DATA_SOURCE switch, demo clock
+    *.ts                       server-only query dispatchers (`getOrder`, `listProducts`, …)
+    *.actions.ts               Server Actions ("use server") returning ActionResult<T>
+    *.schema.ts                Zod schemas shared by forms and Server Actions
+    source.ts, now.ts          dataSource() (GLOWDERMA_DATA_SOURCE, per request), requestNow()
+    action-guard.ts            session/csrf gate, zod field errors, api-mode refresh()
+    auth.ts, auth/             staff session DAL (verifyStaff/requireStaff/getMe), cookies, jwt, csrf
+    api/                       Django client (apiFetch/cachedGet), ApiError, mappers, generated schema
+    mock/                      deterministic fixtures, *.queries.ts and *.actions.ts mock bodies
+    config.ts                  client-safe constants (DEMO_NOW, referenceNow() for mock internals)
   lib/                       cn (clsx + tailwind-merge), deterministic uz formatting, fonts
 ```
 
@@ -104,7 +115,9 @@ src/
 
 ## DRF integration guide
 
-1. **Switch the source.** Set `DATA_SOURCE` in `src/data/config.ts` to `"api"`, and replace each function body in `src/data/*.ts` with a `fetch` to the documented endpoint. Every function has a JSDoc line naming its endpoint:
+The seam is already in place: every public function in `src/data/*.ts` dispatches on `GLOWDERMA_DATA_SOURCE` (`await dataSource()`, read per request after `connection()`), so switching modes is configuration, not a code change.
+
+1. **Switch the source.** Set `GLOWDERMA_DATA_SOURCE=api` together with `GLOWDERMA_API_URL` and `GLOWDERMA_INTERNAL_SECRET`. Each dispatcher in `src/data/<resource>.ts` has two branches: the mock branch calls `src/data/mock/<resource>.queries.ts` (the fixtures, anchored on `DEMO_NOW` / `DESIGN_DAY`), the api branch calls the endpoint named in its JSDoc through `cachedGet`/`apiFetch` (`src/data/api/client.ts`) and maps the response with `src/data/api/mappers`. Until an endpoint is wired, the api branch returns the documented empty shape via `notWiredYet()` and warns once per resource.
 
    | Function                              | Endpoint                                                                                 |
    | ------------------------------------- | ---------------------------------------------------------------------------------------- |
@@ -118,27 +131,26 @@ src/
    | `getDashboard`                        | `GET /api/v1/admin/dashboard/?range=today\|week\|month`                                  |
 
 2. **Map responses in the data layer, not in components.**
-   - Convert DRF's `{count, next, previous, results}` to `Page<T>`.
-   - Convert snake_case to camelCase.
+   - Convert DRF's `{count, next, previous, results}` to `Page<T>` (`mapPage`).
+   - Convert snake_case to camelCase per path segment (`camelKey`, `mapFieldPath`).
    - Keep money as integer so‘m and datetimes as ISO strings with offset.
-   - Domain types in `src/domain` are the contract.
+   - Domain types in `src/domain` are the contract. 404 → `null`.
 
-3. **Mutations.** Turn each `*.actions.ts` function into a Server Action (`"use server"`) that:
-   - re-validates with the same Zod schema;
-   - calls the endpoint named in the file header;
-   - maps DRF `400` field errors to `fieldErrors`;
-   - calls `revalidatePath`/`updateTag` for the affected list.
+3. **Mutations are Server Actions** (`src/data/*.actions.ts`, `"use server"`). Signature convention: **ids + the change + the client's idempotency `key` + the `csrf` token**, e.g. `cancelOrder(orderId, reason, key, csrf)`, `saveCashbackPolicy(draft, key, csrf)`, `sendNotification(formData, key, csrf)`; the product image calls take no key (`uploadProductImage(productId, formData, csrf)`). Every action:
+   - calls `guardAction(csrf)` → `verifyStaff({ csrf })`, answering `{ ok: false, code: "session_expired" | "csrf" }`;
+   - re-validates its input with zod (`productFormSchema` and the per-action schemas) and returns `fieldErrors` keyed by the form's field names; the key must be a UUID;
+   - dispatches on `dataSource()`: the mock body in `src/data/mock/<resource>.actions.ts` looks the object up by id and applies the demo transformation; the api branch runs through `apiMutation(name, call)`, which calls `refresh()` from `next/cache` after a success (mock mode skips it — the fixtures never change, so a re-render would only discard the client's local state). Until F2 wires an endpoint, the api branch answers "Bu amal API bilan hali ulanmagan.";
+   - maps a DRF `400` to `fieldErrors` with `toActionResult` and the per-action remaps (`audience.phone` → `phone`, `billz_id` → `billzId`, `image` → top-level error).
 
-   Signatures stay the same. Product images become `multipart/form-data`: new files plus the ordered list of existing image ids.
+   Client components call actions through `runAction` (`src/features/admin/shared/action-client.ts`): it supplies the `gd_csrf` cookie and, on `code: "session_expired"`, GETs `/admin/auth/refresh?next=…` once (same-origin fetch, `redirect: "manual"`) and retries; if still expired it goes to `/admin/login?next=…`. Idempotency keys come from `useIdempotencyKey()`: one UUID per dialog/form instance, reused on retries and re-opens, renewed after a success or a 422 `idempotency_key_reused`. The product editor orchestrates a save as create (hidden) or patch → upload new files → delete removed images → save the order → activate → redirect on create.
 
-4. **Auth.** Read the staff session (cookie or JWT) inside each page's data boundary and in every Server Action, never in a layout. Layouts are shared and must not block on the request. Then add a login route and redirect unauthenticated users.
+4. **Auth.** The staff session is a BFF: tokens live in HttpOnly cookies and only the Next server calls Django. Read it inside each page's data boundary (`requireStaff()` in the `*-content.tsx` components) and in every Server Action, never in a layout. `requireStaff()` sends an expired access cookie to the refresh route and a missing session to the login page.
 
-5. **Remove demo affordances.**
-   - Drop the "Demo ma’lumotlar" pill (`IS_DEMO`).
-   - Replace `referenceNow()` with the request time.
-   - Wire the "not connected" buttons once those flows are designed.
+5. **Deployment assumption.** The Next server is reachable only through a single trusted edge (see the note under Environment): it writes the rightmost `X-Forwarded-For` hop and overwrites `X-Forwarded-Host`, production serves HTTPS, and Django's admin API accepts only Bearer + internal secret from this server.
 
-6. **Fill site links.** Set the App Store, Google Play, Telegram, Instagram, phone and policy URLs in `src/config/site.ts`. Until then they point back to an on-page anchor.
+6. **Remove demo affordances** once every resource is wired: the "Demo ma’lumotlar" pill already hides itself in api mode; `referenceNow()` is used only inside `src/data/mock/**` (server code uses `requestNow()`, content components pass `now` down as a prop); wire the "not connected" buttons once those flows are designed.
+
+7. **Fill site links.** Set the App Store, Google Play, Telegram, Instagram, phone and policy URLs in `src/config/site.ts`. Until then they point back to an on-page anchor.
 
 ---
 
@@ -180,11 +192,11 @@ All checks were run on the final commit in this environment (Linux, Chromium via
 **Data**
 
 - All data comes from `src/data/mock` (248 products, 1 284 orders, 432 customers, one appointment week).
-- Mutations update local state only: order cancellation, status change, BTS retry, product save, cashback adjustment, policy version, push send, appointment actions.
+- Mutations go through Server Actions whose mock bodies derive the next state from the fixtures by id and return it; the client keeps it in local state only. Because nothing is persisted, a second mutation on the same object starts again from the fixture (e.g. a status change followed by a cancellation yields the fixture's history plus the cancellation row).
 
 **Admin access**
 
-- No authentication; `/admin` is open. It sends `noindex` headers and `robots.txt` disallows it.
+- In mock mode `/admin` is open (no sessions); in api mode `/admin/login` signs staff in against Django and the proxy refreshes the access cookie. `/admin` sends `noindex` headers and `robots.txt` disallows it.
 
 **Behaviour**
 

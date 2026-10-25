@@ -4,14 +4,16 @@ import type { Route } from "next";
 import { buttonStyles } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { requireStaff } from "@/data/auth";
+import { getCategories } from "@/data/categories";
 import { getCatalogStats, listProducts } from "@/data/products";
 import { formatNumber } from "@/lib/format";
 
+import { ExportMenu } from "../shared/export-menu";
 import { ListTransition } from "../shared/list-transition";
 import { PageHeader } from "../shared/page-header";
 import { Pagination, rangeLabel } from "../shared/pagination";
 import type { SearchParams } from "../shared/url-state";
-import { NotConnectedButton } from "../shell/not-connected";
+import { BillzImport } from "./billz-import";
 import { ProductsTable } from "./products-table";
 import { ProductsToolbar } from "./products-toolbar";
 import { parseProductQuery, productListHref } from "./query";
@@ -21,7 +23,12 @@ const NEXT_SORT = { default: "name_asc", name_asc: "name_desc", name_desc: "defa
 export async function ProductsContent({ searchParams }: { searchParams: Promise<SearchParams> }) {
   await requireStaff();
   const query = parseProductQuery(await searchParams);
-  const [page, stats] = await Promise.all([listProducts(query), getCatalogStats()]);
+  const [page, stats, categories] = await Promise.all([
+    listProducts(query),
+    getCatalogStats(),
+    getCategories(),
+  ]);
+  const exportHref = productListHref({ ...query, page: undefined }, "/admin/products/export");
 
   return (
     <>
@@ -30,15 +37,8 @@ export async function ProductsContent({ searchParams }: { searchParams: Promise<
         title="Mahsulotlar"
         actions={
           <>
-            <NotConnectedButton
-              label="Billz’dan import"
-              description="Billz’dan qo‘lda import backend ulangach ishlaydi."
-              iconOnly={false}
-              className={buttonStyles({ variant: "secondary" })}
-            >
-              <Icon name="refresh" size={18} />
-              Billz’dan import
-            </NotConnectedButton>
+            <BillzImport />
+            <ExportMenu href={exportHref} />
             <Link href="/admin/products/new" className={buttonStyles()}>
               <Icon name="plus" size={18} />
               Mahsulot qo‘shish
@@ -68,10 +68,11 @@ export async function ProductsContent({ searchParams }: { searchParams: Promise<
           aria-label="Mahsulotlar ro‘yxati"
           className="overflow-hidden rounded-lg bg-surface-raised shadow-sm"
         >
-          <ProductsToolbar key={query.q ?? ""} query={query} />
+          <ProductsToolbar key={query.q ?? ""} query={query} categories={categories} />
           {page.items.length > 0 ? (
             <ProductsTable
               products={page.items}
+              categories={categories}
               sort={query.sort}
               sortHref={productListHref({ ...query, sort: NEXT_SORT[query.sort], page: 1 })}
             />

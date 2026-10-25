@@ -39,8 +39,8 @@ import {
 } from "@/data/products.actions";
 import { productFormSchema, type ProductFormValues } from "@/data/products.schema";
 import type { ActionResult } from "@/data/types";
+import type { Category } from "@/domain/category";
 import {
-  CATEGORY_IDS,
   CONTENT_LANGUAGES,
   isTextComplete,
   productDisplayName,
@@ -53,7 +53,7 @@ import { formatDateTimeShort, formatNumber } from "@/lib/format";
 
 import { runAction } from "../shared/action-client";
 import { ImageManager } from "./image-manager";
-import { CATEGORY_LABEL, PRODUCT_STATUS_META } from "./labels";
+import { PRODUCT_STATUS_META } from "./labels";
 import { LanguageTabs } from "./language-tabs";
 
 const LANGUAGE_NAME: Record<ContentLanguage, string> = {
@@ -99,6 +99,8 @@ function missingTextsNote(missing: ContentLanguage[]): string {
 interface ProductEditorProps {
   /** `null` creates a new product. */
   product: Product | null;
+  /** Categories for the picker (`getCategories()`), ordered by position. */
+  categories: ReadonlyArray<Category>;
   /** "2 daqiqa oldin" — when stock was last read from Billz. */
   lastSyncLabel: string;
   /**
@@ -205,7 +207,12 @@ async function persistProduct(
   return { result: { ok: true, data: product }, createdId };
 }
 
-export function ProductEditor({ product, lastSyncLabel, redirectOnCreate }: ProductEditorProps) {
+export function ProductEditor({
+  product,
+  categories,
+  lastSyncLabel,
+  redirectOnCreate,
+}: ProductEditorProps) {
   // React Hook Form re-registers fields during render after `reset()`; the
   // compiler's memoisation of `register(...)` calls would skip that.
   "use no memo";
@@ -466,9 +473,10 @@ export function ProductEditor({ product, lastSyncLabel, redirectOnCreate }: Prod
                 {(c) => (
                   <Select {...c} {...register("category")}>
                     <option value="">Tanlanmagan</option>
-                    {CATEGORY_IDS.map((id) => (
-                      <option key={id} value={id}>
-                        {CATEGORY_LABEL[id]}
+                    {categories.map((category) => (
+                      <option key={category.slug} value={category.slug}>
+                        {category.name.uz}
+                        {category.isActive ? "" : " (faol emas)"}
                       </option>
                     ))}
                   </Select>

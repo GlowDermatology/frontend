@@ -1,12 +1,19 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 
 import { ProductArt } from "@/components/brand/product-art";
 import { Icon } from "@/components/ui/icon";
 import { ActionMenu } from "@/components/ui/menu";
 import type { ProductImage } from "@/domain/product";
-import { IMAGE_TYPES, MAX_IMAGE_BYTES, MAX_IMAGES } from "@/data/products.schema";
+import {
+  IMAGE_TOO_LARGE_MESSAGE,
+  IMAGE_TYPE_MESSAGE,
+  IMAGE_TYPES,
+  MAX_IMAGE_BYTES,
+  MAX_IMAGES,
+} from "@/data/products.schema";
 import { cn } from "@/lib/cn";
 
 interface ImageManagerProps {
@@ -80,11 +87,13 @@ export function ImageManager({ images, onMove, onRemove, onAdd, error }: ImageMa
         break;
       }
       if (!(IMAGE_TYPES as ReadonlyArray<string>).includes(file.type)) {
-        errors.push(`«${file.name}»: faqat JPG, PNG yoki WebP.`);
+        errors.push(`«${file.name}»: ${IMAGE_TYPE_MESSAGE}`);
         continue;
       }
+      // 5 MiB, checked here so an oversized file never makes the round trip
+      // (the Server Action body limit is 6 MB).
       if (file.size > MAX_IMAGE_BYTES) {
-        errors.push(`«${file.name}» 5 MB dan katta.`);
+        errors.push(`«${file.name}»: ${IMAGE_TOO_LARGE_MESSAGE}`);
         continue;
       }
       const src = URL.createObjectURL(file);
@@ -147,10 +156,18 @@ export function ImageManager({ images, onMove, onRemove, onAdd, error }: ImageMa
                   "outline-2 outline-offset-2 outline-gold-ink outline-dashed",
               )}
             >
-              {image.src ? (
+              {image.src?.startsWith("blob:") ? (
                 // Local preview of an unsaved upload (object URL); next/image cannot optimise blobs.
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={image.src} alt={image.label} className="size-full object-cover" />
+              ) : image.src ? (
+                <Image
+                  src={image.src}
+                  alt={image.label}
+                  fill
+                  sizes="(min-width: 640px) 160px, 45vw"
+                  className="object-cover"
+                />
               ) : image.art ? (
                 <ProductArt
                   kind={image.art.kind}

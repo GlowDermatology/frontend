@@ -7,6 +7,7 @@ import { getOrderStatusCounts } from "@/data/orders";
 import { getPendingAppointments } from "@/data/appointments";
 import { cn } from "@/lib/cn";
 
+import { BillzStatus, BillzStatusFallback } from "./billz-status";
 import { NAV_ITEMS, type AdminSection, type NavItem } from "./nav-items";
 import { SidebarUser, SidebarUserFallback } from "./sidebar-user";
 
@@ -80,15 +81,9 @@ export function SidebarContent({ section }: { section?: AdminSection }) {
       </nav>
 
       <div className="mt-auto flex flex-col gap-3">
-        <div className="flex flex-col gap-1.5 rounded-md bg-surface p-3">
-          <span className="flex items-center gap-2 text-body-sm font-semibold text-ink">
-            <span aria-hidden="true" className="size-2 rounded-full bg-success" />
-            Billz ulangan
-          </span>
-          <span className="text-caption font-normal text-ink-muted">
-            Sinxronlangan: 2 daqiqa oldin
-          </span>
-        </div>
+        <Suspense fallback={<BillzStatusFallback />}>
+          <BillzStatus />
+        </Suspense>
         <Suspense fallback={<SidebarUserFallback />}>
           <SidebarUser />
         </Suspense>

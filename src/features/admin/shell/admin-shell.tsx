@@ -48,10 +48,6 @@ export function AdminShell({ section, children }: AdminShellProps) {
             className="relative flex size-11 items-center justify-center rounded-md border border-line bg-surface-raised text-ink transition-colors duration-150 hover:bg-surface"
           >
             <Icon name="bell" size={20} />
-            <span
-              aria-hidden="true"
-              className="absolute top-2.5 right-2.5 size-2 rounded-full bg-danger"
-            />
           </Link>
         </header>
 

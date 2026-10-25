@@ -62,7 +62,7 @@ export async function DashboardContent({ searchParams }: { searchParams: Promise
           alert
           label="Tugagan mahsulotlar"
           value={formatNumber(data.stats.outOfStock)}
-          href="/admin/products?stock=out"
+          href="/admin/products?out=1"
           note={
             <span className="flex items-center gap-1 font-bold text-ink">
               Ro‘yxatni ko‘rish

@@ -3,7 +3,7 @@
 The Glow Derma web frontend, built from the Claude Design board "Glow Derma". It contains:
 
 - the **public landing page** in Uzbek (`/`), Russian (`/ru`) and English (`/en`);
-- the **admin panel** (`/admin`): dashboard, orders, order detail, products, product editor, customer card, cashback settings, notifications and appointments.
+- the **admin panel** (`/admin`): dashboard, orders, order detail, products, product editor, categories, banners, customer card, cashback settings, notifications and appointments.
 
 It runs on **mock data** behind a small data layer. That layer has the same shape as the planned Django REST Framework API, so connecting the backend replaces function bodies without touching the UI.
 
@@ -65,9 +65,11 @@ src/
   features/
     landing/                 Sections, copy dictionaries (uz/ru/en), i18n, metadata
     admin/                   One folder per screen + shell (sidebar, drawer, search) + shared
-                             (page header, status badges, URL state, pagination, skeletons)
+                             (page header, status badges, URL state, pagination, skeletons,
+                             export menu, reorder buttons)
   domain/                    Framework-free types and business rules (orders, cashback tiers,
-                             products, appointments, notifications). Unit-tested.
+                             products, categories, banners, jobs, appointments, notifications).
+                             Unit-tested.
   data/                      The seam to the backend:
     *.ts                       server-only query dispatchers (`getOrder`, `listProducts`, …)
     *.actions.ts               Server Actions ("use server") returning ActionResult<T>
@@ -75,7 +77,8 @@ src/
     source.ts, now.ts          dataSource() (GLOWDERMA_DATA_SOURCE, per request), requestNow()
     action-guard.ts            session/csrf gate, zod field errors, api-mode refresh()
     auth.ts, auth/             staff session DAL (verifyStaff/requireStaff/getMe), cookies, jwt, csrf
-    api/                       Django client (apiFetch/cachedGet), ApiError, mappers, generated schema
+    api/                       Django client (apiFetch/apiFetchRaw/cachedGet), typed catalog calls,
+                               ApiError, mappers (+ recorded fixtures), generated schema
     mock/                      deterministic fixtures, *.queries.ts and *.actions.ts mock bodies
     config.ts                  client-safe constants (DEMO_NOW, referenceNow() for mock internals)
   lib/                       cn (clsx + tailwind-merge), deterministic uz formatting, fonts
@@ -119,16 +122,19 @@ The seam is already in place: every public function in `src/data/*.ts` dispatche
 
 1. **Switch the source.** Set `GLOWDERMA_DATA_SOURCE=api` together with `GLOWDERMA_API_URL` and `GLOWDERMA_INTERNAL_SECRET`. Each dispatcher in `src/data/<resource>.ts` has two branches: the mock branch calls `src/data/mock/<resource>.queries.ts` (the fixtures, anchored on `DEMO_NOW` / `DESIGN_DAY`), the api branch calls the endpoint named in its JSDoc through `cachedGet`/`apiFetch` (`src/data/api/client.ts`) and maps the response with `src/data/api/mappers`. Until an endpoint is wired, the api branch returns the documented empty shape via `notWiredYet()` and warns once per resource.
 
-   | Function                              | Endpoint                                                                                 |
-   | ------------------------------------- | ---------------------------------------------------------------------------------------- |
-   | `listOrders` / `getOrderStatusCounts` | `GET /api/v1/admin/orders/?status=&search=&fulfilment=&payment=&period=&ordering=&page=` |
-   | `getOrder`                            | `GET /api/v1/admin/orders/{id}/`                                                         |
-   | `listProducts`                        | `GET /api/v1/admin/products/?search=&category=&status=&promo=&out_of_stock=&page=`       |
-   | `getCustomer`                         | `GET /api/v1/admin/customers/{id}/`                                                      |
-   | `getCashbackSettings`                 | `GET /api/v1/admin/cashback/policy/`                                                     |
-   | `getNotificationsOverview`            | `GET /api/v1/admin/notifications/`                                                       |
-   | `getAppointmentDay`                   | `GET /api/v1/admin/appointments/?date=YYYY-MM-DD`                                        |
-   | `getDashboard`                        | `GET /api/v1/admin/dashboard/?range=today\|week\|month`                                  |
+   | Function                                                  | Endpoint                                                                                                                                              |
+   | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | `listOrders` / `getOrderStatusCounts`                     | `GET /api/v1/admin/orders/?status=&search=&fulfilment=&payment=&period=&ordering=&page=`                                                              |
+   | `getOrder`                                                | `GET /api/v1/admin/orders/{id}/`                                                                                                                      |
+   | `listProducts` / `getProduct` / `getCatalogStats` (wired) | `GET /api/v1/admin/products/?search=&category=&status=&promo=&out_of_stock=&is_new=&ordering=&page=&page_size=8`, `products/{id}/`, `products/stats/` |
+   | `getCategories` (wired)                                   | `GET /api/v1/admin/categories/?page_size=50` (every page, ordered by position)                                                                        |
+   | `getBanners` (wired)                                      | `GET /api/v1/admin/banners/?page_size=50`                                                                                                             |
+   | `getJob` (wired, polled by `pollJob`)                     | `GET /api/v1/admin/jobs/{id}/`                                                                                                                        |
+   | `getCustomer`                                             | `GET /api/v1/admin/customers/{id}/`                                                                                                                   |
+   | `getCashbackSettings`                                     | `GET /api/v1/admin/cashback/policy/`                                                                                                                  |
+   | `getNotificationsOverview`                                | `GET /api/v1/admin/notifications/`                                                                                                                    |
+   | `getAppointmentDay`                                       | `GET /api/v1/admin/appointments/?date=YYYY-MM-DD`                                                                                                     |
+   | `getDashboard`                                            | `GET /api/v1/admin/dashboard/?range=today\|week\|month`                                                                                               |
 
 2. **Map responses in the data layer, not in components.**
    - Convert DRF's `{count, next, previous, results}` to `Page<T>` (`mapPage`).
@@ -141,6 +147,8 @@ The seam is already in place: every public function in `src/data/*.ts` dispatche
    - re-validates its input with zod (`productFormSchema` and the per-action schemas) and returns `fieldErrors` keyed by the form's field names; the key must be a UUID;
    - dispatches on `dataSource()`: the mock body in `src/data/mock/<resource>.actions.ts` looks the object up by id and applies the demo transformation; the api branch runs through `apiMutation(name, call)`, which calls `refresh()` from `next/cache` after a success (mock mode skips it — the fixtures never change, so a re-render would only discard the client's local state). Until F2 wires an endpoint, the api branch answers "Bu amal API bilan hali ulanmagan.";
    - maps a DRF `400` to `fieldErrors` with `toActionResult` and the per-action remaps (`audience.phone` → `phone`, `billz_id` → `billzId`, `image` → top-level error).
+
+   The catalog actions are wired: `saveProduct` creates hidden (`POST products/`, JSON) or sends a leaf diff (`PATCH products/{id}/`, `billz_id` only when it changed), the image actions post multipart `file`, `DELETE` and `PUT …/images/order/`, `importFromBillz` posts `integrations/billz/import/` and the client polls `pollJob` (`GET jobs/{id}/`) every 1.5 s; the category and banner actions follow §2.4 and §2.5 (banners are multipart with dotted keys, JSON when no new image). Field errors come back on the form's names (`billzId`, `texts.uz.name`, `images`, `link.productId`, …).
 
    Client components call actions through `runAction` (`src/features/admin/shared/action-client.ts`): it supplies the `gd_csrf` cookie and, on `code: "session_expired"`, GETs `/admin/auth/refresh?next=…` once (same-origin fetch, `redirect: "manual"`) and retries; if still expired it goes to `/admin/login?next=…`. A rejected action call (dropped connection, Next's "Invalid Server Actions request", an exception inside the action) comes back as `{ ok: false, code: "network_error" }`, so the call sites' "Amal bajarilmadi" toast handles it and the kept key gets its replay. Idempotency keys come from `useIdempotencyKey()`: one UUID per dialog/form instance, reused on retries and re-opens, renewed after a success or a 422 `idempotency_key_reused`. The product editor orchestrates a save as create (hidden) or patch → upload new files → delete removed images → save the order → activate → redirect on create.
 
@@ -202,12 +210,13 @@ All checks were run on the final commit in this environment (Linux, Chromium via
 
 - An unknown id such as `/admin/orders/999` shows the "not found" view, but the HTTP status is 200. The body streams under Partial Prerendering. It will be 404 once data checks move before streaming or the route is made dynamic.
 - Actions without a design show an explicit notice:
-  - Billz import
   - logout
   - custom dashboard date range
   - new appointment, reschedule and move
 - Disabled with an explanation: weekly appointment view, "AI tahlil" (phase 2).
-- Placeholder sections, which are not in the design: Kategoriyalar, Bannerlar, To‘lovlar, Sozlamalar and the customer list. The customer list links to a sample card.
+- Placeholder sections, which are not in the design: To‘lovlar, Sozlamalar and the customer list. The customer list links to a sample card. Kategoriyalar and Bannerlar are built in the design system (list ordered by position, create/edit dialogs, delete confirmation, up/down reordering, CSV/XLSX export) without a board to compare against.
+- The Billz import runs as a job: in demo mode it finishes on the first poll with fixed counts; nothing changes in the fixtures.
+- Exports (`/admin/<section>/export?format=csv|xlsx`): api mode streams Django's file (CSV or XLSX) with its filename; demo mode builds a local CSV from the fixtures for either format.
 
 **Content**
 

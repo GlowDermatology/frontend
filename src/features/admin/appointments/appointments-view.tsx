@@ -28,6 +28,8 @@ import {
   tashkentParts,
 } from "@/lib/format";
 
+import { runAction } from "../shared/action-client";
+import { useIdempotencyKey } from "../shared/idempotency";
 import { useNotConnected } from "../shell/not-connected";
 
 /** Height of one hour row in the day grid, px (as drawn). */
@@ -95,6 +97,8 @@ export function AppointmentsView({
   );
   const [rejectOpen, setRejectOpen] = useState(false);
   const [pending, startTransition] = useTransition();
+  // One key per pending change; actions run one at a time (`pending` disables the buttons).
+  const idempotency = useIdempotencyKey();
 
   const dayStart = Math.min(...specialists.map((s) => minutesOf(s.workingHours.start)), 9 * 60);
   const dayEnd = Math.max(...specialists.map((s) => minutesOf(s.workingHours.end)), 18 * 60);
@@ -108,8 +112,11 @@ export function AppointmentsView({
 
   const run = (action: AppointmentAction) => {
     if (!selected) return;
+    const { id } = selected;
     startTransition(async () => {
-      const result = await updateAppointment(selected, action);
+      const result = idempotency.settle(
+        await runAction((csrf) => updateAppointment(id, action, idempotency.key, csrf)),
+      );
       setRejectOpen(false);
       if (!result.ok) {
         toast({ tone: "info", title: "Amal bajarilmadi", description: result.error });
@@ -117,7 +124,6 @@ export function AppointmentsView({
       }
       setAppointments((current) => current.map((a) => (a.id === result.data.id ? result.data : a)));
       // The pressed action button disappears with the new status; keep focus on the visit.
-      const id = result.data.id;
       requestAnimationFrame(() =>
         document.querySelector<HTMLElement>(`[data-appointment-id="${id}"]`)?.focus(),
       );

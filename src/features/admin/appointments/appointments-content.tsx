@@ -1,5 +1,5 @@
 import { requireStaff } from "@/data/auth";
-import { getAppointmentDay } from "@/data/appointments";
+import { defaultAppointmentDay, getAppointmentDay } from "@/data/appointments";
 import { addDays } from "@/lib/format";
 
 import type { SearchParams } from "../shared/url-state";
@@ -12,7 +12,8 @@ export async function AppointmentsContent({
   searchParams: Promise<SearchParams>;
 }) {
   await requireStaff();
-  const day = parseDay(await searchParams);
+  const [params, today] = await Promise.all([searchParams, defaultAppointmentDay()]);
+  const day = parseDay(params, today);
   const data = await getAppointmentDay(day);
 
   return (
@@ -21,8 +22,8 @@ export async function AppointmentsContent({
       day={day}
       specialists={data.specialists}
       appointments={data.appointments}
-      prevHref={dayHref(addDays(day, -1))}
-      nextHref={dayHref(addDays(day, 1))}
+      prevHref={dayHref(addDays(day, -1), today)}
+      nextHref={dayHref(addDays(day, 1), today)}
     />
   );
 }

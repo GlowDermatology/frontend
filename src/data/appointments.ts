@@ -1,9 +1,11 @@
 import "server-only";
 
 import type { Specialist } from "@/domain/appointment";
+import { toLocalIsoDate } from "@/lib/format";
 
 import { DESIGN_DAY, type MockAppointment } from "./mock/appointments";
 import * as mock from "./mock/appointments.queries";
+import { requestNow } from "./now";
 import { dataSource, notWiredYet } from "./source";
 
 /**
@@ -25,8 +27,14 @@ export interface PendingAppointments {
   nextAt: string | null;
 }
 
-/** The day the demo schedule opens on (Monday, 26 October 2026). */
-export const DEFAULT_APPOINTMENT_DAY = DESIGN_DAY;
+/**
+ * The day the schedule opens on without `?date=` (contract §7.13): today in
+ * Tashkent in api mode, the design's Monday (26 October 2026) in mock mode.
+ */
+export async function defaultAppointmentDay(): Promise<string> {
+  if ((await dataSource()) === "api") return toLocalIsoDate(await requestNow());
+  return DESIGN_DAY;
+}
 
 const RESOURCE = "appointments";
 

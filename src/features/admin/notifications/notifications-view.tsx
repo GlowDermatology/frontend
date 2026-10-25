@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
-import { useEffect, useId, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useId, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { Controller, useForm, useWatch, type Path } from "react-hook-form";
 import { z } from "zod";
 
@@ -14,7 +14,8 @@ import { Card, CardTitle } from "@/components/ui/card";
 import { AlertDialog, AlertDialogCancel } from "@/components/ui/dialog";
 import { Field, TextArea, TextInput, labelClass } from "@/components/ui/field";
 import { Icon } from "@/components/ui/icon";
-import { SelectMenu, filterTriggerClass } from "@/components/ui/menu";
+import { Combobox } from "@/components/ui/combobox";
+import { SelectMenu } from "@/components/ui/menu";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { useToast } from "@/components/ui/toast";
 import { sendNotification } from "@/data/notifications.actions";
@@ -35,6 +36,7 @@ import { formatDateTimeShort, formatNumber, formatPhone } from "@/lib/format";
 import { maskPhone } from "@/lib/phone";
 
 import { runAction } from "../shared/action-client";
+import { partitionFieldErrors } from "../shared/field-errors";
 import { useIdempotencyKey } from "../shared/idempotency";
 
 const KIND_LABEL: Record<NotificationKind, string> = { promo: "Aksiya", general: "Umumiy" };
@@ -206,13 +208,22 @@ export function NotificationsView({
     );
     setConfirmOpen(false);
     if (!result.ok) {
-      const entries = Object.entries(result.fieldErrors ?? {});
-      for (const [path, message] of entries) {
+      // A message for a field this form does not show (e.g. a key the remap
+      // does not know) still reaches the admin as a toast.
+      const { fieldErrors, formError } = partitionFieldErrors(result, [
+        "kind",
+        "title",
+        "body",
+        "link",
+        "audience",
+        "scheduledAt",
+        ...(values.audience === "group" ? ["segmentId"] : []),
+        ...(values.audience === "one" ? ["phone"] : []),
+      ]);
+      for (const [path, message] of Object.entries(fieldErrors)) {
         setError(path as Path<Values>, { message });
       }
-      if (entries.length === 0) {
-        toast({ tone: "info", title: "Yuborilmadi", description: result.error });
-      }
+      if (formError) toast({ tone: "info", title: "Yuborilmadi", description: formError });
       return;
     }
     setHistory((current) => [result.data, ...current]);
@@ -301,6 +312,7 @@ export function NotificationsView({
                   />
                 )}
               />
+              {errors.kind && <InlineError>{errors.kind.message}</InlineError>}
             </div>
 
             <Field
@@ -371,15 +383,15 @@ export function NotificationsView({
                 control={control}
                 name="link"
                 render={({ field }) => (
-                  <SelectMenu<string>
+                  <Combobox<string>
                     label="Bosilganda ochiladigan sahifa"
+                    placeholder="Mahsulot nomi bo‘yicha qidirish"
                     align="end"
                     value={field.value}
                     onValueChange={field.onChange}
-                    triggerClassName={cn(
-                      filterTriggerClass,
-                      "h-auto min-h-16 flex-[1_1_200px] gap-3 border-[1.5px] px-3.5 py-2.5 text-left whitespace-normal",
-                    )}
+                    invalid={Boolean(errors.link)}
+                    describedBy={errors.link ? `${idBase}-link-error` : undefined}
+                    triggerClassName="h-auto min-h-16 flex-[1_1_200px] gap-3 border-[1.5px] px-3.5 py-2.5 text-left whitespace-normal"
                     trigger={
                       <>
                         <Icon name="link" size={22} className="shrink-0 text-gold-ink" />
@@ -393,26 +405,21 @@ export function NotificationsView({
                         </span>
                       </>
                     }
-                    options={linkOptions.map((option) => ({
-                      value: linkKey(option),
-                      label:
+                    options={linkOptions.map((option) => {
+                      const text =
                         option.kind === "none"
                           ? "Ilovaning bosh sahifasi"
-                          : `Mahsulot: ${option.label}`,
-                    }))}
+                          : `Mahsulot: ${option.label}`;
+                      return { value: linkKey(option), label: text, text };
+                    })}
                   />
                 )}
               />
             </div>
-            {imageError && (
-              <p
-                role="alert"
-                className="m-0 flex items-start gap-1.5 text-body-sm font-semibold text-ink"
-              >
-                <Icon name="alert-circle" size={16} className="mt-px shrink-0 text-danger" />
-                {imageError}
-              </p>
+            {errors.link && (
+              <InlineError id={`${idBase}-link-error`}>{errors.link.message}</InlineError>
             )}
+            {imageError && <InlineError>{imageError}</InlineError>}
 
             <div className="flex flex-col gap-2">
               <span id={`${idBase}-audience`} className={labelClass}>
@@ -440,6 +447,7 @@ export function NotificationsView({
                   </label>
                 ))}
               </div>
+              {errors.audience && <InlineError>{errors.audience.message}</InlineError>}
             </div>
 
             {audience === "group" && (
@@ -718,5 +726,19 @@ export function NotificationsView({
         </div>
       </AlertDialog>
     </>
+  );
+}
+
+/** A form-level message under a control that has no `Field` of its own. */
+function InlineError({ id, children }: { id?: string; children: ReactNode }) {
+  return (
+    <p
+      id={id}
+      role="alert"
+      className="m-0 flex items-start gap-1.5 text-body-sm font-semibold text-ink"
+    >
+      <Icon name="alert-circle" size={16} className="mt-px shrink-0 text-danger" />
+      {children}
+    </p>
   );
 }

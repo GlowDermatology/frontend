@@ -28,8 +28,12 @@ interface SelectMenuProps<T extends string> {
 export const filterTriggerClass =
   "inline-flex h-11 shrink-0 items-center gap-2 rounded-md border border-line-strong bg-transparent px-3.5 text-label whitespace-nowrap text-ink transition-colors duration-150 hover:bg-surface-raised data-[state=open]:bg-surface-raised";
 
+/**
+ * Never taller than the viewport leaves (Radix exposes the room left on the
+ * chosen side): a long option list scrolls instead of running off-screen.
+ */
 const contentClass =
-  "z-50 min-w-[220px] overflow-hidden rounded-md border border-line bg-surface-raised p-1.5 text-ink shadow-lg data-[state=closed]:animate-pop-out data-[state=open]:animate-pop-in";
+  "z-50 max-h-[min(60vh,var(--radix-dropdown-menu-content-available-height))] min-w-[220px] overflow-x-hidden overflow-y-auto overscroll-contain rounded-md border border-line bg-surface-raised p-1.5 text-ink shadow-lg data-[state=closed]:animate-pop-out data-[state=open]:animate-pop-in";
 
 const itemClass =
   "relative flex h-10 cursor-pointer items-center gap-2.5 rounded-sm pr-9 pl-3 text-label outline-none select-none data-[disabled]:cursor-not-allowed data-[disabled]:text-ink-muted data-[highlighted]:bg-gold-soft";
@@ -57,6 +61,7 @@ export function SelectMenu<T extends string>({
         <DropdownMenu.Content
           align={align}
           sideOffset={6}
+          collisionPadding={8}
           aria-label={label}
           className={contentClass}
         >
@@ -119,6 +124,7 @@ export function ActionMenu({
         <DropdownMenu.Content
           align={align}
           sideOffset={6}
+          collisionPadding={8}
           aria-label={label}
           className={contentClass}
         >

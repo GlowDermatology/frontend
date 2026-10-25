@@ -20,12 +20,22 @@ import { createJobPoller, type JobPoller } from "./job-poller";
  * job is `succeeded` or `failed`, refreshes the route so the stats, the
  * "yangi" banner and the list reflect the import. The job state and the
  * result counts are shown next to the button.
+ *
+ * A transport blip while polling is retried by the poller (shown as
+ * "qayta urinilmoqda"). When the poller gives up, the control is released
+ * (the job keeps running on the server; the backend is single-flight, so a
+ * re-click returns the same running job) and the route is refreshed so the
+ * stats catch up with whatever the job did meanwhile.
  */
 
 interface JobView {
   job: Job | null;
   error: string | null;
+  /** Set while the poller is backing off after a transport failure. */
+  retrying: boolean;
 }
+
+export const JOB_RETRYING_MESSAGE = "Aloqa uzildi, qayta urinilmoqda…";
 
 export function jobStatusText(job: Job): string {
   switch (job.state) {
@@ -49,7 +59,7 @@ export function BillzImport({ className }: { className?: string }) {
   const toast = useToast();
   const idempotency = useIdempotencyKey();
   const [starting, setStarting] = useState(false);
-  const [view, setView] = useState<JobView>({ job: null, error: null });
+  const [view, setView] = useState<JobView>({ job: null, error: null, retrying: false });
   const [, startTransition] = useTransition();
   const poller = useRef<JobPoller | null>(null);
 
@@ -57,13 +67,13 @@ export function BillzImport({ className }: { className?: string }) {
 
   const start = async () => {
     setStarting(true);
-    setView({ job: null, error: null });
+    setView({ job: null, error: null, retrying: false });
     const result = idempotency.settle(
       await runAction((csrf) => importFromBillz(idempotency.key, csrf)),
     );
     setStarting(false);
     if (!result.ok) {
-      setView({ job: null, error: result.error });
+      setView({ job: null, error: result.error, retrying: false });
       toast({ tone: "info", title: "Amal bajarilmadi", description: result.error });
       return;
     }
@@ -71,7 +81,7 @@ export function BillzImport({ className }: { className?: string }) {
     poller.current = createJobPoller({
       fetchJob: (id) => runAction((csrf) => pollJob(id, csrf)),
       onUpdate: (job) => {
-        setView({ job, error: null });
+        setView({ job, error: null, retrying: false });
         if (!isJobDone(job.state)) return;
         startTransition(() => router.refresh());
         if (job.state === "succeeded") {
@@ -87,8 +97,15 @@ export function BillzImport({ className }: { className?: string }) {
           });
         }
       },
+      onRetry: () => {
+        setView((current) => ({ ...current, error: null, retrying: true }));
+      },
       onError: (message) => {
-        setView((current) => ({ job: current.job, error: message }));
+        // Release the control: the job's fate is unknown from here, and the
+        // admin must be able to re-click (single-flight on the server) or see
+        // the refreshed stats instead of a spinner that never ends.
+        setView({ job: null, error: message, retrying: false });
+        startTransition(() => router.refresh());
         toast({ tone: "info", title: "Amal bajarilmadi", description: message });
       },
     });
@@ -96,7 +113,9 @@ export function BillzImport({ className }: { className?: string }) {
   };
 
   const busy = starting || (view.job !== null && !isJobDone(view.job.state));
-  const status = view.error ?? (view.job ? jobStatusText(view.job) : null);
+  const status =
+    view.error ??
+    (view.retrying ? JOB_RETRYING_MESSAGE : view.job ? jobStatusText(view.job) : null);
   const tone = view.error || view.job?.state === "failed" ? "danger" : "muted";
 
   return (

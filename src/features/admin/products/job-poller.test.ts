@@ -3,9 +3,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ActionResult } from "@/data/types";
 import type { Job } from "@/domain/job";
 
-import { createJobPoller, JOB_POLL_TIMEOUT_MESSAGE } from "./job-poller";
+import {
+  createJobPoller,
+  isTransientPollFailure,
+  JOB_POLL_MAX_RETRIES,
+  JOB_POLL_TIMEOUT_MESSAGE,
+  retryDelayMs,
+} from "./job-poller";
 
-/** The import poller: 1.5 s cadence, one request in flight, stops on done/stop/error. */
+/**
+ * The import poller: 1.5 s cadence, one request in flight, stops on
+ * done/stop/error, retries transport failures with backoff.
+ */
 
 function job(state: Job["state"], extra: Partial<Job> = {}): Job {
   return {
@@ -23,6 +32,11 @@ function job(state: Job["state"], extra: Partial<Job> = {}): Job {
 }
 
 const ok = (value: Job): ActionResult<Job> => ({ ok: true, data: value });
+const NETWORK_FAILURE: ActionResult<Job> = {
+  ok: false,
+  error: "API bilan bog‘lanib bo‘lmadi. Qayta urinib ko‘ring.",
+  code: "network_error",
+};
 
 describe("createJobPoller", () => {
   beforeEach(() => vi.useFakeTimers());
@@ -95,20 +109,118 @@ describe("createJobPoller", () => {
     poller.stop();
   });
 
-  it("stops on a failed poll and reports the message", async () => {
-    const fetchJob = vi.fn(async (): Promise<ActionResult<Job>> => ({
-      ok: false,
-      error: "API bilan bog‘lanib bo‘lmadi.",
-      code: "network_error",
-    }));
+  it("stops at once on a non-transient failure (404, session) and reports the message", async () => {
+    for (const code of ["not_found", "session_expired", "server_error", undefined]) {
+      const fetchJob = vi.fn(async (): Promise<ActionResult<Job>> => ({
+        ok: false,
+        error: `Jarayon topilmadi (${code}).`,
+        ...(code === undefined ? {} : { code }),
+      }));
+      const onError = vi.fn();
+      const onRetry = vi.fn();
+      const poller = createJobPoller({ fetchJob, onUpdate: vi.fn(), onError, onRetry });
+      poller.start(job("running"));
+      await vi.advanceTimersByTimeAsync(1500);
+      expect(onError).toHaveBeenCalledWith(`Jarayon topilmadi (${code}).`);
+      expect(onRetry).not.toHaveBeenCalled();
+      expect(poller.active).toBe(false);
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(fetchJob).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it("retries a transport failure with exponential backoff and keeps tracking the job", async () => {
+    const answers: ActionResult<Job>[] = [
+      NETWORK_FAILURE,
+      NETWORK_FAILURE,
+      ok(job("running", { progress: { done: 200, total: 248 } })),
+      { ok: false, error: NETWORK_FAILURE.error, code: "timeout" },
+      ok(job("succeeded", { result: { created: 0, updated: 0, unchanged: 248, newFromBillz: 0 } })),
+    ];
+    const fetchJob = vi.fn(async () => answers.shift()!);
+    const onUpdate = vi.fn();
     const onError = vi.fn();
-    const poller = createJobPoller({ fetchJob, onUpdate: vi.fn(), onError });
+    const onRetry = vi.fn();
+    const poller = createJobPoller({ fetchJob, onUpdate, onError, onRetry });
     poller.start(job("running"));
-    await vi.advanceTimersByTimeAsync(1500);
-    expect(onError).toHaveBeenCalledWith("API bilan bog‘lanib bo‘lmadi.");
-    expect(poller.active).toBe(false);
-    await vi.advanceTimersByTimeAsync(5000);
+
+    await vi.advanceTimersByTimeAsync(1500); // poll 1 fails → retry 1 in 1.5 s
     expect(fetchJob).toHaveBeenCalledTimes(1);
+    expect(onRetry).toHaveBeenLastCalledWith({
+      attempt: 1,
+      delayMs: 1500,
+      message: NETWORK_FAILURE.error,
+    });
+    expect(poller.active).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(1499);
+    expect(fetchJob).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1); // retry 1 fails → retry 2 in 3 s
+    expect(fetchJob).toHaveBeenCalledTimes(2);
+    expect(onRetry).toHaveBeenLastCalledWith(
+      expect.objectContaining({ attempt: 2, delayMs: 3000 }),
+    );
+
+    await vi.advanceTimersByTimeAsync(2999);
+    expect(fetchJob).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1); // retry 2 succeeds → regular cadence again
+    expect(fetchJob).toHaveBeenCalledTimes(3);
+    expect(onUpdate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ progress: { done: 200, total: 248 } }),
+    );
+
+    await vi.advanceTimersByTimeAsync(1500); // poll 4: a timeout → the retry counter restarted at 1 (1.5 s)
+    expect(fetchJob).toHaveBeenCalledTimes(4);
+    expect(onRetry).toHaveBeenLastCalledWith(
+      expect.objectContaining({ attempt: 1, delayMs: 1500 }),
+    );
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(fetchJob).toHaveBeenCalledTimes(5);
+    expect(onUpdate).toHaveBeenLastCalledWith(expect.objectContaining({ state: "succeeded" }));
+    expect(poller.active).toBe(false);
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("gives up after maxRetries consecutive transport failures", async () => {
+    const fetchJob = vi.fn(async () => NETWORK_FAILURE);
+    const onError = vi.fn();
+    const onRetry = vi.fn();
+    const poller = createJobPoller({ fetchJob, onUpdate: vi.fn(), onError, onRetry });
+    poller.start(job("running"));
+    // 1.5 s first poll, then backoff 1.5 + 3 + 6 + 12 s for the four retries.
+    for (const delay of [1500, 1500, 3000, 6000, 12_000]) {
+      await vi.advanceTimersByTimeAsync(delay - 1);
+      expect(onError).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+    }
+    expect(fetchJob).toHaveBeenCalledTimes(1 + JOB_POLL_MAX_RETRIES);
+    expect(onRetry).toHaveBeenCalledTimes(JOB_POLL_MAX_RETRIES);
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledWith(NETWORK_FAILURE.error);
+    expect(poller.active).toBe(false);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(fetchJob).toHaveBeenCalledTimes(1 + JOB_POLL_MAX_RETRIES);
+  });
+
+  it("counts retries against the overall attempt cap", async () => {
+    const fetchJob = vi.fn(async () => NETWORK_FAILURE);
+    const onError = vi.fn();
+    const poller = createJobPoller({ fetchJob, onUpdate: vi.fn(), onError, maxAttempts: 2 });
+    poller.start(job("running"));
+    await vi.advanceTimersByTimeAsync(1500 + 1500);
+    expect(fetchJob).toHaveBeenCalledTimes(2);
+    expect(onError).toHaveBeenCalledWith(JOB_POLL_TIMEOUT_MESSAGE);
+    expect(poller.active).toBe(false);
+  });
+
+  it("computes the backoff as the interval doubled per retry", () => {
+    expect([1, 2, 3, 4].map((n) => retryDelayMs(n))).toEqual([1500, 3000, 6000, 12_000]);
+    expect(retryDelayMs(2, 1000)).toBe(2000);
+    expect(isTransientPollFailure({ ok: false, error: "x", code: "network_error" })).toBe(true);
+    expect(isTransientPollFailure({ ok: false, error: "x", code: "timeout" })).toBe(true);
+    expect(isTransientPollFailure({ ok: false, error: "x", code: "not_found" })).toBe(false);
+    expect(isTransientPollFailure({ ok: false, error: "x" })).toBe(false);
+    expect(isTransientPollFailure(ok(job("running")))).toBe(false);
   });
 
   it("ignores an answer that arrives after stop() (unmount) and gives up after maxAttempts", async () => {

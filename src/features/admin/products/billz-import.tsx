@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
@@ -12,7 +12,7 @@ import { cn } from "@/lib/cn";
 
 import { runAction } from "../shared/action-client";
 import { useIdempotencyKey } from "../shared/idempotency";
-import { createJobPoller, type JobPoller } from "./job-poller";
+import { createImportController } from "./import-controller";
 
 /**
  * "Billz’dan import" (contract §2.3): starts the import job, polls
@@ -26,6 +26,10 @@ import { createJobPoller, type JobPoller } from "./job-poller";
  * (the job keeps running on the server; the backend is single-flight, so a
  * re-click returns the same running job) and the route is refreshed so the
  * stats catch up with whatever the job did meanwhile.
+ *
+ * Leaving the route hides it (Next keeps it mounted in an Activity): the
+ * poller stops with the effect cleanup and resumes when the route is shown
+ * again, so a job left queued or running is never stuck on screen.
  */
 
 interface JobView {
@@ -61,24 +65,10 @@ export function BillzImport({ className }: { className?: string }) {
   const [starting, setStarting] = useState(false);
   const [view, setView] = useState<JobView>({ job: null, error: null, retrying: false });
   const [, startTransition] = useTransition();
-  const poller = useRef<JobPoller | null>(null);
-
-  useEffect(() => () => poller.current?.stop(), []);
-
-  const start = async () => {
-    setStarting(true);
-    setView({ job: null, error: null, retrying: false });
-    const result = idempotency.settle(
-      await runAction((csrf) => importFromBillz(idempotency.key, csrf)),
-    );
-    setStarting(false);
-    if (!result.ok) {
-      setView({ job: null, error: result.error, retrying: false });
-      toast({ tone: "info", title: "Amal bajarilmadi", description: result.error });
-      return;
-    }
-    poller.current?.stop();
-    poller.current = createJobPoller({
+  // Created once; every callback it holds is stable (state setters, the
+  // router, the toast function, `startTransition`).
+  const [controller] = useState(() =>
+    createImportController({
       fetchJob: (id) => runAction((csrf) => pollJob(id, csrf)),
       onUpdate: (job) => {
         setView({ job, error: null, retrying: false });
@@ -108,8 +98,27 @@ export function BillzImport({ className }: { className?: string }) {
         startTransition(() => router.refresh());
         toast({ tone: "info", title: "Amal bajarilmadi", description: message });
       },
-    });
-    poller.current.start(result.data);
+    }),
+  );
+
+  useEffect(() => {
+    controller.attach();
+    return () => controller.detach();
+  }, [controller]);
+
+  const start = async () => {
+    setStarting(true);
+    setView({ job: null, error: null, retrying: false });
+    const result = idempotency.settle(
+      await runAction((csrf) => importFromBillz(idempotency.key, csrf)),
+    );
+    setStarting(false);
+    if (!result.ok) {
+      setView({ job: null, error: result.error, retrying: false });
+      toast({ tone: "info", title: "Amal bajarilmadi", description: result.error });
+      return;
+    }
+    controller.start(result.data);
   };
 
   const busy = starting || (view.job !== null && !isJobDone(view.job.state));

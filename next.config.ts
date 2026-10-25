@@ -34,6 +34,11 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   images: {
     remotePatterns: mediaRemotePatterns(process.env.GLOWDERMA_MEDIA_HOSTS),
+    // The optimizer refuses upstream hosts that resolve to a private IP
+    // (SSRF guard). Local development talks to Django on localhost, so the
+    // guard is lifted only when GLOWDERMA_MEDIA_ALLOW_LOCAL=true is set
+    // explicitly; production media hosts are public and never need it.
+    dangerouslyAllowLocalIP: process.env.GLOWDERMA_MEDIA_ALLOW_LOCAL === "true",
   },
   experimental: {
     // Branded 404 for unmatched URLs: the app has three root layouts

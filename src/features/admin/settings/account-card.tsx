@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonStyles } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import { runAction } from "../shared/action-client";
 import { partitionFieldErrors } from "../shared/field-errors";
 import { readCsrfCookie } from "../shared/csrf";
 import { useNotConnected } from "../shell/not-connected";
+import { othersLogoutNotice } from "./others-logout";
 
 const PROVIDERS = [
   { id: "google", label: "Google" },
@@ -45,6 +46,15 @@ export function AccountCard({ account }: { account: StaffAccount | null }) {
   const inFlight = useRef(false);
   const [othersOpen, setOthersOpen] = useState(false);
   const [csrf, setCsrf] = useState("");
+
+  // The logout route's `scope=others` outcome (a full page load back here):
+  // confirm only a real success; a failure says the sessions are still open.
+  useEffect(() => {
+    const notice = othersLogoutNotice(window.location.href);
+    if (!notice) return;
+    window.history.replaceState(window.history.state, "", notice.cleanUrl);
+    toast(notice.toast);
+  }, [toast]);
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

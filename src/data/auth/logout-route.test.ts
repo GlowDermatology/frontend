@@ -1,5 +1,8 @@
 import { NextRequest } from "next/server";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// The API client reads the request headers (client IP) for the Django call.
+vi.mock("next/headers", () => ({ headers: async () => new Headers() }));
 
 import { POST } from "@/app/admin/auth/logout/route";
 
@@ -147,7 +150,7 @@ describe("POST /admin/auth/logout", () => {
       }),
     );
     expect(response.status).toBe(303);
-    expect(response.headers.get("location")).toBe("/admin/settings");
+    expect(response.headers.get("location")).toBe("/admin/settings?others=ok");
     expect(response.cookies.getAll()).toHaveLength(0);
   });
 
@@ -175,7 +178,69 @@ describe("POST /admin/auth/logout", () => {
       }),
     );
     expect(response.status).toBe(303);
-    expect(response.headers.get("location")).toBe("/admin/settings");
+    expect(response.headers.get("location")).toBe("/admin/settings?others=ok");
     expect(response.cookies.getAll()).toEqual([]);
+  });
+
+  describe("scope=others in api mode reports what Django answered", () => {
+    const othersRequest = () => {
+      const request = logoutRequest(token, {
+        headers: { "sec-fetch-site": "same-origin", origin: `https://${HOST}` },
+        body: `csrf=${encodeURIComponent(token)}&scope=others`,
+      });
+      request.cookies.set(names.refresh, "refresh-token");
+      return request;
+    };
+    const envelope = (status: number, code: string) =>
+      Response.json({ code, message: "x", errors: [], request_id: "r" }, { status });
+
+    beforeEach(() => {
+      process.env.GLOWDERMA_DATA_SOURCE = "api";
+      process.env.GLOWDERMA_API_URL = "http://api.test:8000";
+      process.env.GLOWDERMA_INTERNAL_SECRET = "s3cret";
+    });
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it("204 → settings with others=ok, session kept", async () => {
+      const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
+      vi.stubGlobal("fetch", fetchMock);
+      const response = await POST(othersRequest());
+      expect(fetchMock).toHaveBeenCalledOnce();
+      expect(response.headers.get("location")).toBe("/admin/settings?others=ok");
+      expect(response.cookies.getAll()).toEqual([]);
+    });
+
+    it("a 5xx or a network failure → others=failed, never a silent success", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => envelope(503, "unavailable")),
+      );
+      expect((await POST(othersRequest())).headers.get("location")).toBe(
+        "/admin/settings?others=failed",
+      );
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => {
+          throw new TypeError("fetch failed");
+        }),
+      );
+      const response = await POST(othersRequest());
+      expect(response.headers.get("location")).toBe("/admin/settings?others=failed");
+      expect(response.cookies.getAll()).toEqual([]);
+    });
+
+    it("a 401 means this session is gone too: cookies cleared, login", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => envelope(401, "SESSION_EXPIRED")),
+      );
+      const response = await POST(othersRequest());
+      expect(response.headers.get("location")).toBe("/admin/login");
+      expect(response.cookies.getAll().map((c) => c.name)).toEqual(
+        expect.arrayContaining([names.access, names.refresh, names.csrf]),
+      );
+    });
   });
 });

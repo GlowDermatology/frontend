@@ -24,6 +24,10 @@ import { parseAllowedOrigins } from "@/lib/origins";
  * to the login page; `others` keeps this session and returns to settings —
  * unless, in api mode, there is no refresh cookie to keep: that session has
  * already ended, so it is treated like `current` (cookies cleared, login).
+ * `others` reports its outcome to the settings page, which toasts it: a
+ * transient failure (timeout, network, 5xx) must not read as "the other
+ * sessions were revoked" — `?others=ok` on success, `?others=failed` (retry)
+ * otherwise; a 401 means this session is gone too, so it ends like `current`.
  */
 
 const NO_STORE = { "Cache-Control": "no-store" } as const;
@@ -102,17 +106,20 @@ export async function POST(request: NextRequest) {
 
   const refresh = request.cookies.get(names.refresh)?.value;
   const apiMode = serverEnv.dataSource() === "api";
+  let outcome: "ok" | "failed" | "expired" = "ok";
   if (apiMode && refresh) {
     try {
       await apiLogout(refresh, scope);
     } catch (error) {
-      // 401 SESSION_EXPIRED (already revoked) and transient failures alike:
-      // the browser side of the session ends regardless.
+      // For current/all the browser side of the session ends regardless.
       if (!isApiError(error)) throw error;
+      outcome = error.status === 401 ? "expired" : "failed";
     }
   }
 
-  if (scope === "others" && (!apiMode || refresh)) return seeOther("/admin/settings");
+  if (scope === "others" && (!apiMode || refresh) && outcome !== "expired") {
+    return seeOther(`/admin/settings?others=${outcome}`);
+  }
   const response = seeOther("/admin/login");
   clearSessionCookies(response.cookies, secure);
   return response;

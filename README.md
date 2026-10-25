@@ -27,7 +27,7 @@ npm run format       # Prettier (with the Tailwind class sorter)
 npm run check        # lint + typecheck + test + format:check
 ```
 
-CI (`.github/workflows/ci.yml`) runs `npm run check`, a mock-mode `npm run build` and a Docker image build on every pull request.
+`npm run e2e` runs the Playwright suite in `e2e/` against a running frontend and a seeded backend (see `e2e/README.md`). CI (`.github/workflows/ci.yml`) runs `npm run check`, a mock-mode `npm run build` and a Docker image build on every pull request.
 
 ### Environment
 
@@ -258,7 +258,6 @@ Carried over from earlier slices (not re-run in F2e): landing pixel comparisons 
 - Safari, Firefox and physical mobile devices; only Chromium was used.
 - Lighthouse or performance budgets.
 - The dark theme (tokens exist but are not applied).
-- A committed end-to-end test suite. Interaction checks were run as ad-hoc Playwright scripts.
 
 ---
 

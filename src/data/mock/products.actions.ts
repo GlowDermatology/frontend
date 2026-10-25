@@ -1,8 +1,11 @@
+import type { Job } from "@/domain/job";
 import type { Product, ProductImage } from "@/domain/product";
 import { formatNumber } from "@/lib/format";
 
 import { referenceNow } from "../config";
 import {
+  IMAGE_TOO_LARGE_MESSAGE,
+  IMAGE_TYPE_MESSAGE,
   IMAGE_TYPES,
   MAX_IMAGE_BYTES,
   MAX_IMAGES,
@@ -10,6 +13,7 @@ import {
 } from "../products.schema";
 import type { ActionResult } from "../types";
 import { delay } from "./delay";
+import { runningImportJob } from "./jobs.queries";
 import { getProduct } from "./products.queries";
 
 /**
@@ -79,9 +83,15 @@ export async function uploadProductImage(
   await delay(300);
   void productId;
   if (!(IMAGE_TYPES as ReadonlyArray<string>).includes(file.type)) {
-    return { ok: false, error: `«${file.name}»: faqat JPG, PNG yoki WebP.` };
+    return { ok: false, error: IMAGE_TYPE_MESSAGE, fieldErrors: { file: IMAGE_TYPE_MESSAGE } };
   }
-  if (file.size > MAX_IMAGE_BYTES) return { ok: false, error: `«${file.name}» 5 MB dan katta.` };
+  if (file.size > MAX_IMAGE_BYTES) {
+    return {
+      ok: false,
+      error: IMAGE_TOO_LARGE_MESSAGE,
+      fieldErrors: { file: IMAGE_TOO_LARGE_MESSAGE },
+    };
+  }
   return { ok: true, data: { id: `img-${crypto.randomUUID()}`, label: file.name } };
 }
 
@@ -104,4 +114,10 @@ export async function reorderProductImages(
     return { ok: false, error: `Ko‘pi bilan ${MAX_IMAGES} ta rasm qo‘shish mumkin.` };
   }
   return { ok: true, data: { imageIds } };
+}
+
+/** The demo import: one job that is `running` now and `succeeded` on the first poll. */
+export async function importFromBillz(): Promise<ActionResult<Job>> {
+  await delay(400);
+  return { ok: true, data: runningImportJob() };
 }

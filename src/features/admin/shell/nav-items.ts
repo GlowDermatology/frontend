@@ -13,6 +13,7 @@ export type AdminSection =
   | "cashback"
   | "notifications"
   | "payments"
+  | "audit-log"
   | "settings";
 
 export interface NavItem {
@@ -52,5 +53,11 @@ export const NAV_ITEMS: ReadonlyArray<NavItem> = [
     icon: "bell",
   },
   { section: "payments", label: "To‘lovlar", href: "/admin/payments", icon: "card" },
+  {
+    section: "audit-log",
+    label: "Harakatlar jurnali",
+    href: "/admin/audit-log",
+    icon: "history",
+  },
   { section: "settings", label: "Sozlamalar", href: "/admin/settings", icon: "sliders" },
 ];

@@ -114,6 +114,7 @@ describe("toActionResult", () => {
     expect(toActionResult(error, { billz_id: "billzId" })).toEqual({
       ok: false,
       error: "Maydonlarni tekshiring.",
+      code: "validation_error",
       fieldErrors: {
         "texts.uz.name": "O‘zbekcha nomni kiriting (kamida 2 belgi).",
         "tiers.1.percent": "Ko‘pi bilan 2 ta kasr raqam.",
@@ -136,13 +137,18 @@ describe("toActionResult", () => {
     expect(toActionResult(error)).toEqual({
       ok: false,
       error: "Darajalar bir-birini qoplaydi.",
+      code: "validation_error",
       fieldErrors: { "tiers.0.from": "Qiymat 0 dan kam bo‘lmasin." },
     });
   });
 
   it("omits fieldErrors when a validation error has none", () => {
     const error = new ApiError(400, envelope({ errors: [] }));
-    expect(toActionResult(error)).toEqual({ ok: false, error: "Maydonlarni tekshiring." });
+    expect(toActionResult(error)).toEqual({
+      ok: false,
+      error: "Maydonlarni tekshiring.",
+      code: "validation_error",
+    });
   });
 
   it("applies the notification remap, folding image into the top-level error", () => {
@@ -159,6 +165,7 @@ describe("toActionResult", () => {
     expect(toActionResult(error, remap)).toEqual({
       ok: false,
       error: "Rasm 5 MB dan oshmasin.",
+      code: "validation_error",
       fieldErrors: { phone: "Noto‘g‘ri qiymat." },
     });
   });
@@ -175,6 +182,7 @@ describe("toActionResult", () => {
     expect(toActionResult(error, { image: "" })).toEqual({
       ok: false,
       error: "Faqat JPEG, PNG yoki WebP rasm.",
+      code: "validation_error",
     });
     expect(mapFieldPath("image", { image: "" })).toBeNull();
     expect(mapFieldPath("link.product_id", { "link.*": "" })).toBeNull();
@@ -193,6 +201,7 @@ describe("toActionResult", () => {
     expect(toActionResult(error, { image: TOP_LEVEL_ERROR })).toEqual({
       ok: false,
       error: "Avval yuborish vaqtini tanlang.",
+      code: "validation_error",
     });
   });
 
@@ -204,7 +213,7 @@ describe("toActionResult", () => {
       [404, "not_found", "Topilmadi."],
     ] as const) {
       const error = new ApiError(status, envelope({ code, message }));
-      expect(toActionResult(error)).toEqual({ ok: false, error: message });
+      expect(toActionResult(error)).toEqual({ ok: false, error: message, code });
     }
   });
 
@@ -216,10 +225,12 @@ describe("toActionResult", () => {
     expect(toActionResult(new ApiError(429, throttled, { retryAfter: 17 }))).toEqual({
       ok: false,
       error: "Juda ko‘p urinish. 17 soniyadan so‘ng qayta urinib ko‘ring.",
+      code: "throttled",
     });
     expect(toActionResult(new ApiError(429, throttled))).toEqual({
       ok: false,
       error: throttled.message,
+      code: "throttled",
     });
   });
 
@@ -244,17 +255,37 @@ describe("toActionResult", () => {
     expect(isSessionExpired(badLogin)).toBe(false);
     expect(isSessionExpired(new Error("x"))).toBe(false);
 
-    expect(toActionResult(expired)).toEqual({ ok: false, error: SESSION_EXPIRED });
-    expect(toActionResult(notAuthenticated)).toEqual({ ok: false, error: SESSION_EXPIRED });
-    expect(toActionResult(badLogin)).toEqual({ ok: false, error: "Login yoki parol noto‘g‘ri." });
+    expect(toActionResult(expired)).toEqual({
+      ok: false,
+      error: SESSION_EXPIRED,
+      code: SESSION_EXPIRED,
+    });
+    expect(toActionResult(notAuthenticated)).toEqual({
+      ok: false,
+      error: SESSION_EXPIRED,
+      code: SESSION_EXPIRED,
+    });
+    expect(toActionResult(badLogin)).toEqual({
+      ok: false,
+      error: "Login yoki parol noto‘g‘ri.",
+      code: "invalid_credentials",
+    });
   });
 
   it("maps transport failures and unexpected errors", () => {
     const network = new ApiError(0, envelope({ code: "network_error", message: "x" }));
-    expect(toActionResult(network)).toEqual({ ok: false, error: "API bilan bog‘lanib bo‘lmadi." });
+    expect(toActionResult(network)).toEqual({
+      ok: false,
+      error: "API bilan bog‘lanib bo‘lmadi.",
+      code: "network_error",
+    });
 
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(toActionResult(new TypeError("boom"))).toEqual({ ok: false, error: "Kutilmagan xato." });
+    expect(toActionResult(new TypeError("boom"))).toEqual({
+      ok: false,
+      error: "Kutilmagan xato.",
+      code: "unexpected_error",
+    });
     expect(consoleError).toHaveBeenCalledOnce();
   });
 });

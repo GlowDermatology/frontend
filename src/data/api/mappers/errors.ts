@@ -75,14 +75,20 @@ export function mapFieldPath(field: string, remap?: FieldRemap): string | null {
  * - everything else (409, 422, 503, 404, 5xx, …) → the envelope message.
  * - a non-`ApiError` is a bug, not an API outcome: it is logged and shown as
  *   "Kutilmagan xato." so the form never hangs.
+ *
+ * `code` carries the machine-readable reason: `"session_expired"`,
+ * `"network_error"` and `"unexpected_error"` for the client-side outcomes,
+ * otherwise the API envelope's own code (`idempotency_key_reused`,
+ * `not_found`, `conflict`, `invalid_transition`, `throttled`, …), which is
+ * what `runAction` / `useIdempotencyKey` branch on.
  */
 export function toActionResult(error: unknown, remap?: FieldRemap): ActionFailure {
   if (!isApiError(error)) {
     console.error("[data] unexpected error in a Server Action", error);
-    return { ok: false, error: UNEXPECTED_ERROR_MESSAGE };
+    return { ok: false, error: UNEXPECTED_ERROR_MESSAGE, code: "unexpected_error" };
   }
-  if (error.status === 0) return { ok: false, error: NETWORK_ERROR_MESSAGE };
-  if (isSessionExpired(error)) return { ok: false, error: SESSION_EXPIRED };
+  if (error.status === 0) return { ok: false, error: NETWORK_ERROR_MESSAGE, code: "network_error" };
+  if (isSessionExpired(error)) return { ok: false, error: SESSION_EXPIRED, code: SESSION_EXPIRED };
 
   if (error.status === 400 && error.code === "validation_error") {
     const fieldErrors: Record<string, string> = {};
@@ -95,13 +101,17 @@ export function toActionResult(error: unknown, remap?: FieldRemap): ActionFailur
       }
       if (!(key in fieldErrors)) fieldErrors[key] = item.message;
     }
-    const result: ActionFailure = { ok: false, error: nonField ?? error.body.message };
+    const result: ActionFailure = {
+      ok: false,
+      error: nonField ?? error.body.message,
+      code: error.code,
+    };
     if (Object.keys(fieldErrors).length > 0) result.fieldErrors = fieldErrors;
     return result;
   }
 
   if (error.status === 429 && error.retryAfter !== undefined) {
-    return { ok: false, error: throttledMessage(error.retryAfter) };
+    return { ok: false, error: throttledMessage(error.retryAfter), code: error.code };
   }
-  return { ok: false, error: error.body.message };
+  return { ok: false, error: error.body.message, code: error.code };
 }

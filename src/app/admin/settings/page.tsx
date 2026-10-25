@@ -1,18 +1,18 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
-import { SectionPlaceholder } from "@/features/admin/shared/section-placeholder";
+import { SettingsContent } from "@/features/admin/settings/settings-content";
+import { PageSkeleton } from "@/features/admin/shared/skeleton";
 import { AdminShell } from "@/features/admin/shell/admin-shell";
 
 export const metadata: Metadata = { title: "Sozlamalar" };
 
-export default function Page() {
+export default function SettingsPage() {
   return (
     <AdminShell section="settings">
-      <SectionPlaceholder
-        title="Sozlamalar"
-        icon="sliders"
-        purpose="Do‘kon ma’lumotlari, xodimlar va integratsiyalar (Billz, BTS, Click, Payme, Eskiz) sozlamalari shu yerda bo‘ladi."
-      />
+      <Suspense fallback={<PageSkeleton />}>
+        <SettingsContent />
+      </Suspense>
     </AdminShell>
   );
 }

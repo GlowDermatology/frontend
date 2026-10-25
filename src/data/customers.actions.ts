@@ -1,15 +1,20 @@
-/**
- * Customer mutations used by the admin customer card.
- *
- * Demo mode: validates and returns the new ledger entry after a short delay;
- * nothing is persisted. With the API this becomes a Server Action posting to
- * `POST /api/v1/admin/customers/{id}/cashback-adjustments/` (the backend
- * appends an immutable `adjustment` entry and records the admin and reason).
- */
+"use server";
+
+import { z } from "zod";
+
 import type { LedgerEntry } from "@/domain/cashback";
 
-import { referenceNow } from "./config";
+import { apiMutation, fieldErrorsFrom, guardAction, idempotencyKeySchema } from "./action-guard";
+import * as mock from "./mock/customers.actions";
+import { dataSource } from "./source";
 import type { ActionResult } from "./types";
+
+/**
+ * Customer mutations (contract §2.6, §7.10). The mock body lives in
+ * `./mock/customers.actions.ts`; the api branch (F2) posts to
+ * `customers/{id}/cashback-adjustments/` with `Idempotency-Key` and returns
+ * `{ entry, balance }` — the card prefers the server balance when present.
+ */
 
 export interface CashbackAdjustmentInput {
   direction: "add" | "subtract";
@@ -17,41 +22,50 @@ export interface CashbackAdjustmentInput {
   reason: string;
 }
 
-const delay = (ms = 500) => new Promise((resolve) => setTimeout(resolve, ms));
+export interface CashbackAdjustment {
+  entry: LedgerEntry;
+  /** Balance after the entry, from the server; absent in mock mode. */
+  balance?: number;
+}
+
+const adjustmentSchema = z.object({
+  customerId: z.string().trim().min(1).max(64),
+  input: z.object({
+    direction: z.enum(["add", "subtract"]),
+    amount: z
+      .number({ error: "Summani kiriting." })
+      .int("Summani kiriting.")
+      .min(1, "Summani kiriting.")
+      .max(10_000_000, "Summa juda katta."),
+    reason: z
+      .string()
+      .trim()
+      .min(3, "Kamida 3 ta belgi kiriting.")
+      .max(300, "300 belgidan oshmasin."),
+  }),
+  key: idempotencyKeySchema,
+});
 
 export async function adjustCashback(
-  currentBalance: number,
+  customerId: string,
   input: CashbackAdjustmentInput,
-): Promise<ActionResult<LedgerEntry>> {
-  await delay();
-  const reason = input.reason.trim();
-  const signed = input.direction === "add" ? input.amount : -input.amount;
-  if (!Number.isInteger(input.amount) || input.amount <= 0) {
-    return { ok: false, error: "Summani kiriting.", fieldErrors: { amount: "Summani kiriting." } };
+  key: string,
+  csrf: string,
+): Promise<ActionResult<CashbackAdjustment>> {
+  const guard = await guardAction(csrf);
+  if (!guard.ok) return guard;
+  const parsed = adjustmentSchema.safeParse({ customerId, input, key });
+  if (!parsed.success) {
+    const failure = fieldErrorsFrom(parsed.error);
+    // The dialog shows field errors under `amount` / `reason` (not `input.amount`).
+    failure.fieldErrors = Object.fromEntries(
+      Object.entries(failure.fieldErrors ?? {}).map(([path, message]) => [
+        path.replace(/^input\./, ""),
+        message,
+      ]),
+    );
+    return failure;
   }
-  if (reason.length < 3) {
-    return {
-      ok: false,
-      error: "Sababni kiriting.",
-      fieldErrors: { reason: "Kamida 3 ta belgi kiriting." },
-    };
-  }
-  if (currentBalance + signed < 0) {
-    return {
-      ok: false,
-      error: "Balans manfiy bo‘lib qoladi.",
-      fieldErrors: { amount: "Balansdan ko‘p ayirib bo‘lmaydi." },
-    };
-  }
-  return {
-    ok: true,
-    data: {
-      id: `adj-${crypto.randomUUID()}`,
-      at: referenceNow().toISOString(),
-      kind: "adjustment",
-      source: "Administrator",
-      note: reason,
-      amount: signed,
-    },
-  };
+  if ((await dataSource()) === "api") return apiMutation("adjustCashback");
+  return mock.adjustCashback(parsed.data.customerId, parsed.data.input);
 }

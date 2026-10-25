@@ -1,32 +1,38 @@
+"use server";
+
+import { z } from "zod";
+
+import { apiMutation, fieldErrorsFrom, guardAction, idempotencyKeySchema } from "./action-guard";
+import type { DayAppointment } from "./appointments";
+import * as mock from "./mock/appointments.actions";
+import { dataSource } from "./source";
+import type { ActionResult } from "./types";
+
 /**
- * Appointment status changes from the admin schedule.
- *
- * Demo mode: checks the transition and returns the updated appointment after
- * a short delay; nothing is persisted or sent. With the API this becomes a
- * Server Action posting to `POST /api/v1/admin/appointments/{id}/{action}/`
+ * Appointment status changes from the admin schedule (contract §2.9). The
+ * mock body lives in `./mock/appointments.actions.ts`; the api branch (F2)
+ * posts to `appointments/{id}/{confirm|reject|attend}/` with `Idempotency-Key`
  * (the backend sends the customer's push notification).
  */
-import { appointmentActions, type Appointment, type AppointmentStatus } from "@/domain/appointment";
-
-import type { ActionResult } from "./types";
 
 export type AppointmentAction = "confirm" | "reject" | "attend";
 
-const NEXT_STATUS: Record<AppointmentAction, AppointmentStatus> = {
-  confirm: "confirmed",
-  reject: "rejected",
-  attend: "attended",
-};
+const schema = z.object({
+  id: z.string().trim().min(1).max(64),
+  action: z.enum(["confirm", "reject", "attend"]),
+  key: idempotencyKeySchema,
+});
 
-const delay = (ms = 450) => new Promise((resolve) => setTimeout(resolve, ms));
-
-export async function updateAppointment<T extends Appointment>(
-  appointment: T,
+export async function updateAppointment(
+  id: string,
   action: AppointmentAction,
-): Promise<ActionResult<T>> {
-  await delay();
-  if (!appointmentActions(appointment.status).includes(action)) {
-    return { ok: false, error: "Bu amal ushbu holatda mumkin emas." };
-  }
-  return { ok: true, data: { ...appointment, status: NEXT_STATUS[action] } };
+  key: string,
+  csrf: string,
+): Promise<ActionResult<DayAppointment>> {
+  const guard = await guardAction(csrf);
+  if (!guard.ok) return guard;
+  const parsed = schema.safeParse({ id, action, key });
+  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  if ((await dataSource()) === "api") return apiMutation("updateAppointment");
+  return mock.updateAppointment(parsed.data.id, parsed.data.action);
 }

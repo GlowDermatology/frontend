@@ -58,3 +58,50 @@ export type ApiBannerResults = Schemas["BannerResults"];
 export type ApiJob = Schemas["Job"];
 export type ApiJobState = Schemas["JobStateEnum"];
 export type ApiBillzImportRequest = Partial<Schemas["BillzImportRequest"]>;
+
+/* --- Appointments (contract §2.9) --- */
+
+export type ApiDaySchedule = Schemas["DaySchedule"];
+export type ApiSpecialistDay = Schemas["SpecialistDay"];
+export type ApiDayBlock = Schemas["DayBlock"];
+export type ApiAppointmentItem = Schemas["AppointmentItem"];
+export type ApiPendingSummary = Schemas["PendingSummary"];
+export type ApiAppointmentsMeta = Schemas["AppointmentsMeta"];
+export type ApiBookingSpecialist = Schemas["BookingSpecialist"];
+/**
+ * `POST appointments/`. The generated schema marks `note` required, the
+ * contract makes it optional (≤300); the action always sends a string.
+ */
+export type ApiAppointmentCreate = Schemas["AppointmentCreateRequest"];
+export type ApiAppointmentReschedule = Schemas["AppointmentRescheduleRequest"];
+export type ApiAppointmentCancel = Partial<Schemas["AppointmentCancelRequest"]>;
+
+/* --- Notifications, templates, segments (contract §2.8) --- */
+
+export type ApiNotificationRecord = Schemas["NotificationRecord"];
+export type ApiPaginatedNotifications = Schemas["PaginatedNotificationRecordList"];
+export type ApiNotificationMeta = Schemas["NotificationMeta"];
+export type ApiStatusTemplate = Schemas["StatusTemplate"];
+export type ApiTemplateStatus = Schemas["TemplateStatusEnum"];
+export type ApiTemplateUpdate = Schemas["TemplateUpdateRequest"];
+export type ApiSegment = Schemas["Segment"];
+export type ApiSegmentRules = Schemas["SegmentRules"];
+export type ApiSegmentWrite = Schemas["SegmentWriteRequest"];
+export type ApiSegmentPatch = Partial<Schemas["PatchedSegmentWriteRequest"]>;
+export type ApiPaginatedSegments = Schemas["PaginatedSegmentList"];
+export type ApiCustomerListItem = Schemas["CustomerListItem"];
+export type ApiPaginatedCustomers = Schemas["PaginatedCustomerListItemList"];
+
+/* --- Shell: settings, audit log, nav counts (contract §2.10, §2.11, §2.13) --- */
+
+export type ApiSettings = Schemas["Settings"];
+export type ApiSettingsPatch = Omit<
+  Partial<Schemas["PatchedSettingsPatchRequest"]>,
+  "pickup_address"
+> & {
+  pickup_address?: Partial<Record<"uz" | "ru" | "en", string>>;
+};
+export type ApiAuditEntry = Schemas["AuditEntry"];
+export type ApiPaginatedAuditLog = Schemas["PaginatedAuditEntryList"];
+export type ApiNavCounts = Schemas["NavCounts"];
+export type ApiActor = Schemas["Actor"];

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { apiExport } from "./api/catalog";
+import { apiExportPath } from "./api/admin";
 import type { QueryValue } from "./api/client";
 import { isApiError } from "./api/errors";
 import {
@@ -23,8 +23,16 @@ import { dataSource } from "./source";
  */
 
 export interface ExportRouteOptions {
-  resource: "products" | "categories" | "banners";
-  /** Contract §1.8 `<name>`: `mahsulotlar`, `kategoriyalar`, `bannerlar`. */
+  /**
+   * The exportable list, as a path under the admin base without the slashes
+   * around it: `products`, `categories`, `banners`, `segments`,
+   * `segments/1/members`, `audit-log`.
+   */
+  resource: string;
+  /**
+   * Contract §1.8 `<name>`: `mahsulotlar`, `kategoriyalar`, `bannerlar`,
+   * `guruhlar`, `guruh-azolari`, `harakatlar-jurnali`.
+   */
   name: string;
   format: ExportFormat;
   /**
@@ -61,9 +69,9 @@ export async function exportRoute(options: ExportRouteOptions): Promise<Response
     typeof options.apiParams === "function" ? await options.apiParams() : options.apiParams;
   let upstream: Response;
   try {
-    upstream = await apiExport(
+    upstream = await apiExportPath(
       session.token,
-      options.resource,
+      `${options.resource}/`,
       { ...apiParams, export: options.format },
       options.signal,
     );

@@ -21,3 +21,14 @@ export function nullToUndefined<T>(value: T | null | undefined): T | undefined {
 export function isoOrUndefined(value: string | null | undefined): string | undefined {
   return value ? value : undefined;
 }
+
+/** An instant as the API spells it: seconds precision with the Tashkent offset (`…T10:00:00+05:00`). */
+export function tashkentIso(input: string | Date): string {
+  const ms = typeof input === "string" ? Date.parse(input) : input.getTime();
+  return `${new Date(ms + 5 * 3_600_000).toISOString().slice(0, 19)}+05:00`;
+}
+
+/** `Actor | null` (contract §2.0) → the display name, `null` for the system. */
+export function actorName(actor: { display_name: string } | null | undefined): string | null {
+  return actor ? actor.display_name || null : null;
+}

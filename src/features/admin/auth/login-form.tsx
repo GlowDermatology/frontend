@@ -30,6 +30,7 @@ export function LoginForm({ next, csrf }: LoginFormProps) {
             {...control}
             name="email"
             type="email"
+            defaultValue={state.email ?? ""}
             autoComplete="username"
             inputMode="email"
             required

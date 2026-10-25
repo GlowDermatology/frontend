@@ -20,6 +20,8 @@ import { safeNext } from "./auth/next-param";
 
 export interface LoginState {
   error: string | null;
+  /** Echoed back so the field keeps its value after React resets the form. */
+  email?: string;
 }
 
 const loginSchema = z.object({
@@ -51,13 +53,15 @@ function field(formData: FormData, name: string): string | undefined {
  * refresh and (rotated) csrf cookies and redirects to the validated `next`.
  */
 export async function login(_previous: LoginState, formData: FormData): Promise<LoginState> {
+  const email = field(formData, "email") ?? "";
+  const fail = (error: string): LoginState => ({ error, email });
   const parsed = loginSchema.safeParse({
-    email: field(formData, "email"),
+    email,
     password: field(formData, "password"),
     next: field(formData, "next"),
     csrf: field(formData, "csrf"),
   });
-  if (!parsed.success) return { error: MESSAGES.invalidForm };
+  if (!parsed.success) return fail(MESSAGES.invalidForm);
   const next = safeNext(parsed.data.next);
 
   // Mock mode has no sessions: the admin is open.
@@ -69,7 +73,7 @@ export async function login(_previous: LoginState, formData: FormData): Promise<
   // Double-submit check: the proxy minted `gd_csrf` when the page was served
   // and the form echoes it. A stale or missing cookie means "reload".
   if (!csrfMatches(store.get(names.csrf)?.value, parsed.data.csrf)) {
-    return { error: MESSAGES.staleForm };
+    return fail(MESSAGES.staleForm);
   }
 
   let data;
@@ -77,10 +81,10 @@ export async function login(_previous: LoginState, formData: FormData): Promise<
     data = (await apiLogin({ email: parsed.data.email, password: parsed.data.password })).data;
   } catch (error) {
     if (!isApiError(error)) throw error;
-    if (error.status === 401) return { error: MESSAGES.invalidCredentials };
-    if (error.status === 429) return { error: MESSAGES.throttled(error.retryAfter) };
-    if (error.status === 0 || error.status >= 500) return { error: MESSAGES.unreachable };
-    return { error: error.body.message };
+    if (error.status === 401) return fail(MESSAGES.invalidCredentials);
+    if (error.status === 429) return fail(MESSAGES.throttled(error.retryAfter));
+    if (error.status === 0 || error.status >= 500) return fail(MESSAGES.unreachable);
+    return fail(error.body.message);
   }
 
   const nowMs = Date.now();
@@ -97,7 +101,7 @@ export async function login(_previous: LoginState, formData: FormData): Promise<
     nowMs,
   });
   // Django answered 200 with a token we cannot use: treat it like an outage.
-  if (!access || !refresh) return { error: MESSAGES.unreachable };
+  if (!access || !refresh) return fail(MESSAGES.unreachable);
 
   setCookie(store, access);
   setCookie(store, refresh);

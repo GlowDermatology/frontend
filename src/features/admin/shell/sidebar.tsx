@@ -3,20 +3,26 @@ import { Suspense } from "react";
 
 import { CountPill } from "@/components/ui/badge";
 import { Icon } from "@/components/ui/icon";
-import { getOrderStatusCounts } from "@/data/orders";
-import { getPendingAppointments } from "@/data/appointments";
+import { getNavCounts } from "@/data/shell";
 import { cn } from "@/lib/cn";
 
 import { BillzStatus, BillzStatusFallback } from "./billz-status";
 import { NAV_ITEMS, type AdminSection, type NavItem } from "./nav-items";
 import { SidebarUser, SidebarUserFallback } from "./sidebar-user";
 
-/** Count of work waiting for the admin; streamed so it never blocks the shell. */
+/**
+ * Count of work waiting for the admin (`nav-counts/`, one call per request);
+ * streamed inside `<Suspense>` so it never blocks the shell. The pill sits at
+ * the end of a fixed-height row whose label already takes the free width, so
+ * its arrival does not shift the layout.
+ */
 async function NavCount({ kind }: { kind: NonNullable<NavItem["badge"]> }) {
-  const count =
-    kind === "orders"
-      ? (await getOrderStatusCounts({ period: "all" })).processing
-      : (await getPendingAppointments()).count;
+  const counts = await getNavCounts();
+  const count = counts
+    ? kind === "orders"
+      ? counts.ordersProcessing
+      : counts.appointmentsPending
+    : 0;
   if (count === 0) return null;
   return (
     <>

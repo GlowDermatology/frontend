@@ -7,11 +7,11 @@ import { AdminShell } from "@/features/admin/shell/admin-shell";
 
 export const metadata: Metadata = { title: "Sozlamalar" };
 
-export default function SettingsPage() {
+export default function SettingsPage({ searchParams }: PageProps<"/admin/settings">) {
   return (
     <AdminShell section="settings">
       <Suspense fallback={<PageSkeleton />}>
-        <SettingsContent />
+        <SettingsContent searchParams={searchParams} />
       </Suspense>
     </AdminShell>
   );

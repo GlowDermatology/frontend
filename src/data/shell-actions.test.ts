@@ -55,7 +55,7 @@ import {
   removeSegmentMember,
   updateSegment,
 } from "./segments.actions";
-import { changePassword, updateSettings } from "./settings.actions";
+import { changePassword, unlinkSocialAccount, updateSettings } from "./settings.actions";
 
 const KEY = "6f1c2a0e-9b8d-4c37-8a1e-2f3b4c5d6e7f";
 const CSRF = "csrf-token";
@@ -692,5 +692,48 @@ describe("settings and password", () => {
       fieldErrors: { currentPassword: "Joriy parol noto‘g‘ri." },
     });
     expect(refresh).not.toHaveBeenCalled();
+  });
+});
+
+describe("unlinking a social sign-in provider", () => {
+  it("refuses an unknown provider and a missing csrf token before any call", async () => {
+    expect(await unlinkSocialAccount("github", CSRF)).toMatchObject({
+      ok: false,
+      fieldErrors: { "": "Ruxsat etilmagan qiymat." },
+    });
+    expect(await unlinkSocialAccount("google", "")).toMatchObject({ ok: false, code: "csrf" });
+    expect(verifyStaff).toHaveBeenCalledTimes(1);
+  });
+
+  it("answers 404 in demo mode (the demo account links nothing)", async () => {
+    expect(await unlinkSocialAccount("google", CSRF)).toEqual({
+      ok: false,
+      error: "Topilmadi.",
+      code: "not_found",
+    });
+  });
+
+  it("sends DELETE auth/oauth/{provider}/ without a key and refreshes the route", async () => {
+    process.env.GLOWDERMA_DATA_SOURCE = "api";
+    verifyStaff.mockResolvedValue({ ok: true, mode: "api", token: "t", sid: null });
+    apiFetch.mockResolvedValueOnce(respond(204, undefined));
+    expect(await unlinkSocialAccount("facebook", CSRF)).toEqual({
+      ok: true,
+      data: { unlinked: "facebook" },
+    });
+    expect(apiFetch).toHaveBeenCalledWith(
+      "/api/v1/admin/auth/oauth/facebook/",
+      expect.objectContaining({ method: "DELETE", token: "t" }),
+    );
+    expect(apiFetch.mock.calls[0]![1]).not.toHaveProperty("idempotencyKey");
+    expect(refresh).toHaveBeenCalledTimes(1);
+    apiFetch.mockRejectedValueOnce(
+      apiError(404, { code: "not_found", message: "Topilmadi.", errors: [], request_id: "r" }),
+    );
+    expect(await unlinkSocialAccount("google", CSRF)).toEqual({
+      ok: false,
+      error: "Topilmadi.",
+      code: "not_found",
+    });
   });
 });

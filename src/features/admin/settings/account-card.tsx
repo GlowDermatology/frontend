@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +10,7 @@ import { AlertDialog, AlertDialogCancel } from "@/components/ui/dialog";
 import { Field, TextInput } from "@/components/ui/field";
 import { Icon } from "@/components/ui/icon";
 import { useToast } from "@/components/ui/toast";
-import { changePassword } from "@/data/settings.actions";
+import { changePassword, unlinkSocialAccount } from "@/data/settings.actions";
 import { PASSWORD_MIN, type ChangePasswordValues } from "@/data/settings.schema";
 import type { StaffAccount } from "@/domain/settings";
 import { formatDateTimeShort } from "@/lib/format";
@@ -17,28 +18,39 @@ import { formatDateTimeShort } from "@/lib/format";
 import { runAction } from "../shared/action-client";
 import { partitionFieldErrors } from "../shared/field-errors";
 import { readCsrfCookie } from "../shared/csrf";
-import { useNotConnected } from "../shell/not-connected";
 import { othersLogoutNotice } from "./others-logout";
+import { socialRows, type SocialProviderOption } from "./social-rows";
 
-const PROVIDERS = [
-  { id: "google", label: "Google" },
-  { id: "facebook", label: "Facebook" },
-] as const;
+/** A link flow's outcome, verified server-side from the signed `?oauth=` token. */
+export interface SocialNotice {
+  kind: "error" | "linked" | "demo";
+  /** Provider label ("Google"). */
+  provider: string;
+  message: string;
+}
 
 const EMPTY: ChangePasswordValues = { currentPassword: "", newPassword: "", confirmPassword: "" };
 const PASSWORD_FIELDS = Object.keys(EMPTY);
 
+interface AccountCardProps {
+  account: StaffAccount | null;
+  /** Social sign-in providers enabled on this server (`GLOWDERMA_OAUTH_PROVIDERS`). */
+  providers?: SocialProviderOption[];
+  notice?: SocialNotice | null;
+}
+
 /**
  * The signed-in staff member (contract §2.1): password change through a
  * Server Action (`auth/change-password/`; the other sessions are revoked,
- * this one stays), the linked social sign-in providers from `auth/me/`, and
- * "sign out other devices" through the logout route with `scope=others`.
- * Linking and unlinking Google/Facebook need the OAuth start route, which is
- * not built yet, so those buttons say so.
+ * this one stays), the social sign-in providers — "Bog‘lash" starts the
+ * OAuth link flow (`/admin/auth/oauth/{provider}/start?intent=link`, back
+ * here with a signed notice), "Uzish" asks for confirmation and calls
+ * `DELETE auth/oauth/{provider}/` through a Server Action — and "sign out
+ * other devices" through the logout route with `scope=others`.
  */
-export function AccountCard({ account }: { account: StaffAccount | null }) {
+export function AccountCard({ account, providers = [], notice = null }: AccountCardProps) {
   const toast = useToast();
-  const notConnected = useNotConnected();
+  const router = useRouter();
   const [values, setValues] = useState(EMPTY);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -46,7 +58,64 @@ export function AccountCard({ account }: { account: StaffAccount | null }) {
   const inFlight = useRef(false);
   const [othersOpen, setOthersOpen] = useState(false);
   const [csrf, setCsrf] = useState("");
+  // Linked providers as last loaded, or as the last unlink left them (mock
+  // mode keeps the local change; api mode re-renders with `auth/me/`).
+  const [source, setSource] = useState(account);
+  const [linked, setLinked] = useState(account?.linkedProviders ?? []);
+  if (source !== account) {
+    setSource(account);
+    setLinked(account?.linkedProviders ?? []);
+  }
+  const [unlinkTarget, setUnlinkTarget] = useState<SocialProviderOption | null>(null);
+  const [unlinking, setUnlinking] = useState(false);
+  const unlinkInFlight = useRef(false);
+  /** The row whose action should take focus once the confirmation closes. */
+  const focusRow = useRef<string | null>(null);
+  const rows = socialRows(providers, linked);
 
+  // A link flow's outcome (the callback lands here with `?oauth=`): toast it
+  // once and drop the token from the URL so a reload does not repeat it.
+  useEffect(() => {
+    if (!notice) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("oauth");
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}`);
+    toast(
+      notice.kind === "linked"
+        ? { tone: "success", title: notice.message }
+        : notice.kind === "demo"
+          ? {
+              tone: "info",
+              title: `${notice.provider} hisobi bog‘lanmadi`,
+              description: notice.message,
+            }
+          : {
+              tone: "info",
+              title: `${notice.provider} hisobini bog‘lab bo‘lmadi`,
+              description: notice.message,
+            },
+    );
+  }, [notice, toast]);
+
+  const confirmUnlink = async () => {
+    if (!unlinkTarget || unlinkInFlight.current) return;
+    unlinkInFlight.current = true;
+    setUnlinking(true);
+    const target = unlinkTarget;
+    const result = await runAction((token) => unlinkSocialAccount(target.id, token));
+    unlinkInFlight.current = false;
+    setUnlinking(false);
+    focusRow.current = target.id;
+    setUnlinkTarget(null);
+    if (!result.ok) {
+      toast({ tone: "info", title: "Amal bajarilmadi", description: result.error });
+      // 404: the identity is already gone (another tab, another admin) — re-read the card.
+      if (result.code === "not_found") router.refresh();
+      return;
+    }
+    setLinked((current) => current.filter((id) => id !== target.id));
+    toast({ title: `${target.label} hisobi uzildi` });
+  };
   // The logout route's `scope=others` outcome (a full page load back here):
   // confirm only a real success; a failure says the sessions are still open.
   useEffect(() => {
@@ -146,36 +215,50 @@ export function AccountCard({ account }: { account: StaffAccount | null }) {
       <span aria-hidden="true" className="h-px bg-line" />
 
       <div className="flex flex-col gap-2">
-        <h3 className="m-0 text-label text-ink">Ijtimoiy tarmoq orqali kirish</h3>
-        <ul className="m-0 flex list-none flex-col gap-2 p-0">
-          {PROVIDERS.map((provider) => {
-            const linked = account?.linkedProviders.includes(provider.id) ?? false;
-            return (
+        <h3 id="social-title" className="m-0 text-label text-ink">
+          Ijtimoiy tarmoq orqali kirish
+        </h3>
+        {rows.length === 0 ? (
+          <p className="m-0 text-body-sm text-ink-muted">
+            Google yoki Facebook orqali kirish bu serverda yoqilmagan.
+          </p>
+        ) : (
+          <ul aria-labelledby="social-title" className="m-0 flex list-none flex-col gap-2 p-0">
+            {rows.map((row) => (
               <li
-                key={provider.id}
+                key={row.id}
                 className="flex items-center justify-between gap-3 rounded-md border border-line px-3.5 py-2.5"
               >
                 <span className="flex items-center gap-2 text-body-sm font-semibold text-ink">
-                  {provider.label}
-                  <Badge tone={linked ? "success" : "neutral"}>
-                    {linked ? "Bog‘langan" : "Bog‘lanmagan"}
+                  {row.label}
+                  <Badge tone={row.linked ? "success" : "neutral"}>
+                    {row.linked ? "Bog‘langan" : "Bog‘lanmagan"}
                   </Badge>
                 </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    notConnected(
-                      `${provider.label} hisobini ${linked ? "uzish" : "bog‘lash"} uchun OAuth oqimi hali qurilmagan.`,
-                    )
-                  }
-                >
-                  {linked ? "Uzish" : "Bog‘lash"}
-                </Button>
+                {row.linked ? (
+                  <Button
+                    id={`social-action-${row.id}`}
+                    variant="outline"
+                    size="sm"
+                    aria-label={`${row.label} hisobini uzish`}
+                    onClick={() => setUnlinkTarget(row)}
+                  >
+                    Uzish
+                  </Button>
+                ) : row.linkHref ? (
+                  <a
+                    id={`social-action-${row.id}`}
+                    href={row.linkHref}
+                    aria-label={`${row.label} hisobini bog‘lash`}
+                    className={buttonStyles({ variant: "outline", size: "sm" })}
+                  >
+                    Bog‘lash
+                  </a>
+                ) : null}
               </li>
-            );
-          })}
-        </ul>
+            ))}
+          </ul>
+        )}
       </div>
 
       <span aria-hidden="true" className="h-px bg-line" />
@@ -198,6 +281,47 @@ export function AccountCard({ account }: { account: StaffAccount | null }) {
           Boshqa qurilmalardan chiqish
         </Button>
       </div>
+
+      <AlertDialog
+        open={unlinkTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && !unlinkInFlight.current) {
+            focusRow.current = unlinkTarget?.id ?? null;
+            setUnlinkTarget(null);
+          }
+        }}
+        onCloseAutoFocus={(event) => {
+          // The "Uzish" button is replaced by "Bog‘lash" after a success: focus the row's action.
+          const target =
+            focusRow.current && document.getElementById(`social-action-${focusRow.current}`);
+          focusRow.current = null;
+          if (target) {
+            event.preventDefault();
+            target.focus();
+          }
+        }}
+        title={`${unlinkTarget?.label ?? ""} hisobini uzasizmi?`}
+        description={
+          <p className="m-0 text-[14px] leading-5 text-ink">
+            Bu hisob orqali endi kirib bo‘lmaydi. Keyin qayta bog‘lash mumkin; email va parol bilan
+            kirish o‘zgarmaydi.
+          </p>
+        }
+      >
+        <div className="mt-1.5 flex flex-wrap justify-end gap-2">
+          <AlertDialogCancel className={buttonStyles({ variant: "outline" })} disabled={unlinking}>
+            Orqaga
+          </AlertDialogCancel>
+          <Button
+            variant="destructive"
+            onClick={confirmUnlink}
+            disabled={unlinking}
+            aria-busy={unlinking}
+          >
+            {unlinking ? "Uzilmoqda…" : "Uzish"}
+          </Button>
+        </div>
+      </AlertDialog>
 
       <AlertDialog
         open={othersOpen}

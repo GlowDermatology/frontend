@@ -5,6 +5,7 @@ import { AUDIT_ORDERINGS, type AuditFilters } from "@/domain/audit";
 import {
   firstParam,
   oneOf,
+  parseSearchParam,
   positiveInt,
   toQueryString,
   type SearchParams,
@@ -28,7 +29,7 @@ export function parseAuditFilters(params: SearchParams): AuditFilters {
   const actor = firstParam(params, "actor");
   const action = firstParam(params, "action");
   const objectType = firstParam(params, "object_type");
-  const objectId = firstParam(params, "object_id")?.trim();
+  const objectId = parseSearchParam(firstParam(params, "object_id"));
   return {
     actor: actor && /^\d{1,12}$/.test(actor) && Number(actor) > 0 ? actor : undefined,
     action: action && ACTION.test(action) ? action : undefined,

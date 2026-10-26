@@ -10,6 +10,7 @@ import {
   positiveInt,
   toQueryString,
   type SearchParams,
+  parseSearchParam,
 } from "../shared/url-state";
 
 export const PRODUCTS_PAGE_SIZE = 8;
@@ -40,7 +41,7 @@ export function withKnownCategory<Q extends { category?: string }>(
 
 export function parseProductQuery(params: SearchParams): ProductListQuery {
   return {
-    q: firstParam(params, "q")?.slice(0, 64) || undefined,
+    q: parseSearchParam(firstParam(params, "q")),
     category: parseCategoryParam(firstParam(params, "category")),
     status: oneOf(firstParam(params, "status"), STATUSES),
     promo: oneOf(firstParam(params, "promo"), PROMOS),

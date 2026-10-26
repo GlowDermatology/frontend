@@ -11,6 +11,7 @@ import {
   positiveInt,
   toQueryString,
   type SearchParams,
+  parseSearchParam,
 } from "../shared/url-state";
 
 export const PAGE_SIZES = [6, 10, 25, 50] as const;
@@ -38,7 +39,7 @@ export function parseOrderQuery(params: SearchParams): OrderListQuery {
     customer:
       customer && /^\d{1,12}$/.test(customer) && Number(customer) > 0 ? customer : undefined,
     status: oneOf(firstParam(params, "status"), ORDER_STATUSES),
-    q: firstParam(params, "q")?.slice(0, 64) || undefined,
+    q: parseSearchParam(firstParam(params, "q")),
     period: oneOf(firstParam(params, "period"), PERIODS) ?? DEFAULT_PERIOD,
     fulfilment: oneOf(firstParam(params, "fulfilment"), FULFILMENTS),
     payment: oneOf(firstParam(params, "payment"), PAYMENTS),

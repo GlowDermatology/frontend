@@ -54,3 +54,18 @@ export function isoDateParam(value: string | undefined): string | undefined {
   const ms = Date.parse(`${value}T00:00:00Z`);
   return !Number.isNaN(ms) && new Date(ms).toISOString().slice(0, 10) === value ? value : undefined;
 }
+
+/**
+ * Free text from the URL as the API takes it: control characters (U+0000 is
+ * a 400 `null_characters_not_allowed` in Django, which would fail the whole
+ * board) are removed before trimming, and the result is cut to `max`
+ * characters. Nothing left → `undefined` (no filter).
+ */
+export function parseSearchParam(value: string | undefined, max = 64): string | undefined {
+  return (
+    value
+      ?.replace(/\p{Cc}/gu, "")
+      .trim()
+      .slice(0, max) || undefined
+  );
+}

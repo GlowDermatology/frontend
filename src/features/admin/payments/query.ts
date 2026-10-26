@@ -16,6 +16,7 @@ import {
   positiveInt,
   toQueryString,
   type SearchParams,
+  parseSearchParam,
 } from "../shared/url-state";
 
 const STATUSES: ReadonlyArray<PaymentStatus> = ["pending", "paid", "failed", "refunded"];
@@ -39,7 +40,7 @@ export function parsePaymentQuery(params: SearchParams): PaymentListQuery {
   let dateTo = isoDateParam(firstParam(params, "date_to"));
   if (dateFrom && dateTo && dateFrom > dateTo) [dateFrom, dateTo] = [dateTo, dateFrom];
   return {
-    q: firstParam(params, "q")?.trim().slice(0, 64) || undefined,
+    q: parseSearchParam(firstParam(params, "q")),
     status: oneOf(firstParam(params, "status"), STATUSES),
     provider: oneOf(firstParam(params, "provider"), PROVIDERS),
     refund: oneOf(firstParam(params, "refund"), REFUND_FILTERS),

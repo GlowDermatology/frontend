@@ -1,12 +1,12 @@
 import type { Route } from "next";
 
-import { buttonStyles } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { requireStaff } from "@/data/auth";
 import { requestNow } from "@/data/now";
 import { getOrderStatusCounts, listOrders, type OrderPeriod } from "@/data/orders";
 import { formatNumber } from "@/lib/format";
 
+import { ExportMenu } from "../shared/export-menu";
 import { ListTransition } from "../shared/list-transition";
 import { PageHeader } from "../shared/page-header";
 import { Pagination, rangeLabel } from "../shared/pagination";
@@ -37,12 +37,7 @@ export async function OrdersContent({ searchParams }: { searchParams: Promise<Se
       <PageHeader
         eyebrow={`${formatNumber(counts.all)} ta buyurtma`}
         title="Buyurtmalar"
-        actions={
-          <a href={exportHref} download className={buttonStyles({ variant: "secondary" })}>
-            <Icon name="download" size={18} />
-            Eksport: CSV / Excel
-          </a>
-        }
+        actions={<ExportMenu href={exportHref} />}
       />
 
       <StatusTabs query={query} counts={counts} />
@@ -52,7 +47,16 @@ export async function OrdersContent({ searchParams }: { searchParams: Promise<Se
           aria-label="Buyurtmalar ro‘yxati"
           className="overflow-hidden rounded-lg bg-surface-raised shadow-sm"
         >
-          <OrdersToolbar key={query.q ?? ""} query={query} periodLabels={periodLabels} />
+          <OrdersToolbar
+            key={query.q ?? ""}
+            query={query}
+            periodLabels={periodLabels}
+            customerName={
+              query.customer && page.items[0]?.customer.id === query.customer
+                ? page.items[0].customer.name
+                : undefined
+            }
+          />
           {page.items.length > 0 ? (
             <OrdersTable
               orders={page.items}

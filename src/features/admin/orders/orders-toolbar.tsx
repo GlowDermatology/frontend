@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { Icon } from "@/components/ui/icon";
-import { SearchInput } from "@/components/ui/field";
+import { SearchInput, TextInput } from "@/components/ui/field";
 import { SelectMenu } from "@/components/ui/menu";
 import type { OrderListQuery, OrderPeriod } from "@/data/orders";
 import type { FulfilmentMethod, PaymentStatus } from "@/domain/order";
@@ -17,9 +17,19 @@ type All = "all";
 interface OrdersToolbarProps {
   query: OrderListQuery;
   periodLabels: Record<OrderPeriod, string>;
+  /** Name of the customer the list is filtered to (`?customer=`), when known. */
+  customerName?: string;
 }
 
-export function OrdersToolbar({ query, periodLabels }: OrdersToolbarProps) {
+const dateInput = "h-11 w-[150px] text-[14px] tabular-nums";
+
+/**
+ * Filters of the orders list; every change is a URL navigation inside the
+ * list transition. The period menu and the day range are alternatives: a
+ * day picked switches the period to "Barcha sana" (the API ANDs both), and a
+ * period picked clears the days.
+ */
+export function OrdersToolbar({ query, periodLabels, customerName }: OrdersToolbarProps) {
   const { navigate } = useListNavigation();
   const [search, setSearch] = useState(query.q ?? "");
   const lastSubmitted = useRef(query.q ?? "");
@@ -41,8 +51,8 @@ export function OrdersToolbar({ query, periodLabels }: OrdersToolbarProps) {
   return (
     <div className="flex flex-wrap items-center gap-2.5 border-b border-line p-4">
       <SearchInput
-        label="Buyurtma raqami yoki telefon"
-        placeholder="№ yoki telefon raqami"
+        label="Buyurtma raqami, telefon yoki mijoz ismi"
+        placeholder="№, telefon yoki ism"
         value={search}
         onChange={(event) => setSearch(event.target.value)}
         wrapperClassName="max-w-[320px] flex-[1_1_240px] gap-2 bg-transparent px-3"
@@ -56,7 +66,7 @@ export function OrdersToolbar({ query, periodLabels }: OrdersToolbarProps) {
           </>
         }
         value={query.period}
-        onValueChange={(period) => update({ period })}
+        onValueChange={(period) => update({ period, dateFrom: undefined, dateTo: undefined })}
         options={(["today", "week", "month", "all"] as const).map((value) => ({
           value,
           label: periodLabels[value],
@@ -86,6 +96,41 @@ export function OrdersToolbar({ query, periodLabels }: OrdersToolbarProps) {
           })),
         ]}
       />
+      <label className="flex items-center gap-2">
+        <span className="text-body-sm text-ink-muted">Sanadan</span>
+        <TextInput
+          type="date"
+          name="date_from"
+          aria-label="Sanadan"
+          className={dateInput}
+          value={query.dateFrom ?? ""}
+          max={query.dateTo}
+          onChange={(event) => update({ dateFrom: event.target.value || undefined, period: "all" })}
+        />
+      </label>
+      <label className="flex items-center gap-2">
+        <span className="text-body-sm text-ink-muted">gacha</span>
+        <TextInput
+          type="date"
+          name="date_to"
+          aria-label="Sanagacha"
+          className={dateInput}
+          value={query.dateTo ?? ""}
+          min={query.dateFrom}
+          onChange={(event) => update({ dateTo: event.target.value || undefined, period: "all" })}
+        />
+      </label>
+      {query.customer && (
+        <button
+          type="button"
+          onClick={() => update({ customer: undefined })}
+          className="inline-flex h-9 items-center gap-1.5 rounded-full border border-line-strong px-3 text-label text-ink hover:bg-gold-soft"
+        >
+          Mijoz: {customerName ?? `#${query.customer}`}
+          <Icon name="close" size={14} />
+          <span className="sr-only">— filtrni olib tashlash</span>
+        </button>
+      )}
       <span className="flex-1" />
       <button
         type="button"

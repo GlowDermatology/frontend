@@ -3,8 +3,8 @@
  * GENERATED FILE — do not edit by hand. Regenerate with `npm run gen:api`.
  *
  * Source: openapi/schema.yaml of the backend repository
- * Commit: d9843de00bf879f5de74245a654029fb1da739e2
- * Generated: 2026-10-26T19:50:50.988Z (openapi-typescript)
+ * Commit: d4db5cf51c15bd53bf1b68e211af0aa99633b5ee
+ * Generated: 2026-10-26T21:05:49.047Z (openapi-typescript)
  */
 
 export interface paths {

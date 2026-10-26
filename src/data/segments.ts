@@ -6,6 +6,7 @@ import { apiGetSegment, apiListSegments, apiSegmentMembers } from "./api/admin";
 import { isApiError } from "./api/errors";
 import { mapPage } from "./api/mappers/page";
 import { mapSegment, mapSegmentMember } from "./api/mappers/segments";
+import { collectAllPages } from "./api/pages";
 import { requireApiToken } from "./auth";
 import * as mock from "./mock/segments.queries";
 import { dataSource } from "./source";
@@ -54,4 +55,26 @@ export async function listSegmentMembers(id: string, page: number): Promise<Page
     return mapPage(data, mapSegmentMember);
   }
   return mock.listSegmentMembers(id, page, SEGMENTS_PAGE_SIZE);
+}
+
+/** A group as the customers list's filter offers it. */
+export interface SegmentOption {
+  id: string;
+  name: string;
+}
+
+/**
+ * Every group (`GET segments/?page_size=50`, every page, bounded), for the
+ * customers list's group filter. Mock mode: the two seeded groups.
+ */
+export async function listSegmentOptions(): Promise<SegmentOption[]> {
+  if ((await dataSource()) === "api") {
+    const token = await requireApiToken();
+    const rows = await collectAllPages(
+      async (page) => (await apiListSegments(token, { page, page_size: 50 })).data,
+      { pageSize: 50, path: "segments/" },
+    );
+    return rows.map((row) => ({ id: String(row.id), name: row.name }));
+  }
+  return (await mock.listSegments(1, 50)).items.map(({ id, name }) => ({ id, name }));
 }

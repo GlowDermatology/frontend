@@ -1,4 +1,4 @@
-import { ledgerBalance, type LedgerEntry } from "@/domain/cashback";
+import type { LedgerEntry } from "@/domain/cashback";
 
 import { referenceNow } from "../config";
 import type { CashbackAdjustmentInput } from "../customers.actions";
@@ -8,9 +8,10 @@ import { getCustomer } from "./customers.queries";
 
 /**
  * Mock implementation of `src/data/customers.actions.ts`: the customer is
- * looked up by id and the balance comes from the fixture ledger, never from
- * the client. Returns the new entry only — the demo has no authoritative
- * server balance, so the card keeps deriving it from the ledger rows.
+ * looked up by id and the available balance comes from the fixture, never
+ * from the client (a subtraction above it is refused like the backend's
+ * `insufficient_balance`). Returns the new entry only — nothing is
+ * persisted, so the card adds the entry to the balance it already shows.
  */
 
 export async function adjustCashback(
@@ -20,9 +21,8 @@ export async function adjustCashback(
   await delay(500);
   const customer = await getCustomer(customerId);
   if (!customer) return { ok: false, error: "Mijoz topilmadi.", code: "not_found" };
-  const balance = ledgerBalance(customer.ledger);
   const signed = input.direction === "add" ? input.amount : -input.amount;
-  if (balance + signed < 0) {
+  if (input.direction === "subtract" && input.amount > customer.available) {
     return {
       ok: false,
       error: "Balans manfiy bo‘lib qoladi.",

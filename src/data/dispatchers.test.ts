@@ -296,14 +296,6 @@ describe("dispatchers in api mode", () => {
     expect(await d.orders.countFailedShipments()).toBe(0);
     expect(await d.orders.exportOrders({ period: "all", sort: "date_desc" })).toEqual([]);
 
-    expect(await d.customers.getCustomer("5")).toBeNull();
-
-    const cashback = await d.cashback.getCashbackSettings();
-    expect(cashback.policy.tiers).toEqual([]);
-    expect(cashback.versions).toEqual([]);
-    expect(cashback.nextEffectiveFrom).toMatch(/^\d{4}-\d{2}-01T00:00:00\+05:00$/);
-    expect(Number.isNaN(Date.parse(cashback.policy.effectiveFrom))).toBe(false);
-
     expect(await d.dashboard.getDashboard("week")).toEqual({
       range: "week",
       axisNote: "",
@@ -325,7 +317,8 @@ describe("dispatchers in api mode", () => {
     });
 
     const resources = warn.mock.calls.map((call) => String(call[0]).match(/^\[data\] (\w+):/)?.[1]);
-    expect(resources.sort()).toEqual(["cashback", "customers", "dashboard", "orders"]);
+    // customers and cashback are wired (F2c): see customers-cashback.test.ts.
+    expect(resources.sort()).toEqual(["dashboard", "orders"]);
     expect(cachedGet).not.toHaveBeenCalled();
   });
 

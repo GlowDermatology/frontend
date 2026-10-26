@@ -1,11 +1,65 @@
-import type { LedgerEntry } from "@/domain/cashback";
-import type { Customer, CustomerPurchase } from "@/domain/customer";
+import {
+  ledgerBalance,
+  nextTier,
+  rateFor,
+  withBalanceAfter,
+  type LedgerEntry,
+} from "@/domain/cashback";
+import {
+  DELETED_CUSTOMER_LABEL,
+  type Customer,
+  type CustomerPurchase,
+  type CustomerTier,
+} from "@/domain/customer";
 import { formatNumber } from "@/lib/format";
 
-import { MALIKA_LEDGER } from "./cashback";
+import { ACTIVE_POLICY, MALIKA_LEDGER } from "./cashback";
 import { buildOrderDetail, ORDER_SEEDS } from "./orders";
-import { CUSTOMER_IDS, customerRef } from "./people";
+import { CUSTOMER_IDS, CUSTOMERS, customerRef } from "./people";
 import { createRandom } from "./random";
+
+/**
+ * Six accounts deleted by their owners, like the backend seed: generated
+ * customers without online orders (so no order screen changes). Their card
+ * keeps the phone, ledger and purchases; the name is scrubbed.
+ */
+const WITH_ORDERS = new Set(ORDER_SEEDS.map((seed) => seed.customerId));
+export const DELETED_CUSTOMER_IDS: ReadonlySet<string> = new Set(
+  CUSTOMERS.filter((c) => !WITH_ORDERS.has(c.id))
+    .slice(-6)
+    .map((c) => c.id),
+);
+
+/** The card's tier block from the active policy (the backend computes it server-side). */
+function tierFor(lifetime: number): CustomerTier {
+  const { tiers, version } = ACTIVE_POLICY;
+  const next = nextTier(tiers, lifetime);
+  return {
+    percent: rateFor(tiers, lifetime),
+    policyVersion: version,
+    next: next && {
+      percent: next.tier.percent,
+      from: next.tier.from,
+      remaining: next.remaining,
+      progress: next.progress,
+    },
+  };
+}
+
+/** Balance fields and `balanceAfter` from the fixture ledger (no holds in the demo). */
+function withBalances<C extends Omit<Customer, "tier" | "balance" | "held" | "available">>(
+  customer: C,
+): Customer {
+  const balance = ledgerBalance(customer.ledger);
+  return {
+    ...customer,
+    ledger: withBalanceAfter(customer.ledger),
+    tier: tierFor(customer.totals.store + customer.totals.online),
+    balance,
+    held: 0,
+    available: balance,
+  };
+}
 
 const t = (iso: string) => `${iso}+05:00`;
 
@@ -16,6 +70,7 @@ const MALIKA_PURCHASES: CustomerPurchase[] = [
     at: t("2026-10-23T14:05:00"),
     source: "online",
     document: "№10248",
+    orderId: 10248,
     amount: 808_000,
     promoAmount: 240_000,
     cashback: 5_680,
@@ -34,6 +89,7 @@ const MALIKA_PURCHASES: CustomerPurchase[] = [
     at: t("2026-10-18T15:25:00"),
     source: "online",
     document: "№10231",
+    orderId: 10231,
     amount: 314_000,
     promoAmount: 0,
     cashback: 3_140,
@@ -68,7 +124,7 @@ const MALIKA_PURCHASES: CustomerPurchase[] = [
 ];
 
 function malika(): Customer {
-  return {
+  return withBalances({
     ...customerRef(CUSTOMER_IDS.malika),
     status: "active",
     registeredAt: t("2025-03-12T10:20:00"),
@@ -87,7 +143,7 @@ function malika(): Customer {
       lastActiveAt: t("2026-10-24T09:12:00"),
       pushEnabled: true,
     },
-  };
+  });
 }
 
 /** Card for any other customer, derived from their online orders. */
@@ -110,6 +166,7 @@ function fromOrders(id: string): Customer {
         at: order.payment.confirmedAt ?? order.createdAt,
         kind: entry.kind === "reversal" ? "reversal" : entry.kind,
         source: `Buyurtma №${order.id}`,
+        orderId: order.id,
         note:
           entry.kind === "debit"
             ? "To‘lovning bir qismi"
@@ -127,6 +184,7 @@ function fromOrders(id: string): Customer {
       at: order.payment.confirmedAt ?? order.createdAt,
       source: "online",
       document: `№${order.id}`,
+      orderId: order.id,
       amount,
       promoAmount: order.items
         .filter((i) => i.promo)
@@ -163,32 +221,38 @@ function fromOrders(id: string): Customer {
   const last = orders[0];
   const lifetime = store + online;
 
-  return {
+  const deleted = DELETED_CUSTOMER_IDS.has(id);
+  return withBalances({
     ...ref,
-    status: "active",
+    ...(deleted && { name: DELETED_CUSTOMER_LABEL, deletedAt: t("2026-10-05T18:40:00") }),
+    status: deleted ? "deleted" : "active",
     registeredAt: t(
       `2025-${String(random.int(1, 12)).padStart(2, "0")}-${String(random.int(1, 28)).padStart(2, "0")}T12:00:00`,
     ),
     language: random.chance(0.75) ? "uz" : "ru",
-    address: orders.find((o) => o.address)?.address,
+    address: deleted ? undefined : orders.find((o) => o.address)?.address,
     totals: { store, online },
     onlineOrders: { count: orders.length, lastOrderId: last?.id, lastOrderAt: last?.createdAt },
     upcomingAppointments: 0,
-    groups: [
-      ...(orders.length >= 3 ? ["Doimiy mijozlar"] : []),
-      ...(lifetime >= 10_000_000 ? ["10 mln+ xarid"] : []),
-    ],
+    groups: deleted
+      ? []
+      : [
+          ...(orders.length >= 3 ? ["Doimiy mijozlar"] : []),
+          ...(lifetime >= 10_000_000 ? ["10 mln+ xarid"] : []),
+        ],
     ledger,
     purchases,
-    device: {
-      ...(random.chance(0.55)
-        ? { model: "iPhone 13", os: "iOS 18.1" }
-        : { model: "Samsung Galaxy A54", os: "Android 14" }),
-      appVersion: "1.0.0",
-      lastActiveAt: t("2026-10-23T20:15:00"),
-      pushEnabled: random.chance(0.8),
-    },
-  };
+    device: deleted
+      ? undefined
+      : {
+          ...(random.chance(0.55)
+            ? { model: "iPhone 13", os: "iOS 18.1" }
+            : { model: "Samsung Galaxy A54", os: "Android 14" }),
+          appVersion: "1.0.0",
+          lastActiveAt: t("2026-10-23T20:15:00"),
+          pushEnabled: random.chance(0.8),
+        },
+  });
 }
 
 export function buildCustomer(id: string): Customer | null {

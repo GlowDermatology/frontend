@@ -1,58 +1,37 @@
 import "server-only";
 
-import type { CashbackPolicy, PolicyVersion } from "@/domain/cashback";
-import { tashkentParts } from "@/lib/format";
+import { cache } from "react";
 
+import type { CashbackPolicy, PolicyVersion } from "@/domain/cashback";
+
+import { apiCashbackPolicy } from "./api/customers";
+import { mapCashbackSettings } from "./api/mappers/cashback";
+import { requireApiToken } from "./auth";
 import * as mock from "./mock/cashback.queries";
-import { requestNow } from "./now";
-import { dataSource, notWiredYet } from "./source";
+import { dataSource } from "./source";
 
 /**
- * Cashback policy read seam. Dispatches on `dataSource()`: the mock body lives
- * in `./mock/cashback.queries.ts`; the api branch is not wired yet (F2) and
- * returns an empty policy (no tiers, no versions) via `notWiredYet`.
+ * Cashback policy read seam (contract §2.7). Dispatches on `dataSource()`:
+ * the mock body lives in `./mock/cashback.queries.ts`; the api branch reads
+ * `GET cashback/policy/` and maps it with `./api/mappers/cashback.ts`.
  */
 
 export interface CashbackSettings {
+  /** The version in force now (an empty v0 when the backend has none yet). */
   policy: CashbackPolicy;
+  /** A saved version that has not taken effect yet (at most one). */
+  scheduled: CashbackPolicy | null;
+  /** Every version, newest first, superseded ones included. */
   versions: ReadonlyArray<PolicyVersion>;
-  /** When a newly saved version would take effect. */
+  /** When a newly saved version would take effect (start of the next Tashkent month). */
   nextEffectiveFrom: string;
 }
 
-const pad = (n: number) => String(n).padStart(2, "0");
-
-/** `now` as a Tashkent `+05:00` string with seconds precision (contract §1.4). */
-function tashkentIso(now: Date): string {
-  const p = tashkentParts(now);
-  const seconds = Math.floor((((now.getTime() % 60_000) + 60_000) % 60_000) / 1000);
-  return `${p.year}-${pad(p.month + 1)}-${pad(p.day)}T${pad(p.hours)}:${pad(p.minutes)}:${pad(seconds)}+05:00`;
-}
-
-/** First day of the Tashkent month `offset` months after `now`, at midnight. */
-function monthStart(now: Date, offset: number): string {
-  const p = tashkentParts(now);
-  const index = p.year * 12 + p.month + offset;
-  const year = Math.floor(index / 12);
-  const month = String((index % 12) + 1).padStart(2, "0");
-  return `${year}-${month}-01T00:00:00+05:00`;
-}
-
-/** `GET /api/v1/admin/cashback/policy/` */
-export async function getCashbackSettings(): Promise<CashbackSettings> {
+/** `GET /api/v1/admin/cashback/policy/` (deduplicated per render). */
+export const getCashbackSettings = cache(async (): Promise<CashbackSettings> => {
   if ((await dataSource()) === "api") {
-    const now = await requestNow();
-    return notWiredYet("cashback", {
-      policy: {
-        version: 0,
-        effectiveFrom: tashkentIso(now),
-        tiers: [],
-        basis: "before_purchase",
-        earnOnCashbackPaid: false,
-      },
-      versions: [],
-      nextEffectiveFrom: monthStart(now, 1),
-    });
+    const token = await requireApiToken();
+    return mapCashbackSettings((await apiCashbackPolicy(token)).data);
   }
   return mock.getCashbackSettings();
-}
+});

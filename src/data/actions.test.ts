@@ -214,10 +214,6 @@ describe("api mode (endpoints not wired yet)", () => {
     expect(await cancelOrder(10248, "mijoz so‘rovi bilan", KEY, CSRF)).toEqual(notWired);
     expect(await changeOrderStatus(10248, "handed_to_courier", KEY, CSRF)).toEqual(notWired);
     expect(await retryShipment(10248, KEY, CSRF)).toEqual(notWired);
-    expect(await saveCashbackPolicy(ACTIVE_POLICY, KEY, CSRF)).toEqual(notWired);
-    expect(
-      await adjustCashback("5", { direction: "add", amount: 1, reason: "abc" }, KEY, CSRF),
-    ).toEqual(notWired);
     expect(refresh).not.toHaveBeenCalled();
     warn.mockRestore();
   });
@@ -904,6 +900,7 @@ describe("saveCashbackPolicy", () => {
       period: "1-noy 2026 dan",
       active: false,
       scheduled: true,
+      state: "scheduled",
     });
     expect(result.data.warnings).toBeUndefined();
   });
@@ -958,7 +955,7 @@ describe("saveCashbackPolicy", () => {
     );
     expect(badPercent).toMatchObject({
       ok: false,
-      fieldErrors: { "draft.tiers.0.percent": "Foiz 100 dan oshmasin." },
+      fieldErrors: { "tiers.0.percent": "Foiz 100 dan oshmasin." },
     });
     const decimals = await saveCashbackPolicy(
       { ...draft, tiers: [{ id: "a", from: 0, to: null, percent: 1.234 }] },
@@ -966,7 +963,7 @@ describe("saveCashbackPolicy", () => {
       CSRF,
     );
     expect(decimals).toMatchObject({
-      fieldErrors: { "draft.tiers.0.percent": "Ko‘pi bilan 2 ta kasr raqam." },
+      fieldErrors: { "tiers.0.percent": "Ko‘pi bilan 2 ta kasr raqam." },
     });
   });
 });

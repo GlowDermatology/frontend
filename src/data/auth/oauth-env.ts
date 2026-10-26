@@ -20,10 +20,11 @@ import {
  * once per distinct message per process.
  */
 
-const warned = new Set<string>();
-
 export function oauthConfig(): OAuthConfig {
   const config = readOAuthConfig(process.env);
+  // On `globalThis`: the route handlers and the pages are separate bundles.
+  const holder = globalThis as typeof globalThis & { __glowdermaOAuthWarned?: Set<string> };
+  const warned = (holder.__glowdermaOAuthWarned ??= new Set<string>());
   for (const warning of config.warnings) {
     if (warned.has(warning)) continue;
     warned.add(warning);

@@ -9,6 +9,7 @@ export async function CashbackContent() {
   return (
     <CashbackEditor
       policy={settings.policy}
+      scheduled={settings.scheduled}
       versions={settings.versions}
       nextEffectiveFrom={settings.nextEffectiveFrom}
     />

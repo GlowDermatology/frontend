@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState, type ReactNode } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
 
 import { Rings } from "@/components/brand/rings";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,10 @@ import { useToast } from "@/components/ui/toast";
 import { saveCashbackPolicy } from "@/data/cashback.actions";
 import {
   analyzeTiers,
+  basisPoints,
   calculateCashback,
+  formatPercent,
+  tierWarningsText,
   type CashbackPolicy,
   type CashbackTier,
   type PolicyVersion,
@@ -31,6 +34,7 @@ import {
 } from "@/lib/format";
 
 import { runAction } from "../shared/action-client";
+import { partitionFieldErrors } from "../shared/field-errors";
 import { useIdempotencyKey } from "../shared/idempotency";
 
 /** The sample customer from the design: 19.5 mln lifetime, 1 mln purchase. */
@@ -50,12 +54,21 @@ interface TierDraft {
 }
 
 const toDraft = (tiers: ReadonlyArray<CashbackTier>): TierDraft[] =>
-  tiers.map((t) => ({ ...t, percent: String(t.percent).replace(".", ",") }));
+  tiers.map((t) => ({ ...t, percent: formatPercent(t.percent) }));
 
+/**
+ * The typed percent as a number with at most two decimals (read as integer
+ * basis points, so "0,57" is exactly 57 bp); a trailing separator while
+ * typing ("1,") counts as the whole number. `NaN` when it is not a percent
+ * in (0, 100] with ≤ 2 decimals.
+ */
 const parsePercent = (text: string) => {
-  const value = Number.parseFloat(text.replace(",", "."));
-  return Number.isFinite(value) ? value : Number.NaN;
+  const bp = basisPoints(text.trim().replace(/[.,]$/, ""));
+  return bp === null ? Number.NaN : bp / 100;
 };
+
+/** Server field paths the editor shows next to a control (contract §2.7). */
+const tierField = (index: number, key: "from" | "to" | "percent") => `tiers.${index}.${key}`;
 
 const digits = (text: string) => text.replace(/\D/g, "").slice(0, 12);
 
@@ -71,20 +84,38 @@ function monthStart(iso: string, offset: number): string {
 const mln = (value: number) => formatMillions(value);
 
 interface CashbackEditorProps {
+  /** The version in force. */
   policy: CashbackPolicy;
+  /** A saved version that has not started yet; a new save supersedes it. */
+  scheduled: CashbackPolicy | null;
   versions: ReadonlyArray<PolicyVersion>;
+  /** Start of the next Tashkent month: the default `effective_from`. */
   nextEffectiveFrom: string;
 }
 
 export function CashbackEditor({
   policy,
+  scheduled: initialScheduled,
   versions: initialVersions,
   nextEffectiveFrom,
 }: CashbackEditorProps) {
   const toast = useToast();
   const idBase = useId();
   const [baseline, setBaseline] = useState(policy);
+  // The history and the scheduled version follow the server after a save
+  // (api mode re-renders the route); the draft itself stays as edited.
+  const [source, setSource] = useState({ initialVersions, initialScheduled });
   const [versions, setVersions] = useState(initialVersions);
+  const [scheduledPolicy, setScheduledPolicy] = useState(initialScheduled);
+  if (source.initialVersions !== initialVersions || source.initialScheduled !== initialScheduled) {
+    setSource({ initialVersions, initialScheduled });
+    setVersions(initialVersions);
+    setScheduledPolicy(initialScheduled);
+  }
+  // Field errors from the last save (`tiers.{i}.from`, `effectiveFrom`, …), cleared on edit.
+  const [serverErrors, setServerErrors] = useState<Record<string, string>>({});
+  const [formError, setFormError] = useState<string | null>(null);
+  const inFlight = useRef(false);
   const [tiers, setTiers] = useState(() => toDraft(policy.tiers));
   const [basis, setBasis] = useState<RateBasis>(policy.basis);
   const [earnOnCashbackPaid, setEarnOnCashbackPaid] = useState(policy.earnOnCashbackPaid);
@@ -103,61 +134,108 @@ export function CashbackEditor({
   const rules = { basis, earnOnCashbackPaid, tiers: parsed };
   const sample = calculateCashback(SAMPLE, rules);
 
-  const update = (id: string, patch: Partial<TierDraft>) =>
+  const clearServerErrors = () => {
+    setServerErrors({});
+    setFormError(null);
+  };
+
+  const update = (id: string, patch: Partial<TierDraft>) => {
+    clearServerErrors();
     setTiers((current) => current.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+  };
 
   const addTier = () => {
     const sorted = [...parsed].sort((a, b) => a.from - b.from);
     const top = sorted[sorted.length - 1];
     const from = top ? (top.to ?? top.from + 10_000_000) : 0;
-    const percent = top && Number.isFinite(top.percent) ? top.percent + 1 : 1;
+    const percent = top && Number.isFinite(top.percent) ? Math.min(100, top.percent + 1) : 1;
+    clearServerErrors();
     setTiers((current) => [
       ...current,
       {
         id: `tier-${crypto.randomUUID()}`,
         from,
         to: null,
-        percent: String(percent).replace(".", ","),
+        percent: formatPercent(percent),
       },
     ]);
   };
 
   const resetDraft = () => {
+    clearServerErrors();
     setTiers(toDraft(baseline.tiers));
     setBasis(baseline.basis);
     setEarnOnCashbackPaid(baseline.earnOnCashbackPaid);
     setEffectiveFrom(nextEffectiveFrom);
   };
 
-  const save = async () => {
-    if (hasError) {
+  const focusFirstInvalid = () =>
+    window.requestAnimationFrame(() =>
       document
-        .querySelector<HTMLInputElement>(`[data-tiers="${idBase}"] [aria-invalid="true"]`)
-        ?.focus();
+        .querySelector<HTMLElement>(`[data-tiers="${idBase}"] [aria-invalid="true"]`)
+        ?.focus(),
+    );
+
+  const save = async () => {
+    if (inFlight.current) return;
+    if (hasError) {
+      focusFirstInvalid();
       return;
     }
+    inFlight.current = true;
     setSaving(true);
+    clearServerErrors();
     const draft = { ...baseline, ...rules, effectiveFrom };
     const result = idempotency.settle(
       await runAction((csrf) => saveCashbackPolicy(draft, idempotency.key, csrf)),
     );
+    inFlight.current = false;
     setSaving(false);
     if (!result.ok) {
+      // Row and date errors go next to their control; the rest is the notice.
+      const rendered = [
+        "effectiveFrom",
+        ...tiers.flatMap((_, i) => [
+          tierField(i, "from"),
+          tierField(i, "to"),
+          tierField(i, "percent"),
+        ]),
+      ];
+      const { fieldErrors, formError: message } = partitionFieldErrors(result, rendered);
+      setServerErrors(fieldErrors);
+      setFormError(Object.keys(fieldErrors).length > 0 ? message : null);
+      if (Object.keys(fieldErrors).length > 0) focusFirstInvalid();
       toast({ tone: "info", title: "Saqlanmadi", description: result.error });
       return;
     }
-    setBaseline(result.data.policy);
-    setVersions((current) => [result.data.version, ...current]);
+    const saved = result.data;
+    setBaseline(saved.policy);
+    setScheduledPolicy(saved.policy);
+    setVersions((current) => [
+      saved.version,
+      ...current.map((v) =>
+        v.version === saved.supersededVersion
+          ? {
+              ...v,
+              scheduled: false,
+              state: "superseded" as const,
+              period: v.period.endsWith("almashtirildi") ? v.period : `${v.period} · almashtirildi`,
+            }
+          : v,
+      ),
+    ]);
     toast({
-      title: `Siyosat v${result.data.version.version} saqlandi`,
-      description: `${formatDayMonth(effectiveFrom)}dan boshlab yangi xaridlarga qo‘llanadi`,
+      title: `Siyosat v${saved.version.version} saqlandi`,
+      description: `${formatDayMonth(saved.policy.effectiveFrom)}dan boshlab yangi xaridlarga qo‘llanadi${
+        saved.supersededVersion ? ` · v${saved.supersededVersion} almashtirildi` : ""
+      }`,
     });
-    if (result.data.warnings?.length) {
-      toast({ tone: "info", title: "Eslatma", description: result.data.warnings.join(" ") });
+    if (saved.warnings?.length) {
+      toast({ tone: "info", title: "Eslatma", description: tierWarningsText(saved.warnings) });
     }
   };
 
-  const scheduled = versions.find((v) => v.scheduled);
+  const scheduled = scheduledPolicy;
   const effectiveOptions = [0, 1, 2].map((offset) => monthStart(nextEffectiveFrom, offset));
 
   const overlapNotes = analysis.overlaps.map((o) =>
@@ -222,7 +300,22 @@ export function CashbackEditor({
             )}
             {badPercent.size > 0 && (
               <Notice tone="danger" role="alert">
-                <b>Foiz noto‘g‘ri.</b> Har bir daraja foizi 0 dan katta va 100 dan oshmasligi kerak.
+                <b>Foiz noto‘g‘ri.</b> Har bir daraja foizi 0 dan katta va 100 dan oshmasligi kerak
+                (ko‘pi bilan 2 ta kasr raqam, masalan 0,57).
+              </Notice>
+            )}
+            {formError && (
+              <Notice tone="danger" role="alert">
+                {formError}
+              </Notice>
+            )}
+            {scheduled && (
+              <Notice tone="warning" role="status">
+                <b>
+                  v{scheduled.version} {formatDateLong(scheduled.effectiveFrom)} dan kuchga kirishi
+                  rejalashtirilgan.
+                </b>{" "}
+                Yangi versiya saqlansa, u almashtiriladi.
               </Notice>
             )}
             {gapNote && (
@@ -243,68 +336,89 @@ export function CashbackEditor({
               {tiers.map((tier, index) => {
                 const invalid = analysis.invalid.has(tier.id);
                 const n = index + 1;
+                const fromError = serverErrors[tierField(index, "from")];
+                const toError = serverErrors[tierField(index, "to")];
+                const percentError = serverErrors[tierField(index, "percent")];
+                const rowErrors = [...new Set([fromError, toError, percentError])].filter(Boolean);
+                const errorId = `${idBase}-tier-${index}-error`;
                 return (
-                  <div
-                    key={tier.id}
-                    role="group"
-                    aria-label={`${n}-daraja`}
-                    className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_112px_44px] items-center gap-2.5"
-                  >
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      aria-label={`${n}-daraja: dan, so‘m`}
-                      aria-invalid={invalid || undefined}
-                      value={formatNumber(tier.from)}
-                      onChange={(e) =>
-                        update(tier.id, { from: Number(digits(e.target.value) || 0) })
-                      }
-                      className={tierInput}
-                    />
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      aria-label={`${n}-daraja: gacha, so‘m (bo‘sh — cheksiz)`}
-                      aria-invalid={invalid || undefined}
-                      placeholder="Cheksiz"
-                      value={tier.to === null ? "" : formatNumber(tier.to)}
-                      onChange={(e) => {
-                        const value = digits(e.target.value);
-                        update(tier.id, { to: value ? Number(value) : null });
-                      }}
-                      className={tierInput}
-                    />
-                    <span
-                      className={cn(
-                        "flex h-11 items-center overflow-hidden rounded-md border-[1.5px] border-line-strong focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-gold-ink",
-                        badPercent.has(tier.id) && "border-danger",
-                      )}
+                  <div key={tier.id} className="flex flex-col gap-1.5">
+                    <div
+                      role="group"
+                      aria-label={`${n}-daraja`}
+                      aria-describedby={rowErrors.length > 0 ? errorId : undefined}
+                      className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_112px_44px] items-center gap-2.5"
                     >
                       <input
                         type="text"
-                        inputMode="decimal"
-                        aria-label={`${n}-daraja: foiz`}
-                        aria-invalid={badPercent.has(tier.id) || undefined}
-                        value={tier.percent}
+                        inputMode="numeric"
+                        aria-label={`${n}-daraja: dan, so‘m`}
+                        aria-invalid={invalid || Boolean(fromError) || undefined}
+                        value={formatNumber(tier.from)}
                         onChange={(e) =>
-                          update(tier.id, {
-                            percent: e.target.value.replace(/[^\d.,]/g, "").slice(0, 5),
-                          })
+                          update(tier.id, { from: Number(digits(e.target.value) || 0) })
                         }
-                        className="h-full w-full min-w-0 bg-transparent pl-3 text-[15px] leading-5 font-bold text-ink tabular-nums focus-visible:outline-none"
+                        className={tierInput}
                       />
-                      <span aria-hidden="true" className="px-3 font-semibold text-ink-muted">
-                        %
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        aria-label={`${n}-daraja: gacha, so‘m (bo‘sh — cheksiz)`}
+                        aria-invalid={invalid || Boolean(toError) || undefined}
+                        placeholder="Cheksiz"
+                        value={tier.to === null ? "" : formatNumber(tier.to)}
+                        onChange={(e) => {
+                          const value = digits(e.target.value);
+                          update(tier.id, { to: value ? Number(value) : null });
+                        }}
+                        className={tierInput}
+                      />
+                      <span
+                        className={cn(
+                          "flex h-11 items-center overflow-hidden rounded-md border-[1.5px] border-line-strong focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-gold-ink",
+                          (badPercent.has(tier.id) || percentError) && "border-danger",
+                        )}
+                      >
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          aria-label={`${n}-daraja: foiz`}
+                          aria-invalid={
+                            badPercent.has(tier.id) || Boolean(percentError) || undefined
+                          }
+                          value={tier.percent}
+                          onChange={(e) =>
+                            update(tier.id, {
+                              percent: e.target.value.replace(/[^\d.,]/g, "").slice(0, 5),
+                            })
+                          }
+                          className="h-full w-full min-w-0 bg-transparent pl-3 text-[15px] leading-5 font-bold text-ink tabular-nums focus-visible:outline-none"
+                        />
+                        <span aria-hidden="true" className="px-3 font-semibold text-ink-muted">
+                          %
+                        </span>
                       </span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setTiers((current) => current.filter((t) => t.id !== tier.id))}
-                      aria-label={`${n}-darajani o‘chirish`}
-                      className="flex size-11 items-center justify-center rounded-md text-danger transition-colors duration-150 hover:bg-danger-soft"
-                    >
-                      <Icon name="trash" size={18} />
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          clearServerErrors();
+                          setTiers((current) => current.filter((t) => t.id !== tier.id));
+                        }}
+                        aria-label={`${n}-darajani o‘chirish`}
+                        className="flex size-11 items-center justify-center rounded-md text-danger transition-colors duration-150 hover:bg-danger-soft"
+                      >
+                        <Icon name="trash" size={18} />
+                      </button>
+                    </div>
+                    {rowErrors.length > 0 && (
+                      <p
+                        id={errorId}
+                        role="alert"
+                        className="m-0 text-body-sm font-semibold text-danger"
+                      >
+                        {rowErrors.join(" ")}
+                      </p>
+                    )}
                   </div>
                 );
               })}
@@ -364,14 +478,21 @@ export function CashbackEditor({
             <RuleRow
               title="Kuchga kirish sanasi"
               description="Shu sanadan keyingi xaridlarga qo‘llanadi; avvalgilari o‘zgarmaydi"
+              error={serverErrors.effectiveFrom}
               last
             >
               <SelectMenu<string>
                 label="Kuchga kirish sanasi"
                 align="end"
                 value={effectiveFrom}
-                onValueChange={setEffectiveFrom}
-                triggerClassName="border-[1.5px] px-3 text-[14px] font-semibold tabular-nums"
+                onValueChange={(value) => {
+                  clearServerErrors();
+                  setEffectiveFrom(value);
+                }}
+                triggerClassName={cn(
+                  "border-[1.5px] px-3 text-[14px] font-semibold tabular-nums",
+                  serverErrors.effectiveFrom && "border-danger",
+                )}
                 trigger={
                   <>
                     <Icon name="calendar" size={18} className="text-gold-ink" />
@@ -423,9 +544,7 @@ export function CashbackEditor({
               <div className="flex justify-between text-body-sm text-banner-ink-soft">
                 <dt>Qo‘llanadigan foiz</dt>
                 <dd className="m-0 font-bold">
-                  {sample.percent === null
-                    ? "daraja yo‘q"
-                    : `${String(sample.percent).replace(".", ",")}%`}
+                  {sample.percent === null ? "daraja yo‘q" : `${formatPercent(sample.percent)}%`}
                 </dd>
               </div>
               <span aria-hidden="true" className="h-px bg-banner-ink-soft/20" />
@@ -511,11 +630,14 @@ function RuleRow({
   title,
   description,
   children,
+  error,
   last,
 }: {
   title: string;
   description: string;
   children: ReactNode;
+  /** A server error for this rule (e.g. `effective_from_in_past`). */
+  error?: string;
   last?: boolean;
 }) {
   return (
@@ -528,6 +650,11 @@ function RuleRow({
       <span className="flex flex-[1_1_300px] flex-col gap-0.5">
         <span className="text-[14px] leading-5 font-bold text-ink">{title}</span>
         <span className="text-caption font-normal text-ink-muted">{description}</span>
+        {error && (
+          <span role="alert" className="text-body-sm font-semibold text-danger">
+            {error}
+          </span>
+        )}
       </span>
       {children}
     </div>

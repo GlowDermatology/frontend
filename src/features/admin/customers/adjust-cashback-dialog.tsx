@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useRef, type FormEvent } from "react";
 import { Controller, useForm, useWatch, type Path } from "react-hook-form";
 import { z } from "zod";
 
@@ -13,7 +14,11 @@ import { cn } from "@/lib/cn";
 import { formatNumber } from "@/lib/format";
 
 import { runAction } from "../shared/action-client";
+import { partitionFieldErrors } from "../shared/field-errors";
 import { useIdempotencyKey } from "../shared/idempotency";
+
+/** The fields the dialog renders; any other field error becomes the toast message. */
+const FIELDS = ["direction", "amount", "reason"] as const;
 
 const schema = z.object({
   direction: z.enum(["add", "subtract"]),
@@ -37,7 +42,10 @@ interface AdjustCashbackDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   customerId: string;
+  /** Current balance (the preview shows balance → balance ± amount). */
   balance: number;
+  /** What can be subtracted: balance − active holds (contract §2.6 `available`). */
+  available: number;
   onAdjusted: (adjustment: CashbackAdjustment) => void;
   onError?: (message: string) => void;
 }
@@ -47,13 +55,17 @@ export function AdjustCashbackDialog({
   onOpenChange,
   customerId,
   balance,
+  available,
   onAdjusted,
   onError,
 }: AdjustCashbackDialogProps) {
   // React Hook Form must re-run `register` after `reset()` (see ProductEditor).
   "use no memo";
-  // One key per dialog instance: reused on retries and re-opens, renewed on success.
+  // One key per dialog instance: reused on retries and re-opens, renewed
+  // after a success or a 422 `idempotency_key_reused` (contract §1.7).
   const idempotency = useIdempotencyKey();
+  // A double click or an Enter repeat lands before `isSubmitting` re-renders.
+  const inFlight = useRef(false);
   const {
     control,
     register,
@@ -68,8 +80,8 @@ export function AdjustCashbackDialog({
   const signed = Number.isFinite(amount) ? (direction === "add" ? amount : -amount) : 0;
   const after = balance + signed;
 
-  const onSubmit = handleSubmit(async (values) => {
-    if (values.direction === "subtract" && values.amount > balance) {
+  const submit = handleSubmit(async (values) => {
+    if (values.direction === "subtract" && values.amount > available) {
       setError("amount", { message: "Balansdan ko‘p ayirib bo‘lmaydi." }, { shouldFocus: true });
       return;
     }
@@ -77,16 +89,28 @@ export function AdjustCashbackDialog({
       await runAction((csrf) => adjustCashback(customerId, values, idempotency.key, csrf)),
     );
     if (!result.ok) {
-      const entries = Object.entries(result.fieldErrors ?? {});
-      for (const [path, message] of entries) {
-        setError(path as Path<Values>, { message });
-      }
-      if (entries.length === 0) onError?.(result.error);
+      // `insufficient_balance` arrives on `amount`; unknown fields go to the toast.
+      const { fieldErrors, formError } = partitionFieldErrors(result, FIELDS);
+      Object.entries(fieldErrors).forEach(([path, message], index) => {
+        setError(path as Path<Values>, { message }, { shouldFocus: index === 0 });
+      });
+      if (formError) onError?.(formError);
       return;
     }
     reset(DEFAULTS);
     onAdjusted(result.data);
   });
+
+  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (inFlight.current) return;
+    inFlight.current = true;
+    try {
+      await submit(event);
+    } finally {
+      inFlight.current = false;
+    }
+  };
 
   return (
     <Dialog
@@ -102,18 +126,25 @@ export function AdjustCashbackDialog({
         <Controller
           control={control}
           name="direction"
-          render={({ field }) => (
-            <SegmentedControl
-              label="Amal"
-              layout="fill"
-              size="lg"
-              value={field.value}
-              onChange={field.onChange}
-              options={[
-                { value: "add", label: "Qo‘shish" },
-                { value: "subtract", label: "Ayirish" },
-              ]}
-            />
+          render={({ field, fieldState }) => (
+            <div className="flex flex-col gap-1.5">
+              <SegmentedControl
+                label="Amal"
+                layout="fill"
+                size="lg"
+                value={field.value}
+                onChange={field.onChange}
+                options={[
+                  { value: "add", label: "Qo‘shish" },
+                  { value: "subtract", label: "Ayirish" },
+                ]}
+              />
+              {fieldState.error?.message && (
+                <p role="alert" className="m-0 text-body-sm font-semibold text-danger">
+                  {fieldState.error.message}
+                </p>
+              )}
+            </div>
           )}
         />
         <Controller

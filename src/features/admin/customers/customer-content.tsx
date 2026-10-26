@@ -1,35 +1,22 @@
 import { notFound } from "next/navigation";
 
 import { requireStaff } from "@/data/auth";
-import { getCashbackSettings } from "@/data/cashback";
 import { getCustomer } from "@/data/customers";
 import { requestNow } from "@/data/now";
-import { nextTier, rateFor } from "@/domain/cashback";
-import { lifetimeTotal } from "@/domain/customer";
 
-import { CustomerView, type TierInfo } from "./customer-view";
+import { CustomerView } from "./customer-view";
 
+/**
+ * Data boundary of `/admin/customers/[customerId]` (contract §2.6
+ * `GET customers/{id}/`). `getCustomer` is `cache()`d, so this read and the
+ * page's `generateMetadata` share one request; an unknown id renders the
+ * route's not-found state. The tier, balances and `balance_after` come from
+ * the server (mock mode derives them from the fixtures the same way).
+ */
 export async function CustomerContent({ params }: { params: Promise<{ customerId: string }> }) {
   await requireStaff();
   const { customerId } = await params;
-  const [customer, settings, now] = await Promise.all([
-    getCustomer(customerId),
-    getCashbackSettings(),
-    requestNow(),
-  ]);
+  const [customer, now] = await Promise.all([getCustomer(customerId), requestNow()]);
   if (!customer) notFound();
-
-  const lifetime = lifetimeTotal(customer);
-  const { tiers } = settings.policy;
-  const next = nextTier(tiers, lifetime);
-  const tier: TierInfo = {
-    percent: rateFor(tiers, lifetime),
-    next: next && {
-      percent: next.tier.percent,
-      remaining: next.remaining,
-      progress: next.progress,
-    },
-  };
-
-  return <CustomerView customer={customer} tier={tier} now={now.toISOString()} />;
+  return <CustomerView customer={customer} now={now.toISOString()} />;
 }

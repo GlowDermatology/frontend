@@ -14,17 +14,16 @@ const KIND_BADGE: Record<LedgerEntryKind, { label: string; tone: Tone }> = {
   reversal: { label: "Qaytarildi", tone: "danger" },
 };
 
-/** Newest first, with the balance after each entry (entries are immutable). */
-export function withRunningBalance(entries: ReadonlyArray<LedgerEntry>) {
-  let balance = entries.reduce((sum, entry) => sum + entry.amount, 0);
-  return entries.map((entry) => {
-    const row = { entry, balance };
-    balance -= entry.amount;
-    return row;
-  });
-}
+/** Order link of a ledger or purchase row. */
+const orderLinkClass =
+  "text-ink underline decoration-line-strong underline-offset-4 hover:decoration-gold";
 
-export function LedgerTable({ rows }: { rows: ReturnType<typeof withRunningBalance> }) {
+/**
+ * The cashback ledger, newest first. BALANS is each entry's `balanceAfter`
+ * (the server's own running total, contract §5.3); order entries link to the
+ * order, and a credit names the policy version it was computed with.
+ */
+export function LedgerTable({ rows }: { rows: ReadonlyArray<LedgerEntry> }) {
   return (
     <ScrollRegion label="Cashback yozuvlari">
       <table className="data-table min-w-[760px]">
@@ -44,7 +43,7 @@ export function LedgerTable({ rows }: { rows: ReturnType<typeof withRunningBalan
           </tr>
         </thead>
         <tbody>
-          {rows.map(({ entry, balance }) => {
+          {rows.map((entry) => {
             const badge = KIND_BADGE[entry.kind];
             return (
               <tr key={entry.id}>
@@ -54,10 +53,33 @@ export function LedgerTable({ rows }: { rows: ReturnType<typeof withRunningBalan
                 <td>
                   <Badge tone={badge.tone}>{badge.label}</Badge>
                 </td>
-                <td>{entry.source}</td>
-                <td className="text-ink-muted!">{entry.note}</td>
+                <td>
+                  {entry.orderId !== undefined ? (
+                    <Link
+                      href={`/admin/orders/${entry.orderId}` as Route}
+                      className={orderLinkClass}
+                    >
+                      {entry.source}
+                    </Link>
+                  ) : (
+                    entry.source
+                  )}
+                </td>
+                <td className="text-ink-muted!">
+                  {entry.note}
+                  {entry.kind === "credit" && entry.policyVersion !== undefined && (
+                    <span
+                      className="ml-1.5 text-[12px] whitespace-nowrap"
+                      title={`Cashback siyosati v${entry.policyVersion} bo‘yicha hisoblangan`}
+                    >
+                      · v{entry.policyVersion}
+                    </span>
+                  )}
+                </td>
                 <td className="text-right font-bold tabular-nums">{formatSigned(entry.amount)}</td>
-                <td className="text-right tabular-nums">{formatNumber(balance)}</td>
+                <td className="text-right tabular-nums">
+                  {entry.balanceAfter === undefined ? "—" : formatNumber(entry.balanceAfter)}
+                </td>
               </tr>
             );
           })}
@@ -95,15 +117,20 @@ export function PurchasesTable({ purchases }: { purchases: ReadonlyArray<Custome
               </td>
               <td>{purchase.source === "online" ? "Onlayn" : "Do‘kon · QR"}</td>
               <td className="tabular-nums">
-                {purchase.source === "online" ? (
+                {purchase.orderId !== undefined ? (
                   <Link
-                    href={`/admin/orders/${purchase.document.replace("№", "")}` as Route}
-                    className="text-ink underline decoration-line-strong underline-offset-4 hover:decoration-gold"
+                    href={`/admin/orders/${purchase.orderId}` as Route}
+                    className={orderLinkClass}
                   >
                     {purchase.document}
                   </Link>
                 ) : (
                   purchase.document
+                )}
+                {purchase.reversed && (
+                  <span className="ml-2 align-middle">
+                    <Badge tone="danger">Qaytarilgan</Badge>
+                  </span>
                 )}
               </td>
               <td className="text-right font-bold tabular-nums">{formatNumber(purchase.amount)}</td>

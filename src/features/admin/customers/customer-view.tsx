@@ -11,7 +11,7 @@ import { Button, buttonStyles } from "@/components/ui/button";
 import { Card, CardTitle, DetailRow } from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
 import { useToast } from "@/components/ui/toast";
-import { ledgerBalance, type LedgerEntry } from "@/domain/cashback";
+import { formatPercent, type LedgerEntry } from "@/domain/cashback";
 import { lifetimeTotal, type Customer } from "@/domain/customer";
 import {
   formatDateLong,
@@ -24,22 +24,29 @@ import {
 } from "@/lib/format";
 
 import { AdjustCashbackDialog } from "./adjust-cashback-dialog";
-import { LedgerTable, PurchasesTable, withRunningBalance } from "./ledger";
+import { LedgerTable, PurchasesTable } from "./ledger";
 
 const LANGUAGE_NAME = { uz: "O‘zbekcha", ru: "Ruscha", en: "Inglizcha" } as const;
 const LEDGER_PREVIEW = 6;
 
-export interface TierInfo {
-  percent: number | null;
-  next: { percent: number; remaining: number; progress: number } | null;
-}
-
 interface CustomerViewProps {
   customer: Customer;
-  tier: TierInfo;
   /** Render time, for "bugun, 09:12" in the device tab. */
   now: string;
 }
+
+/** The card's ledger and balances, as last loaded or as the last adjustment left them. */
+interface LedgerState {
+  ledger: LedgerEntry[];
+  balance: number;
+  available: number;
+}
+
+const ledgerState = (customer: Customer): LedgerState => ({
+  ledger: customer.ledger,
+  balance: customer.balance,
+  available: customer.available,
+});
 
 function Metric({
   label,
@@ -67,21 +74,27 @@ function Metric({
 const tabTrigger =
   "h-11 border-b-2 border-transparent px-3 text-[14px] leading-[18px] font-semibold text-ink transition-colors duration-150 hover:border-line-strong data-[state=active]:border-gold data-[state=active]:font-bold";
 
-export function CustomerView({ customer, tier, now }: CustomerViewProps) {
+export function CustomerView({ customer, now }: CustomerViewProps) {
   const toast = useToast();
-  const [ledger, setLedger] = useState<LedgerEntry[]>(customer.ledger);
-  // The server balance after the last adjustment, when the API sent one;
-  // otherwise the balance is the sum of the ledger rows (the demo rule).
-  const [serverBalance, setServerBalance] = useState<number | null>(null);
+  // Reset the local ledger whenever the server sends the card again (api
+  // mode re-renders the route after an adjustment, so the new props already
+  // contain the entry); mock mode keeps the locally prepended entry.
+  const [source, setSource] = useState(customer);
+  const [state, setState] = useState(() => ledgerState(customer));
+  if (source !== customer) {
+    setSource(customer);
+    setState(ledgerState(customer));
+  }
   const [tab, setTab] = useState("cashback");
   const [showAll, setShowAll] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
 
-  const balance = serverBalance ?? ledgerBalance(ledger);
-  const rows = withRunningBalance(ledger);
+  const { ledger: rows, balance, available } = state;
+  const held = balance - available;
   const visibleRows = showAll ? rows : rows.slice(0, LEDGER_PREVIEW);
   const lifetime = lifetimeTotal(customer);
-  const { device } = customer;
+  const { tier, device } = customer;
+  const deleted = customer.status === "deleted";
   const sameDay = device && formatDayMonthShort(device.lastActiveAt) === formatDayMonthShort(now);
 
   return (
@@ -98,15 +111,18 @@ export function CustomerView({ customer, tier, now }: CustomerViewProps) {
               <h1 className="m-0 font-serif text-display leading-10 tracking-normal text-ink">
                 {customer.name}
               </h1>
-              {customer.status === "active" ? (
-                <Badge tone="success">Faol</Badge>
-              ) : (
+              {deleted ? (
                 <Badge tone="muted">O‘chirilgan</Badge>
+              ) : (
+                <Badge tone="success">Faol</Badge>
               )}
             </div>
             <p className="m-0 text-body-sm text-ink-muted tabular-nums">
               {formatPhone(customer.phone)} · Ro‘yxatdan o‘tgan:{" "}
-              {formatDateLong(customer.registeredAt)} · {LANGUAGE_NAME[customer.language]}
+              {formatDateLong(customer.registeredAt)}
+              {deleted && customer.deletedAt
+                ? ` · O‘chirilgan: ${formatDateLong(customer.deletedAt)}`
+                : ` · ${LANGUAGE_NAME[customer.language]}`}
             </p>
           </div>
         </div>
@@ -115,15 +131,31 @@ export function CustomerView({ customer, tier, now }: CustomerViewProps) {
             <Icon name="coins" size={18} />
             Cashback tuzatish
           </Button>
-          <Link
-            href={`/admin/notifications?customer=${customer.id}`}
-            className={buttonStyles({ variant: "secondary" })}
-          >
-            <Icon name="bell" size={18} />
-            Bildirishnoma yuborish
-          </Link>
+          {!deleted && (
+            <Link
+              href={`/admin/notifications?customer=${customer.id}`}
+              className={buttonStyles({ variant: "secondary" })}
+            >
+              <Icon name="bell" size={18} />
+              Bildirishnoma yuborish
+            </Link>
+          )}
         </div>
       </div>
+
+      {deleted && (
+        <div
+          role="status"
+          className="flex items-start gap-2.5 rounded-md bg-surface-raised px-4 py-3.5 text-body-sm text-ink shadow-sm"
+        >
+          <Icon name="info" size={18} className="mt-px shrink-0 text-gold-ink" />
+          <span>
+            <b>Mijoz hisobini o‘chirgan.</b> Ism va manzil o‘chirildi; xaridlar va cashback balansi
+            telefon raqamiga bog‘langan holda saqlanadi va qayta ro‘yxatdan o‘tganda tiklanadi.
+            Bildirishnoma yuborib bo‘lmaydi.
+          </span>
+        </div>
+      )}
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(220px,100%),1fr))] gap-4">
         <Metric
@@ -133,17 +165,19 @@ export function CustomerView({ customer, tier, now }: CustomerViewProps) {
         />
         <Metric
           label="Cashback foizi"
-          value={tier.percent === null ? "—" : `${tier.percent}%`}
+          value={tier.percent === null ? "—" : `${formatPercent(tier.percent)}%`}
           note={
             tier.next
-              ? `${tier.next.percent}% gacha ${formatSom(tier.next.remaining)}`
-              : "Eng yuqori daraja"
+              ? `${formatPercent(tier.next.percent)}% gacha ${formatSom(tier.next.remaining)}`
+              : tier.percent === null
+                ? "Daraja belgilanmagan"
+                : "Eng yuqori daraja"
           }
         >
           {tier.next && (
             <span
               role="progressbar"
-              aria-label={`${tier.next.percent}% darajagacha`}
+              aria-label={`${formatPercent(tier.next.percent)}% darajagacha`}
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={Math.round(tier.next.progress * 100)}
@@ -159,7 +193,11 @@ export function CustomerView({ customer, tier, now }: CustomerViewProps) {
         <Metric
           label="Cashback balansi"
           value={formatSom(balance)}
-          note="Yozuvlar yig‘indisidan hisoblanadi"
+          note={
+            held !== 0
+              ? `Band: ${formatSom(held)} · ishlatish mumkin: ${formatSom(available)}`
+              : "Yozuvlar yig‘indisidan hisoblanadi"
+          }
         />
         <Metric
           label="Onlayn buyurtmalar"
@@ -315,12 +353,26 @@ export function CustomerView({ customer, tier, now }: CustomerViewProps) {
         onOpenChange={setAdjustOpen}
         customerId={customer.id}
         balance={balance}
+        available={available}
         onError={(message) =>
           toast({ tone: "info", title: "Amal bajarilmadi", description: message })
         }
-        onAdjusted={({ entry, balance: next }) => {
-          setLedger((current) => [entry, ...current]);
-          if (next !== undefined) setServerBalance(next);
+        onAdjusted={({ entry, balance: nextBalance, available: nextAvailable }) => {
+          // The server's balances when it sent them (api mode, which also
+          // re-renders the card); the demo adds the entry to what it shows.
+          setState((current) => {
+            // The refreshed card may already hold the entry (api mode).
+            if (current.ledger.some((row) => row.id === entry.id)) return current;
+            const balanceAfter = nextBalance ?? current.balance + entry.amount;
+            return {
+              ledger: [
+                { ...entry, balanceAfter: entry.balanceAfter ?? balanceAfter },
+                ...current.ledger,
+              ],
+              balance: balanceAfter,
+              available: nextAvailable ?? current.available + entry.amount,
+            };
+          });
           setTab("cashback");
           setAdjustOpen(false);
           toast({

@@ -1,11 +1,23 @@
 import type { NextRequest } from "next/server";
 
-import { cookieNames } from "@/data/auth/cookie-names";
-import { oauthFlowCookie, setCookie } from "@/data/auth/cookies";
+import {
+  clearSessionCookies,
+  oauthFlowCookie,
+  setCookie,
+  type SessionCookie,
+} from "@/data/auth/cookies";
 import { seeOther } from "@/data/auth/html-page";
 import { authorizeUrl, newFlow, sealFlow, type OAuthIntent } from "@/data/auth/oauth";
 import { oauthKey } from "@/data/auth/oauth-env";
-import { enabledProvider, notFoundPage, redirectUriFor, sameOrigin } from "@/data/auth/oauth-route";
+import { OAUTH_UNREACHABLE_MESSAGE } from "@/data/auth/oauth-errors";
+import {
+  enabledProvider,
+  notFoundPage,
+  redirectUriFor,
+  sameOrigin,
+  withNotice,
+} from "@/data/auth/oauth-route";
+import { verifyOAuthSession } from "@/data/auth/oauth-session";
 import { serverEnv } from "@/lib/env.server";
 
 /**
@@ -15,9 +27,13 @@ import { serverEnv } from "@/lib/env.server";
  * and redirects to the provider's authorize URL — the built-in fake page when
  * `GLOWDERMA_OAUTH_MODE=fake`. A provider that is not enabled is a 404.
  *
- * `intent=link` (the account card) needs a signed-in session and a
- * same-origin request: a link started from another site, or after the
- * session ended, goes back to the settings page or the login page without
+ * `intent=link` (the account card) needs a same-origin request and, in api
+ * mode, a session Django accepts (`verifyOAuthSession`: `auth/me/`, renewed
+ * once through the refresh cookie) — a cookie that merely exists is not
+ * enough. The flow is sealed with that session's `sid`, and the callback
+ * links only with a token of the same session, so a link flow cannot be
+ * planted into another browser. A link started from another site, or after
+ * the session ended, goes back to the settings page or the login page without
  * touching the provider. `next` is honoured for a login only and validated
  * like the login page's (`safeNext`).
  */
@@ -34,20 +50,37 @@ export async function GET(
   const intent: OAuthIntent = params.get("intent") === "link" ? "link" : "login";
   const secure = serverEnv.cookieSecure();
 
-  if (intent === "link") {
-    if (!sameOrigin(request)) return seeOther("/admin/settings");
-    if (serverEnv.dataSource() === "api") {
-      const names = cookieNames(secure);
-      const signedIn = request.cookies.has(names.access) || request.cookies.has(names.refresh);
-      if (!signedIn) return seeOther("/admin/login?next=%2Fadmin%2Fsettings");
-    }
-  }
-
   const redirectUri = redirectUriFor(request, provider, secure);
   const clientId = config.clientIds[provider];
   if (!redirectUri || !clientId) return notFoundPage();
 
-  const flow = newFlow({ provider, intent, next: params.get("next"), nowMs: Date.now() });
+  const nowMs = Date.now();
+  let sid: string | null = null;
+  let renewed: SessionCookie | null = null;
+  if (intent === "link") {
+    if (!sameOrigin(request)) return seeOther("/admin/settings");
+    if (serverEnv.dataSource() === "api") {
+      const session = await verifyOAuthSession(request, secure, nowMs);
+      if (!session.ok && session.reason === "no_session") {
+        const response = seeOther("/admin/login?next=%2Fadmin%2Fsettings");
+        clearSessionCookies(response.cookies, secure);
+        return response;
+      }
+      if (!session.ok) {
+        return seeOther(
+          withNotice(
+            "/admin/settings",
+            { kind: "error", provider, message: OAUTH_UNREACHABLE_MESSAGE },
+            nowMs,
+          ),
+        );
+      }
+      sid = session.sid;
+      renewed = session.renewed;
+    }
+  }
+
+  const flow = newFlow({ provider, intent, next: params.get("next"), nowMs, sid });
   const response = seeOther(
     authorizeUrl({
       provider,
@@ -60,5 +93,6 @@ export async function GET(
     }),
   );
   setCookie(response.cookies, oauthFlowCookie({ secure, value: sealFlow(flow, oauthKey()) }));
+  if (renewed) setCookie(response.cookies, renewed);
   return response;
 }

@@ -18,9 +18,24 @@ import { safeNext } from "./next-param";
  *    the returned `state` in constant time, clears the cookie and posts the
  *    code with the verifier to Django.
  *
- * The cookie is signed (HMAC-SHA256, `sealFlow`/`openFlow`), so a value
- * planted from a sibling subdomain cannot carry an attacker's verifier; the
- * signature also binds the provider, the intent and the `next` path.
+ * The cookie is signed (HMAC-SHA256, `sealFlow`/`openFlow`), so its content
+ * cannot be forged or edited (provider, intent, `next`). A signature does not
+ * stop a *valid* value from being planted, though: an attacker can start a
+ * flow of their own and toss that cookie into a victim's browser from a
+ * sibling subdomain (`Path=/admin/auth` rules out `__Host-`). Hence:
+ *
+ * - a link flow is bound to the session that started it: `start` verifies
+ *   the session with Django and seals its `sid` (the access JWT's session id,
+ *   the same for every token the non-rotating refresh token mints), and the
+ *   callback links only with a token of that same `sid` (`sessionMatches`),
+ *   so a planted link flow can never attach an identity to the victim's
+ *   account;
+ * - a state is single use on the server too (`ConsumedStates`), so a
+ *   captured cookie and callback URL cannot be replayed within the 10 min;
+ * - residual risk: a planted *login* flow can still sign the victim in to
+ *   the attacker's own staff account (login CSRF). Binding it to another
+ *   per-browser cookie would not help against the same cookie toss; the
+ *   panel shows the signed-in account's name on every screen.
  *
  * Pure module (Node crypto only, no Next request APIs) so every rule is
  * unit-tested; the route handlers in `src/app/admin/auth/oauth/[provider]/`
@@ -83,6 +98,18 @@ export function readOAuthConfig(env: Env): OAuthConfig {
   else if (rawMode !== "" && rawMode !== "fake") {
     warnings.push(`GLOWDERMA_OAUTH_MODE must be "fake" or "live", got "${rawMode}"; using fake`);
   }
+  // Fake mode signs anyone in who types a linked subject. Development may
+  // rely on the default; a production server (`next start`, NODE_ENV=production)
+  // must say `fake` out loud, or it offers no social sign-in at all.
+  if (rawMode !== "live" && rawMode !== "fake" && env.NODE_ENV === "production") {
+    if ((env.GLOWDERMA_OAUTH_PROVIDERS ?? "").trim() !== "") {
+      warnings.push(
+        "social sign-in is disabled: GLOWDERMA_OAUTH_MODE is not set in a production build " +
+          '(set "live", or "fake" explicitly for a test deployment)',
+      );
+    }
+    return { mode: "fake", providers: [], clientIds: {}, warnings };
+  }
   const requested = new Set<OAuthProvider>();
   for (const entry of (env.GLOWDERMA_OAUTH_PROVIDERS ?? "").split(",")) {
     const name = entry.trim().toLowerCase();
@@ -140,6 +167,12 @@ export interface OAuthFlow {
   next: Route;
   /** Epoch ms when the flow started. */
   issuedAt: number;
+  /**
+   * The session a link flow belongs to (api mode): the `sid` claim of the
+   * access token Django accepted when the flow started. Absent for a login
+   * and for a demo-mode link.
+   */
+  sid?: string;
 }
 
 export function newFlow(input: {
@@ -147,8 +180,9 @@ export function newFlow(input: {
   intent: OAuthIntent;
   next: unknown;
   nowMs: number;
+  sid?: string | null;
 }): OAuthFlow {
-  return {
+  const flow: OAuthFlow = {
     provider: input.provider,
     intent: input.intent,
     state: randomToken(),
@@ -157,6 +191,17 @@ export function newFlow(input: {
     next: input.intent === "link" ? "/admin/settings" : safeNext(input.next),
     issuedAt: input.nowMs,
   };
+  if (input.intent === "link" && input.sid) flow.sid = input.sid;
+  return flow;
+}
+
+/**
+ * Whether a token's `sid` claim is the session the link flow was bound to
+ * (constant time). A flow without a binding matches nothing.
+ */
+export function sessionMatches(flow: OAuthFlow, tokenSid: string | null | undefined): boolean {
+  if (!flow.sid || !tokenSid) return false;
+  return equalStrings(flow.sid, tokenSid);
 }
 
 function mac(key: Buffer, purpose: string, payload: string): string {
@@ -211,7 +256,10 @@ export function openFlow(value: unknown, key: Buffer, nowMs: number): OAuthFlow 
   if (typeof flow.issuedAt !== "number" || !Number.isFinite(flow.issuedAt)) return null;
   const age = nowMs - flow.issuedAt;
   if (age < -60_000 || age > OAUTH_FLOW_MAX_AGE_SECONDS * 1000) return null;
-  return {
+  if (flow.sid !== undefined && (typeof flow.sid !== "string" || flow.sid.length > 200)) {
+    return null;
+  }
+  const opened: OAuthFlow = {
     provider: flow.provider,
     intent: flow.intent,
     state: flow.state,
@@ -220,21 +268,27 @@ export function openFlow(value: unknown, key: Buffer, nowMs: number): OAuthFlow 
     next: flow.intent === "link" ? "/admin/settings" : safeNext(flow.next),
     issuedAt: flow.issuedAt,
   };
+  if (flow.intent === "link" && typeof flow.sid === "string" && flow.sid) opened.sid = flow.sid;
+  return opened;
 }
 
 export type CallbackCheck =
   | { ok: true; flow: OAuthFlow; code: string }
   | {
       ok: false;
-      reason: "no_flow" | "provider_mismatch" | "state_mismatch" | "denied" | "no_code";
+      reason:
+        "no_flow" | "provider_mismatch" | "state_mismatch" | "replayed" | "denied" | "no_code";
       /** Where the error goes: the account card for a link flow, else the login page. */
       intent: OAuthIntent;
+      /** The flow's landing path when a valid flow existed (kept on the login page), else `/admin`. */
+      next: Route;
     };
 
 /**
  * The callback's admission rules, in order: a valid flow cookie, the same
  * provider as the route, the returned `state` equal to the cookie's
- * (constant time), no provider `error`, a non-empty `code`.
+ * (constant time), a state not used before (`consume`, which also marks it
+ * used), no provider `error`, a non-empty `code`.
  */
 export function checkCallback(input: {
   flow: OAuthFlow | null;
@@ -242,16 +296,23 @@ export function checkCallback(input: {
   state: string | null;
   code: string | null;
   error: string | null;
+  /** Marks the flow's state as used; `false` when it already was (a replay). */
+  consume?: (flow: OAuthFlow) => boolean;
 }): CallbackCheck {
   const { flow } = input;
-  if (!flow) return { ok: false, reason: "no_flow", intent: "login" };
-  const intent = flow.intent;
-  if (flow.provider !== input.provider) return { ok: false, reason: "provider_mismatch", intent };
-  if (!input.state || !equalStrings(input.state, flow.state)) {
-    return { ok: false, reason: "state_mismatch", intent };
-  }
-  if (input.error) return { ok: false, reason: "denied", intent };
-  if (!input.code || input.code.length > 2048) return { ok: false, reason: "no_code", intent };
+  if (!flow) return { ok: false, reason: "no_flow", intent: "login", next: "/admin" };
+  const { intent, next } = flow;
+  const refuse = (reason: Extract<CallbackCheck, { ok: false }>["reason"]): CallbackCheck => ({
+    ok: false,
+    reason,
+    intent,
+    next,
+  });
+  if (flow.provider !== input.provider) return refuse("provider_mismatch");
+  if (!input.state || !equalStrings(input.state, flow.state)) return refuse("state_mismatch");
+  if (input.consume && !input.consume(flow)) return refuse("replayed");
+  if (input.error) return refuse("denied");
+  if (!input.code || input.code.length > 2048) return refuse("no_code");
   return { ok: true, flow, code: input.code };
 }
 
@@ -260,9 +321,61 @@ export const CALLBACK_MESSAGES = {
   no_flow: "Kirish so‘rovi eskirgan. Qayta urinib ko‘ring.",
   provider_mismatch: "Kirish so‘rovi eskirgan. Qayta urinib ko‘ring.",
   state_mismatch: "Kirish so‘rovi eskirgan. Qayta urinib ko‘ring.",
+  replayed: "Kirish so‘rovi eskirgan. Qayta urinib ko‘ring.",
   denied: "Ijtimoiy tarmoq orqali kirish bekor qilindi.",
   no_code: "Ijtimoiy tarmoq orqali kirish amalga oshmadi.",
 } as const satisfies Record<Extract<CallbackCheck, { ok: false }>["reason"], string>;
+
+/* --- single use -------------------------------------------------------- */
+
+/**
+ * The states this process has already accepted, until their flow would have
+ * expired anyway. Keys are HMACs of the state (`consumedStateKey`), never the
+ * state itself. Bounded: past `limit` live entries the oldest are dropped,
+ * which only re-opens flows that are among the oldest still alive.
+ *
+ * Process-local: with several Next instances behind one origin a replay can
+ * land on another instance; there the provider's own single-use codes (and
+ * Django's exchange) are the remaining guard. See the README.
+ */
+export class ConsumedStates {
+  private readonly entries = new Map<string, number>();
+
+  constructor(private readonly limit = 10_000) {}
+
+  /** Marks `key` used until `expiresAtMs`; `false` when it already was. */
+  consume(key: string, expiresAtMs: number, nowMs: number): boolean {
+    this.prune(nowMs);
+    const until = this.entries.get(key);
+    if (until !== undefined && until > nowMs) return false;
+    this.entries.set(key, expiresAtMs);
+    while (this.entries.size > this.limit) {
+      const oldest = this.entries.keys().next().value;
+      if (oldest === undefined) break;
+      this.entries.delete(oldest);
+    }
+    return true;
+  }
+
+  get size(): number {
+    return this.entries.size;
+  }
+
+  private prune(nowMs: number): void {
+    for (const [key, until] of this.entries) {
+      if (until <= nowMs) this.entries.delete(key);
+    }
+  }
+}
+
+export function consumedStateKey(key: Buffer, state: string): string {
+  return mac(key, "glowderma/oauth-state-used/v1", state);
+}
+
+/** When a flow's state may be forgotten: its own expiry (plus the clock-skew allowance). */
+export function flowExpiresAt(flow: OAuthFlow): number {
+  return flow.issuedAt + OAUTH_FLOW_MAX_AGE_SECONDS * 1000 + 60_000;
+}
 
 /* --- the authorize URL --------------------------------------------------- */
 

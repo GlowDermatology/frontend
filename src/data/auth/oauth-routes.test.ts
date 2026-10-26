@@ -6,12 +6,13 @@ vi.mock("@/data/api/auth", () => ({
   apiOAuthLogin: vi.fn(),
   apiOAuthLink: vi.fn(),
   apiRefresh: vi.fn(),
+  apiMe: vi.fn(),
 }));
 
 import { GET as callback } from "@/app/admin/auth/oauth/[provider]/callback/route";
 import { GET as fake } from "@/app/admin/auth/oauth/[provider]/fake/route";
 import { GET as start } from "@/app/admin/auth/oauth/[provider]/start/route";
-import { apiOAuthLink, apiOAuthLogin, apiRefresh } from "@/data/api/auth";
+import { apiMe, apiOAuthLink, apiOAuthLogin, apiRefresh } from "@/data/api/auth";
 import { ApiError } from "@/data/api/errors";
 
 import { fakeJwt } from "./jwt.fixture";
@@ -65,12 +66,31 @@ afterEach(() => {
   vi.mocked(apiOAuthLogin).mockReset();
   vi.mocked(apiOAuthLink).mockReset();
   vi.mocked(apiRefresh).mockReset();
+  vi.mocked(apiMe).mockReset();
+  vi.restoreAllMocks();
 });
 
-function flowCookie(provider: "google" | "facebook", intent: "login" | "link", next = "/admin") {
-  const flow = newFlow({ provider, intent, next, nowMs: Date.now() });
+function flowCookie(
+  provider: "google" | "facebook",
+  intent: "login" | "link",
+  next = "/admin",
+  sid: string | null = intent === "link" ? "s1" : null,
+) {
+  const flow = newFlow({ provider, intent, next, nowMs: Date.now(), sid });
   return { flow, cookie: `gd_oauth=${sealFlow(flow, key)}` };
 }
+
+/** The sealed flow inside a start response's Set-Cookie. */
+function sealedFlowOf(response: Response) {
+  const value = decodeURIComponent(setCookies(response)[0]?.split(";")[0]?.split("=")[1] ?? "");
+  return JSON.parse(Buffer.from(value.split(".")[0] ?? "", "base64url").toString()) as Record<
+    string,
+    unknown
+  >;
+}
+
+const liveAccess = (sid: string) => fakeJwt({ exp: Math.floor(Date.now() / 1000) + 600, sid });
+const meResponse = { status: 200, headers: new Headers(), data: {} as never };
 
 describe("GET /admin/auth/oauth/[provider]/start", () => {
   it("seals the flow into a Lax HttpOnly cookie and redirects to the fake authorize page", async () => {
@@ -134,6 +154,69 @@ describe("GET /admin/auth/oauth/[provider]/start", () => {
     expect(setCookies(crossSite)).toEqual([]);
     const anonymous = await start(get("/admin/auth/oauth/google/start?intent=link"), ctx("google"));
     expect(anonymous.headers.get("location")).toBe("/admin/login?next=%2Fadmin%2Fsettings");
+  });
+
+  it("does not take a cookie that merely exists as a session for a link (api mode)", async () => {
+    vi.stubEnv("GLOWDERMA_DATA_SOURCE", "api");
+    vi.stubEnv("GLOWDERMA_API_URL", "http://django.test");
+    const garbage = await start(
+      get("/admin/auth/oauth/google/start?intent=link", { cookies: "gd_admin_access=not-a-jwt" }),
+      ctx("google"),
+    );
+    expect(garbage.headers.get("location")).toBe("/admin/login?next=%2Fadmin%2Fsettings");
+    expect(setCookies(garbage).join("\n")).not.toMatch(/gd_oauth=[^;]/);
+    // A well-formed token Django rejects (forged, revoked) is no session either.
+    vi.mocked(apiMe).mockRejectedValue(
+      new ApiError(401, {
+        code: "authentication_failed",
+        message: "Sessiya tugadi.",
+        errors: [],
+        request_id: "r",
+      }),
+    );
+    const forged = await start(
+      get("/admin/auth/oauth/google/start?intent=link", {
+        cookies: `gd_admin_access=${liveAccess("s1")}`,
+      }),
+      ctx("google"),
+    );
+    expect(forged.headers.get("location")).toBe("/admin/login?next=%2Fadmin%2Fsettings");
+    expect(setCookies(forged).join("\n")).not.toMatch(/gd_oauth=[^;]/);
+  });
+
+  it("seals the verified session's sid into a link flow (api mode)", async () => {
+    vi.stubEnv("GLOWDERMA_DATA_SOURCE", "api");
+    vi.stubEnv("GLOWDERMA_API_URL", "http://django.test");
+    vi.mocked(apiMe).mockResolvedValue(meResponse);
+    const access = liveAccess("session-a");
+    const response = await start(
+      get("/admin/auth/oauth/google/start?intent=link", { cookies: `gd_admin_access=${access}` }),
+      ctx("google"),
+    );
+    expect(apiMe).toHaveBeenCalledWith(access);
+    expect(new URL(response.headers.get("location") ?? "", `http://${HOST}`).pathname).toBe(
+      "/admin/auth/oauth/google/fake",
+    );
+    expect(sealedFlowOf(response)).toMatchObject({ intent: "link", sid: "session-a" });
+  });
+
+  it("returns a link to the account card when Django cannot verify the session", async () => {
+    vi.stubEnv("GLOWDERMA_DATA_SOURCE", "api");
+    vi.stubEnv("GLOWDERMA_API_URL", "http://django.test");
+    vi.mocked(apiMe).mockRejectedValue(
+      new ApiError(0, { code: "network_error", message: "x", errors: [], request_id: "" }),
+    );
+    const response = await start(
+      get("/admin/auth/oauth/google/start?intent=link", {
+        cookies: `gd_admin_access=${liveAccess("s1")}`,
+      }),
+      ctx("google"),
+    );
+    expect(response.headers.get("location")).toMatch(/^\/admin\/settings\?oauth=/);
+    expect(noticeOf(response.headers.get("location"))?.message).toBe(
+      "API bilan bog‘lanib bo‘lmadi.",
+    );
+    expect(setCookies(response)).toEqual([]);
   });
 
   it("redirects live mode to Google with the public client id", async () => {
@@ -218,9 +301,33 @@ describe("GET /admin/auth/oauth/[provider]/callback", () => {
     );
     expect(response.status).toBe(303);
     const location = response.headers.get("location") ?? "";
-    expect(location).toMatch(/^\/admin\/login\?next=%2Fadmin&oauth=/);
+    expect(location).toMatch(/^\/admin\/login\?next=%2Fadmin%2Forders&oauth=/);
     expect(noticeOf(location)?.message).toBe("Kirish so‘rovi eskirgan. Qayta urinib ko‘ring.");
     expect(setCookies(response).join("\n")).toMatch(/gd_oauth=; Path=\/admin\/auth; Max-Age=0/);
+  });
+
+  it("keeps the flow's next when the provider denies a login", async () => {
+    const { flow, cookie } = flowCookie("google", "login", "/admin/orders");
+    const response = await callback(
+      get(`/admin/auth/oauth/google/callback?error=access_denied&state=${flow.state}`, {
+        cookies: cookie,
+      }),
+      ctx("google"),
+    );
+    const location = response.headers.get("location") ?? "";
+    expect(location).toMatch(/^\/admin\/login\?next=%2Fadmin%2Forders&oauth=/);
+    expect(noticeOf(location)?.message).toBe("Ijtimoiy tarmoq orqali kirish bekor qilindi.");
+  });
+
+  it("accepts a state once: a replayed cookie and callback URL read as expired", async () => {
+    const { flow, cookie } = flowCookie("google", "login", "/admin/orders");
+    const url = `/admin/auth/oauth/google/callback?code=c&state=${flow.state}`;
+    const first = await callback(get(url, { cookies: cookie }), ctx("google"));
+    expect(first.headers.get("location")).toBe("/admin/orders");
+    const replay = await callback(get(url, { cookies: cookie }), ctx("google"));
+    const location = replay.headers.get("location") ?? "";
+    expect(location).toMatch(/^\/admin\/login\?next=%2Fadmin%2Forders&oauth=/);
+    expect(noticeOf(location)?.message).toBe("Kirish so‘rovi eskirgan. Qayta urinib ko‘ring.");
   });
 
   it("refuses a flow cookie of another provider and a missing cookie", async () => {
@@ -401,6 +508,105 @@ describe("GET /admin/auth/oauth/[provider]/callback", () => {
       expect(noticeOf(response.headers.get("location"))?.message).toBe(
         "Bu ijtimoiy hisob allaqachon bog‘langan.",
       );
+    });
+
+    it("refuses a link flow sealed for another session before Django sees the code", async () => {
+      const { flow, cookie } = flowCookie("google", "link", "/admin", "session-a");
+      const response = await callback(
+        get(`/admin/auth/oauth/google/callback?code=c&state=${flow.state}`, {
+          cookies: `${cookie}; gd_admin_access=${liveAccess("session-b")}`,
+        }),
+        ctx("google"),
+      );
+      expect(apiOAuthLink).not.toHaveBeenCalled();
+      expect(response.headers.get("location")).toMatch(/^\/admin\/settings\?oauth=/);
+      expect(noticeOf(response.headers.get("location"))?.message).toBe(
+        "Kirish so‘rovi eskirgan. Qayta urinib ko‘ring.",
+      );
+    });
+
+    it("refuses a link flow sealed for another session after renewing a lapsed token", async () => {
+      vi.mocked(apiRefresh).mockResolvedValue({
+        status: 200,
+        headers: new Headers(),
+        data: {
+          access: fakeJwt({ exp: Math.floor(Date.now() / 1000) + 900, sid: "session-b" }),
+          access_expires_at: new Date(Date.now() + 900_000).toISOString(),
+          refresh_expires_at: new Date(Date.now() + 3600_000).toISOString(),
+        },
+      });
+      const { flow, cookie } = flowCookie("google", "link", "/admin", "session-a");
+      const response = await callback(
+        get(`/admin/auth/oauth/google/callback?code=c&state=${flow.state}`, {
+          cookies: `${cookie}; gd_admin_refresh=${"r".repeat(43)}`,
+        }),
+        ctx("google"),
+      );
+      expect(apiRefresh).toHaveBeenCalled();
+      expect(apiOAuthLink).not.toHaveBeenCalled();
+      expect(noticeOf(response.headers.get("location"))?.message).toBe(
+        "Kirish so‘rovi eskirgan. Qayta urinib ko‘ring.",
+      );
+    });
+
+    it("refuses an api-mode link flow without a session binding", async () => {
+      const { flow, cookie } = flowCookie("google", "link", "/admin", null);
+      await callback(
+        get(`/admin/auth/oauth/google/callback?code=c&state=${flow.state}`, {
+          cookies: `${cookie}; gd_admin_access=${liveAccess("s1")}`,
+        }),
+        ctx("google"),
+      );
+      expect(apiOAuthLink).not.toHaveBeenCalled();
+    });
+
+    it("logs a refusal other than 401 without the code or the verifier", async () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      vi.mocked(apiOAuthLogin).mockRejectedValue(
+        new ApiError(400, {
+          code: "validation_error",
+          message: "Ma’lumotlar noto‘g‘ri.",
+          errors: [{ field: "redirect_uri", code: "invalid", message: "x" }],
+          request_id: "req-1",
+        }),
+      );
+      const { flow, cookie } = flowCookie("google", "login");
+      const response = await callback(
+        get(`/admin/auth/oauth/google/callback?code=secret-code&state=${flow.state}`, {
+          cookies: cookie,
+        }),
+        ctx("google"),
+      );
+      expect(noticeOf(response.headers.get("location"))?.message).toBe(
+        "Ijtimoiy tarmoq orqali kirish amalga oshmadi.",
+      );
+      expect(warn).toHaveBeenCalledWith("[oauth] google login refused", {
+        status: 400,
+        code: "validation_error",
+        fields: ["redirect_uri:invalid"],
+        requestId: "req-1",
+      });
+      const logged = JSON.stringify(warn.mock.calls);
+      expect(logged).not.toContain("secret-code");
+      expect(logged).not.toContain(flow.verifier);
+    });
+
+    it("does not log the uniform 401 of an unknown identity", async () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      vi.mocked(apiOAuthLogin).mockRejectedValue(
+        new ApiError(401, {
+          code: "social_account_not_allowed",
+          message: "Bu hisob administrator sifatida ro‘yxatdan o‘tmagan.",
+          errors: [],
+          request_id: "r",
+        }),
+      );
+      const { flow, cookie } = flowCookie("google", "login");
+      await callback(
+        get(`/admin/auth/oauth/google/callback?code=c&state=${flow.state}`, { cookies: cookie }),
+        ctx("google"),
+      );
+      expect(warn).not.toHaveBeenCalled();
     });
 
     it("sends a link without any session to the login page and clears the cookies", async () => {

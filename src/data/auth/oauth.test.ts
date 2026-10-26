@@ -6,10 +6,13 @@ import { ApiError } from "../api/errors";
 import { clearOAuthFlowCookie, oauthFlowCookie, type CookieAttributes } from "./cookies";
 import {
   CALLBACK_MESSAGES,
+  ConsumedStates,
   OAUTH_FLOW_MAX_AGE_SECONDS,
   authorizeUrl,
   checkCallback,
+  consumedStateKey,
   deriveOAuthKey,
+  flowExpiresAt,
   isPkceVerifier,
   newFlow,
   nonceForExchange,
@@ -21,6 +24,7 @@ import {
   readOAuthConfig,
   sealFlow,
   sealNotice,
+  sessionMatches,
   type OAuthFlow,
 } from "./oauth";
 import { OAUTH_FAILED_MESSAGE, oauthErrorMessage } from "./oauth-errors";
@@ -68,6 +72,31 @@ describe("readOAuthConfig", () => {
     const config = readOAuthConfig({ GLOWDERMA_OAUTH_MODE: "prod" });
     expect(config.mode).toBe("fake");
     expect(config.warnings).toHaveLength(1);
+  });
+
+  it("offers no provider in a production build unless the mode is set explicitly", () => {
+    const unset = readOAuthConfig({ NODE_ENV: "production", GLOWDERMA_OAUTH_PROVIDERS: "google" });
+    expect(unset.providers).toEqual([]);
+    expect(unset.warnings[0]).toMatch(/GLOWDERMA_OAUTH_MODE is not set in a production build/);
+    const invalid = readOAuthConfig({
+      NODE_ENV: "production",
+      GLOWDERMA_OAUTH_MODE: "prod",
+      GLOWDERMA_OAUTH_PROVIDERS: "google",
+    });
+    expect(invalid.providers).toEqual([]);
+    const explicit = readOAuthConfig({
+      NODE_ENV: "production",
+      GLOWDERMA_OAUTH_MODE: "fake",
+      GLOWDERMA_OAUTH_PROVIDERS: "google",
+    });
+    expect(explicit.providers).toEqual(["google"]);
+    expect(explicit.warnings).toEqual([]);
+    // No providers requested: nothing to warn about.
+    expect(readOAuthConfig({ NODE_ENV: "production" }).warnings).toEqual([]);
+    // Development keeps the fake default.
+    expect(
+      readOAuthConfig({ NODE_ENV: "development", GLOWDERMA_OAUTH_PROVIDERS: "google" }).providers,
+    ).toEqual(["google"]);
   });
 });
 
@@ -227,12 +256,91 @@ describe("checkCallback", () => {
     });
   });
 
+  it("reports the flow's next with every failure of a valid flow, /admin without one", () => {
+    expect(checkCallback({ ...base, error: "access_denied" })).toMatchObject({
+      next: "/admin/orders",
+    });
+    expect(checkCallback({ ...base, state: "wrong-state-value-1234" })).toMatchObject({
+      next: "/admin/orders",
+    });
+    expect(checkCallback({ ...base, provider: "facebook" })).toMatchObject({
+      next: "/admin/orders",
+    });
+    expect(checkCallback({ ...base, code: null })).toMatchObject({ next: "/admin/orders" });
+    expect(checkCallback({ ...base, flow: null })).toMatchObject({ next: "/admin" });
+  });
+
+  it("consumes the state only after it matched, and refuses a replay", () => {
+    const store = new ConsumedStates();
+    const consume = (f: OAuthFlow) =>
+      store.consume(consumedStateKey(key, f.state), flowExpiresAt(f), now);
+    expect(checkCallback({ ...base, state: "wrong-state-value-1234", consume })).toMatchObject({
+      reason: "state_mismatch",
+    });
+    expect(store.size).toBe(0);
+    expect(checkCallback({ ...base, consume })).toMatchObject({ ok: true });
+    expect(checkCallback({ ...base, consume })).toMatchObject({ ok: false, reason: "replayed" });
+    expect(CALLBACK_MESSAGES.replayed).toBe(CALLBACK_MESSAGES.state_mismatch);
+  });
+
   it("sends a link flow's failure back to the account card", () => {
     const link = newFlow({ provider: "google", intent: "link", next: null, nowMs: now });
     expect(checkCallback({ ...base, flow: link, state: "wrong-state-value-1234" })).toMatchObject({
       intent: "link",
     });
     expect(CALLBACK_MESSAGES.state_mismatch).toBe("Kirish so‘rovi eskirgan. Qayta urinib ko‘ring.");
+  });
+});
+
+describe("ConsumedStates", () => {
+  it("remembers a key until its expiry, then forgets it", () => {
+    const store = new ConsumedStates();
+    expect(store.consume("a", now + 1000, now)).toBe(true);
+    expect(store.consume("a", now + 1000, now + 999)).toBe(false);
+    expect(store.consume("a", now + 5000, now + 1000)).toBe(true);
+    expect(store.size).toBe(1);
+  });
+
+  it("stays bounded by dropping the oldest entries", () => {
+    const store = new ConsumedStates(2);
+    store.consume("a", now + 1000, now);
+    store.consume("b", now + 1000, now);
+    store.consume("c", now + 1000, now);
+    expect(store.size).toBe(2);
+    expect(store.consume("c", now + 1000, now)).toBe(false);
+  });
+
+  it("keys on an HMAC of the state, never the state itself", () => {
+    const flow = newFlow({ provider: "google", intent: "login", next: null, nowMs: now });
+    const stored = consumedStateKey(key, flow.state);
+    expect(stored).not.toContain(flow.state);
+    expect(stored).toBe(consumedStateKey(key, flow.state));
+    expect(stored).not.toBe(consumedStateKey(otherKey, flow.state));
+    expect(flowExpiresAt(flow)).toBe(now + OAUTH_FLOW_MAX_AGE_SECONDS * 1000 + 60_000);
+  });
+});
+
+describe("link flow session binding", () => {
+  it("seals the sid of a link flow and opens it again; a login flow carries none", () => {
+    const link = newFlow({ provider: "google", intent: "link", next: null, nowMs: now, sid: "A" });
+    expect(openFlow(sealFlow(link, key), key, now)?.sid).toBe("A");
+    const login = newFlow({
+      provider: "google",
+      intent: "login",
+      next: null,
+      nowMs: now,
+      sid: "A",
+    });
+    expect(login.sid).toBeUndefined();
+  });
+
+  it("matches only a token of the same session", () => {
+    const link = newFlow({ provider: "google", intent: "link", next: null, nowMs: now, sid: "A" });
+    expect(sessionMatches(link, "A")).toBe(true);
+    expect(sessionMatches(link, "B")).toBe(false);
+    expect(sessionMatches(link, null)).toBe(false);
+    const unbound = newFlow({ provider: "google", intent: "link", next: null, nowMs: now });
+    expect(sessionMatches(unbound, "A")).toBe(false);
   });
 });
 

@@ -1,4 +1,4 @@
-import { isApiError } from "../api/errors";
+import { isApiError, type ApiError } from "../api/errors";
 
 /**
  * The Uzbek text the login page or the account card shows when Django
@@ -9,7 +9,8 @@ import { isApiError } from "../api/errors";
  * `link/` conflicts, a 404 on a provider that is not linked. A field error
  * means this server sent a body Django does not accept (a `redirect_uri`
  * that differs from `OAUTH_REDIRECT_URI`, a missing nonce): the admin cannot
- * fix that, so it reads as a failed sign-in; the details are in the log.
+ * fix that, so it reads as a failed sign-in; the callback logs the details
+ * (`oauthRefusalLog`, every refusal but a 401).
  */
 
 export const OAUTH_FAILED_MESSAGE = "Ijtimoiy tarmoq orqali kirish amalga oshmadi.";
@@ -30,4 +31,24 @@ export function oauthErrorMessage(error: unknown): string {
     return error.status >= 500 ? OAUTH_UNREACHABLE_MESSAGE : OAUTH_FAILED_MESSAGE;
   }
   return error.body.message || OAUTH_FAILED_MESSAGE;
+}
+
+/**
+ * What the callback logs about a refused exchange: provider-independent
+ * diagnostics only (status, code, the field paths and codes of `errors[]`,
+ * the request id) — never the authorization code or the PKCE verifier,
+ * which are not part of the envelope.
+ */
+export function oauthRefusalLog(error: ApiError): {
+  status: number;
+  code: string;
+  fields: string[];
+  requestId: string;
+} {
+  return {
+    status: error.status,
+    code: error.code,
+    fields: error.body.errors.map((item) => `${item.field ?? "-"}:${item.code}`),
+    requestId: error.body.request_id,
+  };
 }

@@ -3,10 +3,14 @@ import "server-only";
 import { connection } from "next/server";
 
 import {
+  ConsumedStates,
+  consumedStateKey,
   deriveOAuthKey,
+  flowExpiresAt,
   openNotice,
   readOAuthConfig,
   type OAuthConfig,
+  type OAuthFlow,
   type OAuthNotice,
 } from "./oauth";
 
@@ -40,4 +44,19 @@ export function oauthKey(): Buffer {
 export async function requestNotice(token: unknown): Promise<OAuthNotice | null> {
   await connection();
   return openNotice(token, oauthKey(), Date.now());
+}
+
+/**
+ * Marks a flow's state as used in this process (see `ConsumedStates`);
+ * `false` for a replay. On `globalThis` for the same reason as the key: the
+ * route bundles each evaluate this module.
+ */
+export function consumeFlowState(flow: OAuthFlow, nowMs: number): boolean {
+  const holder = globalThis as typeof globalThis & { __glowdermaOAuthStates?: ConsumedStates };
+  holder.__glowdermaOAuthStates ??= new ConsumedStates();
+  return holder.__glowdermaOAuthStates.consume(
+    consumedStateKey(oauthKey(), flow.state),
+    flowExpiresAt(flow),
+    nowMs,
+  );
 }

@@ -445,7 +445,8 @@ describe("api mode (catalog actions wired)", () => {
       created_by: null,
     };
     apiFetch.mockResolvedValueOnce(respond(202, job));
-    expect(await importFromBillz(KEY, CSRF)).toMatchObject({
+    // The list's search is the demo's trigger only: the API never receives it.
+    expect(await importFromBillz(KEY, CSRF, "9999")).toMatchObject({
       ok: true,
       data: { id: "12", state: "running" },
     });

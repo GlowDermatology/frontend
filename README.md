@@ -308,7 +308,7 @@ Carried over from earlier slices (not re-run in F2e): landing pixel comparisons 
 
 <!-- END F2d -->
 
-- The Billz import runs as a job: in demo mode it finishes on the first poll, alternating a success with fixed counts (a full run's summary, `hidden` included) and a full run whose listing was incomplete (`billz_listing_incomplete`); nothing changes in the fixtures. A demo product save with a Billz ID ending in `9999` (create or change) answers Billz's 503.
+- The Billz import runs as a job: in demo mode it finishes on the first poll with a success with fixed counts (a full run's summary, `hidden` included), or — when the products list is searched for a term ending in `9999` (e.g. `?q=9999`) — with a full run whose listing was incomplete (`billz_listing_incomplete`); nothing changes in the fixtures, and one visitor's import never decides another's outcome. A demo product save with a Billz ID ending in `9999` (create or change) answers Billz's 503.
 - Exports (`/admin/<section>/export?format=csv|xlsx`): api mode streams Django's file (CSV or XLSX) with its filename; demo mode builds a local CSV from the fixtures for either format.
 
 **Content**

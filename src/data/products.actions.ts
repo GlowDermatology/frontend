@@ -245,12 +245,20 @@ export async function reorderProductImages(
 /**
  * `POST integrations/billz/import/` → the job (202). Single-flight on the
  * server: a running import is returned instead of a new one. The client polls
- * it with `pollJob` until it is `succeeded` or `failed`.
+ * it with `pollJob` until it is `succeeded` or `failed`. `search` is the
+ * products list's search, read by the demo only (a term ending in `9999`
+ * makes the demo's Billz listing incomplete); the API never receives it.
  */
-export async function importFromBillz(key: string, csrf: string): Promise<ActionResult<Job>> {
+export async function importFromBillz(
+  key: string,
+  csrf: string,
+  search?: string,
+): Promise<ActionResult<Job>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
-  const parsedKey = z.object({ key: idempotencyKeySchema }).safeParse({ key });
+  const parsedKey = z
+    .object({ key: idempotencyKeySchema, search: z.string().max(200).optional() })
+    .safeParse({ key, search });
   if (!parsedKey.success) return fieldErrorsFrom(parsedKey.error);
   if ((await dataSource()) === "api") {
     return apiMutation("importFromBillz", async () => {
@@ -262,7 +270,7 @@ export async function importFromBillz(key: string, csrf: string): Promise<Action
       }
     });
   }
-  return mock.importFromBillz();
+  return mock.importFromBillz(parsedKey.data.search);
 }
 
 /** `GET jobs/{id}/` for the import poller (a read: no refresh, no idempotency key). */

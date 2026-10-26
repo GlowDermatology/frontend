@@ -36,7 +36,7 @@ export async function ProductsContent({ searchParams }: { searchParams: Promise<
         title="Mahsulotlar"
         actions={
           <>
-            <BillzImport />
+            <BillzImport search={query.q} />
             <ExportMenu href={exportHref} />
             <Link href="/admin/products/new" className={buttonStyles()}>
               <Icon name="plus" size={18} />

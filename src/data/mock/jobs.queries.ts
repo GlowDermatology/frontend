@@ -9,8 +9,9 @@ import { PRODUCTS } from "./catalog";
  * control shows both states without a backend. Job 1 succeeds with a full
  * run's summary (`hidden` included: the import joined the daily full sync,
  * single-flight); job 2 is a full run whose Billz listing arrived incomplete
- * (`billz_listing_incomplete`, nothing hidden). The demo import alternates
- * between them (`importFromBillz` in `./products.actions.ts`).
+ * (`billz_listing_incomplete`, nothing hidden). The demo import starts job
+ * 2 while the products list is searched for a term ending in `9999`, else
+ * job 1 (`importFromBillz` in `./products.actions.ts`).
  */
 
 export const MOCK_IMPORT_JOB_ID = "1";

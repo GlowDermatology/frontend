@@ -58,7 +58,11 @@ export function jobStatusText(job: Job): string {
   }
 }
 
-export function BillzImport({ className }: { className?: string }) {
+/**
+ * `search` is the list's current search: the demo's Billz listing arrives
+ * incomplete when it ends in `9999` (demo mode only; the API ignores it).
+ */
+export function BillzImport({ className, search }: { className?: string; search?: string }) {
   const router = useRouter();
   const toast = useToast();
   const idempotency = useIdempotencyKey();
@@ -110,7 +114,7 @@ export function BillzImport({ className }: { className?: string }) {
     setStarting(true);
     setView({ job: null, error: null, retrying: false });
     const result = idempotency.settle(
-      await runAction((csrf) => importFromBillz(idempotency.key, csrf)),
+      await runAction((csrf) => importFromBillz(idempotency.key, csrf, search)),
     );
     setStarting(false);
     if (!result.ok) {

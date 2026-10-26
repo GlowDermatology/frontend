@@ -166,14 +166,17 @@ describe("mock products: stats, export and import job", () => {
     expect(out).toHaveLength(7);
   });
 
-  it("starts a running job that is finished on the first poll, alternating both outcomes", async () => {
+  it("starts a running job finished on the first poll; a 9999 search makes the listing incomplete", async () => {
     const started = await importFromBillz();
     expect(started).toMatchObject({ ok: true, data: { id: MOCK_IMPORT_JOB_ID, state: "running" } });
     expect(await getJob(MOCK_IMPORT_JOB_ID)).toMatchObject({
       state: "succeeded",
       result: { created: 0, updated: 12, unchanged: 236, hidden: 0 },
     });
-    const next = await importFromBillz();
+    // No shared counter: every visitor's next import succeeds again.
+    expect(await importFromBillz()).toMatchObject({ data: { id: MOCK_IMPORT_JOB_ID } });
+    expect(await importFromBillz("serum")).toMatchObject({ data: { id: MOCK_IMPORT_JOB_ID } });
+    const next = await importFromBillz(" 4607019999 ");
     expect(next).toMatchObject({
       ok: true,
       data: { id: MOCK_FAILED_IMPORT_JOB_ID, state: "running" },

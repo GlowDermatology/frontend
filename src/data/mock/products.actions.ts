@@ -127,17 +127,19 @@ export async function reorderProductImages(
   return { ok: true, data: { imageIds } };
 }
 
-let demoImports = 0;
-
 /**
  * The demo import: a job that is `running` now and finished on the first
- * poll. Imports alternate between a success (job 1, with the full run's
- * `hidden`) and an incomplete Billz listing (job 2), so both outcomes of the
- * import control can be seen; the fixtures never change.
+ * poll. It succeeds (job 1, with the full run's `hidden`) unless the list is
+ * searched for a term ending in `9999` (`MOCK_BILLZ_DOWN_SUFFIX`, like the
+ * product save's rule): then the demo's Billz listing arrives incomplete
+ * (job 2). The outcome follows what the visitor sees, never a shared
+ * counter; the fixtures never change.
  */
-export async function importFromBillz(): Promise<ActionResult<Job>> {
+export async function importFromBillz(search?: string): Promise<ActionResult<Job>> {
   await delay(400);
-  const id = demoImports % 2 === 0 ? MOCK_IMPORT_JOB_ID : MOCK_FAILED_IMPORT_JOB_ID;
-  demoImports += 1;
-  return { ok: true, data: runningImportJob(id) };
+  const incomplete = search?.trim().endsWith(MOCK_BILLZ_DOWN_SUFFIX) ?? false;
+  return {
+    ok: true,
+    data: runningImportJob(incomplete ? MOCK_FAILED_IMPORT_JOB_ID : MOCK_IMPORT_JOB_ID),
+  };
 }

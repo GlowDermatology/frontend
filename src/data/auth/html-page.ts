@@ -18,7 +18,7 @@ export function escapeHtml(value: string): string {
 }
 
 const BASE_STYLE =
-  "body{margin:0;min-height:100dvh;display:grid;place-items:center;font:15px/1.5 system-ui,sans-serif;background:#fbf8f2;color:#2a2418}main{max-width:360px;padding:24px;text-align:center}a{color:#7a5a14;font-weight:700}";
+  "*,*::before,*::after{box-sizing:border-box}body{margin:0;min-height:100dvh;display:grid;place-items:center;font:15px/1.5 system-ui,sans-serif;background:#fbf8f2;color:#2a2418}main{max-width:360px;padding:24px;text-align:center}a{color:#7a5a14;font-weight:700}";
 
 /** `title` is escaped; `body` is trusted markup (callers escape what they interpolate). */
 export function htmlPage(

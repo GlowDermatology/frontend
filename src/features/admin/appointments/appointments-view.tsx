@@ -349,7 +349,7 @@ export function AppointmentsView({
             </li>
           </ul>
 
-          <ScrollRegion label="Kunlik jadval">
+          <ScrollRegion label="Mutaxassislar ustunlari">
             <div className="min-w-[720px]">
               <div
                 className="grid border-b border-line"
@@ -439,7 +439,6 @@ export function AppointmentsView({
                               data-appointment-id={appointment.id}
                               onClick={() => setSelectedId(appointment.id)}
                               aria-pressed={isSelected}
-                              aria-label={`${formatTime(appointment.start)}–${formatTime(appointment.end)} ${appointment.customer.name}, ${appointment.serviceShort}, ${look.label.toLowerCase()}`}
                               className={cn(
                                 "absolute right-1.5 left-1.5 flex gap-2 rounded-sm px-2.5 text-left text-ink transition-shadow duration-150",
                                 tall ? "items-start py-2" : "items-center py-1",
@@ -474,6 +473,12 @@ export function AppointmentsView({
                                 )}
                                 <span className="truncate text-[11px] leading-[14px] text-ink-muted">
                                   {appointment.serviceShort}
+                                </span>
+                                {/* The visible text is the button's name (WCAG 2.5.3); the end
+                                    time of a short visit and the status are added for screen readers. */}
+                                <span className="sr-only">
+                                  {tall ? "" : `, ${formatTime(appointment.end)} gacha`},{" "}
+                                  {look.label.toLowerCase()}
                                 </span>
                               </span>
                             </button>
@@ -574,7 +579,12 @@ export function AppointmentsView({
               )}
               {actions.includes("attend") && (
                 <div className="mt-1 grid grid-cols-2 gap-2">
-                  <Button variant="outline" disabled={pending} onClick={() => run("attend")}>
+                  <Button
+                    variant="outline"
+                    disabled={pending}
+                    aria-busy={pending}
+                    onClick={() => run("attend")}
+                  >
                     Keldi deb belgilash
                   </Button>
                   <Button

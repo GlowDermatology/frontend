@@ -5,6 +5,7 @@ import { CLICK_STILL_PAID_MESSAGE } from "@/domain/payment";
 import {
   CLICK_NOT_REVERSED_CODE,
   CLICK_UNAVAILABLE_MESSAGE,
+  isClickFakeModeRefusal,
   isClickStillPaidRefusal,
   isStaleRefundRefusal,
   refundRefusalMessage,
@@ -68,11 +69,19 @@ describe("closing a failed Click refund (§7 item 18, M2)", () => {
     expect(isClickStillPaidRefusal(stillPaid)).toBe(true);
     expect(isStaleRefundRefusal(stillPaid)).toBe(false);
     expect(isClickStillPaidRefusal(clickFake)).toBe(false);
-    expect(isStaleRefundRefusal(clickFake)).toBe(true);
     expect(
       isClickStillPaidRefusal({ ok: false, error: CLICK_STILL_PAID_MESSAGE, code: "conflict" }),
     ).toBe(false);
     expect(isClickStillPaidRefusal({ ok: true, data: null })).toBe(false);
+  });
+
+  it("keeps the dialog open with Click's test-mode 409 instead of treating it as stale", () => {
+    expect(isClickFakeModeRefusal(clickFake)).toBe(true);
+    expect(isStaleRefundRefusal(clickFake)).toBe(false);
+    expect(refundRefusalMessage("close", clickFake)).toBe(clickFake.error);
+    expect(isClickFakeModeRefusal(stillPaid)).toBe(false);
+    expect(isClickFakeModeRefusal({ ...clickFake, code: "conflict" })).toBe(false);
+    expect(isClickFakeModeRefusal({ ok: true, data: null })).toBe(false);
   });
 
   it("recognises the click_not_reversed code first, whatever the message says", () => {

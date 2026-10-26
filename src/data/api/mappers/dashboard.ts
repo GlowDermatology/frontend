@@ -100,6 +100,7 @@ export function mapDashboard(api: ApiDashboard): DashboardData {
       nextAppointmentAt: api.attention.next_appointment_at,
       newFromBillz: api.attention.new_from_billz,
       refundsNeedingAction: api.attention.refunds_needing_action,
+      btsPollingFailing: api.attention.bts_polling_failing,
     },
   };
 }

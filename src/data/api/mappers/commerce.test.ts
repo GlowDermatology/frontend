@@ -430,6 +430,12 @@ describe("dashboard (§5.7)", () => {
     expect(data.stats.ordersNote).toBe(`O‘tgan hafta: ${weekFixture.previous_period_orders} ta`);
     expect(data.stats.orders).toBe(weekFixture.stats.orders);
     expect(data.attention.refundsNeedingAction).toBe(weekFixture.attention.refunds_needing_action);
+    expect(data.attention.btsPollingFailing).toBe(false);
+    const failing = mapDashboard({
+      ...weekFixture,
+      attention: { ...weekFixture.attention, bts_polling_failing: true },
+    } as unknown as ApiDashboard);
+    expect(failing.attention.btsPollingFailing).toBe(true);
   });
 
   it("keeps every hour of a two-day custom range, with the day in the label", () => {

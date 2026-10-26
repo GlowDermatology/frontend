@@ -120,6 +120,18 @@ describe("dispatchers in mock mode (env unset)", () => {
     expect((await d.appointments.getAppointmentDay("2026-10-26")).specialists).toHaveLength(3);
     const dashboard = await d.dashboard.getDashboard({ range: "today" });
     expect(dashboard.ok && dashboard.data.series.length).toBeGreaterThan(0);
+    // The demo shows every attention item: three manual refunds, an unknown and a failed one,
+    // and BTS polling down.
+    expect(dashboard.ok && dashboard.data.attention).toMatchObject({
+      refundsNeedingAction: 5,
+      btsPollingFailing: true,
+    });
+    const custom = await d.dashboard.getDashboard({
+      range: "custom",
+      from: "2026-10-23",
+      to: "2026-10-24",
+    });
+    expect(custom.ok && custom.data.attention.btsPollingFailing).toBe(true);
     expect((await d.orders.getOrder(10248))?.availableActions).toEqual({
       transitions: ["delivered"],
       cancel: true,

@@ -42,8 +42,13 @@ export interface DashboardData {
     pendingAppointments: number;
     nextAppointmentAt: string | null;
     newFromBillz: number;
-    /** Refunds in failed | unknown | manual_required. */
+    /** Refunds in unknown | manual_required, and failed ones that still need staff (§2.10). */
     refundsNeedingAction: number;
+    /**
+     * The last BTS polling run tracked no parcel or stopped on transport
+     * failures (M2): order statuses from BTS are not being updated.
+     */
+    btsPollingFailing: boolean;
   };
 }
 

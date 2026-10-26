@@ -21,6 +21,9 @@ import { getCatalogStats } from "./products.queries";
  * come from the other fixtures.
  */
 
+/** Demo value of `attention.bts_polling_failing` (M2): on, so the item can be seen. */
+export const MOCK_BTS_POLLING_FAILING = true;
+
 const PREVIOUS_ORDERS: Record<DashboardRange, number> = { today: 41, week: 212, month: 905 };
 const SPAN_DAYS: Record<DashboardRange, number> = { today: 1, week: 7, month: 30 };
 /** New registrations per day implied by the month fixture (402 in 30 days). */
@@ -77,6 +80,8 @@ export async function getDashboard(query: DashboardQuery): Promise<DashboardData
       (count, p) => count + p.refunds.filter((r) => refundNeedsAction(r, p)).length,
       0,
     ),
+    // The demo's BTS tracking is down, so the attention block shows that item too.
+    btsPollingFailing: MOCK_BTS_POLLING_FAILING,
   };
   const today = toLocalIsoDate(referenceNow());
 
@@ -107,7 +112,7 @@ export async function getDashboard(query: DashboardQuery): Promise<DashboardData
         next_appointment_at: attention.nextAppointmentAt,
         new_from_billz: attention.newFromBillz,
         refunds_needing_action: attention.refundsNeedingAction,
-        bts_polling_failing: false,
+        bts_polling_failing: attention.btsPollingFailing,
       },
       generated_at: referenceNow().toISOString(),
     };

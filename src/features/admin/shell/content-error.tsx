@@ -1,6 +1,7 @@
 "use client";
 
 import { catchError, type ErrorInfo } from "next/error";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -11,13 +12,27 @@ import { Icon } from "@/components/ui/icon";
  * this card inside `<main>` while the sidebar, the header search and the
  * mobile menu stay usable (they are outside the boundary). "Qayta urinish"
  * calls `retry()`, which re-fetches the server content in a transition; a
- * client navigation to another section clears the error by itself.
+ * client navigation to another section clears the error by itself, and a
+ * new URL of the same section (another query) retries.
  * `redirect()` and `notFound()` pass through (`catchError` re-throws them),
  * so the session redirects and the not-found views still work. A failure of
  * the shell itself still reaches `src/app/admin/error.tsx`.
  */
 function ContentErrorCard(_props: object, { error, retry }: ErrorInfo) {
   const heading = useRef<HTMLHeadingElement>(null);
+  // `catchError` clears itself only on a navigation to another route. A new
+  // URL of the same board (its own sidebar link, the header search's
+  // `?q=`, a filter) must leave the error too: retry whenever the address
+  // differs from the one the error happened on.
+  const pathname = usePathname();
+  const search = useSearchParams().toString();
+  const address = `${pathname}?${search}`;
+  const failedAt = useRef(address);
+  useEffect(() => {
+    if (failedAt.current === address) return;
+    failedAt.current = address;
+    retry();
+  }, [address, retry]);
   useEffect(() => {
     console.error(error);
   }, [error]);

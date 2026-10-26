@@ -39,13 +39,13 @@ describe("socialRows", () => {
 
 describe("socialBlock", () => {
   it("shows no link state when the account could not be loaded", () => {
-    expect(socialBlock([google, facebook], null)).toEqual({ kind: "unknown" });
-    expect(socialBlock([], null)).toEqual({ kind: "off" });
+    expect(socialBlock([google, facebook], null, "password")).toEqual({ kind: "unknown" });
+    expect(socialBlock([], null, undefined)).toEqual({ kind: "off" });
   });
 
   it("is off without providers and lists the rows otherwise", () => {
-    expect(socialBlock([], [])).toEqual({ kind: "off" });
-    expect(socialBlock([google], [])).toEqual({
+    expect(socialBlock([], [], "password")).toEqual({ kind: "off" });
+    expect(socialBlock([google], [], "password")).toEqual({
       kind: "rows",
       rows: [
         {
@@ -84,6 +84,28 @@ describe("socialBlock", () => {
     });
   });
 
+  it("keeps «Bog‘lash» when the backend does not report auth_method (before M3)", () => {
+    // Django's 403 stays the guard there; `oauthLinkErrorMessage` explains a refused link.
+    expect(socialBlock([google, facebook], ["facebook"], undefined)).toEqual({
+      kind: "rows",
+      rows: [
+        {
+          id: "google",
+          label: "Google",
+          linked: false,
+          linkHref: "/admin/auth/oauth/google/start?intent=link",
+        },
+        {
+          id: "facebook",
+          label: "Facebook",
+          linked: true,
+          linkHref: "/admin/auth/oauth/facebook/start?intent=link",
+        },
+      ],
+      linkHint: null,
+    });
+  });
+
   it("needs no hint when every enabled provider is already linked", () => {
     expect(socialBlock([google], ["google"], "google")).toMatchObject({ linkHint: null });
     // A linked provider that is no longer enabled leaves nothing to link.
@@ -94,6 +116,8 @@ describe("socialBlock", () => {
 describe("linkBlockedMessage", () => {
   it("asks every session but a password one to sign in with the password first", () => {
     expect(linkBlockedMessage("password")).toBeNull();
+    // Not reported (a backend before M3): the link is offered, the 403 is the fallback.
+    expect(linkBlockedMessage(undefined)).toBeNull();
     expect(linkBlockedMessage("google")).toBe(LINK_NEEDS_PASSWORD_MESSAGE);
     expect(linkBlockedMessage("apple")).toBe(LINK_NEEDS_PASSWORD_MESSAGE);
     expect(linkBlockedMessage(null)).toBe(LINK_NEEDS_NEW_SIGN_IN_MESSAGE);

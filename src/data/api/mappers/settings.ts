@@ -58,7 +58,11 @@ export function settingsPatchBody(
   return body;
 }
 
-/** `GET auth/me/` → the account card. */
+/**
+ * `GET auth/me/` → the account card. `auth_method` (M3) keeps an absent key
+ * (a backend before M3) apart from an explicit `null` (a session opened
+ * before the backend recorded it): only the latter stops the link flow.
+ */
 export function mapStaffAccount(me: Me): StaffAccount {
   return {
     id: idString(me.id),
@@ -66,6 +70,6 @@ export function mapStaffAccount(me: Me): StaffAccount {
     displayName: me.display_name,
     linkedProviders: [...me.linked_providers],
     sessionExpiresAt: me.session_expires_at || null,
-    authMethod: me.auth_method ?? null,
+    authMethod: "auth_method" in me ? (me.auth_method ?? null) : undefined,
   };
 }

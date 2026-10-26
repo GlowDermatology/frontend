@@ -29,8 +29,13 @@ export interface StaffAccount {
   /** Social sign-in providers linked to this account. */
   linkedProviders: string[];
   sessionExpiresAt: string | null;
-  /** How this session signed in; `null` for a session opened before the backend recorded it. */
-  authMethod: StaffAuthMethod | null;
+  /**
+   * How this session signed in: `null` for a session opened before the
+   * backend recorded it (it cannot link), `undefined` when the backend does
+   * not report it at all (before M3: «Bog‘lash» stays, the 403 explains a
+   * refused link).
+   */
+  authMethod: StaffAuthMethod | null | undefined;
 }
 
 /**
@@ -46,8 +51,12 @@ export const LINK_NEEDS_PASSWORD_MESSAGE =
 export const LINK_NEEDS_NEW_SIGN_IN_MESSAGE =
   "Bu sessiyada hisob bog‘lab bo‘lmaydi. Chiqing, email va parol bilan qayta kiring, so‘ng «Bog‘lash»ni bosing.";
 
-/** Why this session cannot link a provider, or `null` when it can (a password sign-in). */
-export function linkBlockedMessage(authMethod: StaffAuthMethod | null): string | null {
-  if (authMethod === "password") return null;
+/**
+ * Why this session cannot link a provider, or `null` when it may try: a
+ * password sign-in, or a backend that does not report `auth_method` (before
+ * M3), where Django's 403 is the guard and `oauthLinkErrorMessage` explains it.
+ */
+export function linkBlockedMessage(authMethod: StaffAuthMethod | null | undefined): string | null {
+  if (authMethod === "password" || authMethod === undefined) return null;
   return authMethod === null ? LINK_NEEDS_NEW_SIGN_IN_MESSAGE : LINK_NEEDS_PASSWORD_MESSAGE;
 }

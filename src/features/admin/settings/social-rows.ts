@@ -61,12 +61,14 @@ export type SocialBlock =
  * 409 — and the rows otherwise. Only a session that signed in with the
  * password may link (`Me.auth_method`, M3; Django refuses `link/` with 403
  * otherwise): any other session gets no «Bog‘lash» and, while a provider is
- * left to link, the password-first hint instead. Unlinking is not affected.
+ * left to link, the password-first hint instead. A backend that does not
+ * report the method (`undefined`, before M3) keeps «Bog‘lash». Unlinking is
+ * not affected. `authMethod` has no default: every caller states what it knows.
  */
 export function socialBlock(
   enabled: readonly SocialProviderOption[],
   linked: readonly string[] | null,
-  authMethod: StaffAuthMethod | null = "password",
+  authMethod: StaffAuthMethod | null | undefined,
 ): SocialBlock {
   if (linked === null) return enabled.length > 0 ? { kind: "unknown" } : { kind: "off" };
   const hint = linkBlockedMessage(authMethod);

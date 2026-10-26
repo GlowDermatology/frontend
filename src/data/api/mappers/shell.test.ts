@@ -524,6 +524,10 @@ describe("settings and account", () => {
     expect(mapStaffAccount({ ...base, auth_method: "google" }).authMethod).toBe("google");
     // A session opened before the backend recorded how it signed in (M3).
     expect(mapStaffAccount({ ...base, auth_method: null }).authMethod).toBeNull();
+    // A backend before M3 (the M2 `Me` has no `auth_method` key): not reported, not `null`.
+    const m2Me = base as unknown as Parameters<typeof mapStaffAccount>[0];
+    expect("auth_method" in m2Me).toBe(false);
+    expect(mapStaffAccount(m2Me).authMethod).toBeUndefined();
     const envelope = {
       code: "validation_error",
       message: "Maydonlarni tekshiring.",

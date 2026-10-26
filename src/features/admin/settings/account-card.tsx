@@ -80,7 +80,7 @@ export function AccountCard({ account, providers = [], notice = null }: AccountC
   /** The row whose action should take focus once the confirmation closes. */
   const focusRow = useRef<string | null>(null);
   // A session that did not sign in with the password cannot link (M3 `auth_method`).
-  const social = socialBlock(providers, linked, account?.authMethod ?? null);
+  const social = socialBlock(providers, linked, account?.authMethod);
 
   // A link flow's outcome (the callback lands here with `?oauth=`): drop the
   // token through the router (so a later `refresh()` does not render it

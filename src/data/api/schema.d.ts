@@ -3,8 +3,8 @@
  * GENERATED FILE — do not edit by hand. Regenerate with `npm run gen:api`.
  *
  * Source: openapi/schema.yaml of the backend repository
- * Commit: 3a79cbc95ed9eb9fba3a13d33415ccaf40a21567
- * Generated: 2026-10-26T15:56:56.525Z (openapi-typescript)
+ * Commit: d9843de00bf879f5de74245a654029fb1da739e2
+ * Generated: 2026-10-26T19:50:50.988Z (openapi-typescript)
  */
 
 export interface paths {
@@ -514,6 +514,23 @@ export interface paths {
         put?: never;
         /** @description Multipart with dotted keys (`link.kind`, `audience.type`, …) and an optional `image` (JPEG, PNG or WebP, ≤ 5 MiB). Without `scheduled_at` the send starts at once; the 201 body is the campaign as stored after the commit (`queued`, or `sent` when the send already ran inside the request). With it the campaign waits for its time (state `scheduled`). */
         post: operations["admin_notifications_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/notifications/{id}/cancel/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Cancel a `scheduled` campaign before its send starts (state `cancelled`, audited `notification.cancelled`). Idempotent: an already cancelled campaign answers 200 unchanged. 409 `conflict` once the send started (`queued` / `sent`); 404 for an unknown id. */
+        post: operations["admin_notifications_cancel"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1865,7 +1882,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description BTS status notification; the status is re-tracked with our tracking number (customer contract §2.13.3). */
+        /** @description BTS status notification (JSON or form-data, customer contract §2.13.3), authenticated by `?token=<BTS_WEBHOOK_SECRET>` or the `X-GD-Webhook-Token` header; the status is re-tracked with our tracking number. */
         post: operations["webhook_bts_status"];
         delete?: never;
         options?: never;
@@ -2069,6 +2086,14 @@ export interface components {
             object_type: string;
             request_id: string;
         };
+        /**
+         * @description * `password` - password
+         *     * `google` - google
+         *     * `facebook` - facebook
+         *     * `apple` - apple
+         * @enum {string}
+         */
+        AuthMethodEnum: "password" | "google" | "facebook" | "apple";
         AuthTokens: {
             access: string;
             /** Format: date-time */
@@ -2915,6 +2940,12 @@ export interface components {
             };
             /** @description `?ready=1` only, and only for a caller that passes the admin network gate (§1): the mode of every provider with a `*_MODE` setting. */
             integrations?: components["schemas"]["ProviderModes"];
+            /** @description `?ready=1` only, and only for a caller that passes the admin network gate (§1): one entry per provider whose mode is `live`. A live provider that is not configured makes `status` `error` (503) for every caller. */
+            providers?: {
+                [key: string]: components["schemas"]["ProviderReadiness"];
+            };
+            /** @description With `integrations`: the live providers configured against a sandbox (BTS test host, Payme sandbox checkout / `PAYME_TEST_MODE`, Eskiz test sender); empty in a real deployment. */
+            sandbox?: string[];
             status: components["schemas"]["HealthStatusEnum"];
             version?: string;
         };
@@ -3140,7 +3171,23 @@ export interface components {
          * @enum {string}
          */
         LogoutScopeEnum: "current" | "others" | "all";
+        /**
+         * @description * `payme` - payme
+         *     * `no_paydoc` - no_paydoc
+         *     * `fake_mode` - fake_mode
+         * @enum {string}
+         */
+        ManualReasonEnum: "payme" | "no_paydoc" | "fake_mode";
         Me: {
+            /**
+             * @description How the current session's sign-in was proven: `password` (email + password) or the social provider (`google`, `facebook`); `null` for a session opened before the method was recorded. Only a `password` session may link a social identity (`auth/oauth/{provider}/link/`).
+             *
+             *     * `password` - password
+             *     * `google` - google
+             *     * `facebook` - facebook
+             *     * `apple` - apple
+             */
+            auth_method: (components["schemas"]["AuthMethodEnum"] | components["schemas"]["NullEnum"]) | null;
             display_name: string;
             /** Format: email */
             email: string;
@@ -3242,6 +3289,11 @@ export interface components {
             readonly audience: components["schemas"]["NotificationAudience"];
             author: components["schemas"]["Actor"] | null;
             body: string;
+            /**
+             * Format: date-time
+             * @description M3: when staff cancelled the scheduled campaign (state `cancelled`).
+             */
+            cancelled_at: string | null;
             /** Format: date-time */
             created_at: string;
             delivered: number | null;
@@ -3263,9 +3315,10 @@ export interface components {
          * @description * `scheduled` - scheduled
          *     * `queued` - queued
          *     * `sent` - sent
+         *     * `cancelled` - cancelled
          * @enum {string}
          */
-        NotificationStateEnum: "scheduled" | "queued" | "sent";
+        NotificationStateEnum: "scheduled" | "queued" | "sent" | "cancelled";
         /** @enum {unknown} */
         NullEnum: null;
         /**
@@ -3898,6 +3951,17 @@ export interface components {
             oauth: components["schemas"]["IntegrationModeEnum"];
             payme: components["schemas"]["IntegrationModeEnum"];
         };
+        ProviderReadiness: {
+            /** @description The live adapter can be built and its `is_configured()` (where the port has one) says yes; `false` makes readiness answer 503. */
+            configured: boolean;
+            /** @description Seconds since `last_sync_at`; `null` with it. */
+            last_sync_age_seconds: number | null;
+            /**
+             * Format: date-time
+             * @description Billz and BTS only: the last successful catalog sync / polling run; `null` otherwise.
+             */
+            last_sync_at: string | null;
+        };
         PublicSettings: {
             booking_policy: string;
             cosmetologist_phone: string | null;
@@ -3982,12 +4046,23 @@ export interface components {
             /** Format: date-time */
             refresh_expires_at: string;
         };
-        /** @description Contract ``Refund`` (§2.2): ``completed_at`` is set on ``succeeded`` only. */
+        /**
+         * @description Contract ``Refund`` (§2.2): ``completed_at`` is set on ``succeeded`` only; ``manual_reason`` (M3) says
+         *     why a refund is manual (§5.1 picks the refund-state line by it).
+         */
         Refund: {
             amount: number;
             /** Format: date-time */
             completed_at: string | null;
             id: number;
+            /**
+             * @description Why the refund is (or was) `manual_required`: `payme` (a Payme cabinet refund), `no_paydoc` (a Click payment without Click's payment id), `fake_mode` (Click fake under the production settings); `null` for a refund that was never manual.
+             *
+             *     * `payme` - payme
+             *     * `no_paydoc` - no_paydoc
+             *     * `fake_mode` - fake_mode
+             */
+            manual_reason: (components["schemas"]["ManualReasonEnum"] | components["schemas"]["NullEnum"]) | null;
             provider: components["schemas"]["PaymentProviderEnum"];
             /** Format: date-time */
             requested_at: string;
@@ -7303,8 +7378,9 @@ export interface operations {
                  * @description * `scheduled` - scheduled
                  *     * `queued` - queued
                  *     * `sent` - sent
+                 *     * `cancelled` - cancelled
                  */
-                state?: "scheduled" | "queued" | "sent";
+                state?: "scheduled" | "queued" | "sent" | "cancelled";
             };
             header?: never;
             path?: never;
@@ -7395,6 +7471,83 @@ export interface operations {
         };
         responses: {
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationRecord"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_notifications_cancel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8541,6 +8694,14 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
         };
     };
     admin_products_retrieve: {
@@ -8692,6 +8853,14 @@ export interface operations {
                 };
             };
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -15477,7 +15646,9 @@ export interface operations {
     };
     webhook_bts_status: {
         parameters: {
-            query?: never;
+            query?: {
+                token?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -15485,6 +15656,12 @@ export interface operations {
         requestBody?: {
             content: {
                 "application/json": {
+                    [key: string]: unknown;
+                };
+                "application/x-www-form-urlencoded": {
+                    [key: string]: unknown;
+                };
+                "multipart/form-data": {
                     [key: string]: unknown;
                 };
             };
@@ -15501,6 +15678,16 @@ export interface operations {
                 };
             };
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            413: {
                 headers: {
                     [name: string]: unknown;
                 };

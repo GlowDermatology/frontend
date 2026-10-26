@@ -45,6 +45,7 @@ const STATE_BADGE: Record<NotificationState, { label: string; tone: Tone }> = {
   scheduled: { label: "Rejalashtirilgan", tone: "gold" },
   queued: { label: "Navbatda", tone: "warning" },
   sent: { label: "Yuborildi", tone: "success" },
+  cancelled: { label: "Bekor qilindi", tone: "neutral" },
 };
 
 /** "2026-10-26T10:00" (datetime-local, Tashkent) ↔ ISO with +05:00. */

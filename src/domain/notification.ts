@@ -3,8 +3,11 @@ import type { ContentLanguage } from "./product";
 
 export type NotificationKind = "promo" | "general";
 
-/** `queued` = accepted and being sent in batches; counts arrive later. */
-export type NotificationState = "scheduled" | "queued" | "sent";
+/**
+ * `queued` = accepted and being sent in batches; counts arrive later.
+ * `cancelled` (M3) = a scheduled campaign staff cancelled before its send.
+ */
+export type NotificationState = "scheduled" | "queued" | "sent" | "cancelled";
 
 export interface NotificationRecord {
   id: string;
@@ -21,6 +24,8 @@ export interface NotificationRecord {
   state: NotificationState;
   scheduledAt?: string | null;
   sentAt?: string | null;
+  /** When staff cancelled the scheduled campaign (M3); `null` otherwise. */
+  cancelledAt?: string | null;
   /** Staff display name; absent for the system. */
   author?: string;
   /** The product a tap opens ("Seramidli namlantiruvchi krem"); absent = the app's home. */

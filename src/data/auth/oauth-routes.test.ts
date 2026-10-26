@@ -470,6 +470,7 @@ describe("GET /admin/auth/oauth/[provider]/callback", () => {
             is_superuser: true,
             linked_providers: ["google"],
             session_expires_at: "2026-10-26T22:00:00+05:00",
+            auth_method: "google",
           },
         },
       });

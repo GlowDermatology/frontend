@@ -110,6 +110,7 @@ export const MOCK_ME: Me = {
   is_superuser: true,
   linked_providers: [],
   session_expires_at: "",
+  auth_method: "password",
 };
 
 /**

@@ -503,6 +503,7 @@ describe("settings and account", () => {
         is_superuser: false,
         linked_providers: ["google"],
         session_expires_at: "2026-10-26T15:33:54+05:00",
+        auth_method: "password",
       }),
     ).toEqual({
       id: "1",

@@ -44,6 +44,7 @@ export function mapNotificationRecord(api: ApiNotificationRecord): NotificationR
     state: api.state,
     scheduledAt: api.scheduled_at,
     sentAt: api.sent_at,
+    cancelledAt: api.cancelled_at,
   };
   if (author) record.author = author;
   if (api.link.kind === "product" && api.link.label) record.linkLabel = api.link.label;

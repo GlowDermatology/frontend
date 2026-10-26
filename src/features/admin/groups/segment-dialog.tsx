@@ -13,7 +13,7 @@ import { SEGMENT_NAME_MAX, segmentRulesSummary, type Segment } from "@/domain/se
 import { formatNumber, parseAmount } from "@/lib/format";
 
 import { runAction } from "../shared/action-client";
-import { focusFirstInvalid } from "../shared/focus-invalid";
+import { useFocusFirstInvalid } from "../shared/focus-invalid";
 import { partitionFieldErrors } from "../shared/field-errors";
 import type { IdempotencyKey } from "../shared/idempotency";
 
@@ -78,6 +78,7 @@ export function SegmentDialog({
       ? null
       : segmentRulesSummary(values.rules);
 
+  const focusFirstInvalid = useFocusFirstInvalid();
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (inFlight.current) return;

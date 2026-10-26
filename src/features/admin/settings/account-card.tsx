@@ -16,7 +16,7 @@ import type { StaffAccount } from "@/domain/settings";
 import { formatDateTimeShort } from "@/lib/format";
 
 import { runAction } from "../shared/action-client";
-import { focusFirstInvalid } from "../shared/focus-invalid";
+import { useFocusFirstInvalid } from "../shared/focus-invalid";
 import { partitionFieldErrors } from "../shared/field-errors";
 import { readCsrfCookie } from "../shared/csrf";
 import { othersLogoutNotice } from "./others-logout";
@@ -126,6 +126,7 @@ export function AccountCard({ account, providers = [], notice = null }: AccountC
     toast(notice.toast);
   }, [toast]);
 
+  const focusFirstInvalid = useFocusFirstInvalid();
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (inFlight.current) return;

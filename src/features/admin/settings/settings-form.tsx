@@ -20,7 +20,7 @@ import { formatDateTimeShort, formatPhone } from "@/lib/format";
 import { maskPhone, normalizePhone } from "@/lib/phone";
 
 import { runAction } from "../shared/action-client";
-import { focusFirstInvalid } from "../shared/focus-invalid";
+import { useFocusFirstInvalid } from "../shared/focus-invalid";
 import { partitionFieldErrors } from "../shared/field-errors";
 import { useIdempotencyKey } from "../shared/idempotency";
 
@@ -79,6 +79,7 @@ export function SettingsForm({ settings: initial }: { settings: SiteSettings }) 
   const baseline = toValues(settings);
   const dirty = JSON.stringify(values) !== JSON.stringify(baseline);
 
+  const focusFirstInvalid = useFocusFirstInvalid();
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (inFlight.current) return;

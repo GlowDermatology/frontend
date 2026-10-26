@@ -2,12 +2,10 @@ import { expect, test } from "@playwright/test";
 
 import { heading } from "./helpers";
 
-/** Malika's card in the seed_demo dataset. */
-const CUSTOMER_PATH = process.env.E2E_CUSTOMER_PATH ?? "/admin/customers/5";
+/** A generated customer of the seed_demo dataset (Malika, customer 5, keeps the design numbers). */
+const CUSTOMER_PATH = process.env.E2E_CUSTOMER_PATH ?? "/admin/customers/288";
 
-// The customer card reads `notWiredYet` in api mode until the customers slice
-// (F2c) lands; enable this test together with that wiring.
-test.fixme("a double-submitted adjustment posts exactly one ledger entry", async ({ page }) => {
+test("a double-submitted adjustment posts exactly one ledger entry", async ({ page }) => {
   const reason = `e2e tuzatish ${Date.now()}`;
   await page.goto(CUSTOMER_PATH);
   await expect(heading(page)).toBeVisible();

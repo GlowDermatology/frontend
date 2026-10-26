@@ -22,7 +22,7 @@ E2E_ADMIN_PASSWORD=<SEED_ADMIN_PASSWORD> npm run e2e
 | `E2E_ADMIN_EMAIL`         | `admin@glowderma.uz`    | Staff account to sign in with                                  |
 | `E2E_ADMIN_PASSWORD`      | required                | Its password                                                   |
 | `E2E_IGNORE_HTTPS_ERRORS` | unset                   | Set for a staging edge with a private CA                       |
-| `E2E_CUSTOMER_PATH`       | `/admin/customers/5`    | Customer card used by the adjustment spec                      |
+| `E2E_CUSTOMER_PATH`       | `/admin/customers/288`  | Customer card used by the adjustment spec                      |
 
 The specs mutate data (cashback adjustments carry a unique reason, so a rerun stays valid); reset the dataset with
 `seed_demo --reset` when you need the design numbers back. The global setup signs in once and stores the session in

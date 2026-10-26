@@ -64,6 +64,9 @@ export function lastChangeNote(change: ApiLastChange): string {
   }
 }
 
+/** Who a `last_change` without an actor is shown as. */
+export const SYSTEM_ACTOR = "Tizim";
+
 export function mapProduct(api: ApiProduct): Product {
   const product: Product = {
     id: idString(api.id),
@@ -85,7 +88,8 @@ export function mapProduct(api: ApiProduct): Product {
   if (api.main_image_url) product.mainImageUrl = api.main_image_url;
   if (api.last_change) {
     product.lastChange = {
-      by: api.last_change.actor?.display_name ?? "Administrator",
+      // No actor = the system (since M3 the Billz full sync hides products, §2.3).
+      by: api.last_change.actor?.display_name ?? SYSTEM_ACTOR,
       at: api.last_change.at,
       note: lastChangeNote(api.last_change),
     };

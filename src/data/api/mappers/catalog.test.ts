@@ -119,7 +119,7 @@ describe("mapProduct", () => {
     });
   });
 
-  it("writes every last_change kind per §5.2 and falls back to Administrator for a system actor", () => {
+  it("writes every last_change kind per §5.2 and names a system change Tizim", () => {
     const at = "2026-10-22T18:04:00+05:00";
     const note = (kind: Parameters<typeof lastChangeNote>[0]["kind"]) =>
       lastChangeNote({ kind, at, actor: null, old_price: 100_000, new_price: 1_250_000 });
@@ -134,7 +134,13 @@ describe("mapProduct", () => {
       ...product,
       last_change: { kind: "updated", at, actor: null, old_price: null, new_price: null },
     });
-    expect(system.lastChange).toEqual({ by: "Administrator", at, note: "ma’lumotlar yangilandi" });
+    expect(system.lastChange).toEqual({ by: "Tizim", at, note: "ma’lumotlar yangilandi" });
+    // Since M3 the Billz full sync hides products as the system (§2.3).
+    const synced = mapProduct({
+      ...product,
+      last_change: { kind: "hidden", at, actor: null, old_price: null, new_price: null },
+    });
+    expect(synced.lastChange).toEqual({ by: "Tizim", at, note: "yashirildi" });
   });
 
   it("maps the page envelope", () => {

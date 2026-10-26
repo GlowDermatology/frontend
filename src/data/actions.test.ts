@@ -1094,6 +1094,8 @@ describe("sendNotification", () => {
         state: "queued",
         scheduledAt: null,
         sentAt: null,
+        // Like an M3 record: the history offers «Bekor qilish» once it is scheduled.
+        cancelledAt: null,
         author: "Administrator",
       });
     }

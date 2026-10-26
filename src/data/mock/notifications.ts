@@ -33,6 +33,7 @@ export const NOTIFICATION_HISTORY: ReadonlyArray<NotificationRecord> = [
     state: "scheduled",
     scheduledAt: t("2026-10-26T10:00:00"),
     sentAt: null,
+    cancelledAt: null,
     author: "Administrator",
   },
   {
@@ -47,6 +48,7 @@ export const NOTIFICATION_HISTORY: ReadonlyArray<NotificationRecord> = [
     state: "sent",
     scheduledAt: t("2026-10-24T12:00:00"),
     sentAt: t("2026-10-24T12:02:00"),
+    cancelledAt: null,
     author: "Administrator",
     linkLabel: "Seramidli namlantiruvchi krem",
   },
@@ -62,6 +64,7 @@ export const NOTIFICATION_HISTORY: ReadonlyArray<NotificationRecord> = [
     state: "sent",
     scheduledAt: t("2026-10-21T10:00:00"),
     sentAt: t("2026-10-21T10:02:00"),
+    cancelledAt: null,
     author: "Administrator",
   },
   {
@@ -76,6 +79,7 @@ export const NOTIFICATION_HISTORY: ReadonlyArray<NotificationRecord> = [
     state: "sent",
     scheduledAt: t("2026-10-18T16:30:00"),
     sentAt: t("2026-10-18T16:32:00"),
+    cancelledAt: null,
     author: "Administrator",
   },
 ];

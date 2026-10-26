@@ -44,7 +44,8 @@ export function mapNotificationRecord(api: ApiNotificationRecord): NotificationR
     state: api.state,
     scheduledAt: api.scheduled_at,
     sentAt: api.sent_at,
-    cancelledAt: api.cancelled_at,
+    // Absent before M3 (no cancel endpoint): `canCancelCampaign` offers nothing then.
+    cancelledAt: "cancelled_at" in api ? api.cancelled_at : undefined,
   };
   if (author) record.author = author;
   if (api.link.kind === "product" && api.link.label) record.linkLabel = api.link.label;

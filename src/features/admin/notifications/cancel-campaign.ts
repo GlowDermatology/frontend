@@ -7,10 +7,13 @@ import { newIdempotencyKey, shouldRenewKey } from "../shared/idempotency";
 /**
  * "Bekor qilish" in the notification history (contract §2.8, M3): offered
  * for `scheduled` campaigns only; once the send started the backend refuses
- * it with 409 `conflict`.
+ * it with 409 `conflict`. A record without `cancelledAt` comes from a
+ * backend before M3, which has no cancel endpoint: no button there.
  */
-export function canCancelCampaign(record: Pick<NotificationRecord, "state">): boolean {
-  return record.state === "scheduled";
+export function canCancelCampaign(
+  record: Pick<NotificationRecord, "state" | "cancelledAt">,
+): boolean {
+  return record.state === "scheduled" && record.cancelledAt !== undefined;
 }
 
 /**

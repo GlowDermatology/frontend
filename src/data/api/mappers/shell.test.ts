@@ -242,6 +242,15 @@ describe("notifications", () => {
       linkLabel: "Seramidli namlantiruvchi krem",
     });
     expect(history[0]?.linkLabel).toBeUndefined();
+    expect(history[0]?.cancelledAt).toBeNull();
+  });
+
+  it("keeps a missing cancelled_at (a backend before M3) apart from null", () => {
+    const m2Record: Record<string, unknown> = { ...page.results[0]! };
+    delete m2Record.cancelled_at;
+    const mapped = mapNotificationRecord(m2Record as unknown as (typeof page.results)[number]);
+    expect(mapped.cancelledAt).toBeUndefined();
+    expect(mapped.state).toBe("scheduled");
   });
 
   it("labels a single-customer audience with the formatted phone and falls back to created_at", () => {

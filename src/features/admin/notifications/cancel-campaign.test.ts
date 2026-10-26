@@ -29,10 +29,15 @@ const STARTED = "Yuborish boshlangan: xabarni bekor qilib bo‘lmaydi.";
 
 describe("canCancelCampaign", () => {
   it("offers Bekor qilish for scheduled campaigns only", () => {
-    expect(canCancelCampaign({ state: "scheduled" })).toBe(true);
-    expect(canCancelCampaign({ state: "queued" })).toBe(false);
-    expect(canCancelCampaign({ state: "sent" })).toBe(false);
-    expect(canCancelCampaign({ state: "cancelled" })).toBe(false);
+    expect(canCancelCampaign({ state: "scheduled", cancelledAt: null })).toBe(true);
+    expect(canCancelCampaign({ state: "queued", cancelledAt: null })).toBe(false);
+    expect(canCancelCampaign({ state: "sent", cancelledAt: null })).toBe(false);
+    expect(canCancelCampaign({ state: "cancelled", cancelledAt: record.cancelledAt })).toBe(false);
+  });
+
+  it("offers nothing on a record of a backend before M3 (no cancelled_at, no cancel endpoint)", () => {
+    expect(canCancelCampaign({ state: "scheduled" })).toBe(false);
+    expect(canCancelCampaign({ state: "scheduled", cancelledAt: undefined })).toBe(false);
   });
 });
 

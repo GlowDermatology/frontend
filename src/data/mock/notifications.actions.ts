@@ -60,6 +60,7 @@ export async function sendNotification(
       state: input.scheduledAt ? "scheduled" : "queued",
       scheduledAt: input.scheduledAt,
       sentAt: null,
+      cancelledAt: null,
       author: "Administrator",
       ...(input.link.kind === "product" ? { linkLabel: linkLabel(input.link.productId) } : {}),
     },

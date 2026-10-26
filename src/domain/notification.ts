@@ -24,7 +24,10 @@ export interface NotificationRecord {
   state: NotificationState;
   scheduledAt?: string | null;
   sentAt?: string | null;
-  /** When staff cancelled the scheduled campaign (M3); `null` otherwise. */
+  /**
+   * When staff cancelled the scheduled campaign (M3); `null` otherwise.
+   * Absent on a record of a backend before M3, which cannot cancel.
+   */
   cancelledAt?: string | null;
   /** Staff display name; absent for the system. */
   author?: string;

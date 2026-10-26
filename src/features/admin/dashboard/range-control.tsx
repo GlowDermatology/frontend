@@ -6,7 +6,6 @@ import { useOptimistic, useState, useTransition, type FormEvent } from "react";
 
 import { Button, buttonStyles } from "@/components/ui/button";
 import { Dialog, DialogClose } from "@/components/ui/dialog";
-import { Field, TextInput } from "@/components/ui/field";
 import { Icon } from "@/components/ui/icon";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import {
@@ -19,6 +18,7 @@ import {
 import { cn } from "@/lib/cn";
 import { addDays, formatDayMonthShort } from "@/lib/format";
 
+import { DateRangeFields } from "../shared/date-range-fields";
 import { dashboardHref } from "./query";
 
 const OPTIONS: ReadonlyArray<{ value: DashboardRange; label: string }> = [
@@ -68,11 +68,23 @@ export function RangeControl({ value, today, errors: serverErrors }: RangeContro
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const found = validateCustomRange(from || undefined, to || undefined, today);
+    // The inputs' current values, so a day typed a moment ago (its draft not
+    // yet applied to the state) is what gets checked and sent.
+    const data = new FormData(event.currentTarget);
+    const nextFrom = String(data.get("from") ?? "");
+    const nextTo = String(data.get("to") ?? "");
+    setFrom(nextFrom);
+    setTo(nextTo);
+    const found = validateCustomRange(nextFrom || undefined, nextTo || undefined, today);
     setErrors(found);
-    if (found.from || found.to) return;
+    if (found.from || found.to) {
+      // First invalid field takes focus, like the other forms.
+      const name = found.from ? "from" : "to";
+      event.currentTarget.querySelector<HTMLInputElement>(`input[name="${name}"]`)?.focus();
+      return;
+    }
     setOpen(false);
-    go({ range: "custom", from, to });
+    go({ range: "custom", from: nextFrom, to: nextTo });
   };
 
   return (
@@ -111,35 +123,18 @@ export function RangeControl({ value, today, errors: serverErrors }: RangeContro
         description={`Toshkent vaqti bo‘yicha, ko‘pi bilan ${CUSTOM_RANGE_MAX_DAYS} kun. Ikki kungacha soatlar, undan uzunrog‘i kunlar bo‘yicha ko‘rsatiladi.`}
       >
         <form noValidate onSubmit={submit} className="flex flex-col gap-4">
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(min(180px,100%),1fr))] gap-3">
-            <Field label="Sanadan" error={errors.from}>
-              {(control) => (
-                <TextInput
-                  {...control}
-                  type="date"
-                  name="from"
-                  className="tabular-nums"
-                  value={from}
-                  max={to || today}
-                  onChange={(event) => setFrom(event.target.value)}
-                />
-              )}
-            </Field>
-            <Field label="Sanagacha" error={errors.to}>
-              {(control) => (
-                <TextInput
-                  {...control}
-                  type="date"
-                  name="to"
-                  className="tabular-nums"
-                  value={to}
-                  min={from || undefined}
-                  max={today}
-                  onChange={(event) => setTo(event.target.value)}
-                />
-              )}
-            </Field>
-          </div>
+          <DateRangeFields
+            variant="form"
+            names={{ from: "from", to: "to" }}
+            from={from}
+            to={to}
+            max={today}
+            errors={errors}
+            onCommit={(patch) => {
+              if ("dateFrom" in patch) setFrom(patch.dateFrom ?? "");
+              if ("dateTo" in patch) setTo(patch.dateTo ?? "");
+            }}
+          />
           <div className="flex flex-wrap justify-end gap-2">
             <DialogClose className={buttonStyles({ variant: "outline" })}>Orqaga</DialogClose>
             <Button type="submit" disabled={pending}>

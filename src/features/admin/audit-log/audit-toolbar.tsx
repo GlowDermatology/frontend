@@ -31,8 +31,7 @@ const smallControl = "h-10 text-[14px]";
 /**
  * Filters of the audit log; every change is a URL navigation inside the
  * list transition (rows dim instead of flashing a skeleton). The actor list
- * is the signed-in staff member plus the actors on the current page: there
- * is no staff directory endpoint in M1.
+ * is the active staff directory (`GET staff/`, contract §2.16).
  */
 export function AuditToolbar({
   filters,

@@ -1,0 +1,14 @@
+{
+  "count": 1,
+  "page": 1,
+  "page_size": 100,
+  "page_count": 1,
+  "results": [
+    {
+      "id": 1,
+      "display_name": "Administrator",
+      "email": "admin@glowderma.uz",
+      "is_active": true
+    }
+  ]
+}

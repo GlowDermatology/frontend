@@ -1,7 +1,11 @@
 import type { Route } from "next";
 
+import { isApiError } from "@/data/api/errors";
+import { PageLimitExceededError } from "@/data/api/pages";
 import { listAuditLog } from "@/data/audit";
 import { getMe, requireStaff } from "@/data/auth";
+import { listStaff } from "@/data/staff";
+import type { StaffMember } from "@/domain/staff";
 import { formatNumber } from "@/lib/format";
 import { Icon } from "@/components/ui/icon";
 
@@ -18,14 +22,27 @@ import { auditHref, auditQuery, parseAuditFilters } from "./query";
 export async function AuditContent({ searchParams }: { searchParams: Promise<SearchParams> }) {
   await requireStaff();
   const filters = parseAuditFilters(await searchParams);
-  const [page, me] = await Promise.all([listAuditLog(filters), getMe()]);
+  const [page, me, staff] = await Promise.all([listAuditLog(filters), getMe(), staffOrEmpty()]);
 
-  const actors = new Map<string, string>();
-  if (me && me.id > 0) actors.set(String(me.id), `${me.display_name} (siz)`);
-  for (const entry of page.items) {
-    if (entry.actorId && entry.actor && !actors.has(entry.actorId)) {
-      actors.set(entry.actorId, entry.actor);
+  // The actor filter lists the active staff (`GET staff/`); the signed-in
+  // member is marked, and a filtered actor who is no longer active keeps
+  // their name from the rows instead of a bare id.
+  const actors = new Map<string, string>(staff.map((member) => [member.id, member.name]));
+  if (me && me.id > 0 && actors.has(String(me.id))) {
+    actors.set(String(me.id), `${actors.get(String(me.id))} (siz)`);
+  }
+  if (staff.length === 0) {
+    // Directory unavailable: fall back to the signed-in member and this page's actors.
+    if (me && me.id > 0) actors.set(String(me.id), `${me.display_name} (siz)`);
+    for (const entry of page.items) {
+      if (entry.actorId && entry.actor && !actors.has(entry.actorId)) {
+        actors.set(entry.actorId, entry.actor);
+      }
     }
+  }
+  if (filters.actor && !actors.has(filters.actor)) {
+    const row = page.items.find((entry) => entry.actorId === filters.actor && entry.actor);
+    if (row?.actor) actors.set(filters.actor, row.actor);
   }
   const actorOptions: ActorOption[] = [...actors].map(([id, name]) => ({ id, name }));
   const exportQuery = auditQuery({ ...filters, page: 1 });
@@ -74,4 +91,17 @@ export async function AuditContent({ searchParams }: { searchParams: Promise<Sea
       </ListTransition>
     </>
   );
+}
+
+/** The staff directory, or no options when it cannot be read (the log itself still renders). */
+async function staffOrEmpty(): Promise<StaffMember[]> {
+  try {
+    return await listStaff();
+  } catch (error) {
+    if (isApiError(error) || error instanceof PageLimitExceededError) {
+      console.error("[audit-log] staff directory unavailable", error);
+      return [];
+    }
+    throw error;
+  }
 }

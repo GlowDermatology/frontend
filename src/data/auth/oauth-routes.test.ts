@@ -44,7 +44,12 @@ function noticeOf(location: string | null) {
   return openNotice(token, key, Date.now());
 }
 
+// Every variable the handlers read is pinned, so an api-mode shell env does not leak in.
 const env = {
+  GLOWDERMA_DATA_SOURCE: "mock",
+  GLOWDERMA_OAUTH_MODE: "fake",
+  GLOWDERMA_GOOGLE_CLIENT_ID: "",
+  GLOWDERMA_FACEBOOK_APP_ID: "",
   GLOWDERMA_OAUTH_PROVIDERS: "google,facebook",
   GLOWDERMA_ALLOWED_ORIGINS: HOST,
   GLOWDERMA_INTERNAL_SECRET: SECRET,

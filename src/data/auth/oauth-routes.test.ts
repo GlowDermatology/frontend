@@ -363,6 +363,26 @@ describe("GET /admin/auth/oauth/[provider]/callback", () => {
     expect(noticeOf(linkResponse.headers.get("location"))?.kind).toBe("demo");
   });
 
+  it("lands a login whose next has non-ASCII characters on its encoded form (no 500)", async () => {
+    const started = await start(
+      get("/admin/auth/oauth/google/start?intent=login&next=%2Fadmin%2F%E2%82%AC"),
+      ctx("google"),
+    );
+    expect(sealedFlowOf(started).next).toBe("/admin/%E2%82%AC");
+    // A flow sealed before the fix carries the raw value; the callback re-validates it.
+    const flow = newFlow({ provider: "google", intent: "login", next: null, nowMs: Date.now() });
+    const raw = sealFlow({ ...flow, next: "/admin/\u2028x" as never }, key);
+    const response = await callback(
+      get(`/admin/auth/oauth/google/callback?code=c&state=${flow.state}`, {
+        cookies: `gd_oauth=${raw}`,
+      }),
+      ctx("google"),
+    );
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe("/admin/%E2%80%A8x");
+    expect(setCookies(response).join("\n")).toMatch(/gd_oauth=; Path=\/admin\/auth; Max-Age=0/);
+  });
+
   describe("api mode", () => {
     beforeEach(() => {
       vi.stubEnv("GLOWDERMA_DATA_SOURCE", "api");

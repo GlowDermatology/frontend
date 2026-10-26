@@ -21,15 +21,37 @@ function isAdminPath(path: string): boolean {
 }
 
 /**
+ * Percent-encodes every character outside printable ASCII (a space, `€`,
+ * U+2028, …), so the result is a valid `Location` header value: the
+ * `Headers` constructor throws on anything above U+00FF. `null` for a lone
+ * surrogate, which has no UTF-8 encoding.
+ */
+function encodeNonAscii(value: string): string | null {
+  try {
+    return value.replace(/[^\x21-\x7e]/gu, (char) => encodeURIComponent(char));
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Returns `value` when it is a safe in-panel path, otherwise `/admin`.
  * Rejected: non-strings, anything not starting with `/admin` (so `/adminx`,
  * `//evil`, `https://…`, `\\evil`), control characters, backslashes, dot
- * segments (`/admin/../x`) and over-long values. A fragment is dropped.
+ * segments (`/admin/../x`) and over-long values. A fragment is dropped, and
+ * characters outside printable ASCII come back percent-encoded
+ * (`/admin/€` → `/admin/%E2%82%AC`), so the value is always usable as a
+ * redirect `Location`.
  */
 export function safeNext(value: unknown): Route {
-  const raw = Array.isArray(value) ? value[0] : value;
-  if (typeof raw !== "string" || raw.length === 0 || raw.length > MAX_LENGTH) return DEFAULT_NEXT;
-  if (/[\u0000-\u001f\u007f\\]/.test(raw)) return DEFAULT_NEXT;
+  const input = Array.isArray(value) ? value[0] : value;
+  // Encoding only lengthens a value, so an over-long input is refused before it.
+  if (typeof input !== "string" || input.length === 0 || input.length > MAX_LENGTH) {
+    return DEFAULT_NEXT;
+  }
+  if (/[\u0000-\u001f\u007f-\u009f\\]/.test(input)) return DEFAULT_NEXT;
+  const raw = encodeNonAscii(input);
+  if (raw === null || raw.length > MAX_LENGTH) return DEFAULT_NEXT;
   if (!raw.startsWith("/") || raw.startsWith("//") || raw.startsWith("/\\")) return DEFAULT_NEXT;
 
   const withoutFragment = raw.split("#")[0] ?? "";

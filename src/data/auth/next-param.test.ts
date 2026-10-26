@@ -50,3 +50,25 @@ describe("safeNext", () => {
     expect(safeNext("/admin/orders?page=2#row")).toBe("/admin/orders?page=2");
   });
 });
+
+describe("safeNext and the Location header", () => {
+  it("percent-encodes characters outside printable ASCII so a redirect never throws", () => {
+    expect(safeNext("/admin/€")).toBe("/admin/%E2%82%AC");
+    expect(safeNext("/admin/ x")).toBe("/admin/%E2%80%A8x");
+    expect(safeNext("/admin/products?q=Ali Valiyev")).toBe("/admin/products?q=Ali%20Valiyev");
+    expect(safeNext("/admin/orders?q=крем")).toBe("/admin/orders?q=%D0%BA%D1%80%D0%B5%D0%BC");
+    for (const value of ["/admin/€", "/admin/ x", "/admin/x?q=\u{1F600}"]) {
+      expect(() => new Headers({ Location: safeNext(value) })).not.toThrow();
+    }
+  });
+
+  it("refuses C1 controls, lone surrogates and values that grow too long once encoded", () => {
+    expect(safeNext("/admin/x\u0085")).toBe("/admin");
+    expect(safeNext("/admin/\ud800")).toBe("/admin");
+    expect(safeNext("/admin/" + "€".repeat(700))).toBe("/admin");
+  });
+
+  it("keeps an encoded login route out (no loop)", () => {
+    expect(safeNext("/admin/auth/€")).toBe("/admin");
+  });
+});

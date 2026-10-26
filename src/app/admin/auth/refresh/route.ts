@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
 
 import { apiRefresh } from "@/data/api/auth";
 import { isApiError } from "@/data/api/errors";
@@ -9,6 +9,7 @@ import {
   refreshBackoffCookie,
   setCookie,
 } from "@/data/auth/cookies";
+import { escapeHtml, htmlPage, sameOriginBounce, seeOther } from "@/data/auth/html-page";
 import { isAccessLive } from "@/data/auth/jwt";
 import { safeNext } from "@/data/auth/next-param";
 import { classifyRefresh, type RefreshCallResult } from "@/data/auth/refresh-outcome";
@@ -30,31 +31,8 @@ import { parseAllowedOrigins } from "@/lib/origins";
  *               absent on cross-site navigations, so a bounce re-sends them).
  */
 
-const NO_STORE = { "Cache-Control": "no-store" } as const;
-
-function seeOther(location: string): NextResponse {
-  return new NextResponse(null, { status: 303, headers: { Location: location, ...NO_STORE } });
-}
-
 function loginUrl(next: string): string {
   return `/admin/login?next=${encodeURIComponent(next)}`;
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function htmlPage(title: string, body: string, init: ResponseInit): NextResponse {
-  const html = `<!doctype html><html lang="uz"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${escapeHtml(title)}</title><style>body{margin:0;min-height:100dvh;display:grid;place-items:center;font:15px/1.5 system-ui,sans-serif;background:#fbf8f2;color:#2a2418}main{max-width:360px;padding:24px;text-align:center}a{color:#9a7424;font-weight:700}</style></head><body><main>${body}</main></body></html>`;
-  return new NextResponse(html, {
-    ...init,
-    headers: { "Content-Type": "text/html; charset=utf-8", ...NO_STORE, ...init.headers },
-  });
 }
 
 async function callRefresh(refresh: string): Promise<RefreshCallResult> {
@@ -80,12 +58,7 @@ export async function GET(request: NextRequest) {
     allowedOrigins: parseAllowedOrigins(process.env.GLOWDERMA_ALLOWED_ORIGINS),
   });
   if (!sameOrigin) {
-    const self = escapeHtml(url.pathname + url.search);
-    return htmlPage(
-      "Glow Derma Admin",
-      `<meta http-equiv="refresh" content="0;url=${self}"><p>Yo‘naltirilmoqda…</p><p><a href="${self}">Davom etish</a></p>`,
-      { status: 200 },
-    );
+    return sameOriginBounce(url.pathname + url.search);
   }
 
   const secure = serverEnv.cookieSecure();

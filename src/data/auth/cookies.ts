@@ -1,5 +1,6 @@
 import { cookieNames } from "./cookie-names";
 import { accessExpiresAtMs } from "./jwt";
+import { OAUTH_COOKIE_PATH, OAUTH_FLOW_MAX_AGE_SECONDS, oauthCookieName } from "./oauth";
 
 /**
  * Builders for the admin session cookies (spec "Frontend wiring › Auth").
@@ -11,7 +12,8 @@ import { accessExpiresAtMs } from "./jwt";
 export interface CookieAttributes {
   httpOnly: boolean;
   secure: boolean;
-  sameSite: "strict";
+  /** `strict` for the session cookies; `lax` only for the OAuth flow cookie. */
+  sameSite: "strict" | "lax";
   path: string;
   /** Seconds. `0` expires the cookie. */
   maxAge: number;
@@ -127,6 +129,38 @@ export function refreshBackoffCookie(input: { secure: boolean }): SessionCookie 
       maxAge: REFRESH_BACKOFF_SECONDS,
     },
   };
+}
+
+/**
+ * The sealed OAuth flow (`src/data/auth/oauth.ts`): HttpOnly, `Path=/admin/auth`
+ * (only the start and callback routes see it), and `SameSite=Lax` — the one
+ * exception to Strict, because the provider sends the browser back with a
+ * cross-site top-level GET, which carries Lax cookies but not Strict ones.
+ * Ten minutes, like the flow's own expiry.
+ */
+export function oauthFlowCookie(input: { secure: boolean; value: string }): SessionCookie {
+  return {
+    name: oauthCookieName(input.secure),
+    value: input.value,
+    attributes: {
+      httpOnly: true,
+      secure: input.secure,
+      sameSite: "lax",
+      path: OAUTH_COOKIE_PATH,
+      maxAge: OAUTH_FLOW_MAX_AGE_SECONDS,
+    },
+  };
+}
+
+/** Expires the OAuth flow cookie (same name, path and SameSite as when it was set). */
+export function clearOAuthFlowCookie(sink: CookieSink, secure: boolean): void {
+  sink.set(oauthCookieName(secure), "", {
+    httpOnly: true,
+    secure,
+    sameSite: "lax",
+    path: OAUTH_COOKIE_PATH,
+    maxAge: 0,
+  });
 }
 
 export function setCookie(sink: CookieSink, cookie: SessionCookie): void {

@@ -20,6 +20,9 @@ export type LoginRequest = Schemas["LoginRequest"];
 export type RefreshRequest = Schemas["RefreshRequest"];
 export type LogoutRequest = Schemas["LogoutRequest"];
 export type ChangePasswordRequest = Schemas["ChangePasswordRequest"];
+/** Body of `POST auth/oauth/{provider}/` and `…/link/` (contract §2.1, M0b). */
+export type OAuthCallbackRequest = Schemas["OAuthCallbackRequest"];
+export type SocialProvider = Schemas["SocialProviderEnum"];
 
 /* --- Catalog (contract §2.3–§2.5, §2.14) --- */
 

@@ -122,3 +122,27 @@ export function clickOrdersWithPaydoc(): number[] {
   }
   return answer as number[];
 }
+
+/**
+ * Moves the spec's scheduled campaign `title` to `from` → `to` (`queued`:
+ * its send started, as the beat does when it is due; `scheduled`: back
+ * again), so the board meets the backend's 409 on "Bekor qilish". Nothing is
+ * sent: no task is queued for it.
+ */
+export function setCampaignState(
+  title: string,
+  from: "scheduled" | "queued",
+  to: "scheduled" | "queued",
+): void {
+  const code = [
+    "import json",
+    "from glowderma.notifications.models import Campaign",
+    `title = json.loads(${JSON.stringify(JSON.stringify(title))})`,
+    `changed = Campaign.objects.filter(title=title, state='${from}').update(state='${to}')`,
+    "print(json.dumps({'changed': changed}))",
+  ].join("\n");
+  const answer = JSON.parse(djangoShell(code).trim().split("\n").at(-1) ?? "{}");
+  if (answer.changed !== 1) {
+    throw new Error(`the backend moved ${JSON.stringify(answer)} campaigns «${title}» to ${to}`);
+  }
+}

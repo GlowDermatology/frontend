@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import noPaydocFixture from "@/data/api/__fixtures__/err-refund-no-paydoc.json";
+import { ApiError } from "@/data/api/errors";
+import { toActionResult } from "@/data/api/mappers/errors";
+import type { ErrorEnvelope } from "@/data/api/types";
 import type { ActionResult } from "@/data/types";
 import type { Refund } from "@/domain/order";
 import {
@@ -120,11 +124,10 @@ describe("nextStep", () => {
   });
 
   it("moves on to the payout step with its own message when the payment has no Click id (M3)", () => {
-    const noPaydoc: ActionResult<PaymentRecord> = {
-      ok: false,
-      error: CLICK_NO_PAYDOC_MESSAGE,
-      code: "conflict",
-    };
+    // The backend's real answer (recorded from M3), through the action mapping.
+    const noPaydoc: ActionResult<PaymentRecord> = toActionResult(
+      new ApiError(409, noPaydocFixture as ErrorEnvelope),
+    );
     expect(nextStep(close, noPaydoc)).toEqual({
       type: "payout",
       op: { ...close, manualPayout: true },

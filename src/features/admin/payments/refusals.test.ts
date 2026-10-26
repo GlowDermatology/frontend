@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import noPaydocFixture from "@/data/api/__fixtures__/err-refund-no-paydoc.json";
+import { ApiError } from "@/data/api/errors";
+import { toActionResult } from "@/data/api/mappers/errors";
+import type { ErrorEnvelope } from "@/data/api/types";
 import { CLICK_NO_PAYDOC_MESSAGE, CLICK_STILL_PAID_MESSAGE } from "@/domain/payment";
 
 import {
@@ -123,7 +127,13 @@ describe("closing a failed Click refund (§7 item 18, M2)", () => {
 });
 
 describe("a failed Click refund whose payment has no Click payment id (M3)", () => {
-  const noPaydoc = { ok: false as const, error: CLICK_NO_PAYDOC_MESSAGE, code: "conflict" };
+  // The backend's real answer to "Yakunlash" (recorded from M3 d4db5cf), through the action mapping.
+  const noPaydoc = toActionResult(new ApiError(409, noPaydocFixture as ErrorEnvelope));
+
+  it("is the backend's 409 conflict with the text the demo answers too", () => {
+    expect(noPaydoc).toMatchObject({ ok: false, code: "conflict" });
+    expect(noPaydoc.error).toBe(CLICK_NO_PAYDOC_MESSAGE);
+  });
 
   it("is its own refusal: neither Click's still-paid answer nor a stale row", () => {
     expect(isClickNoPaydocRefusal(noPaydoc)).toBe(true);

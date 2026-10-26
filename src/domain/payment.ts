@@ -110,6 +110,15 @@ export interface RefundOperations {
 export const CLICK_STILL_PAID_MESSAGE =
   "Click to‘lovni qaytarmagan. Avval mijozga qo‘lda to‘lang, so‘ng «qo‘lda to‘landi» belgisi bilan yakunlang yoki qaytarishni qayta urinib ko‘ring.";
 
+/**
+ * The 409 `conflict` of closing a failed Click refund whose payment has no
+ * Click payment id (M3): Click cannot be asked about it, so the backend never
+ * says "Click to‘lovni qaytarmagan" here; staff pay the customer by hand and
+ * close it with `manual_payout`. The backend's own text.
+ */
+export const CLICK_NO_PAYDOC_MESSAGE =
+  "Bu to‘lovda Click to‘lov raqami yo‘q, shuning uchun Click’dan holatini tekshirib bo‘lmaydi. Mijozga qo‘lda to‘lang, so‘ng «qo‘lda to‘landi» belgisi bilan yakunlang.";
+
 /** Whether `refund` may be closed as a failed Click refund (the guard of `…/resolve/`, M2). */
 export function canCloseFailedRefund(
   refund: Pick<Refund, "id" | "state" | "provider">,

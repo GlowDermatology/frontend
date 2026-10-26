@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import type { ActionResult } from "@/data/types";
 import type { Refund } from "@/domain/order";
-import { CLICK_STILL_PAID_MESSAGE, type PaymentRecord } from "@/domain/payment";
+import {
+  CLICK_NO_PAYDOC_MESSAGE,
+  CLICK_STILL_PAID_MESSAGE,
+  type PaymentRecord,
+} from "@/domain/payment";
 
 import {
   canSubmit,
@@ -113,6 +117,26 @@ describe("nextStep", () => {
       type: "retryable",
       notice: { tone: "error", text: "Click pulni qaytarmadi." },
     });
+  });
+
+  it("moves on to the payout step with its own message when the payment has no Click id (M3)", () => {
+    const noPaydoc: ActionResult<PaymentRecord> = {
+      ok: false,
+      error: CLICK_NO_PAYDOC_MESSAGE,
+      code: "conflict",
+    };
+    expect(nextStep(close, noPaydoc)).toEqual({
+      type: "payout",
+      op: { ...close, manualPayout: true },
+      notice: { tone: "info", text: CLICK_NO_PAYDOC_MESSAGE },
+    });
+    // Not a stale row, and the payout step itself never advances on it.
+    expect(nextStep(payout, noPaydoc)).toEqual({
+      type: "retryable",
+      notice: { tone: "error", text: CLICK_NO_PAYDOC_MESSAGE },
+    });
+    // A retry is not a close: the same answer there is a plain refusal.
+    expect(nextStep(retry, noPaydoc).type).toBe("retryable");
   });
 
   it("closes on success, re-reads a changed row, keeps the dialog for transient refusals", () => {

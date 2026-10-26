@@ -3,7 +3,12 @@ import type { Refund } from "@/domain/order";
 import type { PaymentRecord } from "@/domain/payment";
 
 import { shouldRenewKey } from "../shared/idempotency";
-import { isClickStillPaidRefusal, isStaleRefundRefusal, refundRefusalMessage } from "./refusals";
+import {
+  isClickNoPaydocRefusal,
+  isClickStillPaidRefusal,
+  isStaleRefundRefusal,
+  refundRefusalMessage,
+} from "./refusals";
 
 /**
  * The refund dialog of the payments board as pure functions: which step an
@@ -75,7 +80,10 @@ export interface DialogNotice {
 export type StepOutcome =
   /** Done: the dialog closes, the row shows the answer. */
   | { type: "done"; payment: PaymentRecord }
-  /** Click still holds the money: the payout step, never sent on its own. */
+  /**
+   * Click still holds the money, or the payment has no Click payment id so
+   * Click cannot be asked (M3): the payout step, never sent on its own.
+   */
   | { type: "payout"; op: RefundOperation; notice: DialogNotice }
   /** The row changed under the board: close and re-read it. */
   | { type: "stale"; message: string }
@@ -85,8 +93,13 @@ export type StepOutcome =
 export function nextStep(op: RefundOperation, result: ActionResult<PaymentRecord>): StepOutcome {
   if (result.ok) return { type: "done", payment: result.data };
   // Only the first close step moves on; the payout step's own answer never
-  // advances again.
-  if (op.kind === "close" && !op.manualPayout && isClickStillPaidRefusal(result)) {
+  // advances again. The notice is the backend's answer: Click's "still paid"
+  // or, for a payment without a Click payment id, its own message.
+  if (
+    op.kind === "close" &&
+    !op.manualPayout &&
+    (isClickStillPaidRefusal(result) || isClickNoPaydocRefusal(result))
+  ) {
     return {
       type: "payout",
       op: { ...op, manualPayout: true },

@@ -1,5 +1,5 @@
 import type { ActionResult } from "@/data/types";
-import { CLICK_STILL_PAID_MESSAGE } from "@/domain/payment";
+import { CLICK_NO_PAYDOC_MESSAGE, CLICK_STILL_PAID_MESSAGE } from "@/domain/payment";
 
 /** §2.2 busy-order outcome, shared by the refund operations: nothing was written. */
 const BUSY_ORDER_PREFIX = "Buyurtma boshqa amal bilan band";
@@ -13,19 +13,26 @@ const BUSY_ORDER_PREFIX = "Buyurtma boshqa amal bilan band";
  * busy order, 409 `request_in_progress`, a 503 and a network error are
  * transient: the dialog stays open with its idempotency key for a retry.
  * So does Click's test mode (`isClickFakeModeRefusal`): the row did not
- * change, the dialog keeps Click's message.
+ * change, the dialog keeps Click's message. Click's "still paid" answer and
+ * the missing Click payment id (`isClickNoPaydocRefusal`, M3) lead to the
+ * payout step instead.
  */
 export function isStaleRefundRefusal(result: ActionResult<unknown>): boolean {
   if (result.ok) return false;
-  if (isClickStillPaidRefusal(result) || isClickFakeModeRefusal(result)) return false;
+  if (
+    isClickStillPaidRefusal(result) ||
+    isClickNoPaydocRefusal(result) ||
+    isClickFakeModeRefusal(result)
+  ) {
+    return false;
+  }
   if (result.code === "not_found" || result.code === "invalid_transition") return true;
   return result.code === "conflict" && !result.error.startsWith(BUSY_ORDER_PREFIX);
 }
 
 /**
- * The error code the backend gives Click's "still paid" 409 (lead decision,
- * lands with the M3 backend). Until then the answer is a 409
- * `invalid_transition` recognised by its message.
+ * The error code of Click's "still paid" 409 (M3; a backend before M3
+ * answers 409 `invalid_transition`, recognised by its message).
  */
 export const CLICK_NOT_REVERSED_CODE = "click_not_reversed";
 
@@ -46,6 +53,19 @@ export function isClickStillPaidRefusal(result: ActionResult<unknown>): boolean 
   if (result.ok) return false;
   if (result.code === CLICK_NOT_REVERSED_CODE) return true;
   return result.code === "invalid_transition" && result.error.startsWith(STILL_PAID_PREFIX);
+}
+
+/** The first sentence of `CLICK_NO_PAYDOC_MESSAGE`, enough to recognise the answer. */
+const NO_PAYDOC_PREFIX = CLICK_NO_PAYDOC_MESSAGE.slice(0, CLICK_NO_PAYDOC_MESSAGE.indexOf(","));
+
+/**
+ * Closing a failed Click refund whose payment has no Click payment id (409
+ * `conflict`, M3): Click was not asked, nothing changed. Like Click's "still
+ * paid" answer it leads to the payout step, with its own message (the
+ * backend's `CLICK_NO_PAYDOC_MESSAGE`, never "Click to‘lovni qaytarmagan").
+ */
+export function isClickNoPaydocRefusal(result: ActionResult<unknown>): boolean {
+  return !result.ok && result.code === "conflict" && result.error.startsWith(NO_PAYDOC_PREFIX);
 }
 
 /** The start of the backend's 409 when Click runs in test mode under the production settings. */

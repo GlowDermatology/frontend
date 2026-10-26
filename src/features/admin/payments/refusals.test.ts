@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { CLICK_STILL_PAID_MESSAGE } from "@/domain/payment";
+import { CLICK_NO_PAYDOC_MESSAGE, CLICK_STILL_PAID_MESSAGE } from "@/domain/payment";
 
 import {
   CLICK_NOT_REVERSED_CODE,
   CLICK_UNAVAILABLE_MESSAGE,
   isClickFakeModeRefusal,
+  isClickNoPaydocRefusal,
   isClickStillPaidRefusal,
   isStaleRefundRefusal,
   refundRefusalMessage,
@@ -118,5 +119,28 @@ describe("closing a failed Click refund (§7 item 18, M2)", () => {
     expect(
       refundRefusalMessage("close", { ok: false, error: "Tarmoq xatosi.", code: "network_error" }),
     ).toBe("Tarmoq xatosi.");
+  });
+});
+
+describe("a failed Click refund whose payment has no Click payment id (M3)", () => {
+  const noPaydoc = { ok: false as const, error: CLICK_NO_PAYDOC_MESSAGE, code: "conflict" };
+
+  it("is its own refusal: neither Click's still-paid answer nor a stale row", () => {
+    expect(isClickNoPaydocRefusal(noPaydoc)).toBe(true);
+    expect(isClickStillPaidRefusal(noPaydoc)).toBe(false);
+    expect(isStaleRefundRefusal(noPaydoc)).toBe(false);
+    expect(CLICK_NO_PAYDOC_MESSAGE).not.toMatch(/qaytarmagan/);
+  });
+
+  it("is recognised only as a 409 conflict with the backend's first sentence", () => {
+    expect(isClickNoPaydocRefusal({ ...noPaydoc, code: "invalid_transition" })).toBe(false);
+    expect(
+      isClickNoPaydocRefusal({
+        ok: false,
+        error: "Bu to‘lov uchun qaytarish allaqachon jarayonda.",
+        code: "conflict",
+      }),
+    ).toBe(false);
+    expect(isClickNoPaydocRefusal({ ok: true, data: null })).toBe(false);
   });
 });

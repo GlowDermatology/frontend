@@ -185,9 +185,11 @@ interface PaymentsTableProps {
  * failed refund (a new refund of the paid payment), "Qaytarildi / Bajarilmadi
  * deb belgilash" for an unknown or manual_required one, and "Yakunlash" for a
  * failed Click refund (§7 item 18, M2: the server asks Click first; when
- * Click still holds the money the dialog moves on to "Qo‘lda to‘landi",
- * `manual_payout`, once staff paid the customer by hand; Click's 503 keeps
- * the dialog open with the provider-unavailable message). Each operation is
+ * Click still holds the money — or, M3, the payment has no Click payment id
+ * so Click cannot be asked — the dialog moves on to "Qo‘lda to‘landi",
+ * `manual_payout`, once staff paid the customer by hand, with the backend's
+ * answer above it; Click's 503 keeps the dialog open with the
+ * provider-unavailable message). Each operation is
  * confirmed in a dialog and sent with its own idempotency key (kept per
  * payment, refund and operation across retries, renewed after a success or
  * a 422 reuse). The answer is the updated payment row, shown at once; in api

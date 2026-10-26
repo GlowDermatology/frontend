@@ -37,6 +37,17 @@ export interface CashbackPolicy extends CashbackRules {
   effectiveFrom: string;
 }
 
+/**
+ * The version the policy editor starts from and "O‘zgarishlarni bekor
+ * qilish" restores: the latest saved one, i.e. the scheduled version when
+ * there is one (the version a new save supersedes), else the one in force.
+ * The same rule holds after a save (the new version is the scheduled one)
+ * and after a reload, so Reset always does the same thing.
+ */
+export function editorBaseline<P extends CashbackPolicy>(active: P, scheduled: P | null): P {
+  return scheduled ?? active;
+}
+
 export type PolicyVersionState = "active" | "scheduled" | "expired" | "superseded";
 
 export interface PolicyVersion {

@@ -5,6 +5,7 @@ import {
   applyBasisPoints,
   basisPoints,
   calculateCashback,
+  editorBaseline,
   formatPercent,
   ledgerBalance,
   nextTier,
@@ -15,6 +16,7 @@ import {
   tierRange,
   tierWarningsText,
   withBalanceAfter,
+  type CashbackPolicy,
   type CashbackRules,
   type CashbackTier,
 } from "./cashback";
@@ -303,5 +305,31 @@ describe("withBalanceAfter", () => {
         (row) => row.balanceAfter,
       ),
     ).toEqual([5_680, 0, 48_600]);
+  });
+});
+
+describe("editorBaseline", () => {
+  const active: CashbackPolicy = {
+    ...rules,
+    version: 3,
+    effectiveFrom: "2026-10-01T00:00:00+05:00",
+  };
+  const scheduled: CashbackPolicy = {
+    ...rules,
+    tiers: [{ id: "s1", from: 0, to: null, percent: 1.5 }],
+    version: 6,
+    effectiveFrom: "2026-11-01T00:00:00+05:00",
+  };
+
+  it("starts from the scheduled version when there is one, else the active one", () => {
+    expect(editorBaseline(active, scheduled)).toBe(scheduled);
+    expect(editorBaseline(active, null)).toBe(active);
+  });
+
+  it("is the same before a reload (saved version kept locally) and after it (refreshed props)", () => {
+    const saved: CashbackPolicy = { ...scheduled, version: 7 };
+    // After a save the editor holds `saved` as the scheduled version; a reload
+    // reads it back as `scheduled` next to the unchanged active version.
+    expect(editorBaseline(active, saved)).toBe(saved);
   });
 });

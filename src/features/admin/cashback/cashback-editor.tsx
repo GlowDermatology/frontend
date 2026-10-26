@@ -15,6 +15,7 @@ import {
   analyzeTiers,
   basisPoints,
   calculateCashback,
+  editorBaseline,
   formatPercent,
   tierWarningsText,
   type CashbackPolicy,
@@ -101,24 +102,32 @@ export function CashbackEditor({
 }: CashbackEditorProps) {
   const toast = useToast();
   const idBase = useId();
-  const [baseline, setBaseline] = useState(policy);
+  // The draft starts from, and Reset restores, the latest saved version: the
+  // scheduled one when there is one (`editorBaseline`). After a save that is
+  // the new version, both locally and in the refreshed props.
+  const [baseline, setBaseline] = useState(() => editorBaseline(policy, initialScheduled));
   // The history and the scheduled version follow the server after a save
   // (api mode re-renders the route); the draft itself stays as edited.
-  const [source, setSource] = useState({ initialVersions, initialScheduled });
+  const [source, setSource] = useState({ policy, initialVersions, initialScheduled });
   const [versions, setVersions] = useState(initialVersions);
   const [scheduledPolicy, setScheduledPolicy] = useState(initialScheduled);
-  if (source.initialVersions !== initialVersions || source.initialScheduled !== initialScheduled) {
-    setSource({ initialVersions, initialScheduled });
+  if (
+    source.policy !== policy ||
+    source.initialVersions !== initialVersions ||
+    source.initialScheduled !== initialScheduled
+  ) {
+    setSource({ policy, initialVersions, initialScheduled });
     setVersions(initialVersions);
     setScheduledPolicy(initialScheduled);
+    setBaseline(editorBaseline(policy, initialScheduled));
   }
   // Field errors from the last save (`tiers.{i}.from`, `effectiveFrom`, …), cleared on edit.
   const [serverErrors, setServerErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const inFlight = useRef(false);
-  const [tiers, setTiers] = useState(() => toDraft(policy.tiers));
-  const [basis, setBasis] = useState<RateBasis>(policy.basis);
-  const [earnOnCashbackPaid, setEarnOnCashbackPaid] = useState(policy.earnOnCashbackPaid);
+  const [tiers, setTiers] = useState(() => toDraft(baseline.tiers));
+  const [basis, setBasis] = useState<RateBasis>(baseline.basis);
+  const [earnOnCashbackPaid, setEarnOnCashbackPaid] = useState(baseline.earnOnCashbackPaid);
   const [effectiveFrom, setEffectiveFrom] = useState(nextEffectiveFrom);
   const [saving, setSaving] = useState(false);
   // One key per editor instance: reused on retries, renewed after each saved version.
@@ -264,6 +273,7 @@ export function CashbackEditor({
           <span className="text-body-sm text-ink-muted tabular-nums">
             Faol siyosat: v{policy.version} · {formatDateLong(policy.effectiveFrom)} dan
             {scheduled && ` · v${scheduled.version} rejalashtirilgan`}
+            {` · Tahrir v${baseline.version} asosida`}
           </span>
           <h1 className="m-0 font-serif text-display leading-10 tracking-normal text-ink">
             Cashback sozlamalari

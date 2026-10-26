@@ -38,7 +38,7 @@ export const MOCK_AUDIT: ReadonlyArray<AuditEntry> = [
     at: t("2026-10-24T11:30:00"),
     ...ADMIN,
     action: "notification.created",
-    objectType: "notification",
+    objectType: "campaign",
     objectId: "4",
     data: {
       kind: "general",

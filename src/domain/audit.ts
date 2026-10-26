@@ -42,7 +42,12 @@ function modelActions(): Record<string, string> {
   return result;
 }
 
-/** Every §3.2 action (M1), including the M1d appointment and override additions. */
+/**
+ * Every §3.2 action (M1), including the M1d appointment and override
+ * additions, and the M3 operations actions (requeued and hand-resolved outbox
+ * messages, Billz sales recorded by hand, retention purges, the nightly
+ * consistency report, cancelled campaigns).
+ */
 export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   // Auth
   "auth.login_succeeded": "Tizimga kirdi",
@@ -56,6 +61,11 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   "auth.social_unlinked": "Ijtimoiy hisob uzildi",
   // System
   "outbox.dead": "Navbatdagi xabar yuborilmadi",
+  "outbox.requeued": "Navbatdagi xabar qayta navbatga qo‘yildi",
+  "outbox.resolved": "Navbatdagi xabar qo‘lda yopildi",
+  "outbox.purged": "Bajarilgan navbat xabarlari tozalandi",
+  "integrations.inbox_purged": "Eski provayder xabarlari tozalandi",
+  "report.consistency": "Tungi muvofiqlik hisoboti",
   // Orders
   "order.cancelled": "Buyurtma bekor qilindi",
   "order.status_changed": "Buyurtma holati o‘zgardi",
@@ -70,6 +80,8 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   "product.images_reordered": "Mahsulot rasmlari tartiblandi",
   "billz.import_started": "Billz importi boshlandi",
   "billz.import_finished": "Billz importi tugadi",
+  "billz.sale_recorded_by_hand": "Billz savdosi qo‘lda belgilandi",
+  "billz.payment_attempt_forgotten": "Billz to‘lov urinishi belgisi olib tashlandi",
   "category.created": "Kategoriya qo‘shildi",
   "category.updated": "Kategoriya o‘zgartirildi",
   "category.deleted": "Kategoriya o‘chirildi",
@@ -82,8 +94,11 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   "cashback.adjusted": "Cashback tuzatildi",
   "cashback.policy_version_created": "Cashback siyosati versiyasi yaratildi",
   "cashback.policy_version_superseded": "Cashback siyosati versiyasi almashtirildi",
+  "loyalty.reconciliation_completed": "Cashback balanslari tekshirildi",
+  "loyalty.reconciliation_mismatch": "Cashback balansida nomuvofiqlik",
   // Notifications
   "notification.created": "Bildirishnoma yaratildi",
+  "notification.cancelled": "Bildirishnoma bekor qilindi",
   "notification.push_dead": "Push yuborilmadi",
   "notification_template.updated": "Holat shabloni o‘zgartirildi",
   "segment.created": "Guruh yaratildi",
@@ -108,10 +123,10 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
 /** Groups for the action filter, in the §3.2 order. */
 export const AUDIT_ACTION_GROUPS: ReadonlyArray<{ label: string; prefixes: string[] }> = [
   { label: "Kirish", prefixes: ["auth."] },
-  { label: "Tizim", prefixes: ["outbox."] },
+  { label: "Tizim", prefixes: ["outbox.", "integrations.", "report."] },
   { label: "Buyurtmalar", prefixes: ["order.", "refund."] },
   { label: "Katalog", prefixes: ["product.", "billz.", "category.", "banner."] },
-  { label: "Cashback", prefixes: ["cashback."] },
+  { label: "Cashback", prefixes: ["cashback.", "loyalty."] },
   { label: "Bildirishnomalar", prefixes: ["notification.", "notification_template.", "segment."] },
   { label: "Qabullar", prefixes: ["appointment."] },
   { label: "Sozlamalar va eksport", prefixes: ["settings.", "export."] },
@@ -140,7 +155,9 @@ export const AUDIT_OBJECT_LABELS: Readonly<Record<string, string>> = {
   customer: "Mijoz",
   customers: "Mijozlar",
   policy_version: "Cashback siyosati",
-  notification: "Bildirishnoma",
+  loyalty: "Cashback hisoblari",
+  // The backend's object type of a push campaign (`notification.created`, `.cancelled`).
+  campaign: "Bildirishnoma",
   notifications: "Bildirishnomalar",
   notification_template: "Holat shabloni",
   segment: "Guruh",
@@ -148,6 +165,9 @@ export const AUDIT_OBJECT_LABELS: Readonly<Record<string, string>> = {
   appointment: "Qabul",
   settings: "Sozlamalar",
   outbox: "Navbat",
+  webhook_inbox: "Provayder xabarlari",
+  report: "Hisobot",
+  auth_session: "Sessiya",
   "audit-log": "Harakatlar jurnali",
   ...MODEL_LABELS,
 };

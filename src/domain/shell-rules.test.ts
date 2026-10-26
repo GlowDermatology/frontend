@@ -180,6 +180,15 @@ describe("audit labels", () => {
       "professional_service.deleted",
       "segment.member_removed",
       "export.downloaded",
+      // M3
+      "notification.cancelled",
+      "outbox.requeued",
+      "outbox.resolved",
+      "outbox.purged",
+      "billz.sale_recorded_by_hand",
+      "billz.payment_attempt_forgotten",
+      "integrations.inbox_purged",
+      "report.consistency",
     ]) {
       expect(AUDIT_ACTION_LABELS[action], action).toBeTruthy();
     }
@@ -189,6 +198,8 @@ describe("audit labels", () => {
     );
     expect(auditActionLabel("loyalty.recalculated")).toBe("loyalty.recalculated");
     expect(auditObjectLabel("segment")).toBe("Guruh");
+    // Campaign actions are recorded on the `campaign` object type.
+    expect(auditObjectLabel("campaign")).toBe("Bildirishnoma");
     expect(auditObjectLabel("mystery")).toBe("mystery");
   });
 

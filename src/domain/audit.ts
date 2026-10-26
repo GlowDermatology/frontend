@@ -120,10 +120,22 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   ...modelActions(),
 };
 
-/** Groups for the action filter, in the §3.2 order. */
-export const AUDIT_ACTION_GROUPS: ReadonlyArray<{ label: string; prefixes: string[] }> = [
+/**
+ * Groups for the action filter, in the §3.2 order. An action a group lists
+ * in `actions` belongs there whatever its prefix: §3.2 puts the two M3
+ * `billz.` repair actions in the System row, not under Catalog.
+ */
+export const AUDIT_ACTION_GROUPS: ReadonlyArray<{
+  label: string;
+  prefixes: string[];
+  actions?: string[];
+}> = [
   { label: "Kirish", prefixes: ["auth."] },
-  { label: "Tizim", prefixes: ["outbox.", "integrations.", "report."] },
+  {
+    label: "Tizim",
+    prefixes: ["outbox.", "integrations.", "report."],
+    actions: ["billz.sale_recorded_by_hand", "billz.payment_attempt_forgotten"],
+  },
   { label: "Buyurtmalar", prefixes: ["order.", "refund."] },
   { label: "Katalog", prefixes: ["product.", "billz.", "category.", "banner."] },
   { label: "Cashback", prefixes: ["cashback.", "loyalty."] },
@@ -132,6 +144,21 @@ export const AUDIT_ACTION_GROUPS: ReadonlyArray<{ label: string; prefixes: strin
   { label: "Sozlamalar va eksport", prefixes: ["settings.", "export."] },
   { label: "Django admin", prefixes: Object.keys(MODEL_LABELS).map((model) => `${model}.`) },
 ];
+
+/** The labelled actions of each filter group: exact `actions` first, then prefixes. */
+export function auditActionsByGroup(
+  actions: readonly string[] = Object.keys(AUDIT_ACTION_LABELS),
+): Array<{ label: string; actions: string[] }> {
+  const exact = new Set(AUDIT_ACTION_GROUPS.flatMap((group) => group.actions ?? []));
+  return AUDIT_ACTION_GROUPS.map((group) => ({
+    label: group.label,
+    actions: actions.filter((action) =>
+      exact.has(action)
+        ? (group.actions ?? []).includes(action)
+        : group.prefixes.some((prefix) => action.startsWith(prefix)),
+    ),
+  }));
+}
 
 /** The Uzbek label of an action, or the raw code for an unknown one. */
 export function auditActionLabel(action: string): string {
@@ -156,6 +183,9 @@ export const AUDIT_OBJECT_LABELS: Readonly<Record<string, string>> = {
   customers: "Mijozlar",
   policy_version: "Cashback siyosati",
   loyalty: "Cashback hisoblari",
+  // One customer's cashback account (`loyalty.reconciliation_mismatch`, `loyalty.balance_negative`).
+  loyalty_account: "Cashback hisobi",
+  pos_device: "POS qurilmasi",
   // The backend's object type of a push campaign (`notification.created`, `.cancelled`).
   campaign: "Bildirishnoma",
   notifications: "Bildirishnomalar",

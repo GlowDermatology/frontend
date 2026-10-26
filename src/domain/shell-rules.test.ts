@@ -10,7 +10,13 @@ import {
   tashkentMinutes,
   type SpecialistSchedule,
 } from "./appointment";
-import { AUDIT_ACTION_LABELS, auditActionLabel, auditDataText, auditObjectLabel } from "./audit";
+import {
+  AUDIT_ACTION_LABELS,
+  auditActionLabel,
+  auditActionsByGroup,
+  auditDataText,
+  auditObjectLabel,
+} from "./audit";
 import { notificationImageProblem, unknownPlaceholders } from "./notification";
 import { parseMemberList, segmentRulesSummary } from "./segment";
 
@@ -200,7 +206,25 @@ describe("audit labels", () => {
     expect(auditObjectLabel("segment")).toBe("Guruh");
     // Campaign actions are recorded on the `campaign` object type.
     expect(auditObjectLabel("campaign")).toBe("Bildirishnoma");
+    // The per-account loyalty rows and the POS devices (backend loyalty/tasks.py, pos views).
+    expect(auditObjectLabel("loyalty_account")).toBe("Cashback hisobi");
+    expect(auditObjectLabel("pos_device")).toBe("POS qurilmasi");
     expect(auditObjectLabel("mystery")).toBe("mystery");
+  });
+
+  it("files every labelled action under exactly one filter group, §3.2's System row first", () => {
+    const groups = auditActionsByGroup();
+    const groupOf = (action: string) =>
+      groups.filter((group) => group.actions.includes(action)).map((group) => group.label);
+    for (const action of Object.keys(AUDIT_ACTION_LABELS)) {
+      expect(groupOf(action), action).toHaveLength(1);
+    }
+    // §3.2 lists the M3 Billz repair actions under System, not Catalog.
+    expect(groupOf("billz.sale_recorded_by_hand")).toEqual(["Tizim"]);
+    expect(groupOf("billz.payment_attempt_forgotten")).toEqual(["Tizim"]);
+    expect(groupOf("outbox.resolved")).toEqual(["Tizim"]);
+    expect(groupOf("billz.import_started")).toEqual(["Katalog"]);
+    expect(groupOf("loyalty.reconciliation_mismatch")).toEqual(["Cashback"]);
   });
 
   it("prints the payload as indented JSON text", () => {

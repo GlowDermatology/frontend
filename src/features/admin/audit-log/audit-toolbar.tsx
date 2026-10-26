@@ -7,9 +7,9 @@ import { Select, TextInput } from "@/components/ui/field";
 import { Icon } from "@/components/ui/icon";
 import { SelectMenu } from "@/components/ui/menu";
 import {
-  AUDIT_ACTION_GROUPS,
   AUDIT_ACTION_LABELS,
   AUDIT_OBJECT_LABELS,
+  auditActionsByGroup,
   type AuditFilters,
 } from "@/domain/audit";
 
@@ -22,6 +22,7 @@ export interface ActorOption {
 }
 
 const ACTIONS = Object.keys(AUDIT_ACTION_LABELS);
+const ACTION_GROUPS = auditActionsByGroup(ACTIONS);
 const OBJECT_TYPES = Object.keys(AUDIT_OBJECT_LABELS).sort((a, b) =>
   (AUDIT_OBJECT_LABELS[a] ?? a).localeCompare(AUDIT_OBJECT_LABELS[b] ?? b),
 );
@@ -74,15 +75,13 @@ export function AuditToolbar({
           onChange={(event) => update({ action: event.target.value || undefined })}
         >
           <option value="">Hammasi</option>
-          {AUDIT_ACTION_GROUPS.map((group) => (
+          {ACTION_GROUPS.map((group) => (
             <optgroup key={group.label} label={group.label}>
-              {ACTIONS.filter((action) => group.prefixes.some((p) => action.startsWith(p))).map(
-                (action) => (
-                  <option key={action} value={action}>
-                    {AUDIT_ACTION_LABELS[action]}
-                  </option>
-                ),
-              )}
+              {group.actions.map((action) => (
+                <option key={action} value={action}>
+                  {AUDIT_ACTION_LABELS[action]}
+                </option>
+              ))}
             </optgroup>
           ))}
           {filters.action && !ACTIONS.includes(filters.action) && (

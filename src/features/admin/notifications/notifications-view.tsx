@@ -165,6 +165,9 @@ export function NotificationsView({
   // "Bekor qilish" of a scheduled campaign (M3): one key per campaign, kept
   // across re-opens and retries until a success or a 422 reuse.
   const [cancelTarget, setCancelTarget] = useState<NotificationRecord | null>(null);
+  // The campaign the dialog describes: kept after it closes, so the text does
+  // not empty out during the exit animation.
+  const [cancelShown, setCancelShown] = useState<NotificationRecord | null>(null);
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const cancelInFlight = useRef(false);
@@ -760,6 +763,7 @@ export function NotificationsView({
                           aria-label={`Bekor qilish: «${record.title}»`}
                           onClick={() => {
                             setCancelError(null);
+                            setCancelShown(record);
                             setCancelTarget(record);
                           }}
                         >
@@ -794,10 +798,8 @@ export function NotificationsView({
         title="Rejalashtirilgan xabar bekor qilinsinmi?"
         description={
           <p className="m-0 text-[14px] leading-5 text-ink">
-            «{cancelTarget?.title}»
-            {cancelTarget?.scheduledAt
-              ? ` ${formatDateTimeShort(cancelTarget.scheduledAt)} da`
-              : ""}{" "}
+            «{cancelShown?.title}»
+            {cancelShown?.scheduledAt ? ` ${formatDateTimeShort(cancelShown.scheduledAt)} da` : ""}{" "}
             yuborilmaydi. Bekor qilingan xabarni qayta yoqib bo‘lmaydi: kerak bo‘lsa, yangisini
             rejalashtiring.
           </p>

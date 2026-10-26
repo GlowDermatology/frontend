@@ -385,14 +385,17 @@ export function openNotice(token: unknown, key: Buffer, nowMs: number): OAuthNot
  * `GLOWDERMA_INTERNAL_SECRET` (set in api mode and shared by every instance)
  * with a fixed label, so the secret itself never signs anything; without it
  * (mock mode, tests) a per-process random key is used, which is enough for a
- * single demo instance.
+ * single demo instance (several demo instances behind one origin would need
+ * `GLOWDERMA_INTERNAL_SECRET` set for the OAuth flow to work across them).
  */
 export function deriveOAuthKey(internalSecret: string | undefined): Buffer {
   if (internalSecret) {
     return createHmac("sha256", internalSecret).update("glowderma/oauth-key/v1").digest();
   }
-  processKey ??= randomBytes(32);
-  return processKey;
+  // On `globalThis`, not in a module variable: the route handlers and the
+  // pages are separate bundles that each evaluate this module, and both must
+  // sign and verify with the same key.
+  const holder = globalThis as typeof globalThis & { __glowdermaOAuthKey?: Buffer };
+  holder.__glowdermaOAuthKey ??= randomBytes(32);
+  return holder.__glowdermaOAuthKey;
 }
-
-let processKey: Buffer | undefined;

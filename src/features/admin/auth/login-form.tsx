@@ -25,11 +25,19 @@ interface LoginFormProps {
   csrf: string;
   /** Enabled social sign-in providers; empty = no buttons. */
   providers?: SocialProvider[];
+  /** Fake OAuth mode: the buttons say "(sinov)", so they never pass for a real sign-in. */
+  providersAreFake?: boolean;
   /** A failed social sign-in's message (verified server-side), shown in the form's alert. */
   notice?: string | null;
 }
 
-export function LoginForm({ next, csrf, providers = [], notice = null }: LoginFormProps) {
+export function LoginForm({
+  next,
+  csrf,
+  providers = [],
+  providersAreFake = false,
+  notice = null,
+}: LoginFormProps) {
   const [state, formAction, pending] = useActionState(login, { error: notice });
 
   // The notice is in the URL (`?oauth=`): drop it through the router (which
@@ -104,7 +112,7 @@ export function LoginForm({ next, csrf, providers = [], notice = null }: LoginFo
               href={provider.href}
               className={buttonStyles({ variant: "secondary", size: "lg", className: "w-full" })}
             >
-              {provider.label} orqali kirish
+              {provider.label} orqali kirish{providersAreFake ? " (sinov)" : ""}
             </a>
           ))}
         </div>

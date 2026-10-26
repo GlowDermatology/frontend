@@ -67,7 +67,8 @@ async function LoginGate({
   if (session.ok) redirect(next);
   const csrf = (await cookies()).get(cookieNames(serverEnv.cookieSecure()).csrf)?.value ?? "";
   const notice = await requestNotice(query.oauth);
-  const providers = oauthConfig().providers.map((id) => ({
+  const config = oauthConfig();
+  const providers = config.providers.map((id) => ({
     id,
     label: OAUTH_PROVIDER_LABEL[id],
     href: `/admin/auth/oauth/${id}/start?next=${encodeURIComponent(next)}`,
@@ -77,6 +78,7 @@ async function LoginGate({
       next={next}
       csrf={csrf}
       providers={providers}
+      providersAreFake={config.mode === "fake"}
       notice={notice?.kind === "error" ? notice.message : null}
     />
   );

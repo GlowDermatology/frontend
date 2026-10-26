@@ -9,8 +9,9 @@ import { PAYMENT_STATUS_META, PROVIDER_LABEL } from "@/features/admin/shared/sta
 
 /**
  * Payments export (contract §1.8 `tolovlar`) with the board's filters. The
- * screen-level "needs action" refund filter has no API equivalent, so the
- * board hides the export for it; a hand-made URL exports without it.
+ * screen-level "needs action" refund filter has no API equivalent (the API
+ * filters one refund state at a time), so the board hides the export for it
+ * and a hand-made URL gets a 400 instead of an unfiltered file.
  */
 export async function GET(request: Request) {
   const params = Object.fromEntries(new URL(request.url).searchParams);
@@ -21,6 +22,10 @@ export async function GET(request: Request) {
     format: parseExportFormat(params.format),
     apiParams: paymentFilterParams(query),
     signal: request.signal,
+    refusal:
+      query.refund === "needs_action"
+        ? { field: "refund", message: "Bu ko‘rinishni eksport qilib bo‘lmaydi." }
+        : undefined,
     mock: async () => ({
       header: [
         "ID",

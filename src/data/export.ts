@@ -43,6 +43,13 @@ export interface ExportRouteOptions {
   apiParams: Record<string, QueryValue> | (() => Promise<Record<string, QueryValue>>);
   /** The incoming request's signal: an abandoned download cancels the upstream transfer. */
   signal?: AbortSignal;
+  /**
+   * A filter of the screen that the export cannot honour (e.g. the payments
+   * board's merged `needs_action` view): answered with a 400
+   * `validation_error` envelope in both modes, after the session check, so a
+   * hand-made link never downloads something other than what it names.
+   */
+  refusal?: { field: string; message: string };
   /** Mock mode: the local CSV's header and rows. */
   mock: () => Promise<{ header: ReadonlyArray<string>; rows: ReadonlyArray<CsvCell[]> }>;
 }
@@ -59,6 +66,14 @@ export function unauthorizedExport(): Response {
 export async function exportRoute(options: ExportRouteOptions): Promise<Response> {
   const session = await verifyStaff();
   if (!session.ok) return unauthorizedExport();
+
+  if (options.refusal) {
+    const { field, message } = options.refusal;
+    return Response.json(
+      { code: "validation_error", message, errors: [{ field, code: "invalid", message }] },
+      { status: 400, headers: NO_STORE },
+    );
+  }
 
   if ((await dataSource()) !== "api" || session.mode !== "api") {
     const { header, rows } = await options.mock();

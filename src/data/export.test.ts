@@ -59,6 +59,27 @@ describe("exportRoute", () => {
     expect(apiParams).not.toHaveBeenCalled();
   });
 
+  it("answers a refused view with 400 validation_error in both modes, after the session", async () => {
+    const refusal = { field: "refund", message: "Bu ko‘rinishni eksport qilib bo‘lmaydi." };
+    const mock = vi.fn(async () => ({ header: ["ID"], rows: [] }));
+    const refused = await exportRoute(options({ refusal, mock }));
+    expect(refused.status).toBe(400);
+    expect(await refused.json()).toEqual({
+      code: "validation_error",
+      message: refusal.message,
+      errors: [{ field: "refund", code: "invalid", message: refusal.message }],
+    });
+    expect(apiFetchRaw).not.toHaveBeenCalled();
+
+    delete process.env.GLOWDERMA_DATA_SOURCE;
+    verifyStaff.mockResolvedValue({ ok: true, mode: "mock" });
+    expect((await exportRoute(options({ refusal, mock }))).status).toBe(400);
+    expect(mock).not.toHaveBeenCalled();
+
+    verifyStaff.mockResolvedValue({ ok: false, reason: "no_session" });
+    expect((await exportRoute(options({ refusal }))).status).toBe(401);
+  });
+
   it("streams the upstream body with its type and a sanitised filename", async () => {
     apiFetchRaw.mockResolvedValue(
       new Response('﻿"ID";"Nomi"\r\n', {

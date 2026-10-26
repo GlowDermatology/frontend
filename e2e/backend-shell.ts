@@ -99,3 +99,26 @@ export function dropClickPaydoc(orderId: number): void {
     );
   }
 }
+
+/**
+ * Processing Click orders whose paid Click payment still carries Click's
+ * payment id, newest first. The Click specs take their order from these
+ * only: an order a stopped run left without the id (between
+ * `dropClickPaydoc` and its cancel) would give a `no_paydoc` refund instead
+ * of a failed one and break every later run until `seed_demo --reset`.
+ */
+export function clickOrdersWithPaydoc(): number[] {
+  const code = [
+    "import json",
+    "from glowderma.commerce.models import Order",
+    "ids = (Order.objects.filter(status='processing', payment_provider='click', payments__provider='click',",
+    "      payments__status='paid', payments__provider_state__has_key='click_paydoc_id')",
+    "      .order_by('-pk').values_list('pk', flat=True).distinct())",
+    "print(json.dumps(list(ids)))",
+  ].join("\n");
+  const answer: unknown = JSON.parse(djangoShell(code).trim().split("\n").at(-1) ?? "[]");
+  if (!Array.isArray(answer) || !answer.every((id) => Number.isInteger(id))) {
+    throw new Error(`the backend did not list Click orders: ${JSON.stringify(answer)}`);
+  }
+  return answer as number[];
+}

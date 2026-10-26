@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 import {
   BACKEND_DIR,
+  clickOrdersWithPaydoc,
   dropClickPaydoc,
   setFakeClickScenario,
   type FakeClickScenario,
@@ -66,21 +67,34 @@ test("a manual Payme refund is marked returned from the payments board", async (
 const STILL_PAID: FakeClickScenario = { refund: "failed", status: "paid" };
 
 /**
+ * The newest processing Click order the board lists whose Click payment
+ * still has Click's payment id (needs `E2E_BACKEND_DIR`). Chosen by state,
+ * not only by recency: an order a stopped run left without the id would
+ * give a `no_paydoc` refund where a spec expects a failed one.
+ */
+async function processingClickOrder(page: Page): Promise<number> {
+  const listed = await listedOrderIds(page, "/admin/orders?status=processing&period=all", "Click");
+  const withPaydoc = new Set(clickOrdersWithPaydoc());
+  const orderId = listed.find((id) => withPaydoc.has(id));
+  test.skip(orderId === undefined, "no processing Click order with a Click payment id left");
+  return orderId!;
+}
+
+/**
  * A failed Click refund (§7 item 18, M2) the spec owns: the seed's two
  * (№10100, №10175) are left to the Click-down spec and to staff, so the spec
- * arranges one — the newest processing Click order gets the `STILL_PAID`
- * fake Click scenario through the backend shell (`e2e/backend-shell.ts`,
- * needs `E2E_BACKEND_DIR`) and is cancelled from the UI; the fake Click
- * rejects the refund at once. Answers the payments row of that order.
+ * arranges one — the newest processing Click order with Click's payment id
+ * gets the `STILL_PAID` fake Click scenario through the backend shell
+ * (`e2e/backend-shell.ts`, needs `E2E_BACKEND_DIR`) and is cancelled from the
+ * UI; the fake Click rejects the refund at once. Answers the payments row of
+ * that order.
  */
 async function failedClickRefund(page: Page) {
   test.skip(
     !BACKEND_DIR,
     "E2E_BACKEND_DIR is not set: no way to make the fake Click fail a refund",
   );
-  const ids = await listedOrderIds(page, "/admin/orders?status=processing&period=all", "Click");
-  test.skip(ids.length === 0, "no processing Click order left to cancel");
-  const orderId = ids[0]!;
+  const orderId = await processingClickOrder(page);
   setFakeClickScenario(orderId, STILL_PAID);
   await cancelOrderThroughUi(page, orderId, `e2e Click qaytarish ${Date.now()}`);
 
@@ -167,12 +181,10 @@ test("Yakunlash closes a refund Click reversed without a manual payout", async (
   watcher.assertClean();
 });
 
-/** The newest processing Click order, its Click payment id removed (needs `E2E_BACKEND_DIR`). */
+/** A processing Click order (`processingClickOrder`), its Click payment id removed (needs `E2E_BACKEND_DIR`). */
 async function clickOrderWithoutPaydoc(page: Page): Promise<number> {
   test.skip(!BACKEND_DIR, "E2E_BACKEND_DIR is not set: no way to remove a payment's Click id");
-  const ids = await listedOrderIds(page, "/admin/orders?status=processing&period=all", "Click");
-  test.skip(ids.length === 0, "no processing Click order left to cancel");
-  const orderId = ids[0]!;
+  const orderId = await processingClickOrder(page);
   dropClickPaydoc(orderId);
   return orderId;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { BILLZ_LISTING_INCOMPLETE_MESSAGE } from "@/domain/job";
+import { BILLZ_AUTH_FAILED_MESSAGE, BILLZ_LISTING_INCOMPLETE_MESSAGE } from "@/domain/job";
 
 import bannerFixture from "../__fixtures__/banner.json";
 import categoriesFixture from "../__fixtures__/categories.json";
@@ -516,6 +516,21 @@ describe("Billz import results and failures (M3)", () => {
       result: { created: 0, updated: 1, unchanged: 0, hidden: "3" },
     });
     expect(odd.result).not.toHaveProperty("hidden");
+  });
+
+  it("sends staff to the administrator when Billz refused the key", () => {
+    const failed = mapJob({
+      ...(jobFixture as ApiJob),
+      state: "failed",
+      result: null,
+      error: {
+        code: "billz_auth_failed",
+        message: "Tashqi xizmat javob bermadi. Qayta urinib ko‘ring.",
+      },
+    });
+    expect(failed.error).toEqual({ code: "billz_auth_failed", message: BILLZ_AUTH_FAILED_MESSAGE });
+    expect(BILLZ_AUTH_FAILED_MESSAGE).toMatch(/administrator Billz kalitini tekshirishi kerak/);
+    expect(BILLZ_AUTH_FAILED_MESSAGE).not.toMatch(/qayta urinib ko‘ring/i);
   });
 
   it("explains an incomplete listing instead of the generic provider message", () => {

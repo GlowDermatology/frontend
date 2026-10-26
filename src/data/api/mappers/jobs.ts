@@ -1,4 +1,6 @@
 import {
+  BILLZ_AUTH_FAILED,
+  BILLZ_AUTH_FAILED_MESSAGE,
   BILLZ_LISTING_INCOMPLETE,
   BILLZ_LISTING_INCOMPLETE_MESSAGE,
   type BillzImportResult,
@@ -49,12 +51,14 @@ export function mapBillzImportResult(value: unknown): BillzImportResult | null {
 
 /**
  * `error` of a failed job. An incomplete Billz listing carries the generic
- * provider message, so its code gets the screen's own explanation.
+ * provider message, so its code gets the screen's own explanation; so does
+ * a refused Billz key, which staff must not simply retry.
  */
 export function mapJobError(value: unknown): Job["error"] {
   if (!isRecord(value)) return null;
   const code = typeof value.code === "string" ? value.code : "unknown";
   if (code === BILLZ_LISTING_INCOMPLETE) return { code, message: BILLZ_LISTING_INCOMPLETE_MESSAGE };
+  if (code === BILLZ_AUTH_FAILED) return { code, message: BILLZ_AUTH_FAILED_MESSAGE };
   const message =
     typeof value.message === "string" && value.message ? value.message : "Kutilmagan xato.";
   return { code, message };

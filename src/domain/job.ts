@@ -34,6 +34,14 @@ export const BILLZ_LISTING_INCOMPLETE = "billz_listing_incomplete";
 export const BILLZ_LISTING_INCOMPLETE_MESSAGE =
   "Billz’dan mahsulotlar ro‘yxati to‘liq kelmadi (yoki shubhali darajada qisqa), shuning uchun hech narsa o‘zgartirilmadi va yashirilmadi. Birozdan so‘ng qayta urinib ko‘ring.";
 
+/**
+ * `Job.error.code` when Billz refused the API key (M3): retrying cannot
+ * help, the administrator has to check the Billz key in the settings.
+ */
+export const BILLZ_AUTH_FAILED = "billz_auth_failed";
+export const BILLZ_AUTH_FAILED_MESSAGE =
+  "Billz API kalitni qabul qilmadi, shuning uchun import bajarilmadi. Qayta urinish yordam bermaydi: administrator Billz kalitini tekshirishi kerak.";
+
 export interface Job {
   id: string;
   kind: "billz_import";

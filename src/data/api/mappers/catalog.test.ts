@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { BILLZ_LISTING_INCOMPLETE_MESSAGE } from "@/domain/job";
+
 import bannerFixture from "../__fixtures__/banner.json";
 import categoriesFixture from "../__fixtures__/categories.json";
 import jobFixture from "../__fixtures__/job-1.json";
@@ -485,6 +487,57 @@ describe("jobs", () => {
       result: null,
       error: { code: "worker_lost", message: "Jarayon uzilib qoldi. Qayta urinib ko‘ring." },
     });
+  });
+});
+
+describe("Billz import results and failures (M3)", () => {
+  it("keeps a full run's hidden count and leaves it out of a delta run", () => {
+    const full = mapJob({
+      ...(jobFixture as ApiJob),
+      params: { mode: "full" },
+      result: { created: 0, updated: 240, unchanged: 5, new_from_billz: 0, hidden: 3 },
+    });
+    expect(full.result).toEqual({
+      created: 0,
+      updated: 240,
+      unchanged: 5,
+      newFromBillz: 0,
+      hidden: 3,
+    });
+    expect(mapJob(jobFixture as ApiJob).result).not.toHaveProperty("hidden");
+    const odd = mapJob({
+      ...(jobFixture as ApiJob),
+      result: { created: 0, updated: 1, unchanged: 0, hidden: "3" },
+    });
+    expect(odd.result).not.toHaveProperty("hidden");
+  });
+
+  it("explains an incomplete listing instead of the generic provider message", () => {
+    const failed = mapJob({
+      ...(jobFixture as ApiJob),
+      state: "failed",
+      result: null,
+      error: {
+        code: "billz_listing_incomplete",
+        message: "Tashqi xizmat javob bermadi. Qayta urinib ko‘ring.",
+      },
+    });
+    expect(failed.error).toEqual({
+      code: "billz_listing_incomplete",
+      message: BILLZ_LISTING_INCOMPLETE_MESSAGE,
+    });
+    expect(BILLZ_LISTING_INCOMPLETE_MESSAGE).toMatch(/yashirilmadi/);
+    // Billz down (provider_unavailable) and fake mode keep the backend's own text.
+    const fake = mapJob({
+      ...(jobFixture as ApiJob),
+      state: "failed",
+      result: null,
+      error: {
+        code: "billz_fake_mode",
+        message: "Billz sinov rejimida: Billz ma’lumotlarini olib bo‘lmaydi.",
+      },
+    });
+    expect(fake.error?.message).toBe("Billz sinov rejimida: Billz ma’lumotlarini olib bo‘lmaydi.");
   });
 });
 

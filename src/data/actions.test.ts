@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { appointmentActions } from "@/domain/appointment";
 import { ledgerBalance } from "@/domain/cashback";
 import { canCancel, manualTransitions } from "@/domain/order";
+import { CLICK_STILL_PAID_MESSAGE } from "@/domain/payment";
+import { BILLZ_UNAVAILABLE_MESSAGE } from "@/domain/product";
 
 import type { StaffSession, VerifyStaffOptions } from "./auth";
 
@@ -39,7 +41,6 @@ import categoryErrorFixture from "./api/__fixtures__/category-error.json";
 import productFixture from "./api/__fixtures__/product-1.json";
 import { apiMutation } from "./action-guard";
 import { ApiError } from "./api/errors";
-import { CLICK_STILL_PAID_MESSAGE } from "@/domain/payment";
 import { mapProduct } from "./api/mappers/products";
 import type { ApiProduct } from "./api/types";
 import { deleteBanner, reorderBanners, saveBanner } from "./banners.actions";
@@ -348,6 +349,31 @@ describe("api mode (catalog actions wired)", () => {
         billzId: "Billz’da bunday mahsulot topilmadi.",
       },
     });
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("saveProduct says Billz did not answer on a 503 of a create or a Billz ID change (M3)", async () => {
+    const unavailable = () =>
+      new ApiError(503, {
+        code: "provider_unavailable",
+        message: "Tashqi xizmat javob bermadi. Qayta urinib ko‘ring.",
+        errors: [],
+        request_id: "r",
+      });
+    apiFetch.mockRejectedValueOnce(unavailable());
+    expect(await saveProduct(null, values, null, KEY, CSRF)).toEqual({
+      ok: false,
+      error: BILLZ_UNAVAILABLE_MESSAGE,
+      code: "provider_unavailable",
+    });
+    apiFetch.mockRejectedValueOnce(unavailable());
+    expect(
+      await saveProduct("1", { ...values, billzId: "4607012999" }, values, KEY, CSRF),
+    ).toMatchObject({ ok: false, error: BILLZ_UNAVAILABLE_MESSAGE, code: "provider_unavailable" });
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/products/1/",
+      expect.objectContaining({ method: "PATCH", body: { billz_id: "4607012999" } }),
+    );
     expect(refresh).not.toHaveBeenCalled();
   });
 

@@ -142,6 +142,8 @@ export function ProductEditor({
   const inFlight = useRef(false);
   const [lang, setLang] = useState<ContentLanguage>("uz");
   const [leaveOpen, setLeaveOpen] = useState(false);
+  /** A refusal that belongs to the whole form (Billz unreachable): shown under the header. */
+  const [formError, setFormError] = useState<string | null>(null);
 
   const {
     control,
@@ -219,6 +221,7 @@ export function ProductEditor({
   };
 
   const save = async (values: ProductFormValues) => {
+    setFormError(null);
     const { result, createdId } = await persistProduct({
       saved,
       targetId,
@@ -232,7 +235,11 @@ export function ProductEditor({
       for (const [path, message] of entries) {
         setError(path as Path<ProductFormValues>, { message });
       }
-      if (entries.length === 0) {
+      if (result.code === "provider_unavailable") {
+        // Billz did not answer (503): nothing was written and every value is
+        // still in the form; the message stays on it until the next save.
+        setFormError(result.error);
+      } else if (entries.length === 0) {
         toast({ tone: "info", title: "Saqlanmadi", description: result.error });
       }
       return;
@@ -291,6 +298,15 @@ export function ProductEditor({
             </Button>
           </div>
         </div>
+        {formError && (
+          <p
+            role="alert"
+            className="m-0 flex items-start gap-2.5 rounded-md bg-danger-soft px-3.5 py-3 text-body-sm font-semibold text-ink"
+          >
+            <Icon name="alert-triangle" size={18} className="shrink-0 text-danger" />
+            {formError}
+          </p>
+        )}
 
         <div className="flex flex-wrap items-start gap-4">
           <div className="flex min-w-0 flex-[2_1_560px] flex-col gap-4">

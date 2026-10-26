@@ -109,5 +109,12 @@ describe("jobs", () => {
     expect(billzImportSummary({ created: 3, updated: 245, unchanged: 0, newFromBillz: 3 })).toBe(
       "3 ta yangi · 245 ta yangilandi · 0 ta o‘zgarmadi",
     );
+    // A full run also reports what it hid (M3), zero included.
+    expect(
+      billzImportSummary({ created: 0, updated: 240, unchanged: 5, newFromBillz: 0, hidden: 3 }),
+    ).toBe("0 ta yangi · 240 ta yangilandi · 5 ta o‘zgarmadi · 3 ta yashirildi");
+    expect(
+      billzImportSummary({ created: 0, updated: 1, unchanged: 0, newFromBillz: 0, hidden: 0 }),
+    ).toBe("0 ta yangi · 1 ta yangilandi · 0 ta o‘zgarmadi · 0 ta yashirildi");
   });
 });

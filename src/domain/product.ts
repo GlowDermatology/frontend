@@ -61,6 +61,15 @@ export interface Product {
 
 export const LOW_STOCK_THRESHOLD = 3;
 
+/**
+ * A create, or a change of the Billz ID, reads the product from live Billz
+ * (contract §2.3); while Billz is unreachable the API answers 503
+ * `provider_unavailable` and writes nothing. The editor keeps every value
+ * and shows this on the form.
+ */
+export const BILLZ_UNAVAILABLE_MESSAGE =
+  "Billz javob bermadi: mahsulot saqlanmadi. Kiritilgan ma’lumotlar joyida — birozdan so‘ng «Saqlash»ni qayta bosing.";
+
 export type StockLevel = "out" | "low" | "ok";
 
 export function stockLevel(stock: number): StockLevel {

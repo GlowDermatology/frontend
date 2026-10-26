@@ -3,7 +3,12 @@
 import { z } from "zod";
 
 import type { Job } from "@/domain/job";
-import { productDisplayName, type Product, type ProductImage } from "@/domain/product";
+import {
+  BILLZ_UNAVAILABLE_MESSAGE,
+  productDisplayName,
+  type Product,
+  type ProductImage,
+} from "@/domain/product";
 
 import {
   apiMutation,
@@ -92,7 +97,12 @@ async function apiSaveProduct(
     const { data } = await apiPatchProduct(token, id, body);
     return { ok: true, data: mapProduct(data) };
   } catch (error) {
-    return toActionResult(error, PRODUCT_FIELD_REMAP);
+    const failure = toActionResult(error, PRODUCT_FIELD_REMAP);
+    // Billz is the only provider a product write calls (create, or a changed
+    // `billz_id`): its 503 says so, and that the form kept everything (M3).
+    return failure.code === "provider_unavailable"
+      ? { ...failure, error: BILLZ_UNAVAILABLE_MESSAGE }
+      : failure;
   }
 }
 

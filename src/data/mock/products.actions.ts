@@ -1,5 +1,5 @@
 import type { Job } from "@/domain/job";
-import type { Product, ProductImage } from "@/domain/product";
+import { BILLZ_UNAVAILABLE_MESSAGE, type Product, type ProductImage } from "@/domain/product";
 import { formatNumber } from "@/lib/format";
 
 import { referenceNow } from "../config";
@@ -13,7 +13,7 @@ import {
 } from "../products.schema";
 import type { ActionResult } from "../types";
 import { delay } from "./delay";
-import { runningImportJob } from "./jobs.queries";
+import { MOCK_FAILED_IMPORT_JOB_ID, MOCK_IMPORT_JOB_ID, runningImportJob } from "./jobs.queries";
 import { getProduct } from "./products.queries";
 
 /**
@@ -36,6 +36,14 @@ function changeNote(before: Product | null, values: ProductFormValues): string {
   return "ma’lumotlar yangilandi";
 }
 
+/**
+ * The demo's Billz is unreachable for a Billz ID ending in `9999` (like the
+ * backend fakes' "transport down" numbers): a create or a Billz ID change to
+ * such an id answers the API's 503 `provider_unavailable`, so the editor's
+ * message can be seen without a backend.
+ */
+export const MOCK_BILLZ_DOWN_SUFFIX = "9999";
+
 export async function saveProduct(
   id: string | null,
   data: ProductFormValues,
@@ -46,6 +54,9 @@ export async function saveProduct(
     return { ok: false, error: "Mahsulot topilmadi.", code: "not_found" };
   }
   const billzChanged = !before || before.billzId !== data.billzId;
+  if (billzChanged && data.billzId.endsWith(MOCK_BILLZ_DOWN_SUFFIX)) {
+    return { ok: false, error: BILLZ_UNAVAILABLE_MESSAGE, code: "provider_unavailable" };
+  }
   return {
     ok: true,
     data: {
@@ -116,8 +127,17 @@ export async function reorderProductImages(
   return { ok: true, data: { imageIds } };
 }
 
-/** The demo import: one job that is `running` now and `succeeded` on the first poll. */
+let demoImports = 0;
+
+/**
+ * The demo import: a job that is `running` now and finished on the first
+ * poll. Imports alternate between a success (job 1, with the full run's
+ * `hidden`) and an incomplete Billz listing (job 2), so both outcomes of the
+ * import control can be seen; the fixtures never change.
+ */
 export async function importFromBillz(): Promise<ActionResult<Job>> {
   await delay(400);
-  return { ok: true, data: runningImportJob() };
+  const id = demoImports % 2 === 0 ? MOCK_IMPORT_JOB_ID : MOCK_FAILED_IMPORT_JOB_ID;
+  demoImports += 1;
+  return { ok: true, data: runningImportJob(id) };
 }

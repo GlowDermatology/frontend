@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { BILLZ_LISTING_INCOMPLETE_MESSAGE } from "@/domain/job";
+import { BILLZ_UNAVAILABLE_MESSAGE } from "@/domain/product";
+
 import { csvDocument } from "./export-csv";
 import { getBanners } from "./mock/banners.queries";
 import { createBanner, deleteBanner, reorderBanners, updateBanner } from "./mock/banners.actions";
@@ -12,8 +15,8 @@ import {
   updateCategory,
 } from "./mock/categories.actions";
 import { PRODUCTS } from "./mock/catalog";
-import { getJob, MOCK_IMPORT_JOB_ID } from "./mock/jobs.queries";
-import { importFromBillz } from "./mock/products.actions";
+import { getJob, MOCK_FAILED_IMPORT_JOB_ID, MOCK_IMPORT_JOB_ID } from "./mock/jobs.queries";
+import { importFromBillz, saveProduct } from "./mock/products.actions";
 import { exportProducts, getCatalogStats } from "./mock/products.queries";
 
 vi.mock("./mock/delay", () => ({ delay: async () => undefined }));
@@ -163,14 +166,48 @@ describe("mock products: stats, export and import job", () => {
     expect(out).toHaveLength(7);
   });
 
-  it("starts a running job that is finished on the first poll", async () => {
+  it("starts a running job that is finished on the first poll, alternating both outcomes", async () => {
     const started = await importFromBillz();
     expect(started).toMatchObject({ ok: true, data: { id: MOCK_IMPORT_JOB_ID, state: "running" } });
     expect(await getJob(MOCK_IMPORT_JOB_ID)).toMatchObject({
       state: "succeeded",
-      result: { created: 0, updated: 12, unchanged: 236 },
+      result: { created: 0, updated: 12, unchanged: 236, hidden: 0 },
     });
+    const next = await importFromBillz();
+    expect(next).toMatchObject({
+      ok: true,
+      data: { id: MOCK_FAILED_IMPORT_JOB_ID, state: "running" },
+    });
+    expect(await getJob(MOCK_FAILED_IMPORT_JOB_ID)).toMatchObject({
+      state: "failed",
+      result: null,
+      error: { code: "billz_listing_incomplete", message: BILLZ_LISTING_INCOMPLETE_MESSAGE },
+    });
+    expect(await importFromBillz()).toMatchObject({ data: { id: MOCK_IMPORT_JOB_ID } });
     expect(await getJob("other")).toBeNull();
+  });
+
+  it("answers Billz's 503 for a demo Billz ID ending in 9999, on create or change only", async () => {
+    const product = PRODUCTS.find((p) => p.status === "active")!;
+    const values = {
+      texts: product.texts,
+      price: product.price,
+      category: product.category ?? "",
+      billzId: "4607019999",
+      promo: product.promo,
+      status: "hidden" as const,
+      images: [],
+    };
+    expect(await saveProduct(null, values)).toEqual({
+      ok: false,
+      error: BILLZ_UNAVAILABLE_MESSAGE,
+      code: "provider_unavailable",
+    });
+    expect(await saveProduct(product.id, values)).toMatchObject({ code: "provider_unavailable" });
+    // Other changes never ask Billz.
+    expect(
+      (await saveProduct(product.id, { ...values, billzId: product.billzId, price: 99_000 })).ok,
+    ).toBe(true);
   });
 });
 

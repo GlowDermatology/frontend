@@ -15,10 +15,13 @@ const FAR_FUTURE = "9999-12-31T10:00";
 /**
  * A scheduled push to one customer (contract §2.8): never sent by the run
  * itself, and scheduled at `FAR_FUTURE` so the backend's beat never sends it
- * either. Each run adds one scheduled message with a unique title; the API
- * has no cancel for it (cleanup: e2e/README.md).
+ * either. The spec then cancels it from the history ("Bekor qilish", M3), so
+ * a run leaves one cancelled message with a unique title and nothing
+ * scheduled.
  */
-test("a push scheduled for one customer is listed as scheduled", async ({ page }) => {
+test("a push scheduled for one customer is listed as scheduled, then cancelled", async ({
+  page,
+}) => {
   const watcher = watchPage(page);
   const customerId = CUSTOMER_PATH.split("/").at(-1)!;
   const title = `e2e rejalashtirilgan ${Date.now()}`;
@@ -44,11 +47,39 @@ test("a push scheduled for one customer is listed as scheduled", async ({ page }
   // Persisted by the backend, not only the board's local history.
   await page.reload();
   await expect(heading(page)).toHaveText("Bildirishnomalar");
+  const saved = page
+    .getByRole("region", { name: "Yuborilgan xabarlar" })
+    .locator("tr")
+    .filter({ hasText: title });
+  await expect(saved).toContainText("Rejalashtirilgan");
+
+  // Cancel it before any send (POST notifications/{id}/cancel/, M3).
+  const cancel = saved.getByRole("button", { name: `Bekor qilish: «${title}»` });
+  await cancel.click();
+  const dialog = page.getByRole("alertdialog", {
+    name: "Rejalashtirilgan xabar bekor qilinsinmi?",
+  });
+  await expect(dialog).toContainText(title);
+  // "Orqaga" changes nothing and gives focus back to the row's button.
+  await dialog.getByRole("button", { name: "Orqaga" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(cancel).toBeFocused();
+  await expect(saved).toContainText("Rejalashtirilgan");
+
+  await cancel.click();
+  await dialog.getByRole("button", { name: "Bekor qilish" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(toast(page, "Xabar bekor qilindi")).toBeVisible();
+  await expect(saved).toContainText("Bekor qilindi");
+  await expect(saved.getByRole("button", { name: /^Bekor qilish/ })).toHaveCount(0);
+
+  await page.reload();
+  await expect(heading(page)).toHaveText("Bildirishnomalar");
   await expect(
     page
       .getByRole("region", { name: "Yuborilgan xabarlar" })
       .locator("tr")
       .filter({ hasText: title }),
-  ).toContainText("Rejalashtirilgan");
+  ).toContainText("Bekor qilindi");
   watcher.assertClean();
 });

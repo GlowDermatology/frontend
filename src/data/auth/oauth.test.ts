@@ -7,6 +7,7 @@ import { clearOAuthFlowCookie, oauthFlowCookie, type CookieAttributes } from "./
 import {
   CALLBACK_MESSAGES,
   ConsumedStates,
+  FAKE_OUTSIDE_DEVELOPMENT_WARNING,
   OAUTH_FLOW_MAX_AGE_SECONDS,
   OAUTH_NOTICE_MAX_MESSAGE_LENGTH,
   authorizeUrl,
@@ -39,8 +40,10 @@ function envelope(code: string, message: string) {
 }
 
 describe("readOAuthConfig", () => {
-  it("is empty (no buttons) by default and fake by default", () => {
-    expect(readOAuthConfig({})).toEqual({
+  const dev = { NODE_ENV: "development" };
+
+  it("is empty (no buttons) by default and fake by default in development", () => {
+    expect(readOAuthConfig(dev)).toEqual({
       mode: "fake",
       providers: [],
       clientIds: {},
@@ -49,7 +52,10 @@ describe("readOAuthConfig", () => {
   });
 
   it("parses the provider list, ignores unknown names and keeps Google first", () => {
-    const config = readOAuthConfig({ GLOWDERMA_OAUTH_PROVIDERS: " Facebook, google ,github,," });
+    const config = readOAuthConfig({
+      ...dev,
+      GLOWDERMA_OAUTH_PROVIDERS: " Facebook, google ,github,,",
+    });
     expect(config.providers).toEqual(["google", "facebook"]);
     expect(config.clientIds).toEqual({ google: "fake", facebook: "fake" });
     expect(config.warnings).toEqual([
@@ -59,6 +65,7 @@ describe("readOAuthConfig", () => {
 
   it("needs the public client id per provider in live mode", () => {
     const config = readOAuthConfig({
+      NODE_ENV: "production",
       GLOWDERMA_OAUTH_MODE: "live",
       GLOWDERMA_OAUTH_PROVIDERS: "google,facebook",
       GLOWDERMA_GOOGLE_CLIENT_ID: "123.apps.googleusercontent.com",
@@ -66,38 +73,71 @@ describe("readOAuthConfig", () => {
     expect(config.mode).toBe("live");
     expect(config.providers).toEqual(["google"]);
     expect(config.clientIds).toEqual({ google: "123.apps.googleusercontent.com" });
+    expect(config.warnings).toHaveLength(1);
     expect(config.warnings[0]).toMatch(/GLOWDERMA_FACEBOOK_APP_ID/);
   });
 
-  it("falls back to fake for an unknown mode, with a warning", () => {
-    const config = readOAuthConfig({ GLOWDERMA_OAUTH_MODE: "prod" });
+  it("falls back to fake for an unknown mode in development, with a warning", () => {
+    const config = readOAuthConfig({ NODE_ENV: "test", GLOWDERMA_OAUTH_MODE: "prod" });
     expect(config.mode).toBe("fake");
     expect(config.warnings).toHaveLength(1);
   });
 
-  it("offers no provider in a production build unless the mode is set explicitly", () => {
+  it("offers no provider outside development unless the mode is set explicitly", () => {
     const unset = readOAuthConfig({ NODE_ENV: "production", GLOWDERMA_OAUTH_PROVIDERS: "google" });
     expect(unset.providers).toEqual([]);
-    expect(unset.warnings[0]).toMatch(/GLOWDERMA_OAUTH_MODE is not set in a production build/);
+    expect(unset.warnings[0]).toMatch(/GLOWDERMA_OAUTH_MODE is not set outside development/);
     const invalid = readOAuthConfig({
       NODE_ENV: "production",
       GLOWDERMA_OAUTH_MODE: "prod",
       GLOWDERMA_OAUTH_PROVIDERS: "google",
     });
     expect(invalid.providers).toEqual([]);
-    const explicit = readOAuthConfig({
-      NODE_ENV: "production",
-      GLOWDERMA_OAUTH_MODE: "fake",
-      GLOWDERMA_OAUTH_PROVIDERS: "google",
-    });
-    expect(explicit.providers).toEqual(["google"]);
-    expect(explicit.warnings).toEqual([]);
     // No providers requested: nothing to warn about.
     expect(readOAuthConfig({ NODE_ENV: "production" }).warnings).toEqual([]);
     // Development keeps the fake default.
     expect(
       readOAuthConfig({ NODE_ENV: "development", GLOWDERMA_OAUTH_PROVIDERS: "google" }).providers,
     ).toEqual(["google"]);
+  });
+
+  it("treats a non-standard or missing NODE_ENV like production (no silent fake default)", () => {
+    for (const NODE_ENV of ["staging", "prod", "", undefined]) {
+      const config = readOAuthConfig({ NODE_ENV, GLOWDERMA_OAUTH_PROVIDERS: "google,facebook" });
+      expect(config.providers).toEqual([]);
+      expect(config.warnings).toHaveLength(1);
+      expect(config.warnings[0]).toMatch(/^social sign-in is disabled: GLOWDERMA_OAUTH_MODE/);
+    }
+    const live = readOAuthConfig({
+      NODE_ENV: "staging",
+      GLOWDERMA_OAUTH_MODE: "live",
+      GLOWDERMA_OAUTH_PROVIDERS: "google",
+      GLOWDERMA_GOOGLE_CLIENT_ID: "123.apps.googleusercontent.com",
+    });
+    expect(live.providers).toEqual(["google"]);
+  });
+
+  it("needs a second opt-in for fake mode outside development, and warns when given", () => {
+    const explicit = {
+      NODE_ENV: "production",
+      GLOWDERMA_OAUTH_MODE: "fake",
+      GLOWDERMA_OAUTH_PROVIDERS: "google,facebook",
+    };
+    const refused = readOAuthConfig(explicit);
+    expect(refused.providers).toEqual([]);
+    expect(refused.warnings).toEqual([
+      "social sign-in is disabled: GLOWDERMA_OAUTH_MODE=fake outside development " +
+        "(NODE_ENV=production) also needs GLOWDERMA_OAUTH_ALLOW_FAKE=true",
+    ]);
+    expect(readOAuthConfig({ ...explicit, GLOWDERMA_OAUTH_ALLOW_FAKE: "yes" }).providers).toEqual(
+      [],
+    );
+    const allowed = readOAuthConfig({ ...explicit, GLOWDERMA_OAUTH_ALLOW_FAKE: "true" });
+    expect(allowed.mode).toBe("fake");
+    expect(allowed.providers).toEqual(["google", "facebook"]);
+    expect(allowed.warnings).toEqual([FAKE_OUTSIDE_DEVELOPMENT_WARNING]);
+    // Development needs neither the opt-in nor a warning.
+    expect(readOAuthConfig({ ...explicit, NODE_ENV: "development" }).warnings).toEqual([]);
   });
 });
 

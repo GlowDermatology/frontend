@@ -55,6 +55,8 @@ const env = {
   GLOWDERMA_ALLOWED_ORIGINS: HOST,
   GLOWDERMA_INTERNAL_SECRET: SECRET,
   GLOWDERMA_COOKIE_SECURE: "false",
+  GLOWDERMA_OAUTH_ALLOW_FAKE: "",
+  NODE_ENV: "test",
 };
 
 beforeEach(() => {
@@ -217,6 +219,22 @@ describe("GET /admin/auth/oauth/[provider]/start", () => {
       "API bilan bog‘lanib bo‘lmadi.",
     );
     expect(setCookies(response)).toEqual([]);
+  });
+
+  it("is a 404 on a non-development server without an explicit, opted-in mode", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubEnv("NODE_ENV", "staging");
+    vi.stubEnv("GLOWDERMA_OAUTH_MODE", "");
+    const unset = await start(get("/admin/auth/oauth/google/start"), ctx("google"));
+    expect(unset.status).toBe(404);
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("GLOWDERMA_OAUTH_MODE", "fake");
+    expect((await start(get("/admin/auth/oauth/google/start"), ctx("google"))).status).toBe(404);
+    expect((await fake(get("/admin/auth/oauth/google/fake"), ctx("google"))).status).toBe(404);
+    vi.stubEnv("GLOWDERMA_OAUTH_ALLOW_FAKE", "true");
+    const allowed = await start(get("/admin/auth/oauth/google/start"), ctx("google"));
+    expect(allowed.status).toBe(303);
+    expect(allowed.headers.get("location")).toMatch(/^\/admin\/auth\/oauth\/google\/fake\?/);
   });
 
   it("redirects live mode to Google with the public client id", async () => {

@@ -84,33 +84,62 @@ export interface OAuthConfig {
 
 type Env = Record<string, string | undefined>;
 
+/** The warning logged (once per process) whenever fake mode runs outside development. */
+export const FAKE_OUTSIDE_DEVELOPMENT_WARNING =
+  "fake OAuth mode outside development: anyone can sign in as a linked subject " +
+  "(GLOWDERMA_OAUTH_ALLOW_FAKE=true); never use it on a public deployment";
+
 /**
  * `GLOWDERMA_OAUTH_PROVIDERS` (comma list of `google`, `facebook`),
- * `GLOWDERMA_OAUTH_MODE` (`fake` | `live`, default `fake`) and the public
- * client ids `GLOWDERMA_GOOGLE_CLIENT_ID` / `GLOWDERMA_FACEBOOK_APP_ID`.
- * Unknown names are ignored, and in live mode a provider without its client
- * id is left out (both reported in `warnings`), so a typo hides a button
- * instead of breaking the login page.
+ * `GLOWDERMA_OAUTH_MODE` (`fake` | `live`) and the public client ids
+ * `GLOWDERMA_GOOGLE_CLIENT_ID` / `GLOWDERMA_FACEBOOK_APP_ID`.
+ *
+ * Fake mode signs in anyone who types a linked subject, so it is opt-in
+ * everywhere but on a development or test server (`NODE_ENV` exactly
+ * `development` or `test`, where an unset mode means fake). Any other
+ * `NODE_ENV` — `production`, unset, or a custom value such as `staging` —
+ * needs `GLOWDERMA_OAUTH_MODE=live`, or `fake` together with
+ * `GLOWDERMA_OAUTH_ALLOW_FAKE=true` (which logs a warning); otherwise no
+ * provider is offered. Unknown names are ignored, and in live mode a provider
+ * without its client id is left out (all reported in `warnings`), so a typo
+ * hides a button instead of breaking the login page.
  */
 export function readOAuthConfig(env: Env): OAuthConfig {
   const warnings: string[] = [];
+  const development = env.NODE_ENV === "development" || env.NODE_ENV === "test";
+  const requestsProviders = (env.GLOWDERMA_OAUTH_PROVIDERS ?? "").trim() !== "";
+  const disabled = (reason: string): OAuthConfig => {
+    if (requestsProviders) warnings.push(`social sign-in is disabled: ${reason}`);
+    return { mode: "fake", providers: [], clientIds: {}, warnings };
+  };
   const rawMode = (env.GLOWDERMA_OAUTH_MODE ?? "").trim().toLowerCase();
-  let mode: OAuthMode = "fake";
-  if (rawMode === "live") mode = "live";
-  else if (rawMode !== "" && rawMode !== "fake") {
-    warnings.push(`GLOWDERMA_OAUTH_MODE must be "fake" or "live", got "${rawMode}"; using fake`);
-  }
-  // Fake mode signs anyone in who types a linked subject. Development may
-  // rely on the default; a production server (`next start`, NODE_ENV=production)
-  // must say `fake` out loud, or it offers no social sign-in at all.
-  if (rawMode !== "live" && rawMode !== "fake" && env.NODE_ENV === "production") {
-    if ((env.GLOWDERMA_OAUTH_PROVIDERS ?? "").trim() !== "") {
-      warnings.push(
-        "social sign-in is disabled: GLOWDERMA_OAUTH_MODE is not set in a production build " +
-          '(set "live", or "fake" explicitly for a test deployment)',
+  let mode: OAuthMode;
+  if (rawMode === "live") {
+    mode = "live";
+  } else if (rawMode === "fake") {
+    mode = "fake";
+    if (!development) {
+      if ((env.GLOWDERMA_OAUTH_ALLOW_FAKE ?? "").trim().toLowerCase() !== "true") {
+        return disabled(
+          `GLOWDERMA_OAUTH_MODE=fake outside development (NODE_ENV=${env.NODE_ENV ?? "unset"}) ` +
+            "also needs GLOWDERMA_OAUTH_ALLOW_FAKE=true",
+        );
+      }
+      if (requestsProviders) warnings.push(FAKE_OUTSIDE_DEVELOPMENT_WARNING);
+    }
+  } else {
+    const problem =
+      rawMode === ""
+        ? "GLOWDERMA_OAUTH_MODE is not set"
+        : `GLOWDERMA_OAUTH_MODE must be "fake" or "live", got "${rawMode}"`;
+    if (!development) {
+      return disabled(
+        `${problem} outside development (NODE_ENV=${env.NODE_ENV ?? "unset"}); ` +
+          'set "live", or "fake" with GLOWDERMA_OAUTH_ALLOW_FAKE=true for a test deployment',
       );
     }
-    return { mode: "fake", providers: [], clientIds: {}, warnings };
+    if (rawMode !== "") warnings.push(`${problem}; using fake`);
+    mode = "fake";
   }
   const requested = new Set<OAuthProvider>();
   for (const entry of (env.GLOWDERMA_OAUTH_PROVIDERS ?? "").split(",")) {

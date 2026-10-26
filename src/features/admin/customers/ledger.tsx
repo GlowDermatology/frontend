@@ -16,7 +16,7 @@ const KIND_BADGE: Record<LedgerEntryKind, { label: string; tone: Tone }> = {
 
 /** Order link of a ledger or purchase row. */
 const orderLinkClass =
-  "text-ink underline decoration-line-strong underline-offset-4 hover:decoration-gold";
+  "whitespace-nowrap text-ink underline decoration-line-strong underline-offset-4 hover:decoration-gold";
 
 /**
  * The cashback ledger, newest first. BALANS is each entry's `balanceAfter`
@@ -69,9 +69,10 @@ export function LedgerTable({ rows }: { rows: ReadonlyArray<LedgerEntry> }) {
                   {entry.note}
                   {entry.kind === "credit" && entry.policyVersion !== undefined && (
                     <span
-                      className="ml-1.5 text-[12px] whitespace-nowrap"
+                      className="text-[12px] whitespace-nowrap"
                       title={`Cashback siyosati v${entry.policyVersion} bo‘yicha hisoblangan`}
                     >
+                      {" "}
                       · v{entry.policyVersion}
                     </span>
                   )}

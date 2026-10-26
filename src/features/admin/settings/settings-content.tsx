@@ -30,6 +30,7 @@ export async function SettingsContent({
         kind: opened.kind,
         provider: OAUTH_PROVIDER_LABEL[opened.provider],
         message: opened.message,
+        issuedAt: opened.issuedAt,
       }
     : null;
   const providers = oauthConfig().providers.map((id) => ({ id, label: OAUTH_PROVIDER_LABEL[id] }));

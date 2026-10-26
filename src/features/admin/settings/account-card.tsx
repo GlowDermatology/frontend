@@ -1,6 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import type { Route } from "next";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -19,8 +20,9 @@ import { runAction } from "../shared/action-client";
 import { useFocusFirstInvalid } from "../shared/focus-invalid";
 import { partitionFieldErrors } from "../shared/field-errors";
 import { readCsrfCookie } from "../shared/csrf";
+import { claimNotice, withoutParam } from "../shared/notice-once";
 import { othersLogoutNotice } from "./others-logout";
-import { socialRows, type SocialProviderOption } from "./social-rows";
+import { socialBlock, type SocialProviderOption } from "./social-rows";
 
 /** A link flow's outcome, verified server-side from the signed `?oauth=` token. */
 export interface SocialNotice {
@@ -28,6 +30,8 @@ export interface SocialNotice {
   /** Provider label ("Google"). */
   provider: string;
   message: string;
+  /** When the callback issued it (epoch ms): identifies the notice so it is toasted once. */
+  issuedAt: number;
 }
 
 const EMPTY: ChangePasswordValues = { currentPassword: "", newPassword: "", confirmPassword: "" };
@@ -52,6 +56,8 @@ interface AccountCardProps {
 export function AccountCard({ account, providers = [], notice = null }: AccountCardProps) {
   const toast = useToast();
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [values, setValues] = useState(EMPTY);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -62,25 +68,30 @@ export function AccountCard({ account, providers = [], notice = null }: AccountC
   // Linked providers as last loaded, or as the last unlink left them (mock
   // mode keeps the local change; api mode re-renders with `auth/me/`).
   const [source, setSource] = useState(account);
-  const [linked, setLinked] = useState(account?.linkedProviders ?? []);
+  // `null`: the account could not be loaded, so the link state is unknown.
+  const [linked, setLinked] = useState<string[] | null>(account?.linkedProviders ?? null);
   if (source !== account) {
     setSource(account);
-    setLinked(account?.linkedProviders ?? []);
+    setLinked(account?.linkedProviders ?? null);
   }
   const [unlinkTarget, setUnlinkTarget] = useState<SocialProviderOption | null>(null);
   const [unlinking, setUnlinking] = useState(false);
   const unlinkInFlight = useRef(false);
   /** The row whose action should take focus once the confirmation closes. */
   const focusRow = useRef<string | null>(null);
-  const rows = socialRows(providers, linked);
+  const social = socialBlock(providers, linked);
 
-  // A link flow's outcome (the callback lands here with `?oauth=`): toast it
-  // once and drop the token from the URL so a reload does not repeat it.
+  // A link flow's outcome (the callback lands here with `?oauth=`): drop the
+  // token through the router (so a later `refresh()` does not render it
+  // again) and toast it once per notice (`claimNotice`; StrictMode's second
+  // effect run and re-renders with the old props are no-ops).
+  const search = searchParams.toString();
   useEffect(() => {
     if (!notice) return;
-    const url = new URL(window.location.href);
-    url.searchParams.delete("oauth");
-    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}`);
+    if (new URLSearchParams(search).has("oauth")) {
+      router.replace(withoutParam(pathname, search, "oauth") as Route, { scroll: false });
+    }
+    if (!claimNotice(`oauth:${notice.issuedAt}:${notice.kind}:${notice.provider}`)) return;
     toast(
       notice.kind === "linked"
         ? { tone: "success", title: notice.message }
@@ -96,7 +107,7 @@ export function AccountCard({ account, providers = [], notice = null }: AccountC
               description: notice.message,
             },
     );
-  }, [notice, toast]);
+  }, [notice, toast, router, pathname, search]);
 
   const confirmUnlink = async () => {
     if (!unlinkTarget || unlinkInFlight.current) return;
@@ -114,7 +125,7 @@ export function AccountCard({ account, providers = [], notice = null }: AccountC
       if (result.code === "not_found") router.refresh();
       return;
     }
-    setLinked((current) => current.filter((id) => id !== target.id));
+    setLinked((current) => current?.filter((id) => id !== target.id) ?? null);
     toast({ title: `${target.label} hisobi uzildi` });
   };
   // The logout route's `scope=others` outcome (a full page load back here):
@@ -222,13 +233,17 @@ export function AccountCard({ account, providers = [], notice = null }: AccountC
         <h3 id="social-title" className="m-0 text-label text-ink">
           Ijtimoiy tarmoq orqali kirish
         </h3>
-        {rows.length === 0 ? (
+        {social.kind === "off" ? (
           <p className="m-0 text-body-sm text-ink-muted">
             Google yoki Facebook orqali kirish bu serverda yoqilmagan.
           </p>
+        ) : social.kind === "unknown" ? (
+          <p className="m-0 text-body-sm text-ink-muted">
+            Ijtimoiy tarmoq holatini yuklab bo‘lmadi.
+          </p>
         ) : (
           <ul aria-labelledby="social-title" className="m-0 flex list-none flex-col gap-2 p-0">
-            {rows.map((row) => (
+            {social.rows.map((row) => (
               <li
                 key={row.id}
                 className="flex items-center justify-between gap-3 rounded-md border border-line px-3.5 py-2.5"

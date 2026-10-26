@@ -36,3 +36,21 @@ export function socialRows(
   const rank = (id: string) => (ORDER.includes(id) ? ORDER.indexOf(id) : ORDER.length);
   return [...rows.values()].sort((a, b) => rank(a.id) - rank(b.id));
 }
+
+export type SocialBlock =
+  { kind: "off" } | { kind: "unknown" } | { kind: "rows"; rows: SocialRow[] };
+
+/**
+ * What the social block shows: `off` when no provider is enabled or linked,
+ * `unknown` when the account could not be loaded (`auth/me/` failed) — the
+ * card must not claim "Bog‘lanmagan" and offer a link that would end in a
+ * 409 — and the rows otherwise.
+ */
+export function socialBlock(
+  enabled: readonly SocialProviderOption[],
+  linked: readonly string[] | null,
+): SocialBlock {
+  if (linked === null) return enabled.length > 0 ? { kind: "unknown" } : { kind: "off" };
+  const rows = socialRows(enabled, linked);
+  return rows.length > 0 ? { kind: "rows", rows } : { kind: "off" };
+}

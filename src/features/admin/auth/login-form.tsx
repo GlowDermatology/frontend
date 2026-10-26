@@ -1,11 +1,15 @@
 "use client";
 
+import type { Route } from "next";
+import { useRouter } from "next/navigation";
 import { useActionState, useEffect } from "react";
 
 import { Button, buttonStyles } from "@/components/ui/button";
 import { Field, TextInput } from "@/components/ui/field";
 import { Icon } from "@/components/ui/icon";
 import { login } from "@/data/auth.actions";
+
+import { withoutParam } from "../shared/notice-once";
 
 interface SocialProvider {
   id: string;
@@ -28,13 +32,15 @@ interface LoginFormProps {
 export function LoginForm({ next, csrf, providers = [], notice = null }: LoginFormProps) {
   const [state, formAction, pending] = useActionState(login, { error: notice });
 
-  // The notice is in the URL (`?oauth=`): drop it so a reload does not repeat it.
+  // The notice is in the URL (`?oauth=`): drop it through the router (which
+  // then forgets it too) so neither a reload nor a refresh repeats it. The
+  // notice itself is only the action state's initial value, shown once.
+  const router = useRouter();
   useEffect(() => {
-    const url = new URL(window.location.href);
-    if (!url.searchParams.has("oauth")) return;
-    url.searchParams.delete("oauth");
-    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}`);
-  }, []);
+    const { pathname, search } = window.location;
+    if (!new URLSearchParams(search).has("oauth")) return;
+    router.replace(withoutParam(pathname, search, "oauth") as Route, { scroll: false });
+  }, [router]);
 
   return (
     <div className="flex flex-col gap-5">

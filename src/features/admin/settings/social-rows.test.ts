@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { socialRows } from "./social-rows";
+import { socialBlock, socialRows } from "./social-rows";
 
 const google = { id: "google", label: "Google" };
 const facebook = { id: "facebook", label: "Facebook" };
@@ -28,5 +28,27 @@ describe("socialRows", () => {
       { id: "google", label: "Google", linked: true, linkHref: null },
     ]);
     expect(socialRows([], [])).toEqual([]);
+  });
+});
+
+describe("socialBlock", () => {
+  it("shows no link state when the account could not be loaded", () => {
+    expect(socialBlock([google, facebook], null)).toEqual({ kind: "unknown" });
+    expect(socialBlock([], null)).toEqual({ kind: "off" });
+  });
+
+  it("is off without providers and lists the rows otherwise", () => {
+    expect(socialBlock([], [])).toEqual({ kind: "off" });
+    expect(socialBlock([google], [])).toEqual({
+      kind: "rows",
+      rows: [
+        {
+          id: "google",
+          label: "Google",
+          linked: false,
+          linkHref: "/admin/auth/oauth/google/start?intent=link",
+        },
+      ],
+    });
   });
 });

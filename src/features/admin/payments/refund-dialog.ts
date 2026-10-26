@@ -172,7 +172,13 @@ export function successToast(op: RefundOperation): { title: string; description:
   const order = `Buyurtma №${op.payment.orderId}`;
   if (op.kind === "retry") return { title: "Qaytarish qayta yuborildi", description: order };
   if (op.kind === "close") {
-    return { title: "Qaytarish yakunlandi", description: order };
+    // Without the payout, a close only succeeds when Click reported the payment reversed.
+    return op.manualPayout
+      ? { title: "Qaytarish yakunlandi", description: order }
+      : {
+          title: "Qaytarish yakunlandi",
+          description: `${order}: Click pulni mijozga qaytardi — qo‘lda to‘lash kerak emas.`,
+        };
   }
   return {
     title: op.state === "succeeded" ? "Qaytarish yakunlandi" : "Qaytarish bajarilmadi deb yopildi",

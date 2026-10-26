@@ -12,6 +12,7 @@ import {
   keysToDrop,
   nextStep,
   operationKey,
+  successToast,
   type RefundDialogState,
   type RefundOperation,
 } from "./refund-dialog";
@@ -219,5 +220,19 @@ describe("dialogReducer (finding: Enter, Enter must not attest a payout)", () =>
     expect(kept.payoutConfirmed).toBe(true);
     expect(kept.notice).toEqual({ tone: "error", text: CLICK_UNAVAILABLE_MESSAGE });
     expect(dialogReducer(kept, { type: "submit" }).notice).toBeNull();
+  });
+});
+
+describe("successToast", () => {
+  it("says Click returned the money and no payout is needed after a close without payout", () => {
+    expect(successToast(close)).toEqual({
+      title: "Qaytarish yakunlandi",
+      description: "Buyurtma №10244: Click pulni mijozga qaytardi — qo‘lda to‘lash kerak emas.",
+    });
+    expect(successToast(payout)).toEqual({
+      title: "Qaytarish yakunlandi",
+      description: "Buyurtma №10244",
+    });
+    expect(successToast(retry).title).toBe("Qaytarish qayta yuborildi");
   });
 });

@@ -40,7 +40,7 @@ function dialogCopy(op: RefundOperation): { title: string; body: string; confirm
       title: `Qaytarishni qayta yuborasizmi?`,
       body:
         op.refund.provider === "click"
-          ? `Buyurtma №${op.payment.orderId}: ${amount} Click orqali yangi qaytarish sifatida yuboriladi.`
+          ? `Buyurtma №${op.payment.orderId}: ${amount} uchun yangi qaytarish ochiladi va imkon bo‘lsa Click’ga yuboriladi; bo‘lmasa, mijozga qo‘lda to‘lash kerakligi ko‘rsatiladi.`
           : `Buyurtma №${op.payment.orderId}: ${amount} uchun yangi qaytarish ochiladi; Payme kabinetida qo‘lda qaytariladi.`,
       confirm: "Qayta yuborish",
     };
@@ -49,12 +49,12 @@ function dialogCopy(op: RefundOperation): { title: string; body: string; confirm
     return op.manualPayout
       ? {
           title: "Mijozga qo‘lda to‘landimi?",
-          body: `Buyurtma №${op.payment.orderId}: ${amount} mijozga Click’dan tashqari to‘langanini tekshirdingizmi? Click holati yana tekshiriladi va qaytarish «Qaytarildi» deb yopiladi; jurnalga «qo‘lda to‘landi» deb yoziladi.`,
+          body: `Buyurtma №${op.payment.orderId}: ${amount} mijozga Click’dan tashqari to‘langanini tekshirdingizmi? Imkon bo‘lsa, Click holati yana tekshiriladi. Qaytarish «Qaytarildi» deb yopiladi va jurnalga «qo‘lda to‘landi» deb yoziladi.`,
           confirm: "Qo‘lda to‘landi",
         }
       : {
           title: "Qaytarishni yakunlaysizmi?",
-          body: `Buyurtma №${op.payment.orderId}: Click’dan to‘lov holati qayta so‘raladi. Click ${amount} ni qaytargan bo‘lsa, qaytarish «Qaytarildi» deb yopiladi va mijozga qo‘lda to‘lash kerak emas. Qaytarmagan bo‘lsa, mijozga qo‘lda to‘lab, «Qo‘lda to‘landi» bilan yakunlaysiz.`,
+          body: `Buyurtma №${op.payment.orderId}: imkon bo‘lsa, to‘lov holati Click’dan qayta so‘raladi. Click ${amount} ni qaytargani tasdiqlansa, qaytarish «Qaytarildi» deb yopiladi va mijozga qo‘lda to‘lash kerak emas. Aks holda mijozga qo‘lda to‘lab, «Qo‘lda to‘landi» bilan yakunlaysiz.`,
           confirm: "Yakunlash",
         };
   }

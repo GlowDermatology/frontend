@@ -30,7 +30,11 @@ import {
   type OAuthProvider,
 } from "@/data/auth/oauth";
 import { consumeFlowState, oauthKey } from "@/data/auth/oauth-env";
-import { oauthErrorMessage, oauthRefusalLog } from "@/data/auth/oauth-errors";
+import {
+  oauthErrorMessage,
+  oauthLinkErrorMessage,
+  oauthRefusalLog,
+} from "@/data/auth/oauth-errors";
 import {
   enabledProvider,
   notFoundPage,
@@ -86,7 +90,8 @@ function failure(ctx: Context, intent: "login" | "link", message: string, next =
  * Server log of a refused exchange — everything but the expected 401 (an
  * identity that is not a staff member, an expired session). A field error
  * here means this server sent what Django does not accept (a `redirect_uri`
- * that differs from `OAUTH_REDIRECT_URI`, a missing nonce), which the admin
+ * that differs from Django's `GOOGLE_OAUTH_REDIRECT_URI` /
+ * `FACEBOOK_OAUTH_REDIRECT_URI`, a missing nonce), which the admin
  * only sees as a failed sign-in. The code and the verifier are never logged.
  */
 function logRefusal(ctx: Context, intent: "login" | "link", error: ApiError): void {
@@ -203,7 +208,7 @@ async function link(
       }
       if (isSessionExpired(error)) return sessionEnded();
       logRefusal(ctx, "link", error);
-      return withRenewed(failure(ctx, "link", oauthErrorMessage(error)));
+      return withRenewed(failure(ctx, "link", oauthLinkErrorMessage(error)));
     }
   }
 

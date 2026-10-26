@@ -17,6 +17,7 @@ import { ApiError } from "@/data/api/errors";
 
 import { fakeJwt } from "./jwt.fixture";
 import { deriveOAuthKey, openNotice, pkceChallenge, sealFlow, newFlow } from "./oauth";
+import { OAUTH_LINK_NEEDS_PASSWORD_MESSAGE } from "./oauth-errors";
 
 /**
  * Route-level tests of the OAuth start, fake-authorize and callback handlers
@@ -610,6 +611,32 @@ describe("GET /admin/auth/oauth/[provider]/callback", () => {
       expect(noticeOf(response.headers.get("location"))?.message).toBe(
         "Bu ijtimoiy hisob allaqachon bog‘langan.",
       );
+    });
+
+    it("asks for a password sign-in when Django refuses a link from a social session (403)", async () => {
+      vi.mocked(apiOAuthLink).mockRejectedValue(
+        new ApiError(403, {
+          code: "permission_denied",
+          message: "Ruxsat yo‘q.",
+          errors: [],
+          request_id: "r",
+        }),
+      );
+      const access = fakeJwt({ exp: Math.floor(Date.now() / 1000) + 600, sid: "s1" });
+      const { flow, cookie } = flowCookie("google", "link");
+      const response = await callback(
+        get(`/admin/auth/oauth/google/callback?code=c&state=${flow.state}`, {
+          cookies: `${cookie}; gd_admin_access=${access}`,
+        }),
+        ctx("google"),
+      );
+      expect(response.headers.get("location")).toMatch(/^\/admin\/settings\?oauth=/);
+      expect(noticeOf(response.headers.get("location"))).toMatchObject({
+        kind: "error",
+        message: OAUTH_LINK_NEEDS_PASSWORD_MESSAGE,
+      });
+      // The session stays: a 403 is not an expired session.
+      expect(setCookies(response).join("\n")).not.toMatch(/gd_admin_access=;/);
     });
 
     it("refuses a link flow sealed for another session before Django sees the code", async () => {

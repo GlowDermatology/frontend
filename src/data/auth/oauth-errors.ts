@@ -9,7 +9,8 @@ import { OAUTH_NOTICE_MAX_MESSAGE_LENGTH } from "./oauth";
  * o‘tmagan."), `oauth_exchange_failed`, `provider_unavailable`, the two
  * `link/` conflicts, a 404 on a provider that is not linked. A field error
  * means this server sent a body Django does not accept (a `redirect_uri`
- * that differs from `OAUTH_REDIRECT_URI`, a missing nonce): the admin cannot
+ * that differs from the provider's `GOOGLE_OAUTH_REDIRECT_URI` /
+ * `FACEBOOK_OAUTH_REDIRECT_URI`, a missing nonce): the admin cannot
  * fix that, so it reads as a failed sign-in; the callback logs the details
  * (`oauthRefusalLog`, every refusal but a 401). A message longer than a
  * notice can carry (`OAUTH_NOTICE_MAX_MESSAGE_LENGTH`) reads as a failed
@@ -39,6 +40,24 @@ export function oauthErrorMessage(error: unknown): string {
   const message = error.body.message;
   if (!message || message.length > OAUTH_NOTICE_MAX_MESSAGE_LENGTH) return OAUTH_FAILED_MESSAGE;
   return message;
+}
+
+/**
+ * `POST auth/oauth/{provider}/link/` from a session that signed in socially
+ * (or from before the backend recorded how a session signed in) is refused
+ * with 403 `permission_denied` "Ruxsat yo‘q." before the provider is called
+ * (contract §2.1, M2): only a password sign-in may attach an identity. The
+ * backend's text does not say what to do, so the account card says it.
+ */
+export const OAUTH_LINK_NEEDS_PASSWORD_MESSAGE =
+  "Ijtimoiy tarmoq orqali ochilgan sessiyada hisob bog‘lab bo‘lmaydi. Chiqing, email va parol bilan qayta kiring, so‘ng «Bog‘lash»ni bosing.";
+
+/** `oauthErrorMessage` for the link flow: a 403 asks for a password sign-in first. */
+export function oauthLinkErrorMessage(error: unknown): string {
+  if (isApiError(error) && error.status === 403 && error.code === "permission_denied") {
+    return OAUTH_LINK_NEEDS_PASSWORD_MESSAGE;
+  }
+  return oauthErrorMessage(error);
 }
 
 /**

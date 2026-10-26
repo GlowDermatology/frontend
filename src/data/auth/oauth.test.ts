@@ -31,7 +31,12 @@ import {
   sessionMatches,
   type OAuthFlow,
 } from "./oauth";
-import { OAUTH_FAILED_MESSAGE, oauthErrorMessage } from "./oauth-errors";
+import {
+  OAUTH_FAILED_MESSAGE,
+  OAUTH_LINK_NEEDS_PASSWORD_MESSAGE,
+  oauthErrorMessage,
+  oauthLinkErrorMessage,
+} from "./oauth-errors";
 
 const now = Date.parse("2026-10-26T10:00:00+05:00");
 const key = deriveOAuthKey("test-internal-secret");
@@ -574,6 +579,20 @@ describe("oauthErrorMessage (callback error mapping)", () => {
       "API bilan bog‘lanib bo‘lmadi.",
     );
     expect(oauthErrorMessage(new Error("boom"))).toBe("Kutilmagan xato.");
+  });
+
+  it("asks for a password sign-in when a link is refused for a social session (403, M2)", () => {
+    const denied = new ApiError(403, envelope("permission_denied", "Ruxsat yo‘q."));
+    expect(oauthLinkErrorMessage(denied)).toBe(OAUTH_LINK_NEEDS_PASSWORD_MESSAGE);
+    expect(OAUTH_LINK_NEEDS_PASSWORD_MESSAGE).toMatch(/parol bilan/);
+    expect(OAUTH_LINK_NEEDS_PASSWORD_MESSAGE.length).toBeLessThanOrEqual(
+      OAUTH_NOTICE_MAX_MESSAGE_LENGTH,
+    );
+    // Every other refusal reads as in the login flow; the login flow keeps the backend's text.
+    const conflict = new ApiError(409, envelope("conflict", "Bu provayder allaqachon bog‘langan."));
+    expect(oauthLinkErrorMessage(conflict)).toBe("Bu provayder allaqachon bog‘langan.");
+    expect(oauthLinkErrorMessage(new Error("boom"))).toBe("Kutilmagan xato.");
+    expect(oauthErrorMessage(denied)).toBe("Ruxsat yo‘q.");
   });
 
   it("never returns a message longer than a notice can carry", () => {

@@ -72,3 +72,30 @@ export function setFakeClickScenario(orderId: number, scenario: FakeClickScenari
     throw new Error(`the backend did not store the Click scenario of order ${orderId}: ${answer}`);
   }
 }
+
+/**
+ * Removes Click's payment id (`Payment.provider_state.click_paydoc_id`) from
+ * the order's Click payment, as on a seeded or legacy payment. A refund of
+ * it is then manual from the start (`Refund.manual_reason` `no_paydoc`), and
+ * closing a failed one cannot ask Click (409 `conflict`, M3).
+ */
+export function dropClickPaydoc(orderId: number): void {
+  const code = [
+    "import json",
+    "from glowderma.payments.models import Payment",
+    `payments = list(Payment.objects.filter(order_id=${Number(orderId)}, provider='click'))`,
+    "for payment in payments:",
+    "    state = dict(payment.provider_state or {})",
+    "    state.pop('click_paydoc_id', None)",
+    "    payment.provider_state = state",
+    "    payment.save(update_fields=['provider_state'])",
+    `left = Payment.objects.filter(order_id=${Number(orderId)}, provider='click', provider_state__has_key='click_paydoc_id').count()`,
+    "print(json.dumps({'payments': len(payments), 'left': left}))",
+  ].join("\n");
+  const answer = JSON.parse(djangoShell(code).trim().split("\n").at(-1) ?? "{}");
+  if (!(answer.payments > 0) || answer.left !== 0) {
+    throw new Error(
+      `the backend kept a Click payment id on order ${orderId}: ${JSON.stringify(answer)}`,
+    );
+  }
+}

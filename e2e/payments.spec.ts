@@ -1,6 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { BACKEND_DIR, setFakeClickScenario, type FakeClickScenario } from "./backend-shell";
+import {
+  BACKEND_DIR,
+  dropClickPaydoc,
+  setFakeClickScenario,
+  type FakeClickScenario,
+} from "./backend-shell";
 import { cancelOrderThroughUi, heading, listedOrderIds, toast, watchPage } from "./helpers";
 
 /**
@@ -61,12 +66,12 @@ test("a manual Payme refund is marked returned from the payments board", async (
 const STILL_PAID: FakeClickScenario = { refund: "failed", status: "paid" };
 
 /**
- * A failed Click refund (§7 item 18, M2): the seed has none yet, so the
- * spec arranges one — the newest processing Click order gets the
- * `STILL_PAID` fake Click scenario through the backend shell
- * (`e2e/backend-shell.ts`, needs `E2E_BACKEND_DIR`) and is cancelled from
- * the UI; the fake Click rejects the refund at once. Answers the payments
- * row of that order.
+ * A failed Click refund (§7 item 18, M2) the spec owns: the seed's two
+ * (№10100, №10175) are left to the Click-down spec and to staff, so the spec
+ * arranges one — the newest processing Click order gets the `STILL_PAID`
+ * fake Click scenario through the backend shell (`e2e/backend-shell.ts`,
+ * needs `E2E_BACKEND_DIR`) and is cancelled from the UI; the fake Click
+ * rejects the refund at once. Answers the payments row of that order.
  */
 async function failedClickRefund(page: Page) {
   test.skip(
@@ -159,5 +164,98 @@ test("Yakunlash closes a refund Click reversed without a manual payout", async (
   await expect(page.locator("table tbody tr").filter({ hasText: `№${orderId}` })).toContainText(
     "Qaytarildi",
   );
+  watcher.assertClean();
+});
+
+/** The newest processing Click order, its Click payment id removed (needs `E2E_BACKEND_DIR`). */
+async function clickOrderWithoutPaydoc(page: Page): Promise<number> {
+  test.skip(!BACKEND_DIR, "E2E_BACKEND_DIR is not set: no way to remove a payment's Click id");
+  const ids = await listedOrderIds(page, "/admin/orders?status=processing&period=all", "Click");
+  test.skip(ids.length === 0, "no processing Click order left to cancel");
+  const orderId = ids[0]!;
+  dropClickPaydoc(orderId);
+  return orderId;
+}
+
+test("a manual Click refund says why on the board and is marked paid by hand (M3 manual_reason)", async ({
+  page,
+}) => {
+  const watcher = watchPage(page);
+  const orderId = await clickOrderWithoutPaydoc(page);
+  // Without Click's payment id the refund is manual from the start (`no_paydoc`).
+  await cancelOrderThroughUi(page, orderId, `e2e Click qo‘lda ${Date.now()}`);
+
+  await page.goto(`/admin/payments?q=${orderId}`);
+  await expect(heading(page)).toHaveText("To‘lovlar");
+  const row = page.locator("table tbody tr").filter({ hasText: `№${orderId}` });
+  await expect(row).toContainText("Mijozga qo‘lda to‘lang, so‘ng «Qaytarildi» deb belgilang");
+  await expect(row).toContainText("Click to‘lov raqami yo‘q · qo‘lda to‘lanadi");
+  await expect(row).not.toContainText("Payme");
+
+  await row.getByRole("button", { name: `Qaytarish amallari: №${orderId}` }).click();
+  await page.getByRole("menuitem", { name: /^Qaytarildi deb belgilash/ }).click();
+  const dialog = page.getByRole("alertdialog", { name: "Qaytarish bajarildimi?" });
+  await expect(dialog).toContainText("qo‘lda to‘langanini tekshirdingizmi?");
+  await dialog.getByRole("button", { name: "Qaytarildi deb belgilash" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(toast(page, "Qaytarish yakunlandi")).toBeVisible();
+  await expect(row).toContainText("Qaytarildi");
+
+  await page.reload();
+  await expect(page.locator("table tbody tr").filter({ hasText: `№${orderId}` })).toContainText(
+    "Qaytarilgan",
+  );
+  watcher.assertClean();
+});
+
+test("Yakunlash on a failed refund without a Click payment id leads to the payout with its own message", async ({
+  page,
+}) => {
+  const watcher = watchPage(page);
+  const { orderId, row } = await failedClickRefund(page);
+  // The payment loses Click's id after the refund failed: Click cannot be asked any more.
+  dropClickPaydoc(orderId);
+
+  await row.getByRole("button", { name: `Qaytarish amallari: №${orderId}` }).click();
+  await page.getByRole("menuitem", { name: /^Yakunlash/ }).click();
+  const close = page.getByRole("alertdialog", { name: "Qaytarishni yakunlaysizmi?" });
+  await close.getByRole("button", { name: "Yakunlash" }).click();
+
+  const payout = page.getByRole("alertdialog", { name: "Mijozga qo‘lda to‘landimi?" });
+  await expect(payout.getByRole("alert")).toContainText("Bu to‘lovda Click to‘lov raqami yo‘q");
+  await expect(payout).not.toContainText("Click to‘lovni qaytarmagan");
+  await expect(payout.getByRole("alert")).toBeFocused();
+  const payoutButton = payout.getByRole("button", { name: "Qo‘lda to‘landi" });
+  await expect(payoutButton).toBeDisabled();
+  await payout.getByRole("checkbox", { name: /qo‘lda to‘ladim$/ }).check();
+  await payoutButton.click();
+  await expect(payout).toBeHidden();
+  await expect(toast(page, "Qaytarish yakunlandi")).toBeVisible();
+  await expect(row).toContainText("Qaytarildi");
+  watcher.assertClean();
+});
+
+test("Yakunlash while Click does not answer keeps the dialog open (the seed's №10175)", async ({
+  page,
+}) => {
+  const watcher = watchPage(page);
+  await page.goto("/admin/payments?q=10175");
+  await expect(heading(page)).toHaveText("To‘lovlar");
+  const row = page.locator("table tbody tr").filter({ hasText: "№10175" });
+  await expect(row.or(page.getByText("To‘lov topilmadi"))).toBeVisible();
+  // textContent: the badge's innerText is upper-cased by CSS.
+  const failed =
+    (await row.count()) > 0 && ((await row.textContent()) ?? "").includes("Qaytarib bo‘lmadi");
+  test.skip(!failed, "the seed's failed Click refund of №10175 is not there (reseed the backend)");
+
+  await row.getByRole("button", { name: "Qaytarish amallari: №10175" }).click();
+  await page.getByRole("menuitem", { name: /^Yakunlash/ }).click();
+  const dialog = page.getByRole("alertdialog", { name: "Qaytarishni yakunlaysizmi?" });
+  await dialog.getByRole("button", { name: "Yakunlash" }).click();
+  await expect(dialog.getByRole("alert")).toContainText("Click javob bermadi");
+  await expect(dialog.getByRole("button", { name: "Yakunlash" })).toBeEnabled();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(row).toContainText("Qaytarib bo‘lmadi");
   watcher.assertClean();
 });

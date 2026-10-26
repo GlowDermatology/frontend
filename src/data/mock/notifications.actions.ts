@@ -11,7 +11,13 @@ import { referenceNow } from "../config";
 import type { NotificationInput, TemplateTextsInput } from "../notifications.actions";
 import type { ActionResult } from "../types";
 import { delay } from "./delay";
-import { LINK_OPTIONS, SEGMENTS, STATUS_TEMPLATES, TOTAL_DEVICES } from "./notifications";
+import {
+  LINK_OPTIONS,
+  NOTIFICATION_HISTORY,
+  SEGMENTS,
+  STATUS_TEMPLATES,
+  TOTAL_DEVICES,
+} from "./notifications";
 
 /**
  * Mock implementation of `src/data/notifications.actions.ts`: builds the
@@ -63,6 +69,29 @@ export async function sendNotification(
 function linkLabel(productId: string): string {
   const option = LINK_OPTIONS.find((o) => o.kind === "product" && o.productId === productId);
   return option?.kind === "product" ? option.label : `Mahsulot #${productId}`;
+}
+
+/** The backend's 409 once a campaign's send started (contract §2.8, M3). */
+export const SEND_STARTED_MESSAGE = "Yuborish boshlangan: xabarni bekor qilib bo‘lmaydi.";
+
+/**
+ * Cancel with the backend's answers over the fixtures: a scheduled campaign
+ * comes back cancelled (an already cancelled one unchanged), a queued or sent
+ * one is a 409 `conflict`, an unknown id — including a message scheduled in
+ * this demo, which lives only in the page's state — a 404. Nothing is kept.
+ */
+export async function cancelNotification(id: string): Promise<ActionResult<NotificationRecord>> {
+  await delay(450);
+  const record = NOTIFICATION_HISTORY.find((n) => n.id === id);
+  if (!record) return { ok: false, error: "Topilmadi.", code: "not_found" };
+  if (record.state === "cancelled") return { ok: true, data: record };
+  if (record.state !== "scheduled") {
+    return { ok: false, error: SEND_STARTED_MESSAGE, code: "conflict" };
+  }
+  return {
+    ok: true,
+    data: { ...record, state: "cancelled", cancelledAt: referenceNow().toISOString() },
+  };
 }
 
 const PLACEHOLDER_MESSAGE = `Faqat ${TEMPLATE_PLACEHOLDER} o‘rinbosari ishlatiladi.`;

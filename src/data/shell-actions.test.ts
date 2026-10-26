@@ -34,6 +34,8 @@ import slotErrorFixture from "./api/__fixtures__/err-appointment-slot.json";
 import phoneErrorFixture from "./api/__fixtures__/err-notification-phone.json";
 import segmentDeleteFixture from "./api/__fixtures__/err-segment-delete.json";
 import placeholderErrorFixture from "./api/__fixtures__/err-template-placeholder.json";
+import sendStartedFixture from "./api/__fixtures__/err-notification-send-started.json";
+import cancelledFixture from "./api/__fixtures__/notification-cancelled.json";
 import notificationsPageFixture from "./api/__fixtures__/notifications-page.json";
 import segmentsFixture from "./api/__fixtures__/segments-page.json";
 import settingsFixture from "./api/__fixtures__/settings.json";
@@ -47,7 +49,11 @@ import {
   rescheduleAppointment,
   updateAppointment,
 } from "./appointments.actions";
-import { sendNotification, updateNotificationTemplate } from "./notifications.actions";
+import {
+  cancelNotification,
+  sendNotification,
+  updateNotificationTemplate,
+} from "./notifications.actions";
 import {
   addSegmentMembers,
   createSegment,
@@ -397,6 +403,73 @@ describe("notifications in api mode", () => {
     expect(
       await updateNotificationTemplate("awaiting_payment" as never, texts, KEY, CSRF),
     ).toMatchObject({ ok: false, fieldErrors: { status: expect.any(String) } });
+  });
+});
+
+describe("cancelling a scheduled campaign (M3)", () => {
+  it("api: posts cancel/ with the key and maps the cancelled record", async () => {
+    process.env.GLOWDERMA_DATA_SOURCE = "api";
+    verifyStaff.mockResolvedValue({ ok: true, mode: "api", token: "t", sid: null });
+    apiFetch.mockResolvedValueOnce(respond(200, cancelledFixture));
+    const result = await cancelNotification("4", KEY, CSRF);
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        id: "4",
+        state: "cancelled",
+        cancelledAt: "2026-10-27T01:03:19+05:00",
+        scheduledAt: "2026-10-26T10:00:00+05:00",
+        audienceLabel: "Doimiy mijozlar · 612",
+      },
+    });
+    expect(apiFetch).toHaveBeenCalledWith(
+      "/api/v1/admin/notifications/4/cancel/",
+      expect.objectContaining({ method: "POST", body: {}, idempotencyKey: KEY }),
+    );
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("api: a send that started is the backend's 409 conflict, an unknown id its 404", async () => {
+    process.env.GLOWDERMA_DATA_SOURCE = "api";
+    verifyStaff.mockResolvedValue({ ok: true, mode: "api", token: "t", sid: null });
+    apiFetch.mockRejectedValueOnce(apiError(409, sendStartedFixture));
+    expect(await cancelNotification("3", KEY, CSRF)).toMatchObject({
+      ok: false,
+      code: "conflict",
+      error: "Yuborish boshlangan: xabarni bekor qilib bo‘lmaydi.",
+    });
+    apiFetch.mockRejectedValueOnce(
+      apiError(404, { code: "not_found", message: "Topilmadi.", errors: [], request_id: "r" }),
+    );
+    expect(await cancelNotification("999", KEY, CSRF)).toMatchObject({
+      ok: false,
+      code: "not_found",
+    });
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("refuses a malformed id or key before any call", async () => {
+    process.env.GLOWDERMA_DATA_SOURCE = "api";
+    verifyStaff.mockResolvedValue({ ok: true, mode: "api", token: "t", sid: null });
+    expect(await cancelNotification("4/../../x", KEY, CSRF)).toMatchObject({ ok: false });
+    expect(await cancelNotification("4", "not-a-uuid", CSRF)).toMatchObject({ ok: false });
+    expect(apiFetch).not.toHaveBeenCalled();
+  });
+
+  it("mock: the scheduled fixture is cancelled, a sent one is the 409, an unknown id 404", async () => {
+    expect(await cancelNotification("n-4", KEY, CSRF)).toMatchObject({
+      ok: true,
+      data: { id: "n-4", state: "cancelled", cancelledAt: expect.any(String) },
+    });
+    expect(await cancelNotification("n-3", KEY, CSRF)).toEqual({
+      ok: false,
+      code: "conflict",
+      error: "Yuborish boshlangan: xabarni bekor qilib bo‘lmaydi.",
+    });
+    expect(await cancelNotification("n-missing", KEY, CSRF)).toMatchObject({
+      ok: false,
+      code: "not_found",
+    });
   });
 });
 

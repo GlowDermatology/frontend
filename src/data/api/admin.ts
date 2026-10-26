@@ -137,6 +137,24 @@ export function apiCreateNotification(token: string, formData: FormData, idempot
   });
 }
 
+/**
+ * Cancels a `scheduled` campaign (M3, §2.8): empty body, `Idempotency-Key`
+ * optional (always sent). 200 with the cancelled record (also when it was
+ * cancelled already); 409 `conflict` once the send started; 404 unknown id.
+ */
+export function apiCancelNotification(
+  token: string,
+  notificationId: string,
+  idempotencyKey: string,
+) {
+  return apiFetch<ApiNotificationRecord>(`${BASE}/notifications/${id(notificationId)}/cancel/`, {
+    method: "POST",
+    body: {},
+    token,
+    idempotencyKey,
+  });
+}
+
 export function apiUpdateTemplate(
   token: string,
   status: ApiTemplateStatus,

@@ -2,6 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { Controller, useForm, useWatch, type Path } from "react-hook-form";
 import { z } from "zod";
@@ -18,7 +19,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { SelectMenu } from "@/components/ui/menu";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { useToast } from "@/components/ui/toast";
-import { sendNotification } from "@/data/notifications.actions";
+import { cancelNotification, sendNotification } from "@/data/notifications.actions";
 import {
   BODY_MAX,
   NOTIFICATION_IMAGE_TYPES,
@@ -37,7 +38,8 @@ import { maskPhone } from "@/lib/phone";
 
 import { runAction } from "../shared/action-client";
 import { partitionFieldErrors } from "../shared/field-errors";
-import { useIdempotencyKey } from "../shared/idempotency";
+import { newIdempotencyKey, shouldRenewKey, useIdempotencyKey } from "../shared/idempotency";
+import { cancelOutcome, canCancelCampaign } from "./cancel-campaign";
 
 const KIND_LABEL: Record<NotificationKind, string> = { promo: "Aksiya", general: "Umumiy" };
 
@@ -135,6 +137,7 @@ export function NotificationsView({
   // React Hook Form must re-run `register` after `reset()` (see ProductEditor).
   "use no memo";
   const toast = useToast();
+  const router = useRouter();
   const idBase = useId();
   // A newer server history (the refresh after an api-mode send, a navigation
   // back to the kept-mounted route) replaces the local one; a send prepends
@@ -153,6 +156,51 @@ export function NotificationsView({
   // One key per compose form: reused on retries, renewed after each sent message.
   const idempotency = useIdempotencyKey();
   const [schema] = useState(() => buildSchema(now));
+
+  // "Bekor qilish" of a scheduled campaign (M3): one key per campaign, kept
+  // across re-opens and retries until a success or a 422 reuse.
+  const [cancelTarget, setCancelTarget] = useState<NotificationRecord | null>(null);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  const cancelInFlight = useRef(false);
+  const cancelKeys = useRef(new Map<string, string>());
+  /** The campaign whose button opened the dialog: focus returns to it, else to the table. */
+  const cancelFocus = useRef<string | null>(null);
+  const historyRegion = useRef<HTMLDivElement>(null);
+
+  const confirmCancel = async () => {
+    const target = cancelTarget;
+    if (!target || cancelInFlight.current) return;
+    cancelInFlight.current = true;
+    setCancelling(true);
+    setCancelError(null);
+    let key = cancelKeys.current.get(target.id);
+    if (!key) {
+      key = newIdempotencyKey();
+      cancelKeys.current.set(target.id, key);
+    }
+    const sent = key;
+    const result = await runAction((csrf) => cancelNotification(target.id, sent, csrf));
+    cancelInFlight.current = false;
+    setCancelling(false);
+    if (shouldRenewKey(result)) cancelKeys.current.delete(target.id);
+    const outcome = cancelOutcome(result);
+    if (outcome.type === "retryable") {
+      setCancelError(outcome.message);
+      return;
+    }
+    cancelFocus.current = target.id;
+    setCancelTarget(null);
+    if (outcome.type === "stale") {
+      // The send started meanwhile (409) or the campaign is gone (404).
+      toast({ tone: "info", title: "Amal bajarilmadi", description: outcome.message });
+      router.refresh();
+      return;
+    }
+    const cancelled = outcome.record;
+    setHistory((current) => current.map((r) => (r.id === cancelled.id ? cancelled : r)));
+    toast({ title: "Xabar bekor qilindi", description: `«${target.title}» yuborilmaydi` });
+  };
 
   const defaults: Values = {
     kind: draft?.kind ?? "promo",
@@ -627,8 +675,8 @@ export function NotificationsView({
             Buyurtma holati xabarlari avtomatik yuboriladi va bu yerda ko‘rsatilmaydi
           </span>
         </div>
-        <ScrollRegion label="Yuborilgan xabarlar">
-          <table className="data-table min-w-[860px]">
+        <ScrollRegion ref={historyRegion} label="Yuborilgan xabarlar">
+          <table className="data-table min-w-[960px]">
             <thead>
               <tr>
                 <th scope="col">SANA</th>
@@ -642,6 +690,9 @@ export function NotificationsView({
                   YETKAZILDI
                 </th>
                 <th scope="col">HOLAT</th>
+                <th scope="col">
+                  <span className="sr-only">Amallar</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -689,6 +740,30 @@ export function NotificationsView({
                     </td>
                     <td>
                       <Badge tone={badge.tone}>{badge.label}</Badge>
+                      {record.state === "cancelled" && record.cancelledAt && (
+                        <time
+                          dateTime={record.cancelledAt}
+                          className="mt-1 block text-[12px] text-ink-muted tabular-nums"
+                        >
+                          {formatDateTimeShort(record.cancelledAt)}
+                        </time>
+                      )}
+                    </td>
+                    <td className="text-right">
+                      {canCancelCampaign(record) && (
+                        <Button
+                          id={`cancel-campaign-${record.id}`}
+                          variant="outline"
+                          size="sm"
+                          aria-label={`Bekor qilish: «${record.title}»`}
+                          onClick={() => {
+                            setCancelError(null);
+                            setCancelTarget(record);
+                          }}
+                        >
+                          Bekor qilish
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 );
@@ -697,6 +772,58 @@ export function NotificationsView({
           </table>
         </ScrollRegion>
       </section>
+
+      <AlertDialog
+        open={cancelTarget !== null}
+        onOpenChange={(open) => {
+          if (open || cancelInFlight.current) return;
+          cancelFocus.current = cancelTarget?.id ?? null;
+          setCancelTarget(null);
+          setCancelError(null);
+        }}
+        onCloseAutoFocus={(event) => {
+          // After a success the row has no button any more: focus the history table.
+          event.preventDefault();
+          const id = cancelFocus.current;
+          cancelFocus.current = null;
+          const button = id ? document.getElementById(`cancel-campaign-${id}`) : null;
+          (button ?? historyRegion.current)?.focus();
+        }}
+        title="Rejalashtirilgan xabar bekor qilinsinmi?"
+        description={
+          <p className="m-0 text-[14px] leading-5 text-ink">
+            «{cancelTarget?.title}»
+            {cancelTarget?.scheduledAt
+              ? ` ${formatDateTimeShort(cancelTarget.scheduledAt)} da`
+              : ""}{" "}
+            yuborilmaydi. Bekor qilingan xabarni qayta yoqib bo‘lmaydi: kerak bo‘lsa, yangisini
+            rejalashtiring.
+          </p>
+        }
+      >
+        {cancelError && (
+          <p
+            role="alert"
+            className="m-0 flex items-start gap-1.5 text-body-sm leading-5 font-semibold text-ink"
+          >
+            <Icon name="alert-circle" size={16} className="mt-0.5 shrink-0 text-danger" />
+            {cancelError}
+          </p>
+        )}
+        <div className="mt-1.5 flex flex-wrap justify-end gap-2">
+          <AlertDialogCancel disabled={cancelling} className={buttonStyles({ variant: "outline" })}>
+            Orqaga
+          </AlertDialogCancel>
+          <Button
+            variant="destructive"
+            onClick={confirmCancel}
+            disabled={cancelling}
+            aria-busy={cancelling}
+          >
+            {cancelling ? "Bekor qilinmoqda…" : "Bekor qilish"}
+          </Button>
+        </div>
+      </AlertDialog>
 
       <AlertDialog
         open={confirmOpen}

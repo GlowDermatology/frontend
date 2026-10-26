@@ -23,7 +23,7 @@ import {
   idempotencyKeySchema,
   sessionToken,
 } from "./action-guard";
-import { apiCreateNotification, apiUpdateTemplate } from "./api/admin";
+import { apiCancelNotification, apiCreateNotification, apiUpdateTemplate } from "./api/admin";
 import { toActionResult } from "./api/mappers/errors";
 import {
   mapNotificationRecord,
@@ -186,6 +186,47 @@ export async function sendNotification(
     });
   }
   return mock.sendNotification(input);
+}
+
+const cancelSchema = z.object({
+  // API ids are integers; the demo's fixtures use `n-<n>`.
+  notificationId: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),
+  key: idempotencyKeySchema,
+});
+
+/**
+ * `POST notifications/{id}/cancel/` (contract §2.8, M3): a `scheduled`
+ * campaign becomes `cancelled` before its send starts and the answer is the
+ * cancelled record (a repeat answers the same record). Once the send started
+ * the backend answers 409 `conflict` "Yuborish boshlangan: xabarni bekor
+ * qilib bo‘lmaydi."; an unknown id 404. Both come back with the backend's
+ * code and message; the board re-reads its history on them.
+ */
+export async function cancelNotification(
+  notificationId: string,
+  key: string,
+  csrf: string,
+): Promise<ActionResult<NotificationRecord>> {
+  const guard = await guardAction(csrf);
+  if (!guard.ok) return guard;
+  const parsed = cancelSchema.safeParse({ notificationId, key });
+  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  const input = parsed.data;
+  if ((await dataSource()) === "api") {
+    return apiMutation("cancelNotification", async () => {
+      try {
+        const { data } = await apiCancelNotification(
+          sessionToken(guard.session),
+          input.notificationId,
+          input.key,
+        );
+        return { ok: true, data: mapNotificationRecord(data) };
+      } catch (error) {
+        return toActionResult(error);
+      }
+    });
+  }
+  return mock.cancelNotification(input.notificationId);
 }
 
 const TEMPLATE_STATUSES = ["processing", "handed_to_courier", "delivered", "cancelled"] as const;

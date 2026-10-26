@@ -3,6 +3,7 @@ import { Suspense, type ReactNode } from "react";
 
 import { Icon } from "@/components/ui/icon";
 
+import { ContentErrorBoundary } from "./content-error";
 import { DemoBadge } from "./demo-badge";
 import { GlobalSearch } from "./global-search";
 import { MobileNav } from "./mobile-nav";
@@ -18,6 +19,8 @@ interface AdminShellProps {
 /**
  * Sidebar + top bar + page content. Rendered by each page with its section so
  * the active item is part of the static HTML (no client-side path lookup).
+ * The page content sits inside `ContentErrorBoundary`, so a failing board
+ * shows an error card with retry while the navigation stays usable.
  */
 export function AdminShell({ section, children }: AdminShellProps) {
   return (
@@ -56,7 +59,7 @@ export function AdminShell({ section, children }: AdminShellProps) {
           tabIndex={-1}
           className="flex w-full max-w-[1280px] flex-1 flex-col gap-6 p-4 focus:outline-none sm:p-6"
         >
-          {children}
+          <ContentErrorBoundary>{children}</ContentErrorBoundary>
         </main>
       </div>
     </div>

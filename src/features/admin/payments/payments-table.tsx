@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { Route } from "next";
+import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
 import { Button, buttonStyles } from "@/components/ui/button";
@@ -19,6 +20,7 @@ import { formatDateTimeShort, formatNumber, formatPhone, formatSom } from "@/lib
 import { runAction } from "../shared/action-client";
 import { newIdempotencyKey, shouldRenewKey } from "../shared/idempotency";
 import { PaymentStatusBadge, PROVIDER_LABEL, RefundStateBadge } from "../shared/status";
+import { isStaleRefundRefusal } from "./refusals";
 
 /** One refund operation the admin confirmed in the dialog. */
 export type RefundOperation =
@@ -145,12 +147,16 @@ interface PaymentsTableProps {
  */
 export function PaymentsTable({ payments, sortHref, sortedAscending }: PaymentsTableProps) {
   const toast = useToast();
+  const router = useRouter();
   const [updated, setUpdated] = useState<ReadonlyMap<number, PaymentRecord>>(new Map());
   const [source, setSource] = useState(payments);
   const [operation, setOperation] = useState<RefundOperation | null>(null);
   const [pending, startTransition] = useTransition();
   const keys = useRef(new Map<string, string>());
   const submitting = useRef(false);
+  const region = useRef<HTMLDivElement>(null);
+  /** The payment whose menu opened the dialog: focus goes back to that row's trigger. */
+  const [returnTo, setReturnTo] = useState<number | null>(null);
 
   // New rows from the server (navigation or the action's refresh) replace the local answers.
   if (source !== payments) {
@@ -183,10 +189,12 @@ export function PaymentsTable({ payments, sortHref, sortedAscending }: PaymentsT
       if (shouldRenewKey(result)) keys.current.delete(operationKey(op));
       if (!result.ok) {
         toast({ tone: "info", title: "Amal bajarilmadi", description: result.error });
-        // A refusal (409) means the row changed under us: close; a transient
-        // failure keeps the dialog open for a retry with the same key.
-        if (result.code === "invalid_transition" || result.code === "not_found") {
+        // A refusal that means the row changed under us (404, 409 other than
+        // the busy order): close and re-read the board so the menu follows the
+        // server; a transient failure keeps the dialog open with the same key.
+        if (isStaleRefundRefusal(result)) {
           setOperation(null);
+          startTransition(() => router.refresh());
         }
         return;
       }
@@ -196,12 +204,29 @@ export function PaymentsTable({ payments, sortHref, sortedAscending }: PaymentsT
     });
   };
 
+  const openOperation = (op: RefundOperation) => {
+    setReturnTo(op.payment.id);
+    setOperation(op);
+  };
+
+  // The menu item that opened the dialog is gone once it closes (and a
+  // refresh may drop the row from a filtered view): focus the row's menu
+  // trigger when it is still there, else the table region.
+  const restoreFocus = (event: Event) => {
+    event.preventDefault();
+    const trigger = region.current?.querySelector<HTMLElement>(
+      `tr[data-payment-id="${returnTo}"] [aria-haspopup="menu"]`,
+    );
+    (trigger ?? region.current)?.focus();
+  };
+
   const rows = payments.map((payment) => updated.get(payment.id) ?? payment);
   const copy = operation ? dialogCopy(operation) : null;
 
   return (
     <>
       <ScrollRegion
+        ref={region}
         label="To‘lovlar jadvali"
         className="transition-opacity duration-150 group-data-[pending]:opacity-60"
       >
@@ -238,7 +263,7 @@ export function PaymentsTable({ payments, sortHref, sortedAscending }: PaymentsT
           </thead>
           <tbody>
             {rows.map((payment) => {
-              const items = rowItems(payment, setOperation, pending);
+              const items = rowItems(payment, openOperation, pending);
               return (
                 <tr key={payment.id} data-payment-id={payment.id}>
                   <td className="text-ink-muted tabular-nums">{payment.id}</td>
@@ -309,6 +334,7 @@ export function PaymentsTable({ payments, sortHref, sortedAscending }: PaymentsT
         onOpenChange={(open) => {
           if (!open && !pending) setOperation(null);
         }}
+        onCloseAutoFocus={restoreFocus}
         title={copy?.title ?? ""}
         description={<p className="m-0 text-[14px] leading-5 text-ink">{copy?.body}</p>}
       >

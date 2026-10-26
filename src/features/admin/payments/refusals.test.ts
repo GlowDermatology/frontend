@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { CLICK_STILL_PAID_MESSAGE } from "@/domain/payment";
 
 import {
+  CLICK_NOT_REVERSED_CODE,
   CLICK_UNAVAILABLE_MESSAGE,
   isClickStillPaidRefusal,
   isStaleRefundRefusal,
@@ -72,6 +73,33 @@ describe("closing a failed Click refund (§7 item 18, M2)", () => {
       isClickStillPaidRefusal({ ok: false, error: CLICK_STILL_PAID_MESSAGE, code: "conflict" }),
     ).toBe(false);
     expect(isClickStillPaidRefusal({ ok: true, data: null })).toBe(false);
+  });
+
+  it("recognises the click_not_reversed code first, whatever the message says", () => {
+    const coded = {
+      ok: false as const,
+      error: "Click pulni qaytarmadi.",
+      code: "click_not_reversed",
+    };
+    expect(CLICK_NOT_REVERSED_CODE).toBe("click_not_reversed");
+    expect(isClickStillPaidRefusal(coded)).toBe(true);
+    expect(isStaleRefundRefusal(coded)).toBe(false);
+    expect(
+      isClickStillPaidRefusal({
+        ok: false,
+        error: CLICK_STILL_PAID_MESSAGE,
+        code: CLICK_NOT_REVERSED_CODE,
+      }),
+    ).toBe(true);
+    // The message prefix stays the fallback for a backend without the code.
+    expect(isClickStillPaidRefusal(stillPaid)).toBe(true);
+    expect(
+      isClickStillPaidRefusal({
+        ok: false,
+        error: "Bu qaytarishni yakunlab bo‘lmaydi.",
+        code: "invalid_transition",
+      }),
+    ).toBe(false);
   });
 
   it("names Click when it did not answer the status check, keeps other messages", () => {

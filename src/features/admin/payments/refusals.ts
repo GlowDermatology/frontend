@@ -20,6 +20,13 @@ export function isStaleRefundRefusal(result: ActionResult<unknown>): boolean {
   return result.code === "conflict" && !result.error.startsWith(BUSY_ORDER_PREFIX);
 }
 
+/**
+ * The error code the backend gives Click's "still paid" 409 (lead decision,
+ * lands with the M3 backend). Until then the answer is a 409
+ * `invalid_transition` recognised by its message.
+ */
+export const CLICK_NOT_REVERSED_CODE = "click_not_reversed";
+
 /** The first sentence of `CLICK_STILL_PAID_MESSAGE`, enough to recognise the answer. */
 const STILL_PAID_PREFIX = CLICK_STILL_PAID_MESSAGE.slice(0, CLICK_STILL_PAID_MESSAGE.indexOf("."));
 
@@ -27,13 +34,15 @@ const STILL_PAID_PREFIX = CLICK_STILL_PAID_MESSAGE.slice(0, CLICK_STILL_PAID_MES
  * Closing a failed Click refund answered that Click still reports the
  * payment paid (§7 item 18, M2): not a stale row but the next step — staff
  * pay the customer outside Click and close it with "Qo‘lda to‘landi"
- * (`manual_payout`). The other 409 `invalid_transition` answers (the refund
- * changed, Click in test mode) stay stale refusals.
+ * (`manual_payout`). Recognised by its own code `click_not_reversed` first;
+ * the message prefix on a 409 `invalid_transition` is the fallback for a
+ * backend without the code. The other 409 `invalid_transition` answers (the
+ * refund changed) stay stale refusals.
  */
 export function isClickStillPaidRefusal(result: ActionResult<unknown>): boolean {
-  return (
-    !result.ok && result.code === "invalid_transition" && result.error.startsWith(STILL_PAID_PREFIX)
-  );
+  if (result.ok) return false;
+  if (result.code === CLICK_NOT_REVERSED_CODE) return true;
+  return result.code === "invalid_transition" && result.error.startsWith(STILL_PAID_PREFIX);
 }
 
 /** What the dialog says when Click did not answer the status check (503, §7 item 18). */

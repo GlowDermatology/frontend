@@ -105,7 +105,8 @@ export async function resolveRefund(
  * Closes a failed Click refund as succeeded (§7 item 18, M2): the server asks
  * Click first. Click reversed the payment → closed (nothing to pay out);
  * Click still reports it paid → 409 `invalid_transition` with
- * `CLICK_STILL_PAID_MESSAGE` unless `manualPayout` says staff paid the
+ * `CLICK_STILL_PAID_MESSAGE` (its own code `click_not_reversed` once the
+ * backend sends one) unless `manualPayout` says staff paid the
  * customer outside Click; Click unreachable → 503 `provider_unavailable`. The
  * two steps send different bodies, so the board keeps a key per step.
  */

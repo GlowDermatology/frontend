@@ -173,13 +173,15 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
       const result = shipmentKey.settle(
         await runAction((csrf) => retryShipment(order.id, shipmentKey.key, csrf)),
       );
-      const created = result.ok && result.data.shipment.state === "created";
+      // The API answers 202 with `shipment.pending` (the poll above takes over);
+      // the demo creates the parcel at once.
+      const shipment = result.ok ? result.data.shipment : null;
       const ok = apply(
         result,
-        created && result.data.shipment.state === "created"
+        shipment?.state === "created"
           ? {
               title: "BTS buyurtmasi yaratildi",
-              description: `Yetkazish raqami ${result.data.shipment.trackingNumber}`,
+              description: `Yetkazish raqami ${shipment.trackingNumber}`,
             }
           : {
               title: "BTS ga yuborildi",

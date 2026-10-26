@@ -1,5 +1,5 @@
 import type { BookingMeta } from "@/domain/appointment";
-import { toLocalIsoDate } from "@/lib/format";
+import { startOfLocalDay, toLocalIsoDate } from "@/lib/format";
 
 import type { AppointmentDay, PendingAppointments } from "../appointments";
 import { referenceNow } from "../config";
@@ -18,11 +18,15 @@ export async function getAppointmentDay(date: string): Promise<AppointmentDay> {
   };
 }
 
-/** Requests whose start is still ahead of the demo clock (contract §2.9). */
+/**
+ * Requests that still await an answer (contract §2.9, M3): every `requested`
+ * visit from the start of the demo clock's day in Tashkent, so one of today's
+ * whose time already passed still counts; `nextAt` is the earliest of them.
+ */
 export async function getPendingAppointments(): Promise<PendingAppointments> {
-  const now = referenceNow().getTime();
+  const since = startOfLocalDay(toLocalIsoDate(referenceNow())).getTime();
   const pending = APPOINTMENTS.filter(
-    (a) => a.status === "requested" && Date.parse(a.start) >= now,
+    (a) => a.status === "requested" && Date.parse(a.start) >= since,
   ).sort((a, b) => a.start.localeCompare(b.start));
   return { count: pending.length, nextAt: pending[0]?.start ?? null };
 }

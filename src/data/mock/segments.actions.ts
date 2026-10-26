@@ -1,9 +1,10 @@
-import type { Segment } from "@/domain/segment";
+import type { MemberRef, Segment } from "@/domain/segment";
 
 import { referenceNow } from "../config";
 import type { SegmentFormValues } from "../segments.schema";
 import type { ActionFailure, ActionResult } from "../types";
 import { delay } from "./delay";
+import { DELETED_CUSTOMER_IDS } from "./customers";
 import { CUSTOMERS } from "./people";
 import { MOCK_MEMBERS, MOCK_SEGMENTS } from "./segments";
 
@@ -81,26 +82,40 @@ export async function deleteSegment(id: string): Promise<ActionResult<{ id: stri
   return { ok: true, data: { id } };
 }
 
+/**
+ * The backend's resolution (contract §2.8): every id must exist (any status),
+ * every phone must belong to an active customer; a miss is reported on the
+ * input row that named it.
+ */
 export async function addSegmentMembers(
   id: string,
-  ids: string[],
-  phones: string[],
+  ids: MemberRef[],
+  phones: MemberRef[],
 ): Promise<ActionResult<Segment>> {
   await delay(400);
   const segment = MOCK_SEGMENTS.find((s) => s.id === id);
   if (!segment) return NOT_FOUND;
-  const byPhone = phones.map((phone) => CUSTOMERS.find((c) => c.phone === phone)?.id);
-  const resolved = [...ids, ...byPhone];
-  if (resolved.some((cid) => !cid || !CUSTOMERS.some((c) => c.id === cid))) {
+  const errors: Record<string, string> = {};
+  const resolved = new Set<string>();
+  for (const ref of ids) {
+    if (CUSTOMERS.some((c) => c.id === ref.value)) resolved.add(ref.value);
+    else errors[`entries.${ref.row}`] = "Topilmadi.";
+  }
+  for (const ref of phones) {
+    const customer = CUSTOMERS.find((c) => c.phone === ref.value);
+    if (customer && !DELETED_CUSTOMER_IDS.has(customer.id)) resolved.add(customer.id);
+    else errors[`entries.${ref.row}`] = "Bu raqam bilan mijoz topilmadi.";
+  }
+  if (Object.keys(errors).length > 0) {
     return {
       ok: false,
       error: "Maydonlarni tekshiring.",
       code: "validation_error",
-      fieldErrors: { members: "Topilmadi." },
+      fieldErrors: errors,
     };
   }
   const known = new Set(MOCK_MEMBERS[id]?.members.map((m) => m.id));
-  const added = new Set(resolved.filter((cid) => cid && !known.has(cid))).size;
+  const added = [...resolved].filter((cid) => !known.has(cid)).length;
   return {
     ok: true,
     data: {

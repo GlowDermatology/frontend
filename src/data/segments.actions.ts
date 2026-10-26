@@ -2,7 +2,12 @@
 
 import { z } from "zod";
 
-import { SEGMENT_MEMBERS_MAX, parseMemberList, type Segment } from "@/domain/segment";
+import {
+  SEGMENT_MEMBERS_MAX,
+  parseMemberEntry,
+  type MemberRef,
+  type Segment,
+} from "@/domain/segment";
 
 import {
   apiMutation,
@@ -29,7 +34,7 @@ import type { ActionFailure, ActionResult } from "./types";
  * Customer group mutations (contract §2.8): create (`POST segments/`), update
  * (`PATCH segments/{id}/` with only what changed against the group the dialog
  * loaded), delete (409 `conflict` while a scheduled campaign targets the
- * group), add members (`POST segments/{id}/members/` with ≤500 customer ids)
+ * group), add members (`POST segments/{id}/members/` with customer ids and/or phones)
  * and remove a manual member (409 `conflict` for a rule-only member). Mock
  * bodies live in `./mock/segments.actions.ts`.
  */
@@ -37,9 +42,6 @@ import type { ActionFailure, ActionResult } from "./types";
 const idSchema = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
 const NOT_FOUND: ActionFailure = { ok: false, error: "Guruh topilmadi.", code: "not_found" };
 const apiId = (value: string) => /^\d{1,12}$/.test(value);
-
-/** `customer_ids` and its elements are the dialog's single "members" field. */
-const MEMBERS_REMAP: FieldRemap = { customer_ids: "members", "customer_ids.*": "members" };
 
 export async function createSegment(
   values: SegmentFormValues,
@@ -131,18 +133,84 @@ export async function deleteSegment(
   return mock.deleteSegment(parsedId.data);
 }
 
-const PHONES_NEED_CUSTOMERS =
-  "Telefon bo‘yicha qo‘shish mijozlar ro‘yxati API orqali ulangach ishlaydi. Hozircha mijoz ID sini kiriting.";
+const MEMBER_ROW_MESSAGES = {
+  incomplete: "Telefonni to‘liq kiriting.",
+  invalid: "ID yoki telefon raqamini to‘g‘ri kiriting.",
+  tooLong: "Juda uzun.",
+} as const;
 
 /**
- * `list` is what the admin typed: customer ids and/or phones (comma, semicolon or
- * newline separated), ≤500. Phones are resolved to customers in mock mode;
- * the API takes ids only (`customer_ids`), and the customers list that would
- * resolve a phone is not on the backend yet, so api mode asks for ids.
+ * Reads the dialog's rows (one customer id or phone each, contract §2.8):
+ * ids and E.164 phones, de-duplicated, each remembering the first row that
+ * named it, so a server error on `phones.{i}` / `customer_ids.{i}` lands on
+ * that row. Rows that are not an id or a whole phone are refused here,
+ * under `entries.{row}`.
+ */
+function readMemberRows(
+  entries: unknown,
+): { ok: true; ids: MemberRef[]; phones: MemberRef[] } | ActionFailure {
+  const fail = (fieldErrors: Record<string, string>): ActionFailure => ({
+    ok: false,
+    error: "Maydonlarni tekshiring.",
+    code: "validation_error",
+    fieldErrors,
+  });
+  if (!Array.isArray(entries) || entries.some((entry) => typeof entry !== "string")) {
+    return fail({ members: "Mijoz ID yoki telefon raqamini kiriting." });
+  }
+  const rows = entries as string[];
+  if (rows.length > SEGMENT_MEMBERS_MAX)
+    return fail({ members: `Ko‘pi bilan ${SEGMENT_MEMBERS_MAX} ta.` });
+  const ids = new Map<string, number>();
+  const phones = new Map<string, number>();
+  const errors: Record<string, string> = {};
+  rows.forEach((raw, row) => {
+    if (raw.length > 64) {
+      errors[`entries.${row}`] = MEMBER_ROW_MESSAGES.tooLong;
+      return;
+    }
+    const entry = parseMemberEntry(raw);
+    if (entry.kind === "id") {
+      if (!ids.has(entry.value)) ids.set(entry.value, row);
+    } else if (entry.kind === "phone") {
+      if (!phones.has(entry.value)) phones.set(entry.value, row);
+    } else if (entry.kind === "incomplete" || entry.kind === "invalid") {
+      errors[`entries.${row}`] = MEMBER_ROW_MESSAGES[entry.kind];
+    }
+  });
+  if (Object.keys(errors).length > 0) return fail(errors);
+  if (ids.size + phones.size === 0)
+    return fail({ members: "Mijoz ID yoki telefon raqamini kiriting." });
+  const refs = (map: Map<string, number>) => [...map].map(([value, row]) => ({ value, row }));
+  return { ok: true, ids: refs(ids), phones: refs(phones) };
+}
+
+/**
+ * `phones.{i}` / `customer_ids.{i}` → the input row of that element; a
+ * list-level error (`customer_ids` `required` / `max_items` / `does_not_exist`,
+ * `phones` `max_items`) is the dialog's form-level `members` message.
+ */
+function memberRemap(ids: MemberRef[], phones: MemberRef[]): FieldRemap {
+  const remap: FieldRemap = { customer_ids: "members", phones: "members" };
+  ids.forEach((ref, index) => (remap[`customer_ids.${index}`] = `entries.${ref.row}`));
+  phones.forEach((ref, index) => (remap[`phones.${index}`] = `entries.${ref.row}`));
+  // An index outside what was sent cannot happen; keep it visible rather than drop it.
+  remap["customer_ids.*"] = "members";
+  remap["phones.*"] = "members";
+  return remap;
+}
+
+/**
+ * `entries` are the dialog's rows: one customer id or phone each (a spaced
+ * national phone such as "90 123 45 67" or "+998 90 123 45 67" is one
+ * phone), ≤500 in all. Both modes resolve phones: api mode sends
+ * `{customer_ids, phones}` (only the non-empty lists) and the backend
+ * resolves each phone to an active customer; per-element errors come back on
+ * `entries.{row}`.
  */
 export async function addSegmentMembers(
   id: string,
-  list: string,
+  entries: string[],
   key: string,
   csrf: string,
 ): Promise<ActionResult<Segment>> {
@@ -152,41 +220,25 @@ export async function addSegmentMembers(
   if (!parsedId.success) return NOT_FOUND;
   const parsedKey = idempotencyKeySchema.safeParse(key);
   if (!parsedKey.success) return { ok: false, error: "Noto‘g‘ri so‘rov kaliti." };
-  if (typeof list !== "string" || list.length > 20_000) {
-    return {
-      ok: false,
-      error: "Maydonlarni tekshiring.",
-      fieldErrors: { members: "Ro‘yxat juda uzun." },
-    };
-  }
-  const { ids, phones, invalid, incomplete } = parseMemberList(list);
-  const fail = (message: string): ActionFailure => ({
-    ok: false,
-    error: "Maydonlarni tekshiring.",
-    fieldErrors: { members: message },
-  });
-  if (incomplete.length > 0) {
-    return fail(`Telefonni to‘liq kiriting: ${incomplete.slice(0, 3).join(", ")}`);
-  }
-  if (invalid.length > 0) return fail(`Noto‘g‘ri qiymat: ${invalid.slice(0, 3).join(", ")}`);
-  if (ids.length + phones.length === 0) return fail("Mijoz ID yoki telefon raqamini kiriting.");
-  if (ids.length + phones.length > SEGMENT_MEMBERS_MAX) {
-    return fail(`Ko‘pi bilan ${SEGMENT_MEMBERS_MAX} ta.`);
-  }
+  const read = readMemberRows(entries);
+  if (!read.ok) return read;
+  const { ids, phones } = read;
   if ((await dataSource()) === "api") {
     if (!apiId(parsedId.data)) return NOT_FOUND;
-    if (phones.length > 0) return fail(PHONES_NEED_CUSTOMERS);
     return apiMutation("addSegmentMembers", async () => {
       try {
         const { data } = await apiAddSegmentMembers(
           sessionToken(guard.session),
           parsedId.data,
-          ids.map(Number),
+          {
+            ...(ids.length > 0 && { customer_ids: ids.map((ref) => Number(ref.value)) }),
+            ...(phones.length > 0 && { phones: phones.map((ref) => ref.value) }),
+          },
           parsedKey.data,
         );
         return { ok: true, data: mapSegment(data) };
       } catch (error) {
-        return toActionResult(error, MEMBERS_REMAP);
+        return toActionResult(error, memberRemap(ids, phones));
       }
     });
   }

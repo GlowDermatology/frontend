@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import type { Route } from "next";
-import { useRef, useState, type FormEvent } from "react";
+import { useId, useRef, useState, type ClipboardEvent, type FormEvent } from "react";
 
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { Button, buttonStyles } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { AlertDialog, AlertDialogCancel, Dialog, DialogClose } from "@/components/ui/dialog";
-import { Field, TextArea } from "@/components/ui/field";
+import { TextInput } from "@/components/ui/field";
 import { Icon } from "@/components/ui/icon";
 import { ScrollRegion } from "@/components/ui/scroll-region";
 import { useToast } from "@/components/ui/toast";
@@ -17,19 +17,17 @@ import type { Page } from "@/data/types";
 import {
   SEGMENT_MEMBERS_MAX,
   segmentRulesSummary,
+  splitMemberList,
   type Segment,
   type SegmentMember,
 } from "@/domain/segment";
-import {
-  formatDayMonthShort,
-  formatNumber,
-  formatPhone,
-  formatSom,
-  tashkentParts,
-} from "@/lib/format";
+import { cn } from "@/lib/cn";
+import { formatNumber, formatPhone, formatSom } from "@/lib/format";
 
+import { percentLabel, registeredLabel as registered } from "../customers/labels";
 import { runAction } from "../shared/action-client";
 import { ExportMenu } from "../shared/export-menu";
+import { partitionFieldErrors } from "../shared/field-errors";
 import { useIdempotencyKey } from "../shared/idempotency";
 import { PageHeader } from "../shared/page-header";
 import { Pagination, rangeLabel } from "../shared/pagination";
@@ -37,21 +35,12 @@ import { Pagination, rangeLabel } from "../shared/pagination";
 const iconButtonClass =
   "flex size-9 items-center justify-center rounded-md text-ink-muted transition-colors duration-150 hover:bg-danger-soft hover:text-danger";
 
-/** "1.00" → "1 %", "1.50" → "1,5 %" (contract §5 `PCT`); `null` → "—". */
-function percentLabel(percent: string | null): string {
-  if (percent === null) return "—";
-  const trimmed = percent.replace(/\.?0+$/, "").replace(".", ",");
-  return `${trimmed} %`;
-}
-
-const registered = (iso: string) => `${formatDayMonthShort(iso)} ${tashkentParts(iso).year}`;
-
 /**
  * One group's members (contract §2.8 `segments/{id}/members/`, customer
  * rows): add customers by id or phone (≤500, manual membership), remove a
  * manual member (409 "Mijoz guruhga qoida orqali kiradi." for a rule-only
- * member) and export `guruh-azolari`. Balance and percent stay 0 / "—" until
- * the customers slice lands on the backend.
+ * member) and export `guruh-azolari`. Members are customer list rows
+ * (contract §2.6 `CustomerListItem`): balance and rate come from the server.
  */
 export function MembersView({
   segment: initialSegment,
@@ -291,6 +280,9 @@ export function MembersView({
   );
 }
 
+/** Blank input lines the dialog opens with. */
+const INITIAL_ROWS = 3;
+
 function AddMembersDialog({
   segment,
   idempotencyKey,
@@ -302,29 +294,81 @@ function AddMembersDialog({
   onClose: () => void;
   onAdded: (segment: Segment) => void;
 }) {
-  const [list, setList] = useState("");
+  const idBase = useId();
+  // One customer id or phone per line; a pasted list is split into lines.
+  const [rows, setRows] = useState<string[]>(() => Array.from({ length: INITIAL_ROWS }, () => ""));
+  const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
+  const listRef = useRef<HTMLOListElement>(null);
+
+  const focusRow = (index: number) =>
+    window.requestAnimationFrame(() =>
+      listRef.current?.querySelectorAll<HTMLInputElement>("input")[index]?.focus(),
+    );
+
+  const clearErrors = () => {
+    setRowErrors({});
+    setError(null);
+  };
+
+  const setRow = (index: number, value: string) => {
+    clearErrors();
+    setRows((current) => current.map((row, i) => (i === index ? value : row)));
+  };
+
+  const onPaste = (index: number, event: ClipboardEvent<HTMLInputElement>) => {
+    const text = event.clipboardData.getData("text");
+    if (!/[,;\n\r]/.test(text)) return; // one entry: the browser pastes it
+    event.preventDefault();
+    const entries = splitMemberList(text);
+    if (entries.length === 0) return;
+    clearErrors();
+    setRows((current) => {
+      const before = current.slice(0, index);
+      const after = current.slice(index + 1).filter((row) => row.trim() !== "");
+      return [...before, ...entries, ...after].slice(0, SEGMENT_MEMBERS_MAX);
+    });
+    focusRow(Math.min(index + entries.length - 1, SEGMENT_MEMBERS_MAX - 1));
+  };
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (inFlight.current) return;
     inFlight.current = true;
     setBusy(true);
-    setError(null);
+    clearErrors();
+    const entries = rows;
     const result = idempotencyKey.settle(
-      await runAction((csrf) => addSegmentMembers(segment.id, list, idempotencyKey.key, csrf)),
+      await runAction((csrf) => addSegmentMembers(segment.id, entries, idempotencyKey.key, csrf)),
     );
     inFlight.current = false;
     setBusy(false);
     if (!result.ok) {
-      setError(result.fieldErrors?.members ?? result.error);
+      // `entries.{i}` → the line that named that id or phone; the rest is the form message.
+      const lines: Record<number, string> = {};
+      for (const [key, message] of Object.entries(result.fieldErrors ?? {})) {
+        const match = /^entries\.(\d+)$/.exec(key);
+        if (match) lines[Number(match[1])] = message;
+      }
+      setRowErrors(lines);
+      const firstLine = Object.keys(lines)
+        .map(Number)
+        .sort((a, b) => a - b)[0];
+      if (firstLine !== undefined) focusRow(firstLine);
+      const rest = partitionFieldErrors(
+        result,
+        Object.keys(result.fieldErrors ?? {}).filter((key) => key.startsWith("entries.")),
+      ).formError;
+      setError(rest);
       return;
     }
     onAdded(result.data);
     onClose();
   };
+
+  const errorCount = Object.keys(rowErrors).length;
 
   return (
     <Dialog
@@ -333,22 +377,80 @@ function AddMembersDialog({
         if (!open && !busy) onClose();
       }}
       title={`«${segment.name}» guruhiga qo‘shish`}
-      description={`Mijoz ID raqamlari yoki telefonlarini vergul yoki yangi qator bilan ajrating (ko‘pi bilan ${SEGMENT_MEMBERS_MAX} ta).`}
+      description={`Har qatorga bitta mijoz ID raqami yoki telefoni (masalan 5, +998 90 123 45 67 yoki 90 123 45 67). Vergul yoki yangi qator bilan ajratilgan ro‘yxatni joylashtirsangiz, u qatorlarga bo‘linadi. Ko‘pi bilan ${SEGMENT_MEMBERS_MAX} ta.`}
       className="max-w-[520px]"
     >
       <form noValidate onSubmit={onSubmit} className="flex flex-col gap-4">
-        <Field label="Mijozlar" error={error ?? undefined} hint="Masalan: 5, 12, +998 90 123 45 67">
-          {(c) => (
-            <TextArea
-              {...c}
-              name="members"
-              rows={4}
-              value={list}
-              onChange={(event) => setList(event.target.value)}
-              className="font-mono text-[14px]"
-            />
+        <fieldset className="m-0 flex min-w-0 flex-col gap-2 border-0 p-0">
+          <legend className="mb-2 p-0 text-label font-bold text-ink">Mijozlar</legend>
+          <ol
+            ref={listRef}
+            className="m-0 flex max-h-[min(50vh,360px)] list-none flex-col gap-2 overflow-y-auto p-0.5"
+          >
+            {rows.map((row, index) => {
+              const rowError = rowErrors[index];
+              const errorId = `${idBase}-row-${index}-error`;
+              return (
+                <li key={index} className="flex flex-col gap-1">
+                  <span className="flex items-center gap-2">
+                    <TextInput
+                      name={`entries.${index}`}
+                      aria-label={`${index + 1}-mijoz: ID yoki telefon`}
+                      aria-invalid={rowError ? true : undefined}
+                      aria-describedby={rowError ? errorId : undefined}
+                      placeholder="ID yoki telefon"
+                      autoComplete="off"
+                      maxLength={64}
+                      value={row}
+                      onChange={(event) => setRow(index, event.target.value)}
+                      onPaste={(event) => onPaste(index, event)}
+                      className="font-mono text-[14px]"
+                    />
+                    <button
+                      type="button"
+                      aria-label={`${index + 1}-qatorni o‘chirish`}
+                      disabled={rows.length === 1}
+                      onClick={() => {
+                        clearErrors();
+                        setRows((current) => current.filter((_, i) => i !== index));
+                      }}
+                      className={cn(iconButtonClass, "shrink-0 disabled:opacity-40")}
+                    >
+                      <Icon name="close" size={18} />
+                    </button>
+                  </span>
+                  {rowError && (
+                    <span id={errorId} className="text-body-sm font-semibold text-danger">
+                      {rowError}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+          {rows.length < SEGMENT_MEMBERS_MAX && (
+            <button
+              type="button"
+              onClick={() => {
+                setRows((current) => [...current, ""]);
+                focusRow(rows.length);
+              }}
+              className="inline-flex h-10 items-center gap-2 self-start rounded-md px-2 text-label font-bold text-ink transition-colors duration-150 hover:bg-gold-soft"
+            >
+              <Icon name="plus" size={18} />
+              Yana qator
+            </button>
           )}
-        </Field>
+        </fieldset>
+        {(error || errorCount > 0) && (
+          <p
+            role="alert"
+            className="m-0 flex items-start gap-1.5 text-body-sm font-semibold text-ink"
+          >
+            <Icon name="alert-circle" size={16} className="mt-px shrink-0 text-danger" />
+            {error ?? `${errorCount} ta qatorni tekshiring.`}
+          </p>
+        )}
         <div className="flex flex-wrap justify-end gap-2">
           <DialogClose disabled={busy} className={buttonStyles({ variant: "outline" })}>
             Bekor qilish

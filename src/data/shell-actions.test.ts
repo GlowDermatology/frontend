@@ -463,23 +463,39 @@ describe("groups", () => {
       code: "conflict",
     });
     expect(await removeSegmentMember("1", "5", CSRF)).toMatchObject({ ok: true });
-    expect(await addSegmentMembers("1", "7, +998935551209", KEY, CSRF)).toMatchObject({
+    expect(await addSegmentMembers("1", ["7", "", "+998 93 555 12 09"], KEY, CSRF)).toMatchObject({
       ok: true,
       // Aziza (+998935551209) is already a rule member; customer 7 is new.
       data: { memberCount: 5, manualMemberCount: 2 },
     });
-    expect(await addSegmentMembers("1", "abc", KEY, CSRF)).toMatchObject({
-      fieldErrors: { members: "Noto‘g‘ri qiymat: abc" },
+    expect(await addSegmentMembers("1", ["5", "abc"], KEY, CSRF)).toMatchObject({
+      fieldErrors: { "entries.1": "ID yoki telefon raqamini to‘g‘ri kiriting." },
     });
     // "90 123 45 67" is Malika's phone (customer 5, already a manual member):
     // the counts stay those of the fixture — customers 90, 123, 45, 67 are not added.
-    expect(await addSegmentMembers("1", "90 123 45 67", KEY, CSRF)).toMatchObject({
+    expect(await addSegmentMembers("1", ["90 123 45 67"], KEY, CSRF)).toMatchObject({
       ok: true,
       data: { memberCount: 4, manualMemberCount: 1 },
     });
-    const many = Array.from({ length: 501 }, (_, i) => i + 1).join(",");
+    // A phone nobody active has, and an unknown id, land on their own lines.
+    expect(
+      await addSegmentMembers("1", ["5", "+998 90 000 00 00", "999999"], KEY, CSRF),
+    ).toMatchObject({
+      ok: false,
+      fieldErrors: {
+        "entries.1": "Bu raqam bilan mijoz topilmadi.",
+        "entries.2": "Topilmadi.",
+      },
+    });
+    expect(await addSegmentMembers("1", ["", " "], KEY, CSRF)).toMatchObject({
+      fieldErrors: { members: "Mijoz ID yoki telefon raqamini kiriting." },
+    });
+    const many = Array.from({ length: 501 }, (_, i) => String(i + 1));
     expect(await addSegmentMembers("1", many, KEY, CSRF)).toMatchObject({
       fieldErrors: { members: "Ko‘pi bilan 500 ta." },
+    });
+    expect(await addSegmentMembers("1", "5, 7" as never, KEY, CSRF)).toMatchObject({
+      fieldErrors: { members: "Mijoz ID yoki telefon raqamini kiriting." },
     });
   });
 
@@ -517,21 +533,53 @@ describe("groups", () => {
         },
       }),
     );
-    await addSegmentMembers("1", "5\n12", KEY, CSRF);
+    await addSegmentMembers("1", ["5", "12", "5"], KEY, CSRF);
     expect(apiFetch).toHaveBeenLastCalledWith(
       "/api/v1/admin/segments/1/members/",
       expect.objectContaining({ body: { customer_ids: [5, 12] } }),
     );
-    // A spaced phone is one phone, never customers 90, 123, 45 and 67.
+    // A spaced national phone is one E.164 phone, never customers 90, 123, 45 and 67.
+    await addSegmentMembers("1", ["90 123 45 67"], KEY, CSRF);
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/segments/1/members/",
+      expect.objectContaining({ body: { phones: ["+998901234567"] } }),
+    );
+    await addSegmentMembers("1", ["+998 90 123 45 67", "7", "", "998935551209"], KEY, CSRF);
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/segments/1/members/",
+      expect.objectContaining({
+        body: { customer_ids: [7], phones: ["+998901234567", "+998935551209"] },
+      }),
+    );
     apiFetch.mockClear();
-    expect(await addSegmentMembers("1", "90 123 45 67", KEY, CSRF)).toMatchObject({ ok: false });
-    expect(await addSegmentMembers("1", "90 123 45", KEY, CSRF)).toMatchObject({
-      fieldErrors: { members: "Telefonni to‘liq kiriting: 90 123 45" },
+    expect(await addSegmentMembers("1", ["5", "90 123 45"], KEY, CSRF)).toMatchObject({
+      fieldErrors: { "entries.1": "Telefonni to‘liq kiriting." },
     });
     expect(apiFetch).not.toHaveBeenCalled();
-    expect(await addSegmentMembers("1", "+998901234567", KEY, CSRF)).toMatchObject({
-      ok: false,
-      fieldErrors: { members: expect.stringContaining("mijoz ID") },
+    // `phones.{i}` / `customer_ids.{i}` are indexes into the lists sent; they
+    // come back on the input line that named the element.
+    apiFetch.mockRejectedValueOnce(
+      apiError(400, {
+        code: "validation_error",
+        message: "Maydonlarni tekshiring.",
+        errors: [
+          {
+            field: "phones.1",
+            code: "customer_not_found",
+            message: "Bu raqam bilan mijoz topilmadi.",
+          },
+          { field: "customer_ids.0", code: "invalid", message: "Noto‘g‘ri qiymat." },
+        ],
+        request_id: "r",
+      }),
+    );
+    expect(
+      await addSegmentMembers("1", ["90 123 45 67", "", "12", "+998 90 000 00 00"], KEY, CSRF),
+    ).toMatchObject({
+      fieldErrors: {
+        "entries.3": "Bu raqam bilan mijoz topilmadi.",
+        "entries.2": "Noto‘g‘ri qiymat.",
+      },
     });
     apiFetch.mockRejectedValueOnce(
       apiError(400, {
@@ -541,7 +589,7 @@ describe("groups", () => {
         request_id: "r",
       }),
     );
-    expect(await addSegmentMembers("1", "999999", KEY, CSRF)).toMatchObject({
+    expect(await addSegmentMembers("1", ["999999"], KEY, CSRF)).toMatchObject({
       fieldErrors: { members: "Topilmadi." },
     });
     apiFetch.mockRejectedValueOnce(apiError(409, segmentDeleteFixture));

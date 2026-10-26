@@ -17,6 +17,7 @@ import type {
   ApiPaginatedSegments,
   ApiPendingSummary,
   ApiSegment,
+  ApiSegmentMembersInput,
   ApiSegmentPatch,
   ApiSegmentWrite,
   ApiSettings,
@@ -199,15 +200,16 @@ export function apiDeleteSegment(token: string, segmentId: string) {
   return apiFetch<undefined>(`${BASE}/segments/${id(segmentId)}/`, { method: "DELETE", token });
 }
 
+/** `customer_ids` and/or E.164 `phones` (each ≤ 500); the members added are their union (§2.8). */
 export function apiAddSegmentMembers(
   token: string,
   segmentId: string,
-  customerIds: number[],
+  body: ApiSegmentMembersInput,
   idempotencyKey: string,
 ) {
   return apiFetch<ApiSegment>(`${BASE}/segments/${id(segmentId)}/members/`, {
     method: "POST",
-    body: { customer_ids: customerIds },
+    body,
     token,
     idempotencyKey,
   });

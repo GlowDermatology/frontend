@@ -62,18 +62,60 @@ function formatAmount(value: number): string {
   return value >= 1_000_000 ? formatMillions(value) : formatNumber(value);
 }
 
+/** A customer id or E.164 phone to add, with the input row (0-based) that named it first. */
+export interface MemberRef {
+  value: string;
+  row: number;
+}
+
+/** One entry of the "customer ids or phones" input, read by `parseMemberEntry`. */
+export type MemberEntry =
+  | { kind: "empty" }
+  | { kind: "id"; value: string }
+  | { kind: "phone"; value: string }
+  | { kind: "incomplete" }
+  | { kind: "invalid" };
+
 /**
- * The admin's "customer ids or phones" list. Entries are separated by commas,
- * semicolons or new lines only — never by spaces, because the app writes
- * phones with spaces ("90 123 45 67") and splitting those would turn one
- * phone into four customer ids. Inside one entry spaces, parentheses and
- * dashes are dropped, then:
+ * One customer id or phone as the admin typed it. Spaces, parentheses and
+ * dashes inside the entry are dropped, then:
  *
- * - `+998` / `998` + 9 digits, or exactly 9 digits, is a phone (E.164);
+ * - `+998` / `998` + 9 digits, or exactly 9 digits (the national number the
+ *   app shows, "90 123 45 67"), is a phone, normalised to E.164
+ *   (`+998901234567`);
  * - 1–7 digits typed without inner spaces is a customer id;
- * - digits with inner spaces that do not make a whole phone is reported in
+ * - digits with inner spaces that do not make a whole phone are
  *   `incomplete` ("Telefonni to‘liq kiriting");
- * - anything else is reported in `invalid`.
+ * - anything else is `invalid`.
+ */
+export function parseMemberEntry(raw: string): MemberEntry {
+  const entry = raw.trim();
+  if (!entry) return { kind: "empty" };
+  const compact = entry.replace(/[\s()-]/g, "");
+  if (/^\+?998\d{9}$/.test(compact))
+    return { kind: "phone", value: `+${compact.replace(/^\+/, "")}` };
+  if (/^\d{9}$/.test(compact)) return { kind: "phone", value: `+998${compact}` };
+  if (/^\d{1,7}$/.test(entry)) return { kind: "id", value: String(Number(entry)) };
+  if (/^\+?[\d\s()-]+$/.test(entry) && /\s/.test(entry)) return { kind: "incomplete" };
+  return { kind: "invalid" };
+}
+
+/**
+ * Splits pasted text into entries on commas, semicolons and new lines only —
+ * never on spaces, because the app writes phones with spaces
+ * ("90 123 45 67") and splitting those would turn one phone into four ids.
+ */
+export function splitMemberList(input: string): string[] {
+  return input
+    .split(/[,;\n\r]+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+/**
+ * The admin's "customer ids or phones" list (`splitMemberList` +
+ * `parseMemberEntry`): ids and E.164 phones de-duplicated, the entries that
+ * are not a whole phone in `incomplete`, the rest in `invalid`.
  */
 export function parseMemberList(input: string): {
   ids: string[];
@@ -85,15 +127,12 @@ export function parseMemberList(input: string): {
   const phones = new Set<string>();
   const invalid: string[] = [];
   const incomplete: string[] = [];
-  for (const raw of input.split(/[,;\n\r]+/)) {
-    const entry = raw.trim();
-    if (!entry) continue;
-    const compact = entry.replace(/[\s()-]/g, "");
-    if (/^\+?998\d{9}$/.test(compact)) phones.add(`+${compact.replace(/^\+/, "")}`);
-    else if (/^\d{9}$/.test(compact)) phones.add(`+998${compact}`);
-    else if (/^\d{1,7}$/.test(entry)) ids.add(String(Number(entry)));
-    else if (/^\+?[\d\s()-]+$/.test(entry) && /\s/.test(entry)) incomplete.push(entry);
-    else invalid.push(entry);
+  for (const entry of splitMemberList(input)) {
+    const parsed = parseMemberEntry(entry);
+    if (parsed.kind === "id") ids.add(parsed.value);
+    else if (parsed.kind === "phone") phones.add(parsed.value);
+    else if (parsed.kind === "incomplete") incomplete.push(entry);
+    else if (parsed.kind === "invalid") invalid.push(entry);
   }
   return { ids: [...ids], phones: [...phones], invalid, incomplete };
 }

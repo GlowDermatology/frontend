@@ -34,7 +34,7 @@ export type ApiProductWrite = Schemas["ProductWriteRequest"];
  * `texts` (`uz.name` required), but the server merges `texts` at leaf level
  * (contract §2.3), so a patch carries only the changed leaves.
  */
-export type ApiProductPatch = Omit<Partial<Schemas["PatchedProductWriteRequest"]>, "texts"> & {
+export type ApiProductPatch = Omit<Partial<Schemas["PatchedProductPatchRequest"]>, "texts"> & {
   texts?: Partial<Record<"uz" | "ru" | "en", Schemas["ProductTextRequest"]>>;
 };
 export type ApiPaginatedProducts = Schemas["PaginatedProductList"];
@@ -49,8 +49,8 @@ export type ApiCategoryResults = Schemas["CategoryResults"];
 export type ApiBanner = Schemas["Banner"];
 export type ApiBannerLink = Schemas["BannerLink"];
 /** `PATCH banners/{id}/` (JSON): changed fields only; `title` merges at leaf level like product texts. */
-export type ApiBannerPatch = Omit<Partial<Schemas["PatchedBannerWriteRequest"]>, "title"> & {
-  title?: Partial<Schemas["BannerTitleRequest"]>;
+export type ApiBannerPatch = Omit<Partial<Schemas["PatchedBannerPatchRequest"]>, "title"> & {
+  title?: Partial<Schemas["BannerTitlePatchRequest"]>;
 };
 export type ApiPaginatedBanners = Schemas["PaginatedBannerList"];
 export type ApiBannerResults = Schemas["BannerResults"];
@@ -105,3 +105,26 @@ export type ApiAuditEntry = Schemas["AuditEntry"];
 export type ApiPaginatedAuditLog = Schemas["PaginatedAuditEntryList"];
 export type ApiNavCounts = Schemas["NavCounts"];
 export type ApiActor = Schemas["Actor"];
+
+/* --- Customers, cashback policy and the staff directory (F2c: contract §2.6, §2.7, §2.16) --- */
+
+export type ApiCustomerCard = Schemas["CustomerCard"];
+export type ApiCustomerTier = Schemas["CustomerTier"];
+export type ApiLedgerEntry = Schemas["LedgerEntry"];
+export type ApiPurchase = Schemas["Purchase"];
+export type ApiCustomerOrdering = NonNullable<
+  NonNullable<
+    import("./schema").operations["admin_customers_list"]["parameters"]["query"]
+  >["ordering"]
+>;
+export type ApiCashbackAdjustmentRequest = Schemas["CashbackAdjustmentRequest"];
+export type ApiCashbackAdjustmentResult = Schemas["CashbackAdjustmentResult"];
+export type ApiCashbackPolicy = Schemas["CashbackPolicy"];
+export type ApiPolicyVersion = Schemas["PolicyVersion"];
+export type ApiPolicyVersionCreate = Schemas["PolicyVersionCreateRequest"];
+export type ApiPolicyVersionCreated = Schemas["PolicyVersionCreated"];
+export type ApiTierWarning = Schemas["TierWarning"];
+/** `POST segments/{id}/members/`: either list or both (contract §2.8). */
+export type ApiSegmentMembersInput = Schemas["SegmentMembersInputRequest"];
+export type ApiStaffListItem = Schemas["StaffListItem"];
+export type ApiPaginatedStaff = Schemas["PaginatedStaffListItemList"];

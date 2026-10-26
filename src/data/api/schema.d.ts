@@ -3,8 +3,8 @@
  * GENERATED FILE — do not edit by hand. Regenerate with `npm run gen:api`.
  *
  * Source: openapi/schema.yaml of the backend repository
- * Commit: 4e2e6200a13472e4cc20028b5f4944daf1af791b
- * Generated: 2026-10-25T22:34:30.259Z (openapi-typescript)
+ * Commit: acd1534e0c62e3ea0365012805ba41ac317b129f
+ * Generated: 2026-10-26T05:53:47.520Z (openapi-typescript)
  */
 
 export interface paths {
@@ -289,6 +289,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/cashback/policy-versions/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Appends a scheduled version. Tier errors use the submitted index (`tiers.{i}.from|to|percent`); gaps and an upper-bounded last tier are returned as `warnings`. A previously scheduled version becomes superseded (`superseded_version`). */
+        post: operations["admin_cashback_policy_versions_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/cashback/policy/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The active and the scheduled version (at most one each), every version newest first by `version` (superseded ones included) and `next_effective_from`, the start of the next Tashkent calendar month. */
+        get: operations["admin_cashback_policy_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/categories/": {
         parameters: {
             query?: never;
@@ -330,6 +364,73 @@ export interface paths {
         };
         get?: never;
         put: operations["admin_categories_reorder"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/customers/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description `search`: the name contains the term, or (≥ 3 digits) the phone contains its digits. `segment`: segment membership (rules or manual, active customers only). Orderings tie by `id`. */
+        get: operations["admin_customers_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/customers/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The customer card of an active or deleted customer (deleted: name `""`, `deleted_at`). */
+        get: operations["admin_customers_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/customers/{id}/cashback-adjustments/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Checks in order: `amount` 1..10 000 000 ("Summani kiriting."), `reason` trimmed 3..300 ("Sababni kiriting."), then for `subtract` `amount ≤ available` under the account lock ("Balans manfiy bo‘lib qoladi."). Allowed for deleted customers. */
+        post: operations["admin_customers_cashback_adjustments_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/dashboard/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["admin_dashboard"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -411,7 +512,7 @@ export interface paths {
         };
         get: operations["admin_notifications_list"];
         put?: never;
-        /** @description Multipart with dotted keys (`link.kind`, `audience.type`, …) and an optional `image` (JPEG, PNG or WebP, ≤ 5 MiB). Without `scheduled_at` the send starts at once (state queued); with it the campaign waits for its time (state scheduled). */
+        /** @description Multipart with dotted keys (`link.kind`, `audience.type`, …) and an optional `image` (JPEG, PNG or WebP, ≤ 5 MiB). Without `scheduled_at` the send starts at once; the 201 body is the campaign as stored after the commit (`queued`, or `sent` when the send already ran inside the request). With it the campaign waits for its time (state `scheduled`). */
         post: operations["admin_notifications_create"];
         delete?: never;
         options?: never;
@@ -429,6 +530,152 @@ export interface paths {
         get: operations["admin_notifications_meta"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/orders/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["admin_orders_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/orders/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["admin_orders_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/orders/{id}/cancel/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["admin_orders_cancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/orders/{id}/retry-shipment/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["admin_orders_retry_shipment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/orders/{id}/transition/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["admin_orders_transition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/orders/status-counts/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["admin_orders_status_counts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payments/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["admin_payments_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payments/{id}/refunds/{refund_id}/resolve/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Close an `unknown` / `manual_required` refund after a manual check (audited `refund.state_changed` with the actor; order event `refund_succeeded` / `refund_failed`). */
+        post: operations["admin_payments_refund_resolve"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payments/{id}/refunds/{refund_id}/retry/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Retry a `failed` refund: a new refund of the payment (Click `requested`, Payme `manual_required`) and its `refund_requested` order event. */
+        post: operations["admin_payments_refund_retry"];
         delete?: never;
         options?: never;
         head?: never;
@@ -613,6 +860,23 @@ export interface paths {
         patch: operations["admin_settings_partial_update"];
         trace?: never;
     };
+    "/api/v1/admin/staff/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description ``GET staff/`` (contract §2.16): the staff directory behind the audit-log actor filter. */
+        get: operations["admin_staff_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health/": {
         parameters: {
             query?: never;
@@ -649,10 +913,15 @@ export interface components {
             readonly display_name: string;
             id: number;
         };
+        /**
+         * @description * `add` - add
+         *     * `subtract` - subtract
+         * @enum {string}
+         */
+        AdjustmentDirectionEnum: "add" | "subtract";
         /** @description ``POST appointments/{id}/cancel/``: optional ``reason`` (≤ 300), kept as the staff note. */
         AppointmentCancelRequest: {
-            /** @default  */
-            reason: string;
+            reason?: string;
         };
         /**
          * @description ``POST appointments/`` (T10): ``specialist_id``, ``service_id``, ``customer_id`` | ``phone`` (E.164 of
@@ -660,8 +929,7 @@ export interface components {
          */
         AppointmentCreateRequest: {
             customer_id?: number;
-            /** @default  */
-            note: string;
+            note?: string;
             phone?: string;
             service_id: number;
             specialist_id: number;
@@ -725,6 +993,11 @@ export interface components {
             object_type: string;
             request_id: string;
         };
+        AvailableActions: {
+            cancel: boolean;
+            retry_shipment: boolean;
+            transitions: components["schemas"]["OrderStatusEnum"][];
+        };
         /** @description Contract §2.5 ``Banner``; instances come from ``selectors.banner_queryset()``. */
         Banner: {
             /** Format: date-time */
@@ -778,13 +1051,11 @@ export interface components {
         BannerResults: {
             results: components["schemas"]["Banner"][];
         };
-        /** @description Contract §2.5 ``title``: ``uz`` 1..80 required; ``ru`` / ``en`` ≤ 80 optional (missing → ""). */
-        BannerTitleRequest: {
-            /** @default  */
-            en: string;
-            /** @default  */
-            ru: string;
-            uz: string;
+        /** @description ``title`` of ``PATCH banners/{id}/``: any subset of the three leaves (merged into the stored title). */
+        BannerTitlePatchRequest: {
+            en?: string;
+            ru?: string;
+            uz?: string;
         };
         /**
          * @description * `delta` - delta
@@ -821,6 +1092,75 @@ export interface components {
             name: string;
             role: components["schemas"]["SpecialistRoleEnum"];
             services: components["schemas"]["BookingService"][];
+        };
+        Cancellation: {
+            note: string | null;
+            reason: components["schemas"]["CancellationReasonEnum"];
+        };
+        /**
+         * @description * `reservation_expired` - reservation_expired
+         *     * `admin` - admin
+         *     * `customer_request` - customer_request
+         * @enum {string}
+         */
+        CancellationReasonEnum: "reservation_expired" | "admin" | "customer_request";
+        CancelOrderRequest: {
+            reason: string;
+        };
+        /**
+         * @description ``POST customers/{id}/cashback-adjustments/`` body (OpenAPI shape).
+         *
+         *     The view validates ``direction`` here and hands ``amount`` / ``reason`` as received to the service, which
+         *     runs the contract checks in order with the table's messages.
+         */
+        CashbackAdjustmentRequest: {
+            amount: number;
+            direction: components["schemas"]["AdjustmentDirectionEnum"];
+            reason: string;
+        };
+        /** @description 201: the new ``adjustment`` entry, the balance after it and ``available`` (balance − active holds). */
+        CashbackAdjustmentResult: {
+            available: number;
+            balance: number;
+            entry: components["schemas"]["LedgerEntry"];
+        };
+        CashbackHold: {
+            amount: number;
+            /** Format: date-time */
+            expires_at: string;
+            state: components["schemas"]["CashbackHoldStateEnum"];
+        };
+        /**
+         * @description * `active` - active
+         *     * `captured` - captured
+         *     * `released` - released
+         * @enum {string}
+         */
+        CashbackHoldStateEnum: "active" | "captured" | "released";
+        /** @description ``GET cashback/policy/``: the active and scheduled versions, every version and the suggested start. */
+        CashbackPolicy: {
+            active: components["schemas"]["PolicyVersion"] | null;
+            /** Format: date-time */
+            next_effective_from: string;
+            scheduled: components["schemas"]["PolicyVersion"] | null;
+            versions: components["schemas"]["PolicyVersion"][];
+        };
+        /** @description Contract §2.7 tier: ``from`` inclusive, ``to`` exclusive | null, 2-dp percent. */
+        CashbackTier: {
+            from: number;
+            id: number;
+            /** Format: decimal */
+            percent: string;
+            to: number | null;
+        };
+        /** @description One submitted tier. ``percent`` is a decimal string; its range and precision are the policy rules (``out_of_range`` / ``max_decimal_places``) checked by ``create_policy_version``. */
+        CashbackTierInputRequest: {
+            /** Format: int64 */
+            from: number;
+            /** Format: decimal */
+            percent: string;
+            /** Format: int64 */
+            to?: number | null;
         };
         /** @description Contract §2.4 ``Category``; instances come from ``selectors.category_queryset()``. */
         Category: {
@@ -860,20 +1200,72 @@ export interface components {
             current_password: string;
             new_password: string;
         };
-        /** @description Contract §2.6 ``CustomerListItem`` for the members list; loyalty-owned numbers read 0 / null (B4). */
+        /**
+         * @description * `uz` - uz
+         *     * `ru` - ru
+         *     * `en` - en
+         * @enum {string}
+         */
+        ContentLanguageEnum: "uz" | "ru" | "en";
+        /** @description Contract §2.6 ``CustomerCard``. */
+        CustomerCard: {
+            address: string | null;
+            available: number;
+            balance: number;
+            /** Format: date-time */
+            deleted_at: string | null;
+            device: components["schemas"]["CustomerDevice"] | null;
+            groups: components["schemas"]["CustomerGroup"][];
+            held: number;
+            id: number;
+            language: components["schemas"]["ContentLanguageEnum"];
+            ledger: components["schemas"]["LedgerEntry"][];
+            name: string;
+            online_orders: components["schemas"]["OnlineOrders"];
+            phone: string;
+            purchases: components["schemas"]["Purchase"][];
+            /** Format: date-time */
+            registered_at: string;
+            status: components["schemas"]["CustomerStatusEnum"];
+            tier: components["schemas"]["CustomerTier"] | null;
+            totals: components["schemas"]["CustomerTotals"];
+            upcoming_appointments: number;
+        };
+        CustomerDevice: {
+            app_version: string;
+            /** Format: date-time */
+            last_active_at: string;
+            model: string;
+            os: string;
+            push_enabled: boolean;
+        };
+        CustomerGroup: {
+            id: number;
+            name: string;
+        };
+        /**
+         * @description Contract §2.6 ``CustomerListItem``: the one renderer of ``GET customers/`` and of segment members.
+         *
+         *     Rows carry the ``loyalty.selectors.list_annotations()`` values (``lifetime_total``, ``balance``,
+         *     ``percent``, ``online_orders_count``).
+         */
         CustomerListItem: {
-            readonly balance: number;
+            balance: number;
             id: number;
             lifetime_total: number;
             name: string;
             online_orders_count: number;
-            readonly percent: string | null;
+            /** Format: decimal */
+            percent: string | null;
             phone: string;
             /** Format: date-time */
             registered_at: string;
             status: components["schemas"]["CustomerStatusEnum"];
         };
-        /** @description Contract §2.0 ``CustomerRef``; ``name`` is ``""`` once the customer is deleted (scrubbed). */
+        /**
+         * @description ``CustomerRef = {"id", "name", "phone"}`` (contract §2.0); ``name`` is ``""`` once the customer is
+         *     deleted (scrubbed).
+         */
         CustomerRef: {
             id: number;
             name: string;
@@ -885,6 +1277,67 @@ export interface components {
          * @enum {string}
          */
         CustomerStatusEnum: "active" | "deleted";
+        CustomerTier: {
+            next: components["schemas"]["NextTier"] | null;
+            /** Format: decimal */
+            percent: string;
+            policy_version: number;
+        };
+        CustomerTotals: {
+            lifetime: number;
+            online: number;
+            store: number;
+        };
+        Dashboard: {
+            attention: components["schemas"]["DashboardAttention"];
+            bucket: components["schemas"]["DashboardBucketEnum"];
+            buckets: components["schemas"]["DashboardBucket"][];
+            /** Format: date */
+            from: string;
+            /** Format: date-time */
+            generated_at: string;
+            previous_period_orders: number;
+            range: components["schemas"]["DashboardRangeEnum"];
+            stats: components["schemas"]["DashboardStats"];
+            /** Format: date */
+            to: string;
+        };
+        DashboardAttention: {
+            bts_failed: number;
+            new_from_billz: number;
+            /** Format: date-time */
+            next_appointment_at: string | null;
+            pending_appointments: number;
+            refunds_needing_action: number;
+        };
+        DashboardBucket: {
+            orders: number;
+            revenue: number;
+            /** Format: date-time */
+            start: string;
+        };
+        /**
+         * @description * `hour` - hour
+         *     * `day` - day
+         * @enum {string}
+         */
+        DashboardBucketEnum: "hour" | "day";
+        /**
+         * @description * `today` - today
+         *     * `week` - week
+         *     * `month` - month
+         *     * `custom` - custom
+         * @enum {string}
+         */
+        DashboardRangeEnum: "today" | "week" | "month" | "custom";
+        DashboardStats: {
+            deleted_customers: number;
+            new_customers: number;
+            orders: number;
+            out_of_stock: number;
+            revenue: number;
+            total_customers: number;
+        };
         DayBlock: {
             end: string;
             kind: components["schemas"]["BlockKindEnum"];
@@ -909,10 +1362,25 @@ export interface components {
             field: string | null;
             message: string;
         };
+        /**
+         * @description * `system` - system
+         *     * `bts` - bts
+         *     * `admin` - admin
+         * @enum {string}
+         */
+        EventSourceEnum: "system" | "bts" | "admin";
+        /**
+         * @description * `delivery` - delivery
+         *     * `pickup` - pickup
+         * @enum {string}
+         */
+        FulfilmentMethodEnum: "delivery" | "pickup";
         Health: {
             checks?: {
                 [key: string]: "ok" | "error";
             };
+            /** @description `?ready=1` only, and only for a caller that passes the admin network gate (§1): the mode of every provider with a `*_MODE` setting. */
+            integrations?: components["schemas"]["ProviderModes"];
             status: components["schemas"]["HealthStatusEnum"];
             version?: string;
         };
@@ -945,15 +1413,20 @@ export interface components {
         ImagesResponse: {
             images: components["schemas"]["ProductImage"][];
         };
-        Integrations: {
-            mode: components["schemas"]["IntegrationsModeEnum"];
-        };
         /**
          * @description * `fake` - fake
          *     * `live` - live
          * @enum {string}
          */
-        IntegrationsModeEnum: "fake" | "live";
+        IntegrationModeEnum: "fake" | "live";
+        /**
+         * @description Read-only: ``mode`` = ``INTEGRATIONS_MODE`` (the default of every provider), ``providers`` = the
+         *     effective mode of each provider.
+         */
+        Integrations: {
+            mode: components["schemas"]["IntegrationModeEnum"];
+            providers: components["schemas"]["ProviderModes"];
+        };
         /** @description Contract §2.14 ``Job``. */
         Job: {
             /** Format: date-time */
@@ -992,6 +1465,41 @@ export interface components {
             new_price: number | null;
             old_price: number | null;
         };
+        /** @description Contract §2.6 ``LedgerEntry``. */
+        LedgerEntry: {
+            readonly actor: components["schemas"]["Actor"] | null;
+            amount: number;
+            /** Format: date-time */
+            at: string;
+            balance_after: number;
+            base: number | null;
+            id: number;
+            kind: components["schemas"]["LedgerKindEnum"];
+            order_id: number | null;
+            /** Format: decimal */
+            percent: string | null;
+            policy_version: number | null;
+            promo_excluded: boolean;
+            reason: string | null;
+            reverses_id: number | null;
+            readonly source_ref: string | null;
+            source_type: components["schemas"]["LedgerSourceTypeEnum"];
+        };
+        /**
+         * @description * `credit` - credit
+         *     * `debit` - debit
+         *     * `adjustment` - adjustment
+         *     * `reversal` - reversal
+         * @enum {string}
+         */
+        LedgerKindEnum: "credit" | "debit" | "adjustment" | "reversal";
+        /**
+         * @description * `order` - order
+         *     * `billz_sale` - billz_sale
+         *     * `admin` - admin
+         * @enum {string}
+         */
+        LedgerSourceTypeEnum: "order" | "billz_sale" | "admin";
         /**
          * @description * `none` - none
          *     * `product` - product
@@ -1046,6 +1554,15 @@ export interface components {
         NavCounts: {
             appointments_pending: number;
             orders_processing: number;
+        };
+        /** @description The next band: its percent, start, the so'm left and the 0..1 progress. */
+        NextTier: {
+            from: number;
+            /** Format: decimal */
+            percent: string;
+            /** Format: double */
+            progress: number;
+            remaining: number;
         };
         NotificationAudience: {
             phone: string | null;
@@ -1112,6 +1629,8 @@ export interface components {
          * @enum {string}
          */
         NotificationStateEnum: "scheduled" | "queued" | "sent";
+        /** @enum {unknown} */
+        NullEnum: null;
         /**
          * @description Body of ``POST auth/oauth/{provider}/`` and ``.../link/`` (contract 2.1).
          *
@@ -1124,6 +1643,131 @@ export interface components {
             nonce?: string;
             /** Format: uri */
             redirect_uri: string;
+        };
+        OnlineOrders: {
+            count: number;
+            /** Format: date-time */
+            last_order_at: string | null;
+            last_order_id: number | null;
+        };
+        OrderCashback: {
+            amount: number;
+            /** Format: date-time */
+            at: string;
+            base: number | null;
+            kind: components["schemas"]["OrderCashbackKindEnum"];
+            ledger_entry_id: number;
+            /** Format: decimal */
+            percent: string | null;
+            reverses_id: number | null;
+        };
+        /**
+         * @description * `debit` - debit
+         *     * `credit` - credit
+         *     * `reversal` - reversal
+         * @enum {string}
+         */
+        OrderCashbackKindEnum: "debit" | "credit" | "reversal";
+        /**
+         * @description * `ios` - ios
+         *     * `android` - android
+         * @enum {string}
+         */
+        OrderChannelEnum: "ios" | "android";
+        /** @description Contract ``Order`` = ``OrderSummary`` + the detail keys (rendered from ``selectors.order_detail``). */
+        OrderDetail: {
+            readonly address: string | null;
+            available_actions: components["schemas"]["AvailableActions"];
+            readonly cancellation: components["schemas"]["Cancellation"] | null;
+            cashback: components["schemas"]["OrderCashback"][];
+            cashback_hold: components["schemas"]["CashbackHold"] | null;
+            cashback_used: number;
+            channel: components["schemas"]["OrderChannelEnum"];
+            /** Format: date-time */
+            created_at: string;
+            customer: components["schemas"]["CustomerRef"];
+            delivery_fee: number;
+            fulfilment: components["schemas"]["FulfilmentMethodEnum"];
+            history: components["schemas"]["OrderEvent"][];
+            id: number;
+            items: components["schemas"]["OrderItem"][];
+            items_subtotal: number;
+            payment: components["schemas"]["OrderPayment"];
+            promo_subtotal: number;
+            refunds: components["schemas"]["Refund"][];
+            readonly shipment: Omit<components["schemas"]["Shipment"], "state">;
+            status: components["schemas"]["OrderStatusEnum"];
+            total: number;
+        };
+        /** @description Contract §4 ``OrderEvent``: ``status_after`` ``""`` → ``null``; ``actor`` for source ``admin``. */
+        OrderEvent: {
+            actor: components["schemas"]["Actor"] | null;
+            /** Format: date-time */
+            at: string;
+            data: unknown;
+            id: number;
+            source: components["schemas"]["EventSourceEnum"];
+            readonly status_after: (components["schemas"]["OrderStatusEnum"] | components["schemas"]["NullEnum"]) | null;
+            type: components["schemas"]["OrderEventTypeEnum"];
+        };
+        /**
+         * @description * `order_created` - order_created
+         *     * `reservation_created` - reservation_created
+         *     * `payment_confirmed` - payment_confirmed
+         *     * `billz_sale_recorded` - billz_sale_recorded
+         *     * `cashback_credited` - cashback_credited
+         *     * `payment_failed` - payment_failed
+         *     * `shipment_created` - shipment_created
+         *     * `shipment_failed` - shipment_failed
+         *     * `status_changed` - status_changed
+         *     * `handed_to_courier` - handed_to_courier
+         *     * `delivered` - delivered
+         *     * `cancelled` - cancelled
+         *     * `reservation_expired` - reservation_expired
+         *     * `refund_requested` - refund_requested
+         *     * `refund_succeeded` - refund_succeeded
+         *     * `refund_failed` - refund_failed
+         * @enum {string}
+         */
+        OrderEventTypeEnum: "order_created" | "reservation_created" | "payment_confirmed" | "billz_sale_recorded" | "cashback_credited" | "payment_failed" | "shipment_created" | "shipment_failed" | "status_changed" | "handed_to_courier" | "delivered" | "cancelled" | "reservation_expired" | "refund_requested" | "refund_succeeded" | "refund_failed";
+        OrderItem: {
+            billz_id: string;
+            image_url: string | null;
+            name: string;
+            product_id: number;
+            promo: boolean;
+            quantity: number;
+            unit_price: number;
+        };
+        OrderPayment: {
+            amount: number;
+            /** Format: date-time */
+            confirmed_at: string | null;
+            provider: components["schemas"]["PaymentProviderEnum"];
+            status: components["schemas"]["PaymentStatusEnum"];
+            transaction_id: string | null;
+        };
+        /**
+         * @description * `awaiting_payment` - awaiting_payment
+         *     * `processing` - processing
+         *     * `handed_to_courier` - handed_to_courier
+         *     * `delivered` - delivered
+         *     * `cancelled` - cancelled
+         * @enum {string}
+         */
+        OrderStatusEnum: "awaiting_payment" | "processing" | "handed_to_courier" | "delivered" | "cancelled";
+        /** @description Contract ``OrderSummary`` (list rows and the head of the detail). */
+        OrderSummary: {
+            readonly cancellation: components["schemas"]["Cancellation"] | null;
+            /** Format: date-time */
+            created_at: string;
+            customer: components["schemas"]["CustomerRef"];
+            fulfilment: components["schemas"]["FulfilmentMethodEnum"];
+            id: number;
+            readonly payment: components["schemas"]["PaymentSummary"];
+            readonly shipment: Omit<components["schemas"]["Shipment"], "state">;
+            status: components["schemas"]["OrderStatusEnum"];
+            total: number;
         };
         PaginatedAuditEntryList: {
             count: number;
@@ -1160,6 +1804,20 @@ export interface components {
             page_size: number;
             results: components["schemas"]["NotificationRecord"][];
         };
+        PaginatedOrderSummaryList: {
+            count: number;
+            page: number;
+            page_count: number;
+            page_size: number;
+            results: components["schemas"]["OrderSummary"][];
+        };
+        PaginatedPaymentList: {
+            count: number;
+            page: number;
+            page_count: number;
+            page_size: number;
+            results: components["schemas"]["Payment"][];
+        };
         PaginatedProductList: {
             count: number;
             page: number;
@@ -1174,7 +1832,14 @@ export interface components {
             page_size: number;
             results: components["schemas"]["Segment"][];
         };
-        PatchedBannerFormRequest: {
+        PaginatedStaffListItemList: {
+            count: number;
+            page: number;
+            page_count: number;
+            page_size: number;
+            results: components["schemas"]["StaffListItem"][];
+        };
+        PatchedBannerPatchFormRequest: {
             /** Format: date-time */
             ends_at?: string | null;
             /** Format: binary */
@@ -1190,19 +1855,12 @@ export interface components {
             "title.uz"?: string;
         };
         /**
-         * @description Fields of ``POST banners/`` (multipart) and ``PATCH banners/{id}/`` (multipart or JSON; ``partial``).
+         * @description ``PATCH banners/{id}/`` (JSON or multipart): ``title`` merged leaf by leaf, every field optional.
          *
-         *     Accepted form encoding (multipart): nested keys arrive as dotted form names — ``title.uz``, ``title.ru``,
-         *     ``title.en``, ``link.kind``, ``link.product_id``, ``link.category`` — next to the flat ``is_active``,
-         *     ``starts_at``, ``ends_at`` and the file part ``image``. The view un-dots them into this nested shape
-         *     (``views.form_to_nested``); an empty string for ``link.product_id``, ``link.category``, ``starts_at`` or
-         *     ``ends_at`` means ``null``. Booleans are ``true``/``false``/``1``/``0``. Error paths use the same dotted
-         *     names, so multipart and JSON callers map errors identically.
-         *
-         *     The ``image`` part is read from the request by the view (it is not a field here); the link targets and
-         *     the date order are validated against the merged state (``instance`` on PATCH).
+         *     An unchanged ``link.product_id`` is not re-checked against the active products, so a banner whose product
+         *     was hidden later can still be edited or switched off (contract §2.5).
          */
-        PatchedBannerWriteRequest: {
+        PatchedBannerPatchRequest: {
             /** Format: date-time */
             ends_at?: string | null;
             /** @default true */
@@ -1210,7 +1868,7 @@ export interface components {
             link?: components["schemas"]["BannerLinkRequest"];
             /** Format: date-time */
             starts_at?: string | null;
-            title?: components["schemas"]["BannerTitleRequest"];
+            title?: components["schemas"]["BannerTitlePatchRequest"];
         };
         /** @description ``POST categories/`` and ``PATCH categories/{slug}/`` (``partial``; ``slug`` is then ``read_only``). */
         PatchedCategoryWriteRequest: {
@@ -1220,11 +1878,12 @@ export interface components {
             slug?: string;
         };
         /**
-         * @description Body of ``POST products/`` (every rule of the §2.3 table) and ``PATCH products/{id}/`` (``partial``).
+         * @description ``PATCH products/{id}/``: every field optional and ``texts`` merged leaf by leaf (contract §2.3).
          *
-         *     ``context["billz"]`` may carry a ``BillzPort`` (tests); otherwise the configured adapter is used.
+         *     Validation is the create serializer's (``partial=True`` skips absent fields); the separate class gives the
+         *     OpenAPI request its true shape, where no ``texts`` leaf is required.
          */
-        PatchedProductWriteRequest: {
+        PatchedProductPatchRequest: {
             billz_id?: string;
             category?: string | null;
             price?: number;
@@ -1232,7 +1891,7 @@ export interface components {
             promo: boolean;
             /** @default hidden */
             status: components["schemas"]["ProductStatusEnum"];
-            texts?: components["schemas"]["ProductTextsRequest"];
+            texts?: components["schemas"]["ProductTextsPatchRequest"];
         };
         /** @description ``POST segments/`` (``name`` 2..60 unique, ``rules``) and ``PATCH segments/{id}/`` (partial). */
         PatchedSegmentWriteRequest: {
@@ -1247,6 +1906,39 @@ export interface components {
             pickup_address?: components["schemas"]["PickupAddressRequest"];
             reservation_minutes?: number;
             support_phone?: string | null;
+        };
+        /** @description One ``GET payments/`` row; ``refunds`` come from the view's per-page lookup (newest first). */
+        Payment: {
+            amount: number;
+            /** Format: date-time */
+            confirmed_at: string | null;
+            /** Format: date-time */
+            created_at: string;
+            customer: components["schemas"]["CustomerRef"];
+            id: number;
+            order_id: number;
+            provider: components["schemas"]["PaymentProviderEnum"];
+            readonly refunds: components["schemas"]["Refund"][];
+            status: components["schemas"]["PaymentStatusEnum"];
+            readonly transaction_id: string | null;
+        };
+        /**
+         * @description * `click` - click
+         *     * `payme` - payme
+         * @enum {string}
+         */
+        PaymentProviderEnum: "click" | "payme";
+        /**
+         * @description * `pending` - pending
+         *     * `paid` - paid
+         *     * `failed` - failed
+         *     * `refunded` - refunded
+         * @enum {string}
+         */
+        PaymentStatusEnum: "pending" | "paid" | "failed" | "refunded";
+        PaymentSummary: {
+            provider: components["schemas"]["PaymentProviderEnum"];
+            status: components["schemas"]["PaymentStatusEnum"];
         };
         PendingSummary: {
             count: number;
@@ -1263,6 +1955,44 @@ export interface components {
             ru?: string;
             uz?: string;
         };
+        /** @description Contract §2.7 ``PolicyVersion`` (state derived at ``context["now"]``). */
+        PolicyVersion: {
+            author: components["schemas"]["Actor"] | null;
+            basis: components["schemas"]["RateBasisEnum"];
+            /** Format: date-time */
+            created_at: string;
+            earn_on_cashback_paid: boolean;
+            /** Format: date-time */
+            effective_from: string;
+            /** Format: date-time */
+            effective_to: string | null;
+            readonly state: components["schemas"]["PolicyVersionStateEnum"];
+            superseded_by: number | null;
+            readonly tiers: components["schemas"]["CashbackTier"][];
+            version: number;
+        };
+        /** @description ``POST cashback/policy-versions/`` 201. */
+        PolicyVersionCreated: {
+            superseded_version: number | null;
+            version: components["schemas"]["PolicyVersion"];
+            warnings: components["schemas"]["TierWarning"][];
+        };
+        /** @description ``POST cashback/policy-versions/`` body; the §2.7 rules run in ``create_policy_version``. */
+        PolicyVersionCreateRequest: {
+            basis: components["schemas"]["RateBasisEnum"];
+            earn_on_cashback_paid: boolean;
+            /** Format: date-time */
+            effective_from: string;
+            tiers: components["schemas"]["CashbackTierInputRequest"][];
+        };
+        /**
+         * @description * `active` - active
+         *     * `scheduled` - scheduled
+         *     * `expired` - expired
+         *     * `superseded` - superseded
+         * @enum {string}
+         */
+        PolicyVersionStateEnum: "active" | "scheduled" | "expired" | "superseded";
         /** @description Contract §2.3 ``Product``; instances come from ``selectors.product_queryset()``. */
         Product: {
             billz_id: string;
@@ -1342,6 +2072,12 @@ export interface components {
             ru?: components["schemas"]["ProductText"];
             uz: components["schemas"]["ProductUzText"];
         };
+        /** @description ``texts`` of ``PATCH products/{id}/``: any subset of languages and leaves (§2.3 leaf merge). */
+        ProductTextsPatchRequest: {
+            en?: components["schemas"]["ProductTextRequest"];
+            ru?: components["schemas"]["ProductTextRequest"];
+            uz?: components["schemas"]["ProductUzTextPatchRequest"];
+        };
         /** @description Language-first product texts ``{uz: {...}, ru: {...}, en: {...}}`` (AGENTS.md: not ``i18n_text``). */
         ProductTextsRequest: {
             en?: components["schemas"]["ProductTextRequest"];
@@ -1353,6 +2089,13 @@ export interface components {
             description?: string;
             ingredients?: string;
             name: string;
+            usage?: string;
+        };
+        /** @description PATCH leaf merge: every Uzbek leaf is optional; a sent ``name`` keeps the 2..120 rule. */
+        ProductUzTextPatchRequest: {
+            description?: string;
+            ingredients?: string;
+            name?: string;
             usage?: string;
         };
         /** @description The Uzbek texts: ``name`` is mandatory on create and, whenever sent, trimmed 2..120 characters. */
@@ -1377,15 +2120,78 @@ export interface components {
             status: components["schemas"]["ProductStatusEnum"];
             texts: components["schemas"]["ProductTextsRequest"];
         };
+        /** @description Per-provider adapter modes (``*_MODE`` settings, each defaulting to ``INTEGRATIONS_MODE``). */
+        ProviderModes: {
+            billz: components["schemas"]["IntegrationModeEnum"];
+            bts: components["schemas"]["IntegrationModeEnum"];
+            click: components["schemas"]["IntegrationModeEnum"];
+            fcm: components["schemas"]["IntegrationModeEnum"];
+            oauth: components["schemas"]["IntegrationModeEnum"];
+            payme: components["schemas"]["IntegrationModeEnum"];
+        };
+        /** @description Contract §2.6 ``Purchase``. */
+        Purchase: {
+            amount: number;
+            /** Format: date-time */
+            at: string;
+            billz_sale_ref: string | null;
+            cashback: number;
+            id: number;
+            order_id: number | null;
+            policy_version: number | null;
+            promo_amount: number;
+            reversed: boolean;
+            source: components["schemas"]["PurchaseSourceEnum"];
+        };
+        /**
+         * @description * `online` - online
+         *     * `store_qr` - store_qr
+         * @enum {string}
+         */
+        PurchaseSourceEnum: "online" | "store_qr";
+        /**
+         * @description * `before_purchase` - before_purchase
+         *     * `with_purchase` - with_purchase
+         * @enum {string}
+         */
+        RateBasisEnum: "before_purchase" | "with_purchase";
         RefreshRequest: {
             refresh: string;
         };
+        /** @description Contract ``Refund`` (§2.2): ``completed_at`` is set on ``succeeded`` only. */
+        Refund: {
+            amount: number;
+            /** Format: date-time */
+            completed_at: string | null;
+            id: number;
+            provider: components["schemas"]["PaymentProviderEnum"];
+            /** Format: date-time */
+            requested_at: string;
+            state: components["schemas"]["RefundStateEnum"];
+            /** Format: date-time */
+            updated_at: string;
+        };
+        /**
+         * @description * `requested` - requested
+         *     * `submitting` - submitting
+         *     * `succeeded` - succeeded
+         *     * `failed` - failed
+         *     * `manual_required` - manual_required
+         *     * `unknown` - unknown
+         * @enum {string}
+         */
+        RefundStateEnum: "requested" | "submitting" | "succeeded" | "failed" | "manual_required" | "unknown";
         /**
          * @description * `app` - app
          *     * `admin` - admin
          * @enum {string}
          */
         RequestedViaEnum: "app" | "admin";
+        /** @description ``{state: succeeded | failed}`` (a ``CharField`` so the schema keeps one ``RefundStateEnum``). */
+        ResolveRefundRequest: {
+            /** @description `succeeded` or `failed` */
+            state: string;
+        };
         /** @description Contract §2.8 ``Segment``; the counts come from ``selectors.segment_stats``. */
         Segment: {
             /** Format: date-time */
@@ -1399,8 +2205,13 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
         };
+        /**
+         * @description ``POST segments/{id}/members/`` (contract §2.8): ``customer_ids`` (any status, must exist) and/or
+         *     ``phones`` (E.164, resolved to **active** customers), each ≤ 500 and deduplicated.
+         */
         SegmentMembersInputRequest: {
-            customer_ids: number[];
+            customer_ids?: number[];
+            phones?: string[];
         };
         SegmentRules: {
             min_lifetime_amount?: number | null;
@@ -1425,6 +2236,51 @@ export interface components {
             updated_at: string;
             updated_by: components["schemas"]["Actor"] | null;
         };
+        Shipment: components["schemas"]["ShipmentNotRequired"] | components["schemas"]["ShipmentNotCreated"] | components["schemas"]["ShipmentFailed"] | components["schemas"]["ShipmentCreated"];
+        ShipmentCreated: {
+            /**
+             * @description `created` (enum property replaced by openapi-typescript)
+             * @enum {string}
+             */
+            state: "created";
+            tariff: number;
+            tracking_number: string;
+            /** Format: date-time */
+            updated_at: string;
+            via: components["schemas"]["ShipmentViaEnum"];
+        };
+        ShipmentFailed: {
+            attempts: number;
+            /** Format: date-time */
+            last_attempt_at: string;
+            pending: boolean;
+            /**
+             * @description `failed` (enum property replaced by openapi-typescript)
+             * @enum {string}
+             */
+            state: "failed";
+        };
+        ShipmentNotCreated: {
+            pending: boolean;
+            /**
+             * @description `not_created` (enum property replaced by openapi-typescript)
+             * @enum {string}
+             */
+            state: "not_created";
+        };
+        ShipmentNotRequired: {
+            /**
+             * @description `not_required` (pickup) (enum property replaced by openapi-typescript)
+             * @enum {string}
+             */
+            state: "not_required";
+        };
+        /**
+         * @description * `webhook` - webhook
+         *     * `polling` - polling
+         * @enum {string}
+         */
+        ShipmentViaEnum: "webhook" | "polling";
         /** @description Body of ``PUT categories/order/``. */
         SlugOrderRequest: {
             slugs: string[];
@@ -1448,6 +2304,22 @@ export interface components {
          * @enum {string}
          */
         SpecialistRoleEnum: "dermatologist" | "cosmetologist";
+        /** @description One ``GET staff/`` row: the ``Actor`` keys plus ``email`` and ``is_active``. */
+        StaffListItem: {
+            readonly display_name: string;
+            /** Format: email */
+            email: string;
+            id: number;
+            is_active: boolean;
+        };
+        StatusCounts: {
+            all: number;
+            awaiting_payment: number;
+            cancelled: number;
+            delivered: number;
+            handed_to_courier: number;
+            processing: number;
+        };
         StatusTemplate: {
             status: components["schemas"]["TemplateStatusEnum"];
             readonly texts: components["schemas"]["TemplateTexts"];
@@ -1475,6 +2347,21 @@ export interface components {
         };
         TemplateUpdateRequest: {
             texts: components["schemas"]["TemplateTextsRequest"];
+        };
+        /** @description ``warnings[]``: ``gap`` = ``[from, to)`` uncovered; ``uncovered_above``: open top. */
+        TierWarning: {
+            code: components["schemas"]["TierWarningEnum"];
+            from: number;
+            to: number | null;
+        };
+        /**
+         * @description * `gap` - gap
+         *     * `uncovered_above` - uncovered_above
+         * @enum {string}
+         */
+        TierWarningEnum: "gap" | "uncovered_above";
+        TransitionRequest: {
+            status: components["schemas"]["OrderStatusEnum"];
         };
         WorkingHours: {
             end: string;
@@ -2912,8 +3799,8 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["PatchedBannerWriteRequest"];
-                "multipart/form-data": components["schemas"]["PatchedBannerFormRequest"];
+                "application/json": components["schemas"]["PatchedBannerPatchRequest"];
+                "multipart/form-data": components["schemas"]["PatchedBannerPatchFormRequest"];
             };
         };
         responses: {
@@ -3002,6 +3889,163 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BannerResults"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_cashback_policy_versions_create: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PolicyVersionCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PolicyVersionCreated"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_cashback_policy_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashbackPolicy"];
                 };
             };
             400: {
@@ -3475,6 +4519,350 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CategoryResults"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_customers_list: {
+        parameters: {
+            query?: {
+                /** @description Download the filtered list as a file instead of the JSON page. */
+                export?: "csv" | "xlsx";
+                /**
+                 * @description * `-registered_at` - -registered_at
+                 *     * `registered_at` - registered_at
+                 *     * `name` - name
+                 *     * `-name` - -name
+                 *     * `lifetime_total` - lifetime_total
+                 *     * `-lifetime_total` - -lifetime_total
+                 *     * `balance` - balance
+                 *     * `-balance` - -balance
+                 */
+                ordering?: "-registered_at" | "registered_at" | "name" | "-name" | "lifetime_total" | "-lifetime_total" | "balance" | "-balance";
+                page?: number;
+                page_size?: 20 | 50;
+                search?: string;
+                segment?: number;
+                /**
+                 * @description * `active` - active
+                 *     * `deleted` - deleted
+                 */
+                status?: "active" | "deleted";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedCustomerListItemList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_customers_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerCard"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_customers_cashback_adjustments_create: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CashbackAdjustmentRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CashbackAdjustmentResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_dashboard: {
+        parameters: {
+            query?: {
+                from?: string;
+                /**
+                 * @description * `today` - today
+                 *     * `week` - week
+                 *     * `month` - month
+                 *     * `custom` - custom
+                 */
+                range?: "today" | "week" | "month" | "custom";
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Dashboard"];
                 };
             };
             400: {
@@ -4172,6 +5560,830 @@ export interface operations {
             };
         };
     };
+    admin_orders_list: {
+        parameters: {
+            query?: {
+                customer?: number;
+                date_from?: string;
+                date_to?: string;
+                /** @description Download the filtered list as a file instead of the JSON page. */
+                export?: "csv" | "xlsx";
+                /**
+                 * @description * `delivery` - delivery
+                 *     * `pickup` - pickup
+                 */
+                fulfilment?: "delivery" | "pickup";
+                /**
+                 * @description * `-created_at` - -created_at
+                 *     * `created_at` - created_at
+                 */
+                ordering?: "-created_at" | "created_at";
+                page?: number;
+                page_size?: 6 | 10 | 25 | 50;
+                /**
+                 * @description * `pending` - pending
+                 *     * `paid` - paid
+                 *     * `failed` - failed
+                 *     * `refunded` - refunded
+                 */
+                payment?: "pending" | "paid" | "failed" | "refunded";
+                /**
+                 * @description * `today` - today
+                 *     * `week` - week
+                 *     * `month` - month
+                 *     * `all` - all
+                 */
+                period?: "today" | "week" | "month" | "all";
+                search?: string;
+                /**
+                 * @description * `awaiting_payment` - awaiting_payment
+                 *     * `processing` - processing
+                 *     * `handed_to_courier` - handed_to_courier
+                 *     * `delivered` - delivered
+                 *     * `cancelled` - cancelled
+                 */
+                status?: "awaiting_payment" | "processing" | "handed_to_courier" | "delivered" | "cancelled";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedOrderSummaryList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_orders_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderDetail"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_orders_cancel: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CancelOrderRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderDetail"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_orders_retry_shipment: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderDetail"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_orders_transition: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TransitionRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderDetail"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_orders_status_counts: {
+        parameters: {
+            query?: {
+                customer?: number;
+                date_from?: string;
+                date_to?: string;
+                /**
+                 * @description * `delivery` - delivery
+                 *     * `pickup` - pickup
+                 */
+                fulfilment?: "delivery" | "pickup";
+                /**
+                 * @description * `pending` - pending
+                 *     * `paid` - paid
+                 *     * `failed` - failed
+                 *     * `refunded` - refunded
+                 */
+                payment?: "pending" | "paid" | "failed" | "refunded";
+                /**
+                 * @description * `today` - today
+                 *     * `week` - week
+                 *     * `month` - month
+                 *     * `all` - all
+                 */
+                period?: "today" | "week" | "month" | "all";
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatusCounts"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_payments_list: {
+        parameters: {
+            query?: {
+                date_from?: string;
+                date_to?: string;
+                /** @description Download the filtered list as a file instead of the JSON page. */
+                export?: "csv" | "xlsx";
+                /**
+                 * @description * `-created_at` - -created_at
+                 *     * `created_at` - created_at
+                 */
+                ordering?: "-created_at" | "created_at";
+                page?: number;
+                page_size?: 20 | 50;
+                /**
+                 * @description * `today` - today
+                 *     * `week` - week
+                 *     * `month` - month
+                 *     * `all` - all
+                 */
+                period?: "today" | "week" | "month" | "all";
+                /**
+                 * @description * `click` - click
+                 *     * `payme` - payme
+                 */
+                provider?: "click" | "payme";
+                /**
+                 * @description * `requested` - requested
+                 *     * `submitting` - submitting
+                 *     * `succeeded` - succeeded
+                 *     * `failed` - failed
+                 *     * `manual_required` - manual_required
+                 *     * `unknown` - unknown
+                 */
+                refund_state?: "requested" | "submitting" | "succeeded" | "failed" | "manual_required" | "unknown";
+                search?: string;
+                /**
+                 * @description * `pending` - pending
+                 *     * `paid` - paid
+                 *     * `failed` - failed
+                 *     * `refunded` - refunded
+                 */
+                status?: "pending" | "paid" | "failed" | "refunded";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedPaymentList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_payments_refund_resolve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+                refund_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveRefundRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Payment"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_payments_refund_retry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+                refund_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Payment"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     admin_products_list: {
         parameters: {
             query?: {
@@ -4436,7 +6648,7 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["PatchedProductWriteRequest"];
+                "application/json": components["schemas"]["PatchedProductPatchRequest"];
             };
         };
         responses: {
@@ -5304,7 +7516,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
                 "application/json": components["schemas"]["SegmentMembersInputRequest"];
             };
@@ -5547,6 +7759,86 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Settings"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_staff_list: {
+        parameters: {
+            query?: {
+                is_active?: boolean;
+                page?: number;
+                page_size?: 20 | 50 | 100;
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedStaffListItemList"];
                 };
             };
             400: {

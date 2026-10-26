@@ -15,6 +15,7 @@ import { CONTENT_LANGUAGES, type ContentLanguage } from "@/domain/product";
 import { formatDateTimeShort } from "@/lib/format";
 
 import { runAction } from "../shared/action-client";
+import { focusFirstInvalid } from "../shared/focus-invalid";
 import { partitionFieldErrors } from "../shared/field-errors";
 import { useIdempotencyKey, type IdempotencyKey } from "../shared/idempotency";
 import { ORDER_STATUS_META } from "../shared/status";
@@ -140,6 +141,7 @@ function TemplateDialog({
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (inFlight.current) return;
+    const form = event.currentTarget;
     inFlight.current = true;
     setBusy(true);
     setFormError(null);
@@ -158,6 +160,7 @@ function TemplateDialog({
       );
       setErrors(fieldErrors);
       setFormError(message);
+      focusFirstInvalid(form);
       return;
     }
     onSaved(result.data);

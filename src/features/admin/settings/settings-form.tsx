@@ -20,6 +20,7 @@ import { formatDateTimeShort, formatPhone } from "@/lib/format";
 import { maskPhone, normalizePhone } from "@/lib/phone";
 
 import { runAction } from "../shared/action-client";
+import { focusFirstInvalid } from "../shared/focus-invalid";
 import { partitionFieldErrors } from "../shared/field-errors";
 import { useIdempotencyKey } from "../shared/idempotency";
 
@@ -81,6 +82,7 @@ export function SettingsForm({ settings: initial }: { settings: SiteSettings }) 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (inFlight.current) return;
+    const form = event.currentTarget;
     const local = settingsFormSchema.safeParse(values);
     if (!local.success) {
       const next: Record<string, string> = {};
@@ -88,6 +90,7 @@ export function SettingsForm({ settings: initial }: { settings: SiteSettings }) 
       setErrors(next);
       // A server message from the previous attempt no longer applies.
       setFormError(null);
+      focusFirstInvalid(form);
       return;
     }
     inFlight.current = true;
@@ -103,6 +106,7 @@ export function SettingsForm({ settings: initial }: { settings: SiteSettings }) 
       const { fieldErrors, formError: message } = partitionFieldErrors(result, SETTINGS_FIELDS);
       setErrors(fieldErrors);
       setFormError(message);
+      focusFirstInvalid(form);
       return;
     }
     load(result.data);

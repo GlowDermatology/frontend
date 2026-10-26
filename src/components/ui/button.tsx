@@ -54,9 +54,39 @@ export function buttonStyles({
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>, ButtonStyleOptions {}
 
-export function Button({ variant, size, lift, className, type = "button", ...rest }: ButtonProps) {
+/**
+ * A button that is `disabled` while its own request runs (`aria-busy`) stays
+ * focusable: a real `disabled` attribute on the focused element drops focus
+ * to `<body>`, so a keyboard user would lose their place on every save or
+ * delete (and after a refusal the dialog would have no focus at all). It is
+ * rendered `aria-disabled` instead, and activation is ignored until the
+ * request ends; any other `disabled` stays a real one.
+ */
+export function Button({
+  variant,
+  size,
+  lift,
+  className,
+  type = "button",
+  disabled,
+  onClick,
+  ...rest
+}: ButtonProps) {
+  const busy = Boolean(disabled) && (rest["aria-busy"] === true || rest["aria-busy"] === "true");
   return (
-    <button type={type} className={buttonStyles({ variant, size, lift, className })} {...rest} />
+    <button
+      type={busy ? "button" : type}
+      className={buttonStyles({
+        variant,
+        size,
+        lift,
+        className: cn(busy && "cursor-wait opacity-80", className),
+      })}
+      disabled={busy ? undefined : disabled}
+      aria-disabled={busy || undefined}
+      onClick={busy ? (event) => event.preventDefault() : onClick}
+      {...rest}
+    />
   );
 }
 

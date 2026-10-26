@@ -13,6 +13,7 @@ import { SEGMENT_NAME_MAX, segmentRulesSummary, type Segment } from "@/domain/se
 import { formatNumber, parseAmount } from "@/lib/format";
 
 import { runAction } from "../shared/action-client";
+import { focusFirstInvalid } from "../shared/focus-invalid";
 import { partitionFieldErrors } from "../shared/field-errors";
 import type { IdempotencyKey } from "../shared/idempotency";
 
@@ -80,6 +81,7 @@ export function SegmentDialog({
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (inFlight.current) return;
+    const form = event.currentTarget;
     const local = segmentFormSchema.safeParse(values);
     if (!local.success) {
       const next: Record<string, string> = {};
@@ -87,6 +89,7 @@ export function SegmentDialog({
       setErrors(next);
       // A server message from the previous attempt no longer applies.
       setFormError(null);
+      focusFirstInvalid(form);
       return;
     }
     inFlight.current = true;
@@ -106,6 +109,7 @@ export function SegmentDialog({
       const { fieldErrors, formError: message } = partitionFieldErrors(result, SEGMENT_FIELDS);
       setErrors(fieldErrors);
       setFormError(message);
+      focusFirstInvalid(form);
       return;
     }
     onSaved(result.data, segment ? "edit" : "create");

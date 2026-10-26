@@ -67,6 +67,10 @@ export function MembersView({
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [removeBusy, setRemoveBusy] = useState(false);
   const removeInFlight = useRef(false);
+  /** Set after a successful removal: the row and its button are gone, so focus moves to the table. */
+  const removedMember = useRef(false);
+  const tableRef = useRef<HTMLDivElement>(null);
+  const addButtonId = useId();
 
   const base = `/admin/customers/groups/${segment.id}`;
   const pageHref = (n: number) => (n > 1 ? `${base}?page=${n}` : base) as Route;
@@ -84,6 +88,7 @@ export function MembersView({
       return;
     }
     const { id, name } = removing;
+    removedMember.current = true;
     setRows((current) => current.filter((row) => row.id !== id));
     setSegment((current) => ({
       ...current,
@@ -111,6 +116,7 @@ export function MembersView({
             <>
               <ExportMenu href={`${base}/export`} />
               <Button
+                id={addButtonId}
                 onClick={() => {
                   setAddInstance((current) => current + 1);
                   setAdding(true);
@@ -139,7 +145,7 @@ export function MembersView({
         className="overflow-hidden rounded-lg bg-surface-raised shadow-sm"
       >
         {rows.length > 0 ? (
-          <ScrollRegion label="Guruh a’zolari jadvali">
+          <ScrollRegion ref={tableRef} label="Guruh a’zolari jadvali">
             <table className="data-table min-w-[900px]">
               <thead>
                 <tr>
@@ -246,6 +252,15 @@ export function MembersView({
         onOpenChange={(open) => {
           if (removeBusy) return;
           if (!open) setRemoving(null);
+        }}
+        onCloseAutoFocus={(event) => {
+          if (!removedMember.current) return;
+          removedMember.current = false;
+          const target = tableRef.current ?? document.getElementById(addButtonId);
+          if (target) {
+            event.preventDefault();
+            target.focus();
+          }
         }}
         title={removing ? `${removing.name}ni guruhdan chiqarasizmi?` : ""}
         description={
@@ -362,6 +377,8 @@ function AddMembersDialog({
         .map(Number)
         .sort((a, b) => a - b)[0];
       if (firstLine !== undefined) focusRow(firstLine);
+      // Nothing typed yet: the list-level message is about the empty list, so start at line 1.
+      else if (entries.every((entry) => entry.trim() === "")) focusRow(0);
       const rest = partitionFieldErrors(
         result,
         Object.keys(result.fieldErrors ?? {}).filter((key) => key.startsWith("entries.")),

@@ -16,6 +16,7 @@ import type { StaffAccount } from "@/domain/settings";
 import { formatDateTimeShort } from "@/lib/format";
 
 import { runAction } from "../shared/action-client";
+import { focusFirstInvalid } from "../shared/focus-invalid";
 import { partitionFieldErrors } from "../shared/field-errors";
 import { readCsrfCookie } from "../shared/csrf";
 import { othersLogoutNotice } from "./others-logout";
@@ -128,6 +129,7 @@ export function AccountCard({ account, providers = [], notice = null }: AccountC
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (inFlight.current) return;
+    const form = event.currentTarget;
     inFlight.current = true;
     setBusy(true);
     setErrors({});
@@ -139,6 +141,7 @@ export function AccountCard({ account, providers = [], notice = null }: AccountC
       const { fieldErrors, formError: message } = partitionFieldErrors(result, PASSWORD_FIELDS);
       setErrors(fieldErrors);
       setFormError(message);
+      focusFirstInvalid(form);
       return;
     }
     setValues(EMPTY);

@@ -47,6 +47,7 @@ export async function cancelOrder(orderId: number, reason: string): Promise<Acti
         amount: order.total,
         requestedAt: at,
         updatedAt: at,
+        ...(order.payment.provider === "payme" ? { manualReason: "payme" as const } : {}),
       }
     : null;
   const reversals = order.cashback

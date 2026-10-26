@@ -1,13 +1,16 @@
-import type {
-  CustomerRef,
-  Order,
-  OrderCashbackEntry,
-  OrderEvent,
-  OrderStatus,
-  OrderSummary,
-  PaymentProvider,
-  Refund,
-  Shipment,
+import {
+  manualRefundReason,
+  MANUAL_REFUND_NOTE,
+  type CustomerRef,
+  type ManualRefundReason,
+  type Order,
+  type OrderCashbackEntry,
+  type OrderEvent,
+  type OrderStatus,
+  type OrderSummary,
+  type PaymentProvider,
+  type Refund,
+  type Shipment,
 } from "@/domain/order";
 import { formatNumber, formatSom } from "@/lib/format";
 
@@ -186,6 +189,34 @@ const via = (d: EventData): string => {
 const pushSuffix = (d: EventData) => (flag(d, "push_sent") ? " · mijozga push yuborildi" : "");
 const actorName = (event: ApiOrderEvent) => event.actor?.display_name || "Administrator";
 
+/** A manual refund's reason (§4: absent on M1 rows → `payme`); `null` for an automatic one. */
+const manualReasonOf = (d: EventData): ManualRefundReason | "unknown" | null =>
+  flag(d, "manual") ? (manualRefundReason(d.manual_reason) ?? "unknown") : null;
+
+/** §5.1 note of `refund_requested`: by `manual_reason`, a reason added later reads as "manual". */
+const manualSuffix = (d: EventData): string => {
+  const reason = manualReasonOf(d);
+  if (reason === null) return "";
+  return reason === "unknown" ? " · qo‘lda qaytariladi" : ` · ${MANUAL_REFUND_NOTE[reason]}`;
+};
+
+/** Refund id → the reason its manual `refund_requested` event names (folded rows included). */
+export function manualRefundReasons(
+  history: ReadonlyArray<ApiOrderEvent>,
+): Map<number, ManualRefundReason> {
+  const reasons = new Map<number, ManualRefundReason>();
+  for (const event of history) {
+    if (event.type !== "refund_requested") continue;
+    const d = dataOf(event);
+    const refundId = num(d, "refund_id");
+    const reason = manualReasonOf(d);
+    if (refundId !== undefined && reason !== null && reason !== "unknown") {
+      reasons.set(refundId, reason);
+    }
+  }
+  return reasons;
+}
+
 export const STATUS_TITLE: Record<OrderStatus, string> = {
   awaiting_payment: "To‘lov kutilmoqda",
   processing: "Jarayonda",
@@ -323,9 +354,7 @@ function describeEvent(
     case "refund_requested":
       return {
         title: "To‘lov qaytarish so‘raldi",
-        note:
-          `${provider(d)} · ${formatSom(num(d, "amount") ?? 0)}` +
-          (flag(d, "manual") ? " · Payme kabinetida qo‘lda qaytariladi" : ""),
+        note: `${provider(d)} · ${formatSom(num(d, "amount") ?? 0)}${manualSuffix(d)}`,
       };
     case "refund_succeeded":
       return {
@@ -359,6 +388,7 @@ export interface MapOrderOptions {
 
 export function mapOrder(api: ApiOrderDetail, options: MapOrderOptions = {}): Order {
   const imageUrl = options.imageUrl ?? ((url: string) => url);
+  const reasons = manualRefundReasons(api.history);
   return {
     ...mapOrderSummary(api),
     payment: {
@@ -382,7 +412,11 @@ export function mapOrder(api: ApiOrderDetail, options: MapOrderOptions = {}): Or
     })),
     deliveryFee: api.delivery_fee,
     cashbackUsed: api.cashback_used,
-    refunds: api.refunds.map(mapRefund),
+    refunds: api.refunds.map((refund) => {
+      const mapped = mapRefund(refund);
+      const reason = reasons.get(refund.id);
+      return reason ? { ...mapped, manualReason: reason } : mapped;
+    }),
     cashbackHold: api.cashback_hold
       ? {
           amount: api.cashback_hold.amount,

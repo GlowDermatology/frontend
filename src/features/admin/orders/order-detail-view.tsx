@@ -9,7 +9,7 @@ import { ActionMenu, type ActionMenuItem } from "@/components/ui/menu";
 import { useToast } from "@/components/ui/toast";
 import { changeOrderStatus, loadOrder, retryShipment } from "@/data/orders.actions";
 import type { ActionResult } from "@/data/types";
-import { REFUND_STATE_LABEL, shipmentPending, type Order, type OrderStatus } from "@/domain/order";
+import { refundStateLine, shipmentPending, type Order, type OrderStatus } from "@/domain/order";
 import { cn } from "@/lib/cn";
 import { formatDateTimeLong } from "@/lib/format";
 
@@ -329,7 +329,7 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
           toast({
             title: "Buyurtma bekor qilindi",
             description: newRefund
-              ? REFUND_STATE_LABEL[refund.state]
+              ? refundStateLine(refund)
               : "Band qilingan mahsulotlar bo‘shatildi",
           });
         }}

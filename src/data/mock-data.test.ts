@@ -62,6 +62,27 @@ describe("mock dataset", () => {
     expect(customer && ledgerBalance(customer.ledger)).toBe(48_600);
   });
 
+  it("keeps a manual refund for each of the three manual reasons (§4, M2)", async () => {
+    const { PAYMENTS } = await import("./mock/payments");
+    const manual = PAYMENTS.filter((p) => p.refunds[0]?.state === "manual_required");
+    const orders = await Promise.all(manual.map((p) => getOrder(p.orderId)));
+    expect(orders.map((o) => [o?.payment.provider, o?.refunds[0]?.manualReason]).sort()).toEqual([
+      ["click", "fake_mode"],
+      ["click", "no_paydoc"],
+      ["payme", "payme"],
+    ]);
+    // The late capture: the order stays cancelled, its request is a history row of its own.
+    const late = orders.find((o) => o?.refunds[0]?.manualReason === "fake_mode")!;
+    expect(late.cancellation?.reason).toBe("reservation_expired");
+    expect(late.cashback).toEqual([]);
+    expect(late.history[0]).toMatchObject({
+      title: "To‘lov qaytarish so‘raldi",
+      source: "system",
+    });
+    expect(late.history[0]!.note).toMatch(/ · Click sinov rejimida · qo‘lda to‘lanadi$/);
+    expect(late.history.map((e) => e.title)).not.toContain("Jarayonda");
+  });
+
   it("builds a coherent card for every customer who placed an order", async () => {
     const customer = await getCustomer("1");
     expect(customer?.name).toBe("Sherzod Qodirov");

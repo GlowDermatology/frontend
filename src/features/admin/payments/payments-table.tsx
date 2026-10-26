@@ -13,7 +13,7 @@ import { ScrollRegion } from "@/components/ui/scroll-region";
 import { useToast } from "@/components/ui/toast";
 import { resolveRefund, retryRefund } from "@/data/payments.actions";
 import type { ActionResult } from "@/data/types";
-import { REFUND_STATE_LABEL, type Refund } from "@/domain/order";
+import { refundStateLine, type Refund } from "@/domain/order";
 import { refundOperations, type PaymentRecord } from "@/domain/payment";
 import { formatDateTimeShort, formatNumber, formatPhone, formatSom } from "@/lib/format";
 
@@ -44,9 +44,14 @@ function dialogCopy(op: RefundOperation): { title: string; body: string; confirm
     };
   }
   if (op.state === "succeeded") {
+    // A manual Click refund is paid to the customer outside Click (§5.1, M2).
+    const check =
+      op.refund.state === "manual_required" && op.refund.provider === "click"
+        ? `${amount} mijozga qo‘lda to‘langanini tekshirdingizmi?`
+        : `${provider} kabinetida ${amount} mijozga qaytarilganini tekshirdingizmi?`;
     return {
       title: "Qaytarish bajarildimi?",
-      body: `Buyurtma №${op.payment.orderId}: ${provider} kabinetida ${amount} mijozga qaytarilganini tekshirdingizmi? Qaytarish «Qaytarildi» deb yopiladi.`,
+      body: `Buyurtma №${op.payment.orderId}: ${check} Qaytarish «Qaytarildi» deb yopiladi.`,
       confirm: "Qaytarildi deb belgilash",
     };
   }
@@ -77,7 +82,7 @@ function rowItems(
   return payment.refunds.flatMap((refund) => {
     const ops = refundOperations(refund, payment);
     const suffix = many ? ` · #${refund.id}` : "";
-    const hint = `${REFUND_STATE_LABEL[refund.state]} · ${formatSom(refund.amount)}`;
+    const hint = `${refundStateLine(refund)} · ${formatSom(refund.amount)}`;
     const items: ActionMenuItem[] = [];
     if (ops.retry) {
       items.push({
@@ -120,8 +125,11 @@ function RefundSummary({ refunds }: { refunds: ReadonlyArray<Refund> }) {
     );
   }
   return (
-    <span className="flex flex-col items-start gap-1">
+    <span className="flex max-w-[240px] flex-col items-start gap-1">
       <RefundStateBadge state={newest.state} />
+      {newest.state === "manual_required" && (
+        <span className="text-[12px] leading-4 text-ink">{refundStateLine(newest)}</span>
+      )}
       <span className="text-[12px] text-ink-muted tabular-nums">
         {formatSom(newest.amount)}
         {refunds.length > 1 && ` · jami ${refunds.length} ta`}

@@ -111,6 +111,16 @@ export const REFUND_STATES = [
 
 export type RefundState = (typeof REFUND_STATES)[number];
 
+/**
+ * Why a refund was created `manual_required` (contract §4
+ * `refund_requested.manual_reason`, M2): Payme refunds are cabinet refunds;
+ * a Click payment without a Click payment id (`no_paydoc`, seeded or legacy
+ * rows) or a Click port that is fake under the production settings
+ * (`fake_mode`) is paid out by hand and closed with "Qaytarildi".
+ */
+export const MANUAL_REFUND_REASONS = ["payme", "no_paydoc", "fake_mode"] as const;
+export type ManualRefundReason = (typeof MANUAL_REFUND_REASONS)[number];
+
 /** A refund of the order's payment (contract §2.2 `Refund`). */
 export interface Refund {
   id: number;
@@ -121,17 +131,64 @@ export interface Refund {
   updatedAt: string;
   /** Set once the refund succeeded. */
   completedAt?: string;
+  /**
+   * Why the refund was created `manual_required`, from its `refund_requested`
+   * event. Only the order detail reads the events, so the payments board
+   * never has it.
+   */
+  manualReason?: ManualRefundReason;
 }
 
-/** The line under the payment card for the newest refund (contract §5.1). */
+/**
+ * Short, provider-neutral names of the refund states, for the payments
+ * filter and the state badges. `manual_required` is a Click refund too since
+ * M2, so its name does not say Payme; the instruction is `refundStateLine`.
+ */
 export const REFUND_STATE_LABEL: Record<RefundState, string> = {
   requested: "Qaytarish so‘raldi",
   submitting: "Qaytarilmoqda",
   succeeded: "Qaytarildi",
   failed: "Qaytarib bo‘lmadi",
-  manual_required: "Payme kabinetida qaytarish kerak",
+  manual_required: "Qo‘lda qaytarish kerak",
   unknown: "Holat noma’lum · tekshiring",
 };
+
+/** The §5.1 line of a `manual_required` refund, by provider (never assume Payme). */
+export const MANUAL_REFUND_LINE: Record<PaymentProvider, string> = {
+  payme: "Payme kabinetida qaytarish kerak",
+  click: "Mijozga qo‘lda to‘lang, so‘ng «Qaytarildi» deb belgilang",
+};
+
+/**
+ * The refund state line (contract §5.1 "Refund state", §7 item 3): chosen by
+ * state **and** provider, since a `manual_required` refund is a Click one
+ * when Click cannot return the money itself.
+ */
+export function refundStateLine(refund: Pick<Refund, "state" | "provider">): string {
+  return refund.state === "manual_required"
+    ? MANUAL_REFUND_LINE[refund.provider]
+    : REFUND_STATE_LABEL[refund.state];
+}
+
+/**
+ * The note suffix of a manual `refund_requested` row by `manual_reason`
+ * (contract §5.1, without the leading " · ").
+ */
+export const MANUAL_REFUND_NOTE: Record<ManualRefundReason, string> = {
+  payme: "Payme kabinetida qo‘lda qaytariladi",
+  no_paydoc: "Click to‘lov raqami yo‘q · qo‘lda to‘lanadi",
+  fake_mode: "Click sinov rejimida · qo‘lda to‘lanadi",
+};
+
+/**
+ * `refund_requested.data.manual_reason` → the reason: absent or `null` (M1
+ * rows, written before the field existed) reads as `"payme"` (§4); an
+ * unknown value is `null`, so the screen says only that the refund is manual.
+ */
+export function manualRefundReason(value: unknown): ManualRefundReason | null {
+  if (value === undefined || value === null) return "payme";
+  return MANUAL_REFUND_REASONS.find((reason) => reason === value) ?? null;
+}
 
 /** Refund states an admin has to act on (dashboard `refunds_needing_action`). */
 export const REFUND_STATES_NEEDING_ACTION: ReadonlyArray<RefundState> = [

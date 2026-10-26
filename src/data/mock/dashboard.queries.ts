@@ -9,7 +9,7 @@ import { referenceNow } from "../config";
 import { getPendingAppointments } from "./appointments.queries";
 import { CUSTOMER_TOTALS, DASHBOARD_SERIES } from "./dashboard";
 import { countFailedShipments } from "./orders.queries";
-import { ORDER_SUMMARIES } from "./orders";
+import { isLateCapture, ORDER_SUMMARIES } from "./orders";
 import { PAYMENTS } from "./payments";
 import { getCatalogStats } from "./products.queries";
 
@@ -42,10 +42,10 @@ function bucketsFor(from: string, to: string): ApiDashboardBucket[] {
       return ms >= t && ms < t + step;
     };
     const orders = ORDER_SUMMARIES.filter((o) => inBucket(o.createdAt)).length;
-    const revenue = PAYMENTS.filter((p) => inBucket(p.confirmedAt) && p.status === "paid").reduce(
-      (sum, p) => sum + p.amount,
-      0,
-    );
+    // Late captures are money we did not honour (always refunded): never revenue (§2.10, M2).
+    const revenue = PAYMENTS.filter(
+      (p) => inBucket(p.confirmedAt) && p.status === "paid" && !isLateCapture({ id: p.orderId }),
+    ).reduce((sum, p) => sum + p.amount, 0);
     buckets.push({
       start: `${new Date(t + 5 * HOUR).toISOString().slice(0, 19)}+05:00`,
       orders,

@@ -3,7 +3,7 @@ import { paymentFilterParams } from "@/data/api/mappers/payments";
 import { exportRoute } from "@/data/export";
 import { csvDateTime } from "@/data/export-csv";
 import { filterPayments } from "@/data/mock/payments.queries";
-import { REFUND_STATE_LABEL } from "@/domain/order";
+import { refundStateLine } from "@/domain/order";
 import { parsePaymentQuery } from "@/features/admin/payments/query";
 import { PAYMENT_STATUS_META, PROVIDER_LABEL } from "@/features/admin/shared/status";
 
@@ -51,7 +51,7 @@ export async function GET(request: Request) {
         p.transactionId ?? "",
         csvDateTime(p.createdAt),
         csvDateTime(p.confirmedAt ?? null),
-        p.refunds[0] ? REFUND_STATE_LABEL[p.refunds[0].state] : "",
+        p.refunds[0] ? refundStateLine(p.refunds[0]) : "",
       ]),
     }),
   });

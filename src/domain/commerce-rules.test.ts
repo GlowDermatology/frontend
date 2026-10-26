@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { customBucket, rangeDays, validateCustomRange } from "./dashboard";
 import {
+  manualRefundReason,
   orderActions,
+  refundStateLine,
+  REFUND_STATE_LABEL,
   shipmentPending,
   type Refund,
   type RefundState,
@@ -124,6 +127,35 @@ describe("refundOperations (contract §2.12)", () => {
     // Closed siblings (succeeded, failed) do not block it.
     expect(refundOperations({ state: "failed" }, paid("failed", "failed")).retry).toBe(true);
     expect(hasOpenRefund(paid("failed", "succeeded"))).toBe(false);
+  });
+});
+
+describe("refund state line (contract §5.1, §7 item 3, M2)", () => {
+  it("chooses the line by state and provider: a manual Click refund is paid by hand", () => {
+    expect(refundStateLine({ state: "manual_required", provider: "payme" })).toBe(
+      "Payme kabinetida qaytarish kerak",
+    );
+    expect(refundStateLine({ state: "manual_required", provider: "click" })).toBe(
+      "Mijozga qo‘lda to‘lang, so‘ng «Qaytarildi» deb belgilang",
+    );
+    expect(refundStateLine({ state: "requested", provider: "click" })).toBe("Qaytarish so‘raldi");
+    expect(refundStateLine({ state: "submitting", provider: "click" })).toBe("Qaytarilmoqda");
+    expect(refundStateLine({ state: "succeeded", provider: "payme" })).toBe("Qaytarildi");
+    expect(refundStateLine({ state: "failed", provider: "click" })).toBe("Qaytarib bo‘lmadi");
+    expect(refundStateLine({ state: "unknown", provider: "click" })).toBe(
+      "Holat noma’lum · tekshiring",
+    );
+    // The filter and badge name never assumes Payme.
+    expect(REFUND_STATE_LABEL.manual_required).not.toMatch(/Payme/);
+  });
+
+  it("reads manual_reason, an absent one (M1 rows) as Payme", () => {
+    expect(manualRefundReason("no_paydoc")).toBe("no_paydoc");
+    expect(manualRefundReason("fake_mode")).toBe("fake_mode");
+    expect(manualRefundReason("payme")).toBe("payme");
+    expect(manualRefundReason(undefined)).toBe("payme");
+    expect(manualRefundReason(null)).toBe("payme");
+    expect(manualRefundReason("later_reason")).toBeNull();
   });
 });
 

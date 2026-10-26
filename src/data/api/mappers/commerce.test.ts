@@ -10,6 +10,7 @@ import { dashboardParams, mapDashboard, windowBuckets } from "./dashboard";
 import {
   foldOrderHistory,
   formatPercent,
+  manualRefundReasons,
   mapOrder,
   mapOrderCashback,
   mapOrderSummary,
@@ -209,6 +210,67 @@ describe("history folding (§5.1)", () => {
       title: "Kuryerga topshirildi",
       note: "Dilnoza · holat qo‘lda o‘zgartirildi",
     });
+  });
+});
+
+describe("manual refunds by reason and provider (§4, §5.1, M2)", () => {
+  const requested = (id: number, data: Record<string, unknown>) =>
+    event(id, "refund_requested", { refund_id: id, amount: 120_000, ...data });
+
+  it("words a manual refund request by its manual_reason, an M1 row as Payme", () => {
+    const rows = foldOrderHistory(
+      [
+        requested(6, { provider: "click", manual: true, manual_reason: "fake_mode" }),
+        requested(5, { provider: "click", manual: true, manual_reason: "no_paydoc" }),
+        requested(4, { provider: "payme", manual: true, manual_reason: "payme" }),
+        requested(3, { provider: "payme", manual: true }),
+        requested(2, { provider: "click", manual: false, manual_reason: null }),
+        requested(1, { provider: "click", manual: true, manual_reason: "later_reason" }),
+      ],
+      "delivery",
+    );
+    expect(rows.map((r) => plain(r.note))).toEqual([
+      "Click · 120 000 so‘m · Click sinov rejimida · qo‘lda to‘lanadi",
+      "Click · 120 000 so‘m · Click to‘lov raqami yo‘q · qo‘lda to‘lanadi",
+      "Payme · 120 000 so‘m · Payme kabinetida qo‘lda qaytariladi",
+      "Payme · 120 000 so‘m · Payme kabinetida qo‘lda qaytariladi",
+      "Click · 120 000 so‘m",
+      "Click · 120 000 so‘m · qo‘lda qaytariladi",
+    ]);
+  });
+
+  it("gives the order's refunds the reason of their request, also when it is folded", () => {
+    const refund = (id: number, provider: "click" | "payme", state: string) => ({
+      id,
+      state,
+      provider,
+      amount: 120_000,
+      requested_at: "2026-10-24T12:00:00+05:00",
+      updated_at: "2026-10-24T12:00:00+05:00",
+      completed_at: null,
+    });
+    const order = mapOrder({
+      ...order10248,
+      status: "cancelled",
+      refunds: [refund(12, "click", "manual_required"), refund(11, "click", "failed")],
+      history: [
+        requested(12, { provider: "click", manual: true, manual_reason: "no_paydoc" }),
+        event(
+          10,
+          "cancelled",
+          { reason: "admin", note: null, refund_id: 11, cashback_reversed: false },
+          { source: "admin", status_after: "cancelled" },
+        ),
+        requested(11, { provider: "click", manual: false, manual_reason: null }),
+      ],
+    } as unknown as ApiOrderDetail);
+    expect(order.refunds.map((r) => [r.id, r.manualReason])).toEqual([
+      [12, "no_paydoc"],
+      [11, undefined],
+    ]);
+    expect(manualRefundReasons([requested(3, { provider: "payme", manual: true })])).toEqual(
+      new Map([[3, "payme"]]),
+    );
   });
 });
 

@@ -10,8 +10,9 @@ import { Card, CardTitle, DetailRow } from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
 import {
   itemsSubtotal,
+  MANUAL_REFUND_NOTE,
   promoSubtotal,
-  REFUND_STATE_LABEL,
+  refundStateLine,
   shipmentPending,
   type EventSource,
   type Order,
@@ -272,8 +273,21 @@ export function OrderCustomerCard({ order }: { order: Order }) {
   );
 }
 
+/**
+ * Why the newest refund is paid out by hand, when the order's history says
+ * so and the line does not already: a Click refund without a Click payment
+ * id or with Click in test mode (§4 `manual_reason`, §5.1 note). A Payme
+ * refund's line already names the Payme cabinet.
+ */
+function manualReasonNote(refund: Order["refunds"][number] | undefined): string | null {
+  if (refund?.state !== "manual_required" || !refund.manualReason) return null;
+  return refund.manualReason === "payme" ? null : MANUAL_REFUND_NOTE[refund.manualReason];
+}
+
 export function OrderPaymentCard({ order }: { order: Order }) {
   const { payment } = order;
+  const newest = order.refunds[0];
+  const reasonNote = manualReasonNote(newest);
   return (
     <Card aria-labelledby="order-payment-title" className="flex flex-col gap-2.5">
       <div className="flex items-center justify-between gap-3">
@@ -300,13 +314,16 @@ export function OrderPaymentCard({ order }: { order: Order }) {
           </DetailRow>
         )}
       </dl>
-      {order.refunds.length > 0 && (
+      {newest && (
         <>
           <span aria-hidden="true" className="h-px bg-line" />
           <p className="m-0 flex items-center justify-between gap-3 text-body-sm leading-5 font-bold text-ink">
-            <span>{REFUND_STATE_LABEL[order.refunds[0]!.state]}</span>
-            <Badge tone={REFUND_TONE[order.refunds[0]!.state]}>Qaytarish</Badge>
+            <span>{refundStateLine(newest)}</span>
+            <Badge tone={REFUND_TONE[newest.state]}>Qaytarish</Badge>
           </p>
+          {reasonNote && (
+            <p className="m-0 text-[12px] leading-[18px] text-ink-muted">{reasonNote}</p>
+          )}
           <ul aria-label="Qaytarishlar" className="m-0 flex list-none flex-col gap-1.5 p-0">
             {order.refunds.map((refund) => (
               <li
@@ -317,7 +334,7 @@ export function OrderPaymentCard({ order }: { order: Order }) {
                   <time dateTime={refund.requestedAt}>
                     {formatDateTimeShort(refund.requestedAt)}
                   </time>{" "}
-                  · {REFUND_STATE_LABEL[refund.state]}
+                  · {refundStateLine(refund)}
                 </span>
                 <span className="font-bold text-ink tabular-nums">{formatSom(refund.amount)}</span>
               </li>

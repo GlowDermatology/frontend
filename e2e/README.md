@@ -4,7 +4,9 @@ Playwright specs that drive the admin panel against a real backend. They are not
 they need a running Django API in fake integrations mode with the demo dataset.
 
 ```bash
-# backend (repository GlowDermatology/backend), local settings, SEED_ADMIN_PASSWORD set in .env
+# backend (repository GlowDermatology/backend), local settings. Django reads os.environ only: export the
+# .env first, or seed_demo silently falls back to the demo password instead of SEED_ADMIN_PASSWORD.
+set -a; . ./.env; set +a
 uv run python manage.py seed_demo --reset      # repeatable dataset; DEBUG or --force only
 uv run python manage.py runserver 127.0.0.1:8000
 

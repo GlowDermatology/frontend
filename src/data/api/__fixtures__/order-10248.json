@@ -1,0 +1,183 @@
+{
+  "id": 10248,
+  "customer": {
+    "id": 5,
+    "name": "Malika Karimova",
+    "phone": "+998901234567"
+  },
+  "created_at": "2026-10-23T14:02:00+05:00",
+  "total": 784400,
+  "status": "handed_to_courier",
+  "payment": {
+    "status": "paid",
+    "provider": "click",
+    "amount": 784400,
+    "transaction_id": "CLK-7741920385",
+    "confirmed_at": "2026-10-23T14:05:00+05:00"
+  },
+  "fulfilment": "delivery",
+  "shipment": {
+    "state": "created",
+    "tracking_number": "48213907",
+    "tariff": 25000,
+    "updated_at": "2026-10-23T16:40:00+05:00",
+    "via": "webhook"
+  },
+  "cancellation": null,
+  "channel": "ios",
+  "address": "Toshkent, Chilonzor tumani, 9-kvartal, 12-uy, 45-xonadon",
+  "items": [
+    {
+      "product_id": 4,
+      "name": "Seramidli namlantiruvchi krem",
+      "billz_id": "4607012345",
+      "image_url": "http://127.0.0.1:8000/media/products/4/98967745a01b7d3b_mkY6nkg.webp",
+      "quantity": 1,
+      "unit_price": 312000,
+      "promo": false
+    },
+    {
+      "product_id": 2,
+      "name": "Quyoshdan himoya kremi SPF 50",
+      "billz_id": "4607012401",
+      "image_url": "http://127.0.0.1:8000/media/products/2/f0eb68b38a2ce813_tPPFcPh.webp",
+      "quantity": 1,
+      "unit_price": 240000,
+      "promo": true
+    },
+    {
+      "product_id": 3,
+      "name": "Yumshoq tozalovchi ko\u2018pik",
+      "billz_id": "4607012388",
+      "image_url": "http://127.0.0.1:8000/media/products/3/b524f0fd9d214ed8_rZxfa4z.webp",
+      "quantity": 2,
+      "unit_price": 128000,
+      "promo": false
+    }
+  ],
+  "items_subtotal": 808000,
+  "promo_subtotal": 240000,
+  "delivery_fee": 25000,
+  "cashback_used": 48600,
+  "refunds": [],
+  "cashback_hold": null,
+  "cashback": [
+    {
+      "ledger_entry_id": 120,
+      "kind": "debit",
+      "amount": -48600,
+      "at": "2026-10-23T14:05:00+05:00",
+      "base": null,
+      "percent": null,
+      "reverses_id": null
+    },
+    {
+      "ledger_entry_id": 121,
+      "kind": "credit",
+      "amount": 5680,
+      "at": "2026-10-23T14:05:00+05:00",
+      "base": 568000,
+      "percent": "1.00",
+      "reverses_id": null
+    }
+  ],
+  "history": [
+    {
+      "id": 7,
+      "type": "handed_to_courier",
+      "at": "2026-10-23T16:40:00+05:00",
+      "source": "bts",
+      "status_after": "handed_to_courier",
+      "actor": null,
+      "data": {
+        "via": "webhook",
+        "push_sent": true,
+        "bts_status": "200"
+      }
+    },
+    {
+      "id": 6,
+      "type": "shipment_created",
+      "at": "2026-10-23T14:06:00+05:00",
+      "source": "system",
+      "status_after": null,
+      "actor": null,
+      "data": {
+        "manual": false,
+        "tariff": 25000,
+        "tracking_number": "48213907"
+      }
+    },
+    {
+      "id": 5,
+      "type": "billz_sale_recorded",
+      "at": "2026-10-23T14:05:20+05:00",
+      "source": "system",
+      "status_after": null,
+      "actor": null,
+      "data": {
+        "billz_order_id": "0d6f6c1e-5a7b-4c1e-9a43-2f1d8e3b7a10"
+      }
+    },
+    {
+      "id": 4,
+      "type": "cashback_credited",
+      "at": "2026-10-23T14:05:00+05:00",
+      "source": "system",
+      "status_after": null,
+      "actor": null,
+      "data": {
+        "base": 568000,
+        "amount": 5680,
+        "percent": "1.00",
+        "policy_version": 3,
+        "ledger_entry_id": 121
+      }
+    },
+    {
+      "id": 3,
+      "type": "payment_confirmed",
+      "at": "2026-10-23T14:05:00+05:00",
+      "source": "system",
+      "status_after": "processing",
+      "actor": null,
+      "data": {
+        "amount": 784400,
+        "provider": "click",
+        "transaction_id": "CLK-7741920385",
+        "reservation_converted": true
+      }
+    },
+    {
+      "id": 2,
+      "type": "reservation_created",
+      "at": "2026-10-23T14:02:00+05:00",
+      "source": "system",
+      "status_after": null,
+      "actor": null,
+      "data": {
+        "minutes": 15,
+        "expires_at": "2026-10-23T14:17:00+05:00",
+        "item_count": 3
+      }
+    },
+    {
+      "id": 1,
+      "type": "order_created",
+      "at": "2026-10-23T14:02:00+05:00",
+      "source": "system",
+      "status_after": "awaiting_payment",
+      "actor": null,
+      "data": {
+        "total": 784400,
+        "channel": "ios",
+        "item_count": 3
+      }
+    }
+  ],
+  "available_actions": {
+    "transitions": ["delivered"],
+    "cancel": true,
+    "retry_shipment": false
+  }
+}

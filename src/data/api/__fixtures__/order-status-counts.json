@@ -1,0 +1,8 @@
+{
+  "all": 252,
+  "awaiting_payment": 6,
+  "processing": 12,
+  "handed_to_courier": 9,
+  "delivered": 213,
+  "cancelled": 12
+}

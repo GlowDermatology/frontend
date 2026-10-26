@@ -1,0 +1,140 @@
+{
+  "count": 252,
+  "page": 1,
+  "page_size": 6,
+  "page_count": 42,
+  "results": [
+    {
+      "id": 10252,
+      "customer": {
+        "id": 1,
+        "name": "Sherzod Qodirov",
+        "phone": "+998973014418"
+      },
+      "created_at": "2026-10-24T11:42:00+05:00",
+      "total": 1128000,
+      "status": "awaiting_payment",
+      "payment": {
+        "status": "pending",
+        "provider": "payme"
+      },
+      "fulfilment": "delivery",
+      "shipment": {
+        "state": "not_created",
+        "pending": false
+      },
+      "cancellation": null
+    },
+    {
+      "id": 10251,
+      "customer": {
+        "id": 2,
+        "name": "Aziza Tursunova",
+        "phone": "+998935551209"
+      },
+      "created_at": "2026-10-24T11:20:00+05:00",
+      "total": 456000,
+      "status": "processing",
+      "payment": {
+        "status": "paid",
+        "provider": "click"
+      },
+      "fulfilment": "pickup",
+      "shipment": {
+        "state": "not_required"
+      },
+      "cancellation": null
+    },
+    {
+      "id": 10250,
+      "customer": {
+        "id": 3,
+        "name": "Gulnora Ismoilova",
+        "phone": "+998917072030"
+      },
+      "created_at": "2026-10-24T10:05:00+05:00",
+      "total": 312000,
+      "status": "processing",
+      "payment": {
+        "status": "paid",
+        "provider": "payme"
+      },
+      "fulfilment": "delivery",
+      "shipment": {
+        "state": "failed",
+        "last_attempt_at": "2026-10-24T10:09:00+05:00",
+        "attempts": 1,
+        "pending": false
+      },
+      "cancellation": null
+    },
+    {
+      "id": 10249,
+      "customer": {
+        "id": 4,
+        "name": "Bekzod Rasulov",
+        "phone": "+998904186602"
+      },
+      "created_at": "2026-10-23T18:30:00+05:00",
+      "total": 240000,
+      "status": "cancelled",
+      "payment": {
+        "status": "failed",
+        "provider": "click"
+      },
+      "fulfilment": "delivery",
+      "shipment": {
+        "state": "not_created",
+        "pending": false
+      },
+      "cancellation": {
+        "reason": "reservation_expired",
+        "note": null
+      }
+    },
+    {
+      "id": 10248,
+      "customer": {
+        "id": 5,
+        "name": "Malika Karimova",
+        "phone": "+998901234567"
+      },
+      "created_at": "2026-10-23T14:02:00+05:00",
+      "total": 784400,
+      "status": "handed_to_courier",
+      "payment": {
+        "status": "paid",
+        "provider": "click"
+      },
+      "fulfilment": "delivery",
+      "shipment": {
+        "state": "created",
+        "tracking_number": "48213907",
+        "tariff": 25000,
+        "updated_at": "2026-10-23T16:40:00+05:00",
+        "via": "webhook"
+      },
+      "cancellation": null
+    },
+    {
+      "id": 10247,
+      "customer": {
+        "id": 6,
+        "name": "Nilufar Saidova",
+        "phone": "+998942203175"
+      },
+      "created_at": "2026-10-23T12:15:00+05:00",
+      "total": 698000,
+      "status": "delivered",
+      "payment": {
+        "status": "paid",
+        "provider": "payme"
+      },
+      "fulfilment": "pickup",
+      "shipment": {
+        "state": "not_required"
+      },
+      "cancellation": null
+    }
+  ]
+}

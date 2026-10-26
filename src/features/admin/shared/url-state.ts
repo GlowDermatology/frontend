@@ -33,3 +33,12 @@ export function toQueryString(
   const query = params.toString();
   return query ? `?${query}` : "";
 }
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** A real calendar day as `YYYY-MM-DD`, or `undefined` (malformed values are dropped, never sent on). */
+export function isoDateParam(value: string | undefined): string | undefined {
+  if (!value || !ISO_DATE.test(value)) return undefined;
+  const ms = Date.parse(`${value}T00:00:00Z`);
+  return !Number.isNaN(ms) && new Date(ms).toISOString().slice(0, 10) === value ? value : undefined;
+}

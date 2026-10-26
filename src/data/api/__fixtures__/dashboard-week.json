@@ -1,0 +1,60 @@
+{
+  "range": "week",
+  "to": "2026-10-26",
+  "bucket": "day",
+  "buckets": [
+    {
+      "start": "2026-10-20T00:00:00+05:00",
+      "revenue": 612000,
+      "orders": 4
+    },
+    {
+      "start": "2026-10-21T00:00:00+05:00",
+      "revenue": 0,
+      "orders": 2
+    },
+    {
+      "start": "2026-10-22T00:00:00+05:00",
+      "revenue": 1309000,
+      "orders": 4
+    },
+    {
+      "start": "2026-10-23T00:00:00+05:00",
+      "revenue": 3022400,
+      "orders": 4
+    },
+    {
+      "start": "2026-10-24T00:00:00+05:00",
+      "revenue": 768000,
+      "orders": 3
+    },
+    {
+      "start": "2026-10-25T00:00:00+05:00",
+      "revenue": 0,
+      "orders": 0
+    },
+    {
+      "start": "2026-10-26T00:00:00+05:00",
+      "revenue": 0,
+      "orders": 0
+    }
+  ],
+  "previous_period_orders": 22,
+  "stats": {
+    "orders": 17,
+    "revenue": 5711400,
+    "new_customers": 0,
+    "total_customers": 432,
+    "deleted_customers": 6,
+    "out_of_stock": 7
+  },
+  "attention": {
+    "bts_failed": 1,
+    "pending_appointments": 1,
+    "next_appointment_at": "2026-10-26T12:00:00+05:00",
+    "new_from_billz": 4,
+    "refunds_needing_action": 0
+  },
+  "generated_at": "2026-10-26T10:54:46+05:00",
+  "from": "2026-10-20"
+}

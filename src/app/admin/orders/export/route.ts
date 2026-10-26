@@ -1,5 +1,8 @@
-import { verifyStaff } from "@/data/auth";
-import { exportOrders } from "@/data/orders";
+import { parseExportFormat } from "@/data/api/mappers/export";
+import { orderExportParams } from "@/data/api/mappers/orders";
+import { exportRoute } from "@/data/export";
+import { csvDateTime } from "@/data/export-csv";
+import { exportOrders } from "@/data/mock/orders.queries";
 import { parseOrderQuery } from "@/features/admin/orders/query";
 import {
   FULFILMENT_LABEL,
@@ -7,51 +10,46 @@ import {
   PAYMENT_STATUS_META,
   PROVIDER_LABEL,
 } from "@/features/admin/shared/status";
-import { formatDateTimeShort } from "@/lib/format";
 
-/** CSV export of the filtered orders list (opens in Excel; UTF-8 with BOM). */
+/**
+ * Orders export (contract §1.8 `buyurtmalar`): streams
+ * `GET orders/?export=csv|xlsx` with the list's filters and ordering in api
+ * mode; builds the same CSV from the fixtures in mock mode.
+ */
 export async function GET(request: Request) {
-  // A download, not a page: answer 401 JSON (contract §1.6) instead of redirecting.
-  const session = await verifyStaff();
-  if (!session.ok) {
-    return Response.json(
-      { code: "not_authenticated", message: "Avtorizatsiya talab qilinadi.", errors: [] },
-      { status: 401, headers: { "Cache-Control": "no-store" } },
-    );
-  }
   const params = Object.fromEntries(new URL(request.url).searchParams);
-  const orders = await exportOrders(parseOrderQuery(params));
-  const escape = (value: string | number) => `"${String(value).replace(/"/g, '""')}"`;
-  const header = [
-    "№",
-    "Mijoz",
-    "Telefon",
-    "Sana",
-    "Summa (so‘m)",
-    "To‘lov",
-    "Usul",
-    "Olish usuli",
-    "Holat",
-    "BTS",
-  ];
-  const rows = orders.map((o) => [
-    o.id,
-    o.customer.name,
-    o.customer.phone,
-    formatDateTimeShort(o.createdAt),
-    o.total,
-    PAYMENT_STATUS_META[o.payment.status].label,
-    PROVIDER_LABEL[o.payment.provider],
-    FULFILMENT_LABEL[o.fulfilment],
-    ORDER_STATUS_META[o.status].label,
-    o.shipment.state === "created" ? o.shipment.trackingNumber : "",
-  ]);
-  const csv = "﻿" + [header, ...rows].map((row) => row.map(escape).join(";")).join("\r\n");
-  return new Response(csv, {
-    headers: {
-      "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": 'attachment; filename="buyurtmalar.csv"',
-      "Cache-Control": "no-store",
-    },
+  const query = parseOrderQuery(params);
+  return exportRoute({
+    resource: "orders",
+    name: "buyurtmalar",
+    format: parseExportFormat(params.format),
+    apiParams: orderExportParams(query),
+    signal: request.signal,
+    mock: async () => ({
+      header: [
+        "№",
+        "Mijoz",
+        "Telefon",
+        "Sana",
+        "Summa (so‘m)",
+        "To‘lov",
+        "Usul",
+        "Olish usuli",
+        "Holat",
+        "BTS",
+      ],
+      rows: (await exportOrders(query)).map((o) => [
+        o.id,
+        o.customer.name,
+        o.customer.phone,
+        csvDateTime(o.createdAt),
+        o.total,
+        PAYMENT_STATUS_META[o.payment.status].label,
+        PROVIDER_LABEL[o.payment.provider],
+        FULFILMENT_LABEL[o.fulfilment],
+        ORDER_STATUS_META[o.status].label,
+        o.shipment.state === "created" ? o.shipment.trackingNumber : "",
+      ]),
+    }),
   });
 }

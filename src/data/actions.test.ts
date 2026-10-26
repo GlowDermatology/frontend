@@ -37,6 +37,7 @@ vi.mock("./api/client", () => ({
 import bannerFixture from "./api/__fixtures__/banner.json";
 import categoryErrorFixture from "./api/__fixtures__/category-error.json";
 import productFixture from "./api/__fixtures__/product-1.json";
+import { apiMutation } from "./action-guard";
 import { ApiError } from "./api/errors";
 import { mapProduct } from "./api/mappers/products";
 import type { ApiProduct } from "./api/types";
@@ -57,7 +58,10 @@ import { PRODUCTS } from "./mock/catalog";
 import { ORDER_SUMMARIES } from "./mock/orders";
 import { getOrder } from "./mock/orders.queries";
 import { sendNotification } from "./notifications.actions";
-import { cancelOrder, changeOrderStatus, retryShipment } from "./orders.actions";
+import { cancelOrder, changeOrderStatus, loadOrder, retryShipment } from "./orders.actions";
+import { resolveRefund, retryRefund } from "./payments.actions";
+import order10248Fixture from "./api/__fixtures__/order-10248.json";
+import paymentsPageFixture from "./api/__fixtures__/payments-page.json";
 import {
   deleteProductImage,
   importFromBillz,
@@ -211,9 +215,8 @@ describe("api mode (endpoints not wired yet)", () => {
     verifyStaff.mockResolvedValue({ ok: true, mode: "api", token: "t", sid: null });
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const notWired = { ok: false, error: "Bu amal API bilan hali ulanmagan." };
-    expect(await cancelOrder(10248, "mijoz so‘rovi bilan", KEY, CSRF)).toEqual(notWired);
-    expect(await changeOrderStatus(10248, "handed_to_courier", KEY, CSRF)).toEqual(notWired);
-    expect(await retryShipment(10248, KEY, CSRF)).toEqual(notWired);
+    // Every Server Action is wired (F2a–F2d); the guard's fallback for a missing call stays covered here.
+    expect(await apiMutation("probe")).toEqual(notWired);
     expect(refresh).not.toHaveBeenCalled();
     warn.mockRestore();
   });
@@ -647,7 +650,20 @@ describe("orders", () => {
       status: "cancelled",
     });
     expect(order.history[0]?.note).toContain("mijoz so‘rovi bilan");
-    if (before.payment.status === "paid") expect(order.payment.status).toBe("refunded");
+    // §7.3: the payment stays paid; a Click refund is requested (Payme: manual_required).
+    expect(order.payment.status).toBe(before.payment.status);
+    if (before.payment.status === "paid") {
+      expect(order.refunds[0]).toMatchObject({
+        state: before.payment.provider === "click" ? "requested" : "manual_required",
+        amount: before.total,
+        requestedAt: DEMO_NOW_ISO,
+      });
+    }
+    expect(order.availableActions).toEqual({
+      transitions: [],
+      cancel: false,
+      retryShipment: false,
+    });
   });
 
   it("cancelOrder reports an unknown order as not_found", async () => {
@@ -677,6 +693,7 @@ describe("orders", () => {
     expect(await changeOrderStatus(10248, "awaiting_payment", KEY, CSRF)).toEqual({
       ok: false,
       error: "Bu holatga o‘tib bo‘lmaydi.",
+      code: "invalid_transition",
     });
     const invalid = await changeOrderStatus(10248, "shipped" as never, KEY, CSRF);
     expect(invalid.ok).toBe(false);
@@ -684,7 +701,9 @@ describe("orders", () => {
   });
 
   it("retryShipment sets the shipment to created with a tracking number", async () => {
-    const failed = ORDER_SUMMARIES.find((o) => o.shipment.state === "failed");
+    const failed = ORDER_SUMMARIES.find(
+      (o) => o.shipment.state === "failed" && o.status === "processing",
+    );
     expect(failed).toBeDefined();
     if (!failed) return;
     const result = await retryShipment(failed.id, KEY, CSRF);
@@ -706,7 +725,8 @@ describe("orders", () => {
     if (created) {
       expect(await retryShipment(created.id, KEY, CSRF)).toEqual({
         ok: false,
-        error: "BTS buyurtmasi allaqachon yaratilgan.",
+        error: "BTS ga qayta yuborib bo‘lmaydi.",
+        code: "invalid_transition",
       });
     }
   });
@@ -1103,3 +1123,160 @@ describe("updateAppointment", () => {
     });
   });
 });
+
+/* --- orders / payments actions in api mode (F2d) --- */
+
+describe("api mode (order and refund actions wired)", () => {
+  const respond = (status: number, data: unknown) => ({ status, data, headers: new Headers() });
+  const conflict = (code: string, message: string, status = 409) =>
+    new ApiError(status, { code, message, errors: [], request_id: "r" });
+
+  beforeEach(() => {
+    process.env.GLOWDERMA_DATA_SOURCE = "api";
+    verifyStaff.mockResolvedValue({ ok: true, mode: "api", token: "t", sid: null });
+    apiFetch.mockReset();
+    refresh.mockReset();
+  });
+
+  it("cancelOrder posts the trimmed reason with the dialog's key and maps the order", async () => {
+    apiFetch.mockResolvedValueOnce(respond(200, order10248Fixture));
+    const result = await cancelOrder(10248, "  mijoz so‘rovi bilan  ", KEY, CSRF);
+    expect(apiFetch).toHaveBeenCalledWith(
+      "/api/v1/admin/orders/10248/cancel/",
+      expect.objectContaining({
+        method: "POST",
+        body: { reason: "mijoz so‘rovi bilan" },
+        token: "t",
+        idempotencyKey: KEY,
+      }),
+    );
+    expect(result.ok && result.data.id).toBe(10248);
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns the contract's refusals with their code and message, without a refresh", async () => {
+    apiFetch.mockRejectedValueOnce(
+      conflict("not_cancellable", "BTS buyurtmani bekor qilmadi: posilka kuryerda."),
+    );
+    expect(await cancelOrder(10248, "mijoz so‘rovi bilan", KEY, CSRF)).toEqual({
+      ok: false,
+      error: "BTS buyurtmani bekor qilmadi: posilka kuryerda.",
+      code: "not_cancellable",
+    });
+    apiFetch.mockRejectedValueOnce(
+      conflict("provider_unavailable", "Tashqi xizmat javob bermadi. Qayta urinib ko‘ring.", 503),
+    );
+    expect(await cancelOrder(10248, "mijoz so‘rovi bilan", KEY, CSRF)).toMatchObject({
+      ok: false,
+      code: "provider_unavailable",
+    });
+    apiFetch.mockRejectedValueOnce(
+      conflict("conflict", "Buyurtma boshqa amal bilan band. Birozdan so‘ng qayta urinib ko‘ring."),
+    );
+    expect(await changeOrderStatus(10248, "delivered", KEY, CSRF)).toEqual({
+      ok: false,
+      error: "Buyurtma boshqa amal bilan band. Birozdan so‘ng qayta urinib ko‘ring.",
+      code: "conflict",
+    });
+    apiFetch.mockRejectedValueOnce(
+      conflict("invalid_transition", "BTS ga qayta yuborib bo‘lmaydi."),
+    );
+    expect(await retryShipment(10248, KEY, CSRF)).toMatchObject({
+      ok: false,
+      code: "invalid_transition",
+    });
+    apiFetch.mockRejectedValueOnce(
+      new ApiError(400, {
+        code: "validation_error",
+        message: "Sababni kiriting.",
+        errors: [{ field: "reason", code: "min_length", message: "Kamida 3 ta belgi kiriting." }],
+        request_id: "r",
+      }),
+    );
+    expect(await cancelOrder(10248, "abc", KEY, CSRF)).toMatchObject({
+      ok: false,
+      error: "Sababni kiriting.",
+      fieldErrors: { reason: "Kamida 3 ta belgi kiriting." },
+    });
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("changeOrderStatus and retryShipment post their bodies; loadOrder reads without a key", async () => {
+    apiFetch.mockResolvedValue(respond(200, order10248Fixture));
+    await changeOrderStatus(10248, "delivered", KEY, CSRF);
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/orders/10248/transition/",
+      expect.objectContaining({ body: { status: "delivered" }, idempotencyKey: KEY }),
+    );
+    apiFetch.mockResolvedValueOnce(respond(202, order10248Fixture));
+    expect((await retryShipment(10248, KEY, CSRF)).ok).toBe(true);
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/orders/10248/retry-shipment/",
+      expect.objectContaining({ method: "POST", idempotencyKey: KEY }),
+    );
+    refresh.mockReset();
+    const loaded = await loadOrder(10248, CSRF);
+    expect(loaded.ok && loaded.data.availableActions.transitions).toEqual(["delivered"]);
+    expect(apiFetch).toHaveBeenLastCalledWith("/api/v1/admin/orders/10248/", { token: "t" });
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("refund retry and resolve post to the payment's refund with a key and map the row", async () => {
+    const row = paymentsPageFixture.results[0]!;
+    apiFetch.mockResolvedValue(respond(200, row));
+    const retried = await retryRefund(244, 9, KEY, CSRF);
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/payments/244/refunds/9/retry/",
+      expect.objectContaining({ method: "POST", idempotencyKey: KEY }),
+    );
+    expect(retried.ok && retried.data.orderId).toBe(10244);
+    await resolveRefund(244, 9, "succeeded", KEY, CSRF);
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/payments/244/refunds/9/resolve/",
+      expect.objectContaining({ body: { state: "succeeded" }, idempotencyKey: KEY }),
+    );
+    expect(refresh).toHaveBeenCalledTimes(2);
+
+    apiFetch.mockRejectedValueOnce(
+      conflict("invalid_transition", "Bu qaytarishni yakunlab bo‘lmaydi."),
+    );
+    expect(await resolveRefund(244, 9, "failed", KEY, CSRF)).toEqual({
+      ok: false,
+      error: "Bu qaytarishni yakunlab bo‘lmaydi.",
+      code: "invalid_transition",
+    });
+    const invalid = await resolveRefund(244, 9, "requested" as never, KEY, CSRF);
+    expect(invalid.ok).toBe(false);
+    if (!invalid.ok) expect(invalid.fieldErrors?.state).toBeDefined();
+  });
+});
+
+describe("refund actions in mock mode", () => {
+  it("retries a failed refund and resolves a manual one with the contract's refusals", async () => {
+    const { PAYMENTS } = await import("./mock/payments");
+    const failed = PAYMENTS.find((p) => p.refunds[0]?.state === "failed")!;
+    const manual = PAYMENTS.find((p) => p.refunds[0]?.state === "manual_required")!;
+    const settled = PAYMENTS.find((p) => p.refunds[0]?.state === "succeeded")!;
+
+    const retried = await retryRefund(failed.id, failed.refunds[0]!.id, KEY, CSRF);
+    expect(retried.ok && retried.data.refunds.map((r) => r.state)).toEqual(["requested", "failed"]);
+
+    const resolved = await resolveRefund(manual.id, manual.refunds[0]!.id, "succeeded", KEY, CSRF);
+    expect(resolved.ok && resolved.data.status).toBe("refunded");
+
+    expect(await retryRefund(settled.id, settled.refunds[0]!.id, KEY, CSRF)).toEqual({
+      ok: false,
+      error: "Bu qaytarishni qayta yuborib bo‘lmaydi.",
+      code: "invalid_transition",
+    });
+    expect(await resolveRefund(settled.id, settled.refunds[0]!.id, "failed", KEY, CSRF)).toEqual({
+      ok: false,
+      error: "Bu qaytarishni yakunlab bo‘lmaydi.",
+      code: "invalid_transition",
+    });
+    expect(await retryRefund(failed.id, 1, KEY, CSRF)).toMatchObject({ code: "not_found" });
+    expect(refresh).not.toHaveBeenCalled();
+  });
+});
+
+/* --- end orders / payments actions --- */

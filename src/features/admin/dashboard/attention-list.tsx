@@ -25,7 +25,8 @@ export function AttentionList({ attention }: { attention: DashboardData["attenti
   const items: AttentionItem[] = [];
   if (attention.btsFailed > 0) {
     items.push({
-      href: "/admin/orders?status=processing",
+      // No shipment filter on `orders/`: processing delivery orders of every date hold them.
+      href: "/admin/orders?status=processing&fulfilment=delivery&period=all",
       icon: "truck",
       title: `${attention.btsFailed} ta buyurtma BTS ga yuborilmadi`,
       body: "Avtomatik urinish muvaffaqiyatsiz. Qo‘lda yuboring.",
@@ -41,6 +42,15 @@ export function AttentionList({ attention }: { attention: DashboardData["attenti
         ? `Eng yaqini: ${formatWeekdayShortDateTime(attention.nextAppointmentAt)}`
         : "Ko‘rib chiqing",
       tone: "warning",
+    });
+  }
+  if (attention.refundsNeedingAction > 0) {
+    items.push({
+      href: "/admin/payments?refund=needs_action",
+      icon: "card",
+      title: `${attention.refundsNeedingAction} ta qaytarish tekshiruv kutmoqda`,
+      body: "Xato yoki holati noma’lum qaytarishlarni ko‘rib chiqing.",
+      tone: "danger",
     });
   }
   if (attention.newFromBillz > 0) {

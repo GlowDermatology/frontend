@@ -39,6 +39,9 @@ function applyFilters(filters: OrderFilters): OrderSummary[] {
       inPeriod(order.createdAt, filters.period, now) &&
       (!filters.fulfilment || order.fulfilment === filters.fulfilment) &&
       (!filters.payment || order.payment.status === filters.payment) &&
+      (!filters.dateFrom || toLocalIsoDate(order.createdAt) >= filters.dateFrom) &&
+      (!filters.dateTo || toLocalIsoDate(order.createdAt) <= filters.dateTo) &&
+      (!filters.customer || order.customer.id === filters.customer) &&
       (!filters.q || matchesSearch(order, filters.q)),
   );
 }
@@ -70,8 +73,10 @@ export async function getRecentOrders(limit: number): Promise<OrderSummary[]> {
   return ORDER_SUMMARIES.slice(0, limit);
 }
 
+/** Dashboard `attention.bts_failed` (§2.10): processing orders whose BTS create failed. */
 export async function countFailedShipments(): Promise<number> {
-  return ORDER_SUMMARIES.filter((o) => o.shipment.state === "failed").length;
+  return ORDER_SUMMARIES.filter((o) => o.status === "processing" && o.shipment.state === "failed")
+    .length;
 }
 
 export async function exportOrders(

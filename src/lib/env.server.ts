@@ -41,4 +41,14 @@ export const serverEnv = {
     if (value === undefined) return process.env.NODE_ENV === "production";
     return value === "true" || value === "1";
   },
+  /**
+   * `GLOWDERMA_MEDIA_HOSTS` as `host[:port]` entries (the hosts `next/image`
+   * may load, see `next.config.ts`); empty when unset.
+   */
+  mediaHosts(): string[] {
+    return (read("GLOWDERMA_MEDIA_HOSTS") ?? "")
+      .split(",")
+      .map((entry) => entry.trim().toLowerCase())
+      .filter(Boolean);
+  },
 };

@@ -1,4 +1,4 @@
-import { canCancel, manualTransitions, type Order, type OrderStatus } from "@/domain/order";
+import { orderActions, type Order, type OrderStatus, type Refund } from "@/domain/order";
 
 import { referenceNow } from "../config";
 import type { ActionResult } from "../types";
@@ -8,13 +8,14 @@ import { getOrder } from "./orders.queries";
 /**
  * Mock implementation of `src/data/orders.actions.ts`. Each mutation looks
  * the order up in the fixtures by id (never trusting a client-supplied
- * object), applies the same transformation the demo always did and returns
- * the updated order; nothing is persisted, so a reload restores the dataset.
+ * object), applies the contract's effects (§2.2) and returns the updated
+ * order; nothing is persisted, so a reload restores the dataset. Refusals
+ * use the contract's codes and messages.
  */
 
 const NOT_FOUND: ActionResult<never> = {
   ok: false,
-  error: "Buyurtma topilmadi.",
+  error: "Topilmadi.",
   code: "not_found",
 };
 
@@ -26,38 +27,59 @@ const STATUS_TITLE: Record<OrderStatus, string> = {
   cancelled: "Bekor qilindi",
 };
 
+const withActions = (order: Order): Order => ({ ...order, availableActions: orderActions(order) });
+
 export async function cancelOrder(orderId: number, reason: string): Promise<ActionResult<Order>> {
   await delay(450);
   const order = await getOrder(orderId);
   if (!order) return NOT_FOUND;
-  if (!canCancel(order)) {
-    return { ok: false, error: "Bu buyurtmani bekor qilib bo‘lmaydi." };
+  if (!order.availableActions.cancel) {
+    return { ok: false, error: "Bu buyurtmani bekor qilib bo‘lmaydi.", code: "not_cancellable" };
   }
+  const at = referenceNow().toISOString();
   const paid = order.payment.status === "paid";
+  // Click refunds go through the provider; Payme is refunded by hand in its cabinet.
+  const refund: Refund | null = paid
+    ? {
+        id: 900_000 + order.id,
+        state: order.payment.provider === "click" ? "requested" : "manual_required",
+        provider: order.payment.provider,
+        amount: order.total,
+        requestedAt: at,
+        updatedAt: at,
+      }
+    : null;
   const reversals = order.cashback
     .filter((e) => e.kind !== "reversal")
     .map((e) => ({ kind: "reversal" as const, amount: -e.amount, label: "Qarama-qarshi yozuv" }));
+  const effects = [
+    refund ? "to‘lov qaytarish so‘rovi yuborildi" : null,
+    reversals.length > 0 ? "cashback yozuvlari qaytarildi" : null,
+  ].filter(Boolean);
+  const note = [
+    "Administrator",
+    effects.length > 0 ? effects.join(", ") : null,
+    order.shipment.state === "created" ? "BTS buyurtmasi bekor qilindi" : null,
+    reason,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const history: Order["history"] = [
+    { at, title: STATUS_TITLE.cancelled, source: "admin", status: "cancelled", note },
+    ...order.history,
+  ];
   return {
     ok: true,
-    data: {
+    data: withActions({
       ...order,
       status: "cancelled",
-      payment: { ...order.payment, status: paid ? "refunded" : order.payment.status },
+      // §7.3: the payment stays `paid` until the refund succeeds.
+      payment: { ...order.payment },
+      refunds: refund ? [refund, ...order.refunds] : order.refunds,
       cancellation: { reason: "admin", note: reason },
       cashback: [...order.cashback, ...reversals],
-      history: [
-        {
-          at: referenceNow().toISOString(),
-          title: STATUS_TITLE.cancelled,
-          source: "admin",
-          status: "cancelled",
-          note: paid
-            ? `Administrator · to‘lov qaytarish so‘rovi yuborildi, cashback yozuvlari qaytarildi · ${reason}`
-            : `Administrator · ${reason}`,
-        },
-        ...order.history,
-      ],
-    },
+      history,
+    }),
   };
 }
 
@@ -68,12 +90,13 @@ export async function changeOrderStatus(
   await delay(450);
   const order = await getOrder(orderId);
   if (!order) return NOT_FOUND;
-  if (!manualTransitions(order).includes(status)) {
-    return { ok: false, error: "Bu holatga o‘tib bo‘lmaydi." };
+  if (!order.availableActions.transitions.includes(status)) {
+    return { ok: false, error: "Bu holatga o‘tib bo‘lmaydi.", code: "invalid_transition" };
   }
+  const pickupHandOver = status === "delivered" && order.fulfilment === "pickup";
   return {
     ok: true,
-    data: {
+    data: withActions({
       ...order,
       status,
       history: [
@@ -82,27 +105,34 @@ export async function changeOrderStatus(
           title: STATUS_TITLE[status],
           source: "admin",
           status,
-          note: "Administrator · holat qo‘lda o‘zgartirildi · mijozga push yuborildi",
+          note: pickupHandOver
+            ? "Administrator · mijozga topshirildi"
+            : "Administrator · holat qo‘lda o‘zgartirildi · mijozga push yuborildi",
         },
         ...order.history,
       ],
-    },
+    }),
   };
 }
 
-/** Retry the BTS hand-off after an automatic attempt failed. */
+/**
+ * Retry the BTS hand-off after an automatic attempt failed. The API answers
+ * 202 with `shipment.pending` and the outcome arrives later; the demo has no
+ * outbox, so it answers with the created parcel right away (the view handles
+ * both).
+ */
 export async function retryShipment(orderId: number): Promise<ActionResult<Order>> {
   await delay(700);
   const order = await getOrder(orderId);
   if (!order) return NOT_FOUND;
-  if (order.shipment.state !== "failed") {
-    return { ok: false, error: "BTS buyurtmasi allaqachon yaratilgan." };
+  if (!order.availableActions.retryShipment) {
+    return { ok: false, error: "BTS ga qayta yuborib bo‘lmaydi.", code: "invalid_transition" };
   }
   const trackingNumber = String(48_214_000 + (order.id % 1000));
   const at = referenceNow().toISOString();
   return {
     ok: true,
-    data: {
+    data: withActions({
       ...order,
       shipment: {
         state: "created",
@@ -120,6 +150,6 @@ export async function retryShipment(orderId: number): Promise<ActionResult<Order
         },
         ...order.history,
       ],
-    },
+    }),
   };
 }

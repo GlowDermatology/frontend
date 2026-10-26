@@ -1,6 +1,7 @@
 import { calculateCashback } from "@/domain/cashback";
 import {
   itemsSubtotal,
+  orderActions,
   promoSubtotal,
   type CancellationReason,
   type FulfilmentMethod,
@@ -11,9 +12,11 @@ import {
   type OrderSummary,
   type PaymentProvider,
   type PaymentStatus,
+  type Refund,
+  type RefundState,
   type Shipment,
 } from "@/domain/order";
-import { formatNumber } from "@/lib/format";
+import { formatNumber, formatSom } from "@/lib/format";
 
 import { ACTIVE_POLICY } from "./cashback";
 import { PRODUCTS, productByBillzId } from "./catalog";
@@ -21,7 +24,7 @@ import { CUSTOMERS, CUSTOMER_IDS, customerRef } from "./people";
 import { createRandom, type Random } from "./random";
 
 /** Facts an order is built from; history and cashback entries are derived. */
-interface OrderSeed {
+export interface OrderSeed {
   id: number;
   customerId: string;
   at: string;
@@ -426,7 +429,87 @@ function totalOf(seed: OrderSeed): number {
   return itemsSubtotal(toItems(seed)) + seed.deliveryFee - seed.cashbackUsed;
 }
 
-export const ORDER_SEEDS: ReadonlyArray<OrderSeed> = generateSeeds();
+/**
+ * Refunds still open or failed, for the payments screen and the order
+ * detail: three older admin-cancelled orders whose refund did not settle
+ * (Click `failed`, Click `unknown`, Payme `manual_required`). Their payment
+ * stays `paid` until the refund succeeds (contract §2.2).
+ */
+const OPEN_REFUNDS = new Map<number, RefundState>();
+
+function withOpenRefunds(seeds: OrderSeed[]): OrderSeed[] {
+  const candidates = seeds.filter(
+    (s) =>
+      s.id < 10_240 &&
+      s.status === "cancelled" &&
+      s.payment === "refunded" &&
+      s.cancellation?.reason === "admin",
+  );
+  const pick = (provider: PaymentProvider, skip: number) =>
+    candidates.filter((s) => s.provider === provider && !OPEN_REFUNDS.has(s.id))[skip];
+  const plan: Array<[PaymentProvider, RefundState]> = [
+    ["click", "failed"],
+    ["click", "unknown"],
+    ["payme", "manual_required"],
+  ];
+  for (const [provider, state] of plan) {
+    const seed = pick(provider, 0);
+    if (!seed) continue;
+    OPEN_REFUNDS.set(seed.id, state);
+    seed.payment = "paid";
+  }
+  return seeds;
+}
+
+export const ORDER_SEEDS: ReadonlyArray<OrderSeed> = withOpenRefunds(generateSeeds());
+
+/** Payment id of an order's payment: №10248 → 301, as in the contract's example. */
+export const paymentIdOf = (orderId: number) => orderId - 9_947;
+/** Refund id of an order's (first) refund. */
+const refundIdOf = (orderId: number) => orderId - 10_000;
+
+/** When the order was cancelled (matches the history row below). */
+function cancelledAt(seed: OrderSeed): string {
+  return plusMinutes(seed.at, seed.cancellation?.reason === "reservation_expired" ? 15 : 60);
+}
+
+/** The order's refunds, newest first: a settled one for `refunded`, or the open demo refund. */
+export function refundsOf(seed: OrderSeed): Refund[] {
+  const open = OPEN_REFUNDS.get(seed.id);
+  if (seed.payment !== "refunded" && !open) return [];
+  const requestedAt = cancelledAt(seed);
+  const state: RefundState = open ?? "succeeded";
+  const updatedAt = plusMinutes(requestedAt, state === "manual_required" ? 0 : 4);
+  return [
+    {
+      id: refundIdOf(seed.id),
+      state,
+      provider: seed.provider,
+      amount: totalOf(seed),
+      requestedAt,
+      updatedAt,
+      completedAt: state === "succeeded" ? updatedAt : undefined,
+    },
+  ];
+}
+
+/** Provider transaction id of a paid order (№10248 keeps the contract's value). */
+export function transactionIdOf(seed: OrderSeed): string | undefined {
+  const paid = seed.payment === "paid" || seed.payment === "refunded";
+  if (!paid) return undefined;
+  if (seed.id === 10248) return "CLK-7741920385";
+  return `${seed.provider === "click" ? "CLK" : "PME"}-${String(7_741_000_000 + seed.id * 37).slice(0, 10)}`;
+}
+
+/** Payment confirmation time (3 minutes after checkout) for a paid order. */
+export function confirmedAtOf(seed: OrderSeed): string | undefined {
+  const paid = seed.payment === "paid" || seed.payment === "refunded";
+  return paid ? plusMinutes(seed.at, 3) : undefined;
+}
+
+export function orderTotalOf(seed: OrderSeed): number {
+  return totalOf(seed);
+}
 
 export const ORDER_SUMMARIES: ReadonlyArray<OrderSummary> = ORDER_SEEDS.map((seed) => ({
   id: seed.id,
@@ -451,7 +534,9 @@ export function buildOrderDetail(seed: OrderSeed): Order {
   const subtotal = itemsSubtotal(items);
   const promo = promoSubtotal(items);
   const paid = seed.payment === "paid" || seed.payment === "refunded";
-  const confirmedAt = paid ? plusMinutes(seed.at, 3) : undefined;
+  const confirmedAt = confirmedAtOf(seed);
+  const refunds = refundsOf(seed);
+  const openRefund = OPEN_REFUNDS.get(seed.id);
   const credit = calculateCashback(
     {
       amount: subtotal,
@@ -530,7 +615,7 @@ export function buildOrderDetail(seed: OrderSeed): Order {
   if (seed.status === "cancelled") {
     const expired = seed.cancellation?.reason === "reservation_expired";
     history.push({
-      at: plusMinutes(seed.at, expired ? 15 : 60),
+      at: cancelledAt(seed),
       title: "Bekor qilindi",
       source: expired ? "system" : "admin",
       status: "cancelled",
@@ -538,6 +623,25 @@ export function buildOrderDetail(seed: OrderSeed): Order {
         ? "Band muddati tugadi · mahsulotlar bo‘shatildi"
         : "Administrator · to‘lov qaytarish so‘rovi yuborildi, cashback yozuvlari qaytarildi",
     });
+    const refund = refunds[0];
+    if (refund && refund.state === "succeeded") {
+      history.push({
+        at: refund.updatedAt,
+        title: "To‘lov qaytarildi",
+        source: "system",
+        note: `${PROVIDER_NAME[seed.provider]} · ${formatSom(refund.amount)}`,
+      });
+    } else if (refund && (refund.state === "failed" || refund.state === "unknown")) {
+      history.push({
+        at: refund.updatedAt,
+        title: "To‘lov qaytarilmadi",
+        source: "system",
+        note:
+          refund.state === "unknown"
+            ? `${PROVIDER_NAME[seed.provider]} · holat noma’lum, tekshirish kerak`
+            : `${PROVIDER_NAME[seed.provider]} · xato, administrator tekshiruvi kerak`,
+      });
+    }
   }
 
   const cashback: Order["cashback"] = [];
@@ -551,7 +655,7 @@ export function buildOrderDetail(seed: OrderSeed): Order {
       label: `1% × ${formatNumber(creditBase)}`,
     });
   }
-  if (seed.payment === "refunded") {
+  if (seed.payment === "refunded" || openRefund) {
     for (const entry of [...cashback]) {
       cashback.push({ kind: "reversal", amount: -entry.amount, label: "Qarama-qarshi yozuv" });
     }
@@ -566,12 +670,9 @@ export function buildOrderDetail(seed: OrderSeed): Order {
     payment: {
       status: seed.payment,
       provider: seed.provider,
-      transactionId: paid
-        ? seed.id === 10248
-          ? "CLK-7741920385"
-          : `${seed.provider === "click" ? "CLK" : "PME"}-${String(7_741_000_000 + seed.id * 37).slice(0, 10)}`
-        : undefined,
+      transactionId: transactionIdOf(seed),
       confirmedAt,
+      amount: totalOf(seed),
     },
     fulfilment: seed.fulfilment,
     shipment: seed.shipment,
@@ -581,8 +682,10 @@ export function buildOrderDetail(seed: OrderSeed): Order {
     items,
     deliveryFee: seed.deliveryFee,
     cashbackUsed: seed.cashbackUsed,
+    refunds,
     history: history.reverse(),
     cashback,
+    availableActions: orderActions(seed),
   };
 }
 

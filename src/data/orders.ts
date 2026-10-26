@@ -1,22 +1,36 @@
 import "server-only";
 
-import {
-  ORDER_STATUSES,
-  type FulfilmentMethod,
-  type Order,
-  type OrderStatus,
-  type OrderSummary,
-  type PaymentStatus,
+import { cache } from "react";
+
+import type {
+  FulfilmentMethod,
+  Order,
+  OrderStatus,
+  OrderSummary,
+  PaymentStatus,
 } from "@/domain/order";
 
+import { apiGetOrder, apiListOrders, apiOrderStatusCounts } from "./api/orders";
+import { isApiError } from "./api/errors";
+import { optimizableMediaUrl } from "./api/media";
+import { mapPage } from "./api/mappers/page";
+import {
+  mapOrder,
+  mapOrderSummary,
+  orderFilterParams,
+  orderListParams,
+} from "./api/mappers/orders";
+import { requireApiToken } from "./auth";
 import * as mock from "./mock/orders.queries";
-import { dataSource, notWiredYet } from "./source";
-import { emptyPage, type Page } from "./types";
+import { dataSource } from "./source";
+import type { Page } from "./types";
 
 /**
- * Orders read seam. Every function dispatches on `dataSource()`: the mock
- * branch lives in `./mock/orders.queries.ts`; the api branch is not wired yet
- * (F2) and returns the documented empty shape via `notWiredYet`.
+ * Orders read seam (contract §2.2). Every function dispatches on
+ * `dataSource()`: the mock branch lives in `./mock/orders.queries.ts`; the
+ * api branch calls `orders/`, `orders/status-counts/` and `orders/{id}/`
+ * through `./api/orders.ts` and maps the answers with
+ * `./api/mappers/orders.ts`.
  */
 
 export type OrderPeriod = "today" | "week" | "month" | "all";
@@ -26,7 +40,13 @@ export interface OrderFilters {
   q?: string;
   fulfilment?: FulfilmentMethod;
   payment?: PaymentStatus;
+  /** `today` = the Tashkent day, `week` = rolling 7×24 h, `month` = calendar month to date. */
   period: OrderPeriod;
+  /** Inclusive Tashkent days on `created_at` (`YYYY-MM-DD`), ANDed with `period`. */
+  dateFrom?: string;
+  dateTo?: string;
+  /** Customer id (the customer card links here). */
+  customer?: string;
 }
 
 export interface OrderListQuery extends OrderFilters {
@@ -36,50 +56,53 @@ export interface OrderListQuery extends OrderFilters {
   sort: OrderSort;
 }
 
-const RESOURCE = "orders";
-
-/** `GET /api/v1/admin/orders/?status=&search=&fulfilment=&payment=&period=&ordering=&page=` */
+/** `GET /api/v1/admin/orders/?status=&search=&fulfilment=&payment=&period=&date_from=&date_to=&customer=&ordering=&page=&page_size=` */
 export async function listOrders(query: OrderListQuery): Promise<Page<OrderSummary>> {
-  if ((await dataSource()) === "api") return notWiredYet(RESOURCE, emptyPage(query.pageSize));
+  if ((await dataSource()) === "api") {
+    const token = await requireApiToken();
+    const { data } = await apiListOrders(token, orderListParams(query));
+    return mapPage(data, mapOrderSummary);
+  }
   return mock.listOrders(query);
 }
 
-/** Tab counts for the same filters (status excluded). */
+/** `GET orders/status-counts/`: tab counts for the same filters (status excluded). */
 export async function getOrderStatusCounts(
   filters: OrderFilters,
 ): Promise<Record<OrderStatus | "all", number>> {
   if ((await dataSource()) === "api") {
-    const zero = Object.fromEntries(ORDER_STATUSES.map((s) => [s, 0])) as Record<
-      OrderStatus,
-      number
-    >;
-    return notWiredYet(RESOURCE, { all: 0, ...zero });
+    const token = await requireApiToken();
+    const { data } = await apiOrderStatusCounts(token, orderFilterParams(filters));
+    return data;
   }
   return mock.getOrderStatusCounts(filters);
 }
 
-/** `GET /api/v1/admin/orders/{id}/` — `null` for an unknown id (404). */
-export async function getOrder(id: number): Promise<Order | null> {
-  if ((await dataSource()) === "api") return notWiredYet(RESOURCE, null);
+/**
+ * `GET /api/v1/admin/orders/{id}/` — `null` for an unknown id (404). Wrapped
+ * in `cache()` (and `cachedGet` below it), so `generateMetadata` and the page
+ * body read the order once per request.
+ */
+export const getOrder = cache(async (id: number): Promise<Order | null> => {
+  if (!Number.isSafeInteger(id) || id <= 0) return null;
+  if ((await dataSource()) === "api") {
+    const token = await requireApiToken();
+    try {
+      return mapOrder((await apiGetOrder(token, id)).data, { imageUrl: optimizableMediaUrl });
+    } catch (error) {
+      if (isApiError(error) && error.status === 404) return null;
+      throw error;
+    }
+  }
   return mock.getOrder(id);
-}
+});
 
-/** Newest orders for the dashboard (`orders/?page_size=6`). */
-export async function getRecentOrders(limit: number): Promise<OrderSummary[]> {
-  if ((await dataSource()) === "api") return notWiredYet(RESOURCE, []);
+/** Newest orders for the dashboard (`orders/?page_size=6`, contract §5.7). */
+export async function getRecentOrders(limit: 6): Promise<OrderSummary[]> {
+  if ((await dataSource()) === "api") {
+    const token = await requireApiToken();
+    const { data } = await apiListOrders(token, { page_size: limit });
+    return data.results.map(mapOrderSummary);
+  }
   return mock.getRecentOrders(limit);
-}
-
-/** Orders whose automatic BTS hand-off failed (dashboard "attention" list). */
-export async function countFailedShipments(): Promise<number> {
-  if ((await dataSource()) === "api") return notWiredYet(RESOURCE, 0);
-  return mock.countFailedShipments();
-}
-
-/** All orders matching the filters, for CSV export. */
-export async function exportOrders(
-  query: Omit<OrderListQuery, "page" | "pageSize">,
-): Promise<OrderSummary[]> {
-  if ((await dataSource()) === "api") return notWiredYet(RESOURCE, []);
-  return mock.exportOrders(query);
 }

@@ -14,6 +14,13 @@ import pendingFixture from "./api/__fixtures__/pending-summary.json";
 import membersFixture from "./api/__fixtures__/segment-1-members.json";
 import segmentsFixture from "./api/__fixtures__/segments-page.json";
 import settingsFixture from "./api/__fixtures__/settings.json";
+// --- orders / payments / dashboard (F2d) ---
+import dashboardWeekFixture from "./api/__fixtures__/dashboard-week.json";
+import order10248Fixture from "./api/__fixtures__/order-10248.json";
+import orderCountsFixture from "./api/__fixtures__/order-status-counts.json";
+import ordersPageFixture from "./api/__fixtures__/orders-page.json";
+import paymentsPageFixture from "./api/__fixtures__/payments-page.json";
+// --- end orders / payments / dashboard ---
 
 /**
  * The dispatchers in `src/data/<resource>.ts` pick the mock or the api branch
@@ -56,6 +63,7 @@ async function loadDispatchers() {
     settings: await import("./settings"),
     audit: await import("./audit"),
     shell: await import("./shell"),
+    payments: await import("./payments"),
     now: await import("./now"),
     source: await import("./source"),
   };
@@ -70,6 +78,13 @@ afterEach(() => {
   cachedGet.mockReset();
   apiFetch.mockReset();
 });
+
+const PAYMENT_QUERY = {
+  period: "all" as const,
+  sort: "date_desc" as const,
+  page: 1,
+  pageSize: 20,
+};
 
 const PRODUCT_QUERY = {
   outOfStock: false,
@@ -103,7 +118,14 @@ describe("dispatchers in mock mode (env unset)", () => {
     expect((await d.customers.getCustomer("5"))?.name).toBe("Malika Karimova");
     expect((await d.cashback.getCashbackSettings()).policy.tiers.length).toBeGreaterThan(0);
     expect((await d.appointments.getAppointmentDay("2026-10-26")).specialists).toHaveLength(3);
-    expect((await d.dashboard.getDashboard("today")).series.length).toBeGreaterThan(0);
+    const dashboard = await d.dashboard.getDashboard({ range: "today" });
+    expect(dashboard.ok && dashboard.data.series.length).toBeGreaterThan(0);
+    expect((await d.orders.getOrder(10248))?.availableActions).toEqual({
+      transitions: ["delivered"],
+      cancel: true,
+      retryShipment: false,
+    });
+    expect((await d.payments.listPayments(PAYMENT_QUERY)).total).toBe(1284);
     expect(cachedGet).not.toHaveBeenCalled();
   });
 });
@@ -272,7 +294,7 @@ describe("dispatchers in api mode", () => {
     await expect(d.products.getProduct("1")).rejects.toMatchObject({ status: 500 });
   });
 
-  it("returns the documented empty shapes for the resources not wired yet and warns once each", async () => {
+  it("serves every resource from the API: no dispatcher falls back to a not-wired empty shape", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const d = await loadDispatchers();
 
@@ -280,45 +302,9 @@ describe("dispatchers in api mode", () => {
     const now = await d.now.requestNow();
     expect(now.getTime()).toBeGreaterThanOrEqual(before - 1000);
 
-    expect(
-      await d.orders.listOrders({ period: "all", page: 3, pageSize: 25, sort: "date_desc" }),
-    ).toEqual({ items: [], total: 0, page: 1, pageSize: 25, pageCount: 1 });
-    expect(await d.orders.getOrderStatusCounts({ period: "all" })).toEqual({
-      all: 0,
-      awaiting_payment: 0,
-      processing: 0,
-      handed_to_courier: 0,
-      delivered: 0,
-      cancelled: 0,
-    });
-    expect(await d.orders.getOrder(10248)).toBeNull();
-    expect(await d.orders.getRecentOrders(6)).toEqual([]);
-    expect(await d.orders.countFailedShipments()).toBe(0);
-    expect(await d.orders.exportOrders({ period: "all", sort: "date_desc" })).toEqual([]);
-
-    expect(await d.dashboard.getDashboard("week")).toEqual({
-      range: "week",
-      axisNote: "",
-      axisLabels: ["", "", ""],
-      series: [],
-      stats: {
-        newCustomers: 0,
-        ordersNote: "",
-        totalCustomers: 0,
-        deletedCustomers: 0,
-        outOfStock: 0,
-      },
-      attention: {
-        btsFailed: 0,
-        pendingAppointments: 0,
-        nextAppointmentAt: null,
-        newFromBillz: 0,
-      },
-    });
-
     const resources = warn.mock.calls.map((call) => String(call[0]).match(/^\[data\] (\w+):/)?.[1]);
-    // customers and cashback are wired (F2c): see customers-cashback.test.ts.
-    expect(resources.sort()).toEqual(["dashboard", "orders"]);
+    // Every resource is wired to the API (F2a–F2d): nothing serves an empty "not wired" shape any more.
+    expect(resources).toEqual([]);
     expect(cachedGet).not.toHaveBeenCalled();
   });
 
@@ -402,6 +388,170 @@ describe("dispatchers in api mode", () => {
     );
     expect(await d.shell.getNavCounts()).toBeNull();
   });
+
+  /* --- orders / payments / dashboard (F2d) --- */
+
+  it("reads orders, payments and the dashboard from the API with the mapped parameters", async () => {
+    const respond = (data: unknown) => ({ status: 200, data, headers: new Headers() });
+    cachedGet.mockImplementation(async (path: string) => {
+      const fixtures: Record<string, unknown> = {
+        "/api/v1/admin/orders/": ordersPageFixture,
+        "/api/v1/admin/orders/status-counts/": orderCountsFixture,
+        "/api/v1/admin/orders/10248/": order10248Fixture,
+        "/api/v1/admin/payments/": paymentsPageFixture,
+        "/api/v1/admin/dashboard/": dashboardWeekFixture,
+      };
+      if (!(path in fixtures)) throw new Error(`unexpected GET ${path}`);
+      return respond(fixtures[path]);
+    });
+    const d = await loadDispatchers();
+
+    const page = await d.orders.listOrders({
+      q: " 10248 ",
+      status: "processing",
+      period: "week",
+      dateFrom: "2026-10-01",
+      dateTo: "2026-10-24",
+      customer: "7",
+      sort: "date_asc",
+      page: 2,
+      pageSize: 6,
+    });
+    expect(cachedGet).toHaveBeenCalledWith(
+      "/api/v1/admin/orders/",
+      {
+        search: "10248",
+        fulfilment: undefined,
+        payment: undefined,
+        period: "week",
+        date_from: "2026-10-01",
+        date_to: "2026-10-24",
+        customer: "7",
+        status: "processing",
+        ordering: "created_at",
+        page: 2,
+        page_size: 6,
+      },
+      "staff-token",
+    );
+    expect(page.total).toBe(252);
+    expect(page.items[0]).toMatchObject({ id: 10252, customer: { id: "1" } });
+
+    const counts = await d.orders.getOrderStatusCounts({ period: "all", payment: "paid" });
+    expect(cachedGet).toHaveBeenLastCalledWith(
+      "/api/v1/admin/orders/status-counts/",
+      expect.objectContaining({ period: "all", payment: "paid" }),
+      "staff-token",
+    );
+    expect(counts.processing).toBe(12);
+
+    const order = await d.orders.getOrder(10248);
+    expect(order?.history.map((e) => e.title)).toEqual([
+      "Kuryerga topshirildi",
+      "BTS buyurtmasi yaratildi",
+      "Jarayonda",
+      "To‘lov kutilmoqda",
+    ]);
+    // GLOWDERMA_MEDIA_HOSTS is unset here: no photo host may be loaded by next/image.
+    expect(order?.items.every((item) => item.imageUrl === undefined)).toBe(true);
+    expect((await d.orders.getRecentOrders(6)).length).toBe(6);
+    expect(cachedGet).toHaveBeenLastCalledWith(
+      "/api/v1/admin/orders/",
+      { page_size: 6 },
+      "staff-token",
+    );
+
+    const payments = await d.payments.listPayments({ ...PAYMENT_QUERY, refund: "succeeded" });
+    expect(cachedGet).toHaveBeenLastCalledWith(
+      "/api/v1/admin/payments/",
+      expect.objectContaining({
+        refund_state: "succeeded",
+        ordering: "-created_at",
+        page_size: 20,
+      }),
+      "staff-token",
+    );
+    expect(payments.items[0]?.refunds[0]?.state).toBe("succeeded");
+
+    const dashboard = await d.dashboard.getDashboard({ range: "week" });
+    expect(cachedGet).toHaveBeenLastCalledWith(
+      "/api/v1/admin/dashboard/",
+      { range: "week" },
+      "staff-token",
+    );
+    expect(dashboard.ok && dashboard.data.series).toHaveLength(7);
+    expect(dashboard.ok && dashboard.data.stats.ordersNote).toMatch(/^O‘tgan hafta: \d+ ta$/);
+  });
+
+  it("merges the three refund states that need action and pages locally", async () => {
+    const refund = (id: number, state: string) => ({
+      id,
+      state,
+      provider: "click",
+      amount: 1000,
+      requested_at: "2026-10-24T12:00:00+05:00",
+      updated_at: "2026-10-24T12:00:00+05:00",
+      completed_at: null,
+    });
+    const payment = (id: number, at: string, state: string) => ({
+      id,
+      order_id: 10_000 + id,
+      customer: { id: 1, name: "", phone: "+998901234567" },
+      provider: "click",
+      status: "paid",
+      amount: 1000,
+      transaction_id: null,
+      created_at: at,
+      confirmed_at: null,
+      refunds: [refund(id, state)],
+    });
+    const byState: Record<string, unknown[]> = {
+      failed: [payment(3, "2026-10-24T10:00:00+05:00", "failed")],
+      unknown: [payment(1, "2026-10-20T10:00:00+05:00", "unknown")],
+      manual_required: [payment(2, "2026-10-22T10:00:00+05:00", "manual_required")],
+    };
+    cachedGet.mockImplementation(async (_path: string, query: Record<string, unknown>) => {
+      const results = byState[String(query.refund_state)] ?? [];
+      return {
+        status: 200,
+        data: { count: results.length, page: 1, page_size: 50, page_count: 1, results },
+        headers: new Headers(),
+      };
+    });
+    const d = await loadDispatchers();
+    const page = await d.payments.listPayments({ ...PAYMENT_QUERY, refund: "needs_action" });
+    expect(cachedGet).toHaveBeenCalledTimes(3);
+    expect(page.items.map((p) => p.id)).toEqual([3, 2, 1]);
+    expect(page.items[2]?.customer.name).toBe("O‘chirilgan mijoz");
+    expect(page.total).toBe(3);
+  });
+
+  it("returns the dashboard's custom-range 400 as field errors", async () => {
+    const d = await loadDispatchers();
+    const { ApiError } = await import("./api/errors");
+    cachedGet.mockRejectedValue(
+      new ApiError(400, {
+        code: "validation_error",
+        message: "Maydonlarni tekshiring.",
+        errors: [{ field: "to", code: "invalid", message: "Noto‘g‘ri qiymat." }],
+        request_id: "",
+      }),
+    );
+    expect(
+      await d.dashboard.getDashboard({ range: "custom", from: "2026-10-20", to: "2026-12-01" }),
+    ).toEqual({ ok: false, errors: { to: "Noto‘g‘ri qiymat." } });
+  });
+
+  it("maps a 404 order to null", async () => {
+    const d = await loadDispatchers();
+    const { ApiError } = await import("./api/errors");
+    cachedGet.mockRejectedValue(
+      new ApiError(404, { code: "not_found", message: "Topilmadi.", errors: [], request_id: "" }),
+    );
+    expect(await d.orders.getOrder(999)).toBeNull();
+  });
+
+  /* --- end orders / payments / dashboard --- */
 
   it("rejects an unknown value", async () => {
     process.env.GLOWDERMA_DATA_SOURCE = "staging";

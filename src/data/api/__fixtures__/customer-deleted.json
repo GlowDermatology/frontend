@@ -15,7 +15,8 @@
   "online_orders": {
     "count": 0,
     "last_order_id": null,
-    "last_order_at": null
+    "last_order_at": null,
+    "all_count": 0
   },
   "tier": {
     "policy_version": 3,
@@ -33,6 +34,7 @@
   "groups": [],
   "upcoming_appointments": 0,
   "device": null,
+  "devices": [],
   "ledger": [],
   "purchases": []
 }

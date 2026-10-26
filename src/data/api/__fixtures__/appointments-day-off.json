@@ -5,6 +5,7 @@
       "id": 1,
       "name": "Nodira Rahimova",
       "role": "dermatologist",
+      "is_active": true,
       "working_hours": null,
       "blocks": []
     },
@@ -12,6 +13,7 @@
       "id": 2,
       "name": "Jasur Aliyev",
       "role": "dermatologist",
+      "is_active": true,
       "working_hours": null,
       "blocks": []
     },
@@ -19,6 +21,7 @@
       "id": 3,
       "name": "Dilnoza Yusupova",
       "role": "cosmetologist",
+      "is_active": true,
       "working_hours": null,
       "blocks": []
     }

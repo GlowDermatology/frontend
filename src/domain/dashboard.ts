@@ -49,6 +49,11 @@ export interface DashboardData {
      * failures (M2): order statuses from BTS are not being updated.
      */
     btsPollingFailing: boolean;
+    /**
+     * No cashback policy version is in force (gap CB-9.2.4): purchases
+     * confirmed meanwhile earn no cashback until staff add one.
+     */
+    cashbackPolicyMissing: boolean;
   };
 }
 

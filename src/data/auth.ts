@@ -108,6 +108,7 @@ export const MOCK_ME: Me = {
   email: "admin",
   display_name: "Administrator",
   is_superuser: true,
+  is_manager: true,
   linked_providers: [],
   session_expires_at: "",
   auth_method: "password",

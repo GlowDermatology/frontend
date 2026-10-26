@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { BANNER_LINK_KINDS, isValidBannerWindow } from "@/domain/banner";
 import { CATEGORY_SLUG_PATTERN } from "@/domain/category";
+import { isHttpsUrl, LINK_URL_MAX, LINK_URL_MESSAGE } from "@/lib/link-url";
 
 import { imageFileSchema } from "./products.schema";
 
@@ -37,6 +38,12 @@ const bannerFields = z.object({
       .regex(/^\d{1,18}$/, "Mahsulotni tanlang.")
       .nullable(),
     category: z.string().trim().regex(CATEGORY_SLUG_PATTERN, "Kategoriyani tanlang.").nullable(),
+    url: z
+      .string()
+      .trim()
+      .max(LINK_URL_MAX, `${LINK_URL_MAX} belgidan oshmasin.`)
+      .refine((value) => isHttpsUrl(value), { error: LINK_URL_MESSAGE })
+      .nullable(),
   }),
   isActive: z.boolean(),
   startsAt: awareDateTime,
@@ -60,6 +67,9 @@ export const bannerFormSchema = bannerFields.superRefine((values, ctx) => {
       message: "Kategoriyani tanlang.",
     });
   }
+  if (values.link.kind === "url" && !values.link.url) {
+    ctx.addIssue({ code: "custom", path: ["link", "url"], message: "Havolani kiriting." });
+  }
   if (!isValidBannerWindow(values.startsAt, values.endsAt)) {
     ctx.addIssue({
       code: "custom",
@@ -73,7 +83,7 @@ export type BannerFormValues = z.infer<typeof bannerFormSchema>;
 
 export const EMPTY_BANNER: BannerFormValues = {
   title: { uz: "", ru: "", en: "" },
-  link: { kind: "none", productId: null, category: null },
+  link: { kind: "none", productId: null, category: null, url: null },
   isActive: true,
   startsAt: null,
   endsAt: null,
@@ -87,6 +97,7 @@ export const BANNER_FORM_FIELDS = [
   "link.kind",
   "link.productId",
   "link.category",
+  "link.url",
   "isActive",
   "startsAt",
   "endsAt",
@@ -105,6 +116,7 @@ export function bannerValuesFromFormData(formData: FormData): unknown {
       kind: text("link.kind") || "none",
       productId: nullable("link.productId"),
       category: nullable("link.category"),
+      url: nullable("link.url"),
     },
     isActive: text("isActive") === "true",
     startsAt: nullable("startsAt"),
@@ -125,6 +137,7 @@ export function bannerFormDataFromValues(values: BannerFormValues, image: File |
   form.set("link.kind", values.link.kind);
   form.set("link.productId", values.link.productId ?? "");
   form.set("link.category", values.link.category ?? "");
+  form.set("link.url", values.link.url ?? "");
   form.set("isActive", values.isActive ? "true" : "false");
   form.set("startsAt", values.startsAt ?? "");
   form.set("endsAt", values.endsAt ?? "");

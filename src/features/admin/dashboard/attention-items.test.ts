@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import type { DashboardData } from "@/domain/dashboard";
 
-import { attentionItems, BTS_POLLING_FAILING_TITLE } from "./attention-items";
+import {
+  attentionItems,
+  BTS_POLLING_FAILING_TITLE,
+  CASHBACK_POLICY_MISSING_TITLE,
+} from "./attention-items";
 
 const calm: DashboardData["attention"] = {
   btsFailed: 0,
@@ -11,6 +15,7 @@ const calm: DashboardData["attention"] = {
   newFromBillz: 0,
   refundsNeedingAction: 0,
   btsPollingFailing: false,
+  cashbackPolicyMissing: false,
 };
 
 describe("attentionItems (contract §5.7)", () => {
@@ -40,14 +45,30 @@ describe("attentionItems (contract §5.7)", () => {
       newFromBillz: 4,
       refundsNeedingAction: 2,
       btsPollingFailing: true,
+      cashbackPolicyMissing: true,
     });
     expect(items.map((item) => [item.key, item.href ?? null])).toEqual([
       ["bts-failed", "/admin/orders?status=processing&fulfilment=delivery&period=all"],
       ["bts-polling", null],
+      ["cashback-policy", "/admin/cashback"],
       ["appointments", "/admin/appointments"],
       ["refunds", "/admin/payments?refund=needs_action"],
       ["billz", "/admin/products?new=1"],
     ]);
-    expect(items[3]!.title).toBe("2 ta qaytarish tekshiruv kutmoqda");
+    expect(items[4]!.title).toBe("2 ta qaytarish tekshiruv kutmoqda");
+  });
+
+  it("links a missing cashback policy to the cashback settings (gap CB-9.2.4)", () => {
+    const items = attentionItems({ ...calm, cashbackPolicyMissing: true });
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      key: "cashback-policy",
+      href: "/admin/cashback",
+      title: CASHBACK_POLICY_MISSING_TITLE,
+      tone: "danger",
+    });
+    expect(CASHBACK_POLICY_MISSING_TITLE).toBe(
+      "Cashback siyosati yo‘q · xaridlarga cashback yozilmayapti",
+    );
   });
 });

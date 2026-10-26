@@ -32,6 +32,7 @@ function account(authMethod: StaffAccount["authMethod"]): StaffAccount {
     id: "1",
     email: "admin@glowderma.uz",
     displayName: "Administrator",
+    isManager: true,
     linkedProviders: ["facebook"],
     sessionExpiresAt: null,
     authMethod,

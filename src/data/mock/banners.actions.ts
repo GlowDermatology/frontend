@@ -35,7 +35,13 @@ function linkChanged(
 ): boolean {
   if (!before) return true;
   const target = (link: BannerFormValues["link"]) =>
-    link.kind === "product" ? link.productId : link.kind === "category" ? link.category : null;
+    link.kind === "product"
+      ? link.productId
+      : link.kind === "category"
+        ? link.category
+        : link.kind === "url"
+          ? link.url
+          : null;
   return before.link.kind !== values.link.kind || target(before.link) !== target(values.link);
 }
 
@@ -49,6 +55,7 @@ function apply(before: Banner | null, values: BannerFormValues, image: File | nu
       kind: values.link.kind,
       productId: values.link.kind === "product" ? values.link.productId : null,
       category: values.link.kind === "category" ? values.link.category : null,
+      url: values.link.kind === "url" ? values.link.url : null,
     },
     isActive: values.isActive,
     startsAt: values.startsAt,

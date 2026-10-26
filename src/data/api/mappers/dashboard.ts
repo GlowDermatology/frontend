@@ -101,6 +101,7 @@ export function mapDashboard(api: ApiDashboard): DashboardData {
       newFromBillz: api.attention.new_from_billz,
       refundsNeedingAction: api.attention.refunds_needing_action,
       btsPollingFailing: api.attention.bts_polling_failing,
+      cashbackPolicyMissing: api.attention.cashback_policy_missing ?? false,
     },
   };
 }

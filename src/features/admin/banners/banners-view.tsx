@@ -153,6 +153,7 @@ export function BannersView({ banners, categories, now, exportHref }: BannersVie
     if (banner.link.kind === "category") {
       return `Kategoriya: ${categoryLabel(categories, banner.link.category ?? "")}`;
     }
+    if (banner.link.kind === "url") return banner.link.url ?? BANNER_LINK_LABEL.url;
     return BANNER_LINK_LABEL.none;
   };
 
@@ -226,7 +227,16 @@ export function BannersView({ banners, categories, now, exportHref }: BannersVie
                           </span>
                         </span>
                       </td>
-                      <td>{linkText(banner)}</td>
+                      <td>
+                        <span
+                          className="inline-block max-w-[260px] truncate align-bottom"
+                          title={
+                            banner.link.kind === "url" ? (banner.link.url ?? undefined) : undefined
+                          }
+                        >
+                          {linkText(banner)}
+                        </span>
+                      </td>
                       <td className="tabular-nums">{windowLabel(banner)}</td>
                       <td>
                         <span className="flex flex-col items-start gap-1">

@@ -68,6 +68,7 @@ export function mapStaffAccount(me: Me): StaffAccount {
     id: idString(me.id),
     email: me.email,
     displayName: me.display_name,
+    isManager: Boolean(me.is_manager || me.is_superuser),
     linkedProviders: [...me.linked_providers],
     sessionExpiresAt: me.session_expires_at || null,
     authMethod: "auth_method" in me ? (me.auth_method ?? null) : undefined,

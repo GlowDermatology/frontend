@@ -14,6 +14,7 @@ export function mapBanner(api: ApiBanner): Banner {
       kind: api.link.kind ?? "none",
       productId: api.link.product_id == null ? null : idString(api.link.product_id),
       category: api.link.category ?? null,
+      url: api.link.url ?? null,
     },
     isActive: api.is_active,
     startsAt: api.starts_at,
@@ -32,6 +33,7 @@ function normalLink(link: BannerLinkValues): BannerLinkValues {
     kind: link.kind,
     productId: link.kind === "product" ? link.productId : null,
     category: link.kind === "category" ? link.category : null,
+    url: link.kind === "url" ? link.url : null,
   };
 }
 
@@ -41,7 +43,8 @@ function sameLink(a: BannerLinkValues, b: BannerLinkValues): boolean {
   return (
     left.kind === right.kind &&
     left.productId === right.productId &&
-    left.category === right.category
+    left.category === right.category &&
+    left.url === right.url
   );
 }
 
@@ -114,6 +117,7 @@ export function bannerFormData(
     form.set("link.kind", changes.link.kind);
     form.set("link.product_id", changes.link.productId ?? "");
     form.set("link.category", changes.link.category ?? "");
+    form.set("link.url", changes.link.url ?? "");
   }
   if (changes.isActive !== null) form.set("is_active", changes.isActive ? "true" : "false");
   if (changes.startsAt) form.set("starts_at", changes.startsAt.value ?? "");
@@ -137,6 +141,7 @@ export function bannerPatchBody(
       kind: changes.link.kind,
       product_id: changes.link.productId ? Number(changes.link.productId) : null,
       category: changes.link.category,
+      url: changes.link.url,
     };
   }
   if (changes.isActive !== null) body.is_active = changes.isActive;

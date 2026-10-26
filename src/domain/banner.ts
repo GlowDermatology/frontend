@@ -2,10 +2,11 @@ import type { ContentLanguage } from "./product";
 
 /**
  * Home-screen banners (contract §2.5). Ordered by `position`; each one links
- * to nothing, a product or a category and may be limited to a time window.
+ * to nothing, a product, a category or an `https` page (gap X-BANNER-URL)
+ * and may be limited to a time window.
  */
 
-export const BANNER_LINK_KINDS = ["none", "product", "category"] as const;
+export const BANNER_LINK_KINDS = ["none", "product", "category", "url"] as const;
 export type BannerLinkKind = (typeof BANNER_LINK_KINDS)[number];
 
 export interface BannerLink {
@@ -14,6 +15,8 @@ export interface BannerLink {
   productId: string | null;
   /** Category slug when `kind` is `category`. */
   category: string | null;
+  /** Absolute `https` URL when `kind` is `url` (opened in the app). */
+  url: string | null;
 }
 
 export interface Banner {
@@ -34,6 +37,7 @@ export const BANNER_LINK_LABEL: Record<BannerLinkKind, string> = {
   none: "Havolasiz",
   product: "Mahsulot",
   category: "Kategoriya",
+  url: "Havola (URL)",
 };
 
 /**

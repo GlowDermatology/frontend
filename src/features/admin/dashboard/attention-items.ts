@@ -20,6 +20,10 @@ export interface AttentionItem {
 export const BTS_POLLING_FAILING_TITLE =
   "BTS kuzatuvi ishlamayapti · buyurtma holatlari yangilanmayapti";
 
+/** §5.7 (gap CB-9.2.4) `attention.cashback_policy_missing`. */
+export const CASHBACK_POLICY_MISSING_TITLE =
+  "Cashback siyosati yo‘q · xaridlarga cashback yozilmayapti";
+
 export function attentionItems(attention: DashboardData["attention"]): AttentionItem[] {
   const items: AttentionItem[] = [];
   if (attention.btsFailed > 0) {
@@ -41,6 +45,16 @@ export function attentionItems(attention: DashboardData["attention"]): Attention
       key: "bts-polling",
       icon: "truck",
       title: BTS_POLLING_FAILING_TITLE,
+      tone: "danger",
+    });
+  }
+  if (attention.cashbackPolicyMissing) {
+    items.push({
+      key: "cashback-policy",
+      href: "/admin/cashback",
+      icon: "percent",
+      title: CASHBACK_POLICY_MISSING_TITLE,
+      body: "Cashback sozlamalarida yangi versiya qo‘shing.",
       tone: "danger",
     });
   }

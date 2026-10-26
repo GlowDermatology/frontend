@@ -28,6 +28,7 @@ import {
 } from "@/domain/banner";
 import type { Category } from "@/domain/category";
 import { cn } from "@/lib/cn";
+import { isHttpsUrl, LINK_URL_MAX, LINK_URL_MESSAGE } from "@/lib/link-url";
 
 import { runAction } from "../shared/action-client";
 import type { IdempotencyKey } from "../shared/idempotency";
@@ -53,6 +54,7 @@ const formSchema = z
     kind: z.enum(BANNER_LINK_KINDS),
     productId: z.string(),
     category: z.string(),
+    url: z.string().trim().max(LINK_URL_MAX, `${LINK_URL_MAX} belgidan oshmasin.`),
     isActive: z.boolean(),
     startsAt: z.string(),
     endsAt: z.string(),
@@ -63,6 +65,13 @@ const formSchema = z
     }
     if (values.kind === "category" && !values.category) {
       ctx.addIssue({ code: "custom", path: ["category"], message: "Kategoriyani tanlang." });
+    }
+    if (values.kind === "url") {
+      if (!values.url) {
+        ctx.addIssue({ code: "custom", path: ["url"], message: "Havolani kiriting." });
+      } else if (!isHttpsUrl(values.url)) {
+        ctx.addIssue({ code: "custom", path: ["url"], message: LINK_URL_MESSAGE });
+      }
     }
     const starts = values.startsAt ? fromLocalInput(values.startsAt) : null;
     const ends = values.endsAt ? fromLocalInput(values.endsAt) : null;
@@ -97,6 +106,7 @@ function fromBanner(banner: Banner | null): FormValues {
     kind: banner?.link.kind ?? "none",
     productId: banner?.link.productId ?? "",
     category: banner?.link.category ?? "",
+    url: banner?.link.url ?? "",
     isActive: banner?.isActive ?? true,
     startsAt: toLocalInput(banner?.startsAt ?? null),
     endsAt: toLocalInput(banner?.endsAt ?? null),
@@ -110,6 +120,7 @@ export function toValues(values: FormValues): BannerFormValues {
       kind: values.kind,
       productId: values.kind === "product" ? values.productId || null : null,
       category: values.kind === "category" ? values.category || null : null,
+      url: values.kind === "url" ? values.url.trim() || null : null,
     },
     isActive: values.isActive,
     startsAt: fromLocalInput(values.startsAt),
@@ -122,6 +133,7 @@ const FIELD_ALIAS: Record<string, Path<FormValues> | "image"> = {
   "link.productId": "productId",
   "link.category": "category",
   "link.kind": "kind",
+  "link.url": "url",
   image: "image",
 };
 
@@ -416,6 +428,27 @@ export function BannerDialog({
                   </option>
                 ))}
               </Select>
+            )}
+          </Field>
+        )}
+
+        {kind === "url" && (
+          <Field
+            label="Havola (URL)"
+            error={errors.url?.message}
+            hint="Ilovada ochiladi. Faqat https:// bilan boshlanadigan to‘liq manzil."
+          >
+            {(c) => (
+              <TextInput
+                {...c}
+                {...register("url")}
+                type="url"
+                inputMode="url"
+                autoComplete="off"
+                spellCheck={false}
+                maxLength={LINK_URL_MAX}
+                placeholder="https://glowderma.uz/aksiya"
+              />
             )}
           </Field>
         )}

@@ -501,6 +501,13 @@ describe("dashboard (§5.7)", () => {
       attention: { ...weekFixture.attention, bts_polling_failing: true },
     } as unknown as ApiDashboard);
     expect(failing.attention.btsPollingFailing).toBe(true);
+    // Gap CB-9.2.4: a fixture before the flag reads as "a policy is in force".
+    expect(data.attention.cashbackPolicyMissing).toBe(false);
+    const missing = mapDashboard({
+      ...weekFixture,
+      attention: { ...weekFixture.attention, cashback_policy_missing: true },
+    } as unknown as ApiDashboard);
+    expect(missing.attention.cashbackPolicyMissing).toBe(true);
   });
 
   it("keeps every hour of a two-day custom range, with the day in the label", () => {
@@ -548,6 +555,7 @@ describe("dashboard (§5.7)", () => {
         new_from_billz: 0,
         refunds_needing_action: 0,
         bts_polling_failing: false,
+        cashback_policy_missing: false,
       },
       generated_at: "2026-10-24T12:05:00+05:00",
     });

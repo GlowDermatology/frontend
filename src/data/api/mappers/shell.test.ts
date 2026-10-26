@@ -510,6 +510,7 @@ describe("settings and account", () => {
         email: "admin@glowderma.uz",
         display_name: "Administrator",
         is_superuser: false,
+        is_manager: true,
         linked_providers: ["google"],
         session_expires_at: "2026-10-26T15:33:54+05:00",
         auth_method: "password",
@@ -518,6 +519,7 @@ describe("settings and account", () => {
       id: "1",
       email: "admin@glowderma.uz",
       displayName: "Administrator",
+      isManager: true,
       linkedProviders: ["google"],
       sessionExpiresAt: "2026-10-26T15:33:54+05:00",
       authMethod: "password",
@@ -527,10 +529,16 @@ describe("settings and account", () => {
       email: "admin@glowderma.uz",
       display_name: "Administrator",
       is_superuser: false,
+      is_manager: false,
       linked_providers: [],
       session_expires_at: "2026-10-26T15:33:54+05:00",
     };
     expect(mapStaffAccount({ ...base, auth_method: "google" }).authMethod).toBe("google");
+    // §2.16: a staff member who is not a manager; a superuser always is one.
+    expect(mapStaffAccount({ ...base, auth_method: "google" }).isManager).toBe(false);
+    expect(
+      mapStaffAccount({ ...base, is_superuser: true, auth_method: "password" }).isManager,
+    ).toBe(true);
     // A session opened before the backend recorded how it signed in (M3).
     expect(mapStaffAccount({ ...base, auth_method: null }).authMethod).toBeNull();
     // A backend before M3 (the M2 `Me` has no `auth_method` key): not reported, not `null`.

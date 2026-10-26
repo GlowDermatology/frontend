@@ -26,6 +26,8 @@ export interface StaffAccount {
   id: string;
   email: string;
   displayName: string;
+  /** May manage staff accounts (contract §2.16, `Me.is_manager`; superusers always). */
+  isManager: boolean;
   /** Social sign-in providers linked to this account. */
   linkedProviders: string[];
   sessionExpiresAt: string | null;

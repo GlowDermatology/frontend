@@ -22,7 +22,9 @@ export async function GET(request: Request) {
           ? `${BANNER_LINK_LABEL.product} #${b.link.productId}`
           : b.link.kind === "category"
             ? `${BANNER_LINK_LABEL.category}: ${b.link.category}`
-            : "",
+            : b.link.kind === "url"
+              ? (b.link.url ?? "")
+              : "",
         b.isActive,
         csvDateTime(b.startsAt),
         csvDateTime(b.endsAt),

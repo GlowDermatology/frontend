@@ -45,7 +45,7 @@ export type ApiImagesResponse = Schemas["ImagesResponse"];
 
 export type ApiCategory = Schemas["Category"];
 export type ApiCategoryWrite = Schemas["CategoryWriteRequest"];
-export type ApiCategoryPatch = Partial<Schemas["PatchedCategoryWriteRequest"]>;
+export type ApiCategoryPatch = Partial<Schemas["PatchedCategoryPatchRequest"]>;
 export type ApiPaginatedCategories = Schemas["PaginatedCategoryList"];
 export type ApiCategoryResults = Schemas["CategoryResults"];
 

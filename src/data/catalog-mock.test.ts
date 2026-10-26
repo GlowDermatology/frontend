@@ -103,7 +103,7 @@ describe("mock banners", () => {
     const image = new File(["x"], "b.png", { type: "image/png" });
     const values = {
       title: { uz: "Yangi", ru: "", en: "" },
-      link: { kind: "category" as const, productId: null, category: "serums" },
+      link: { kind: "category" as const, productId: null, category: "serums", url: null },
       isActive: true,
       startsAt: null,
       endsAt: null,
@@ -115,7 +115,7 @@ describe("mock banners", () => {
     });
     expect(
       await createBanner(
-        { ...values, link: { kind: "product", productId: "7", category: null } },
+        { ...values, link: { kind: "product", productId: "7", category: null, url: null } },
         image,
       ),
     ).toMatchObject({ ok: false, fieldErrors: { "link.productId": "Topilmadi." } });
@@ -126,7 +126,7 @@ describe("mock banners", () => {
     });
     // Like the API, an unchanged link is not re-checked: a banner whose linked
     // product was hidden since can still be switched off or retitled.
-    const hiddenLink = { kind: "product" as const, productId: "7", category: null };
+    const hiddenLink = { kind: "product" as const, productId: "7", category: null, url: null };
     expect(
       await updateBanner("1", { ...values, link: hiddenLink, isActive: false }, null, {
         ...values,

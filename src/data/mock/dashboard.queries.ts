@@ -82,6 +82,8 @@ export async function getDashboard(query: DashboardQuery): Promise<DashboardData
     ),
     // The demo's BTS tracking is down, so the attention block shows that item too.
     btsPollingFailing: MOCK_BTS_POLLING_FAILING,
+    // The demo has a cashback policy in force (`MOCK_POLICY`).
+    cashbackPolicyMissing: false,
   };
   const today = toLocalIsoDate(referenceNow());
 
@@ -113,6 +115,7 @@ export async function getDashboard(query: DashboardQuery): Promise<DashboardData
         new_from_billz: attention.newFromBillz,
         refunds_needing_action: attention.refundsNeedingAction,
         bts_polling_failing: attention.btsPollingFailing,
+        cashback_policy_missing: attention.cashbackPolicyMissing,
       },
       generated_at: referenceNow().toISOString(),
     };

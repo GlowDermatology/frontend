@@ -339,7 +339,7 @@ describe("categories", () => {
 describe("banners", () => {
   const values = {
     title: { uz: "Kuzgi chegirmalar", ru: "", en: "" },
-    link: { kind: "product" as const, productId: "4", category: null },
+    link: { kind: "product" as const, productId: "4", category: null, url: null },
     isActive: true,
     startsAt: null,
     endsAt: "2026-11-30T00:00:00+05:00",
@@ -350,7 +350,7 @@ describe("banners", () => {
       id: "1",
       title: { uz: "Kuzgi chegirmalar", ru: "", en: "" },
       imageUrl: "http://localhost:8001/media/banners/1/8349b8f7b347589a.png",
-      link: { kind: "product", productId: "4", category: null },
+      link: { kind: "product", productId: "4", category: null, url: null },
       isActive: true,
       startsAt: null,
       endsAt: "2026-11-30T00:00:00+05:00",
@@ -370,6 +370,7 @@ describe("banners", () => {
       "link.kind": "product",
       "link.product_id": "4",
       "link.category": "",
+      "link.url": "",
       is_active: "true",
       starts_at: "",
       ends_at: "2026-11-30T00:00:00+05:00",
@@ -378,7 +379,7 @@ describe("banners", () => {
     // A category link clears the product id even if the form still holds one.
     const category = bannerFormData({
       ...values,
-      link: { kind: "category", productId: "4", category: "serums" },
+      link: { kind: "category", productId: "4", category: "serums", url: null },
       isActive: false,
     });
     expect(category.get("link.product_id")).toBe("");
@@ -390,7 +391,7 @@ describe("banners", () => {
   it("builds the full JSON PATCH body without a baseline, with nested nulls", () => {
     expect(bannerPatchBody(null, values)).toEqual({
       title: { uz: "Kuzgi chegirmalar", ru: "", en: "" },
-      link: { kind: "product", product_id: 4, category: null },
+      link: { kind: "product", product_id: 4, category: null, url: null },
       is_active: true,
       starts_at: null,
       ends_at: "2026-11-30T00:00:00+05:00",
@@ -398,9 +399,28 @@ describe("banners", () => {
     expect(
       bannerPatchBody(null, {
         ...values,
-        link: { kind: "none", productId: "4", category: "serums" },
+        link: { kind: "none", productId: "4", category: "serums", url: null },
       }).link,
-    ).toEqual({ kind: "none", product_id: null, category: null });
+    ).toEqual({ kind: "none", product_id: null, category: null, url: null });
+    // Gap X-BANNER-URL: a URL link carries only the URL.
+    expect(
+      bannerPatchBody(null, {
+        ...values,
+        link: { kind: "url", productId: "4", category: null, url: "https://glowderma.uz/aksiya" },
+      }).link,
+    ).toEqual({
+      kind: "url",
+      product_id: null,
+      category: null,
+      url: "https://glowderma.uz/aksiya",
+    });
+    const urlForm = bannerFormData({
+      ...values,
+      link: { kind: "url", productId: null, category: "serums", url: "https://glowderma.uz/a" },
+    });
+    expect(urlForm.get("link.kind")).toBe("url");
+    expect(urlForm.get("link.url")).toBe("https://glowderma.uz/a");
+    expect(urlForm.get("link.category")).toBe("");
   });
 
   it("patches only the changed fields against the loaded banner (link left out when unchanged)", () => {
@@ -420,16 +440,16 @@ describe("banners", () => {
     // A stale target of another kind is not a change; a new kind sends the whole link.
     expect(
       bannerPatchBody(
-        { ...values, link: { kind: "none", productId: null, category: null } },
-        { ...values, link: { kind: "none", productId: "4", category: null } },
+        { ...values, link: { kind: "none", productId: null, category: null, url: null } },
+        { ...values, link: { kind: "none", productId: "4", category: null, url: null } },
       ),
     ).toEqual({});
     expect(
       bannerPatchBody(values, {
         ...values,
-        link: { kind: "category", productId: "4", category: "serums" },
+        link: { kind: "category", productId: "4", category: "serums", url: null },
       }),
-    ).toEqual({ link: { kind: "category", product_id: null, category: "serums" } });
+    ).toEqual({ link: { kind: "category", product_id: null, category: "serums", url: null } });
   });
 
   it("puts only the changed fields next to a new image in a multipart PATCH", () => {
@@ -440,7 +460,7 @@ describe("banners", () => {
     });
     expect(form.get("image")).toBeInstanceOf(File);
     const relinked = bannerFormData(
-      { ...values, link: { kind: "none", productId: null, category: null } },
+      { ...values, link: { kind: "none", productId: null, category: null, url: null } },
       image,
       values,
     );
@@ -448,6 +468,7 @@ describe("banners", () => {
       "link.kind": "none",
       "link.product_id": "",
       "link.category": "",
+      "link.url": "",
     });
   });
 });

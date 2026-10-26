@@ -576,6 +576,7 @@ describe("api mode (catalog actions wired)", () => {
       "link.kind": "product",
       "link.product_id": "4",
       "link.category": "",
+      "link.url": "",
       is_active: "true",
       starts_at: "",
       ends_at: "2026-11-30T00:00:00+05:00",
@@ -585,7 +586,7 @@ describe("api mode (catalog actions wired)", () => {
     form.delete("image");
     const loaded = {
       title: { uz: "Kuzgi chegirmalar", ru: "", en: "" },
-      link: { kind: "product" as const, productId: "4", category: null },
+      link: { kind: "product" as const, productId: "4", category: null, url: null },
       isActive: true,
       startsAt: null,
       endsAt: "2026-11-30T00:00:00+05:00",
@@ -607,7 +608,7 @@ describe("api mode (catalog actions wired)", () => {
     expect(apiFetch).toHaveBeenLastCalledWith(
       "/api/v1/admin/banners/1/",
       expect.objectContaining({
-        body: { link: { kind: "none", product_id: null, category: null } },
+        body: { link: { kind: "none", product_id: null, category: null, url: null } },
       }),
     );
     // Nothing changed → no PATCH; the banner is read back.
@@ -615,7 +616,11 @@ describe("api mode (catalog actions wired)", () => {
     await saveBanner(
       "1",
       form,
-      { ...loaded, isActive: false, link: { kind: "none", productId: null, category: null } },
+      {
+        ...loaded,
+        isActive: false,
+        link: { kind: "none", productId: null, category: null, url: null },
+      },
       KEY,
       CSRF,
     );

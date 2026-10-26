@@ -1,4 +1,10 @@
-import { hasOpenRefund, refundOperations, type PaymentRecord } from "@/domain/payment";
+import {
+  canCloseFailedRefund,
+  CLICK_STILL_PAID_MESSAGE,
+  hasOpenRefund,
+  refundOperations,
+  type PaymentRecord,
+} from "@/domain/payment";
 
 import { referenceNow } from "../config";
 import type { ActionResult } from "../types";
@@ -12,6 +18,7 @@ import { paymentById } from "./payments";
  */
 
 const NOT_FOUND: ActionResult<never> = { ok: false, error: "Topilmadi.", code: "not_found" };
+const NOT_RESOLVABLE = "Bu qaytarishni yakunlab bo‘lmaydi.";
 
 function lookup(paymentId: number, refundId: number) {
   const payment = paymentById(paymentId);
@@ -63,6 +70,24 @@ export async function retryRefund(
   };
 }
 
+/** The payment with `refundId` settled at `at` (`refunded` once the succeeded refunds cover it). */
+function settle(
+  payment: PaymentRecord,
+  refundId: number,
+  state: "succeeded" | "failed",
+): PaymentRecord {
+  const at = referenceNow().toISOString();
+  const refunds = payment.refunds.map((r) =>
+    r.id === refundId
+      ? { ...r, state, updatedAt: at, completedAt: state === "succeeded" ? at : undefined }
+      : r,
+  );
+  const refunded = refunds
+    .filter((r) => r.state === "succeeded")
+    .reduce((sum, r) => sum + r.amount, 0);
+  return { ...payment, refunds, status: refunded >= payment.amount ? "refunded" : payment.status };
+}
+
 export async function resolveRefund(
   paymentId: number,
   refundId: number,
@@ -73,19 +98,30 @@ export async function resolveRefund(
   if (!found) return NOT_FOUND;
   const { payment, refund } = found;
   if (!refundOperations(refund, payment).resolve) {
-    return { ok: false, error: "Bu qaytarishni yakunlab bo‘lmaydi.", code: "invalid_transition" };
+    return { ok: false, error: NOT_RESOLVABLE, code: "invalid_transition" };
   }
-  const at = referenceNow().toISOString();
-  const refunds = payment.refunds.map((r) =>
-    r.id === refund.id
-      ? { ...r, state, updatedAt: at, completedAt: state === "succeeded" ? at : undefined }
-      : r,
-  );
-  const refunded = refunds
-    .filter((r) => r.state === "succeeded")
-    .reduce((sum, r) => sum + r.amount, 0);
-  return {
-    ok: true,
-    data: { ...payment, refunds, status: refunded >= payment.amount ? "refunded" : payment.status },
-  };
+  return { ok: true, data: settle(payment, refund.id, state) };
+}
+
+/**
+ * The demo's Click never reversed the failed refund: closing it without
+ * `manualPayout` answers the backend's 409, and the payout closes it, so
+ * both steps of the board's flow can be tried (§7 item 18).
+ */
+export async function closeFailedRefund(
+  paymentId: number,
+  refundId: number,
+  manualPayout: boolean,
+): Promise<ActionResult<PaymentRecord>> {
+  await delay(450);
+  const found = lookup(paymentId, refundId);
+  if (!found) return NOT_FOUND;
+  const { payment, refund } = found;
+  if (refund.state !== "failed" || !canCloseFailedRefund(refund, payment)) {
+    return { ok: false, error: NOT_RESOLVABLE, code: "invalid_transition" };
+  }
+  if (!manualPayout) {
+    return { ok: false, error: CLICK_STILL_PAID_MESSAGE, code: "invalid_transition" };
+  }
+  return { ok: true, data: settle(payment, refund.id, "succeeded") };
 }

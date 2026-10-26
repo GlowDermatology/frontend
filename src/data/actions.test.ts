@@ -39,6 +39,7 @@ import categoryErrorFixture from "./api/__fixtures__/category-error.json";
 import productFixture from "./api/__fixtures__/product-1.json";
 import { apiMutation } from "./action-guard";
 import { ApiError } from "./api/errors";
+import { CLICK_STILL_PAID_MESSAGE } from "@/domain/payment";
 import { mapProduct } from "./api/mappers/products";
 import type { ApiProduct } from "./api/types";
 import { deleteBanner, reorderBanners, saveBanner } from "./banners.actions";
@@ -59,7 +60,7 @@ import { ORDER_SUMMARIES } from "./mock/orders";
 import { getOrder } from "./mock/orders.queries";
 import { sendNotification } from "./notifications.actions";
 import { cancelOrder, changeOrderStatus, loadOrder, retryShipment } from "./orders.actions";
-import { resolveRefund, retryRefund } from "./payments.actions";
+import { closeFailedRefund, resolveRefund, retryRefund } from "./payments.actions";
 import order10248Fixture from "./api/__fixtures__/order-10248.json";
 import paymentsPageFixture from "./api/__fixtures__/payments-page.json";
 import {
@@ -1251,7 +1252,86 @@ describe("api mode (order and refund actions wired)", () => {
   });
 });
 
+describe("closing a failed Click refund in api mode (§7 item 18, M2)", () => {
+  const respond = (status: number, data: unknown) => ({ status, data, headers: new Headers() });
+  const refusal = (code: string, message: string, status = 409) =>
+    new ApiError(status, { code, message, errors: [], request_id: "r" });
+
+  beforeEach(() => {
+    process.env.GLOWDERMA_DATA_SOURCE = "api";
+    verifyStaff.mockResolvedValue({ ok: true, mode: "api", token: "t", sid: null });
+    apiFetch.mockReset();
+    refresh.mockReset();
+  });
+
+  it("posts succeeded with manual_payout false first, then true, with the step's key", async () => {
+    apiFetch.mockResolvedValue(respond(200, paymentsPageFixture.results[0]));
+    const closed = await closeFailedRefund(244, 9, false, KEY, CSRF);
+    expect(closed.ok && closed.data.orderId).toBe(10244);
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/payments/244/refunds/9/resolve/",
+      expect.objectContaining({
+        method: "POST",
+        body: { state: "succeeded", manual_payout: false },
+        idempotencyKey: KEY,
+        token: "t",
+      }),
+    );
+    await closeFailedRefund(244, 9, true, KEY, CSRF);
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/payments/244/refunds/9/resolve/",
+      expect.objectContaining({ body: { state: "succeeded", manual_payout: true } }),
+    );
+    expect(refresh).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns Click's still-paid 409 and the 503 of an unreachable Click without a refresh", async () => {
+    apiFetch.mockRejectedValueOnce(refusal("invalid_transition", CLICK_STILL_PAID_MESSAGE));
+    expect(await closeFailedRefund(244, 9, false, KEY, CSRF)).toEqual({
+      ok: false,
+      error: CLICK_STILL_PAID_MESSAGE,
+      code: "invalid_transition",
+    });
+    apiFetch.mockRejectedValueOnce(
+      refusal("provider_unavailable", "Tashqi xizmat javob bermadi. Qayta urinib ko‘ring.", 503),
+    );
+    expect(await closeFailedRefund(244, 9, false, KEY, CSRF)).toEqual({
+      ok: false,
+      error: "Tashqi xizmat javob bermadi. Qayta urinib ko‘ring.",
+      code: "provider_unavailable",
+    });
+    expect(refresh).not.toHaveBeenCalled();
+    const invalid = await closeFailedRefund(244, 9, "yes" as never, KEY, CSRF);
+    expect(invalid.ok).toBe(false);
+    if (!invalid.ok) expect(invalid.fieldErrors?.manualPayout).toBeDefined();
+    expect(apiFetch).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe("refund actions in mock mode", () => {
+  it("closes the demo's failed Click refund only after the payout (Click never reversed it)", async () => {
+    const { PAYMENTS } = await import("./mock/payments");
+    const failed = PAYMENTS.find(
+      (p) => p.provider === "click" && p.refunds[0]?.state === "failed",
+    )!;
+    const refundId = failed.refunds[0]!.id;
+    expect(await closeFailedRefund(failed.id, refundId, false, KEY, CSRF)).toEqual({
+      ok: false,
+      error: CLICK_STILL_PAID_MESSAGE,
+      code: "invalid_transition",
+    });
+    const closed = await closeFailedRefund(failed.id, refundId, true, KEY, CSRF);
+    expect(closed.ok && closed.data.status).toBe("refunded");
+    expect(closed.ok && closed.data.refunds[0]?.state).toBe("succeeded");
+    const manual = PAYMENTS.find((p) => p.refunds[0]?.state === "manual_required")!;
+    expect(await closeFailedRefund(manual.id, manual.refunds[0]!.id, true, KEY, CSRF)).toEqual({
+      ok: false,
+      error: "Bu qaytarishni yakunlab bo‘lmaydi.",
+      code: "invalid_transition",
+    });
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
   it("retries a failed refund and resolves a manual one with the contract's refusals", async () => {
     const { PAYMENTS } = await import("./mock/payments");
     const failed = PAYMENTS.find((p) => p.refunds[0]?.state === "failed")!;

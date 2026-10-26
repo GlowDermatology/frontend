@@ -11,7 +11,13 @@ import {
   type RefundState,
   type Shipment,
 } from "./order";
-import { hasOpenRefund, OPEN_REFUND_STATES, refundNeedsAction, refundOperations } from "./payment";
+import {
+  canCloseFailedRefund,
+  hasOpenRefund,
+  OPEN_REFUND_STATES,
+  refundNeedsAction,
+  refundOperations,
+} from "./payment";
 
 /**
  * Rules the orders, payments and dashboard screens rely on in mock mode (the
@@ -77,11 +83,15 @@ describe("orderActions (contract §2.2 available_actions)", () => {
   });
 });
 
-describe("refundOperations (contract §2.12)", () => {
-  const refund = (id: number, state: RefundState): Refund => ({
+describe("refundOperations (contract §2.12, §7 item 18)", () => {
+  const refund = (
+    id: number,
+    state: RefundState,
+    provider: Refund["provider"] = "payme",
+  ): Refund => ({
     id,
     state,
-    provider: "payme",
+    provider,
     amount: 185_000,
     requestedAt: "2026-10-24T12:00:00+05:00",
     updatedAt: "2026-10-24T12:00:00+05:00",
@@ -90,43 +100,70 @@ describe("refundOperations (contract §2.12)", () => {
     status: "paid" as const,
     refunds: states.map((state, i) => refund(states.length - i, state)),
   });
+  const one = (state: RefundState) => refund(1, state);
 
   it("retries a failed refund of a paid payment and resolves unknown or manual ones", () => {
-    expect(refundOperations({ state: "failed" }, paid("failed"))).toEqual({
+    expect(refundOperations(one("failed"), paid("failed"))).toEqual({
       retry: true,
       resolve: false,
+      close: false,
     });
     expect(
-      refundOperations({ state: "failed" }, { status: "refunded", refunds: [refund(1, "failed")] })
-        .retry,
+      refundOperations(one("failed"), { status: "refunded", refunds: [refund(1, "failed")] }).retry,
     ).toBe(false);
-    expect(refundOperations({ state: "manual_required" }, paid("manual_required"))).toEqual({
+    expect(refundOperations(one("manual_required"), paid("manual_required"))).toEqual({
       retry: false,
       resolve: true,
+      close: false,
     });
-    expect(refundOperations({ state: "unknown" }, paid("unknown")).resolve).toBe(true);
-    expect(refundOperations({ state: "requested" }, paid("requested"))).toEqual({
+    expect(refundOperations(one("unknown"), paid("unknown")).resolve).toBe(true);
+    expect(refundOperations(one("requested"), paid("requested"))).toEqual({
       retry: false,
       resolve: false,
+      close: false,
     });
-    expect(
-      refundOperations({ state: "succeeded" }, { status: "refunded", refunds: [] }).resolve,
-    ).toBe(false);
+    expect(refundOperations(one("succeeded"), { status: "refunded", refunds: [] }).resolve).toBe(
+      false,
+    );
   });
 
   it("offers no retry while another refund of the payment is open (409 conflict)", () => {
     // Payment 230 in api mode: #17 manual_required (newest), #16 failed.
     const payment = paid("manual_required", "failed");
     const [open, failed] = payment.refunds;
-    expect(refundOperations(failed!, payment)).toEqual({ retry: false, resolve: false });
-    expect(refundOperations(open!, payment)).toEqual({ retry: false, resolve: true });
+    expect(refundOperations(failed!, payment)).toEqual({
+      retry: false,
+      resolve: false,
+      close: false,
+    });
+    expect(refundOperations(open!, payment)).toEqual({ retry: false, resolve: true, close: false });
     for (const state of OPEN_REFUND_STATES) {
       expect(hasOpenRefund(paid(state, "failed"))).toBe(true);
-      expect(refundOperations({ state: "failed" }, paid(state, "failed")).retry).toBe(false);
+      expect(refundOperations(refund(1, "failed"), paid(state, "failed")).retry).toBe(false);
     }
     // Closed siblings (succeeded, failed) do not block it.
-    expect(refundOperations({ state: "failed" }, paid("failed", "failed")).retry).toBe(true);
+    expect(refundOperations(refund(2, "failed"), paid("failed", "failed")).retry).toBe(true);
     expect(hasOpenRefund(paid("failed", "succeeded"))).toBe(false);
+  });
+
+  it("closes only the newest failed Click refund of a paid payment with no open or settled sibling", () => {
+    const click = (id: number, state: RefundState) => refund(id, state, "click");
+    const failed = click(2, "failed");
+    const payment = (...refunds: Refund[]) => ({ status: "paid" as const, refunds });
+    expect(refundOperations(failed, payment(failed))).toEqual({
+      retry: true,
+      resolve: false,
+      close: true,
+    });
+    expect(canCloseFailedRefund(failed, payment(failed, click(1, "failed")))).toBe(true);
+    // Payme failures are retried, never closed by a Click status check.
+    expect(canCloseFailedRefund(refund(2, "failed"), payment(refund(2, "failed")))).toBe(false);
+    // Not the newest refund, a settled or open sibling, or no longer paid.
+    expect(canCloseFailedRefund(failed, payment(click(3, "failed"), failed))).toBe(false);
+    expect(canCloseFailedRefund(failed, payment(failed, click(1, "succeeded")))).toBe(false);
+    expect(canCloseFailedRefund(failed, payment(failed, click(1, "unknown")))).toBe(false);
+    expect(canCloseFailedRefund(failed, { status: "refunded", refunds: [failed] })).toBe(false);
+    expect(canCloseFailedRefund(click(2, "unknown"), payment(click(2, "unknown")))).toBe(false);
   });
 });
 

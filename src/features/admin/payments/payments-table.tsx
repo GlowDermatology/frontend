@@ -11,24 +11,48 @@ import { Icon } from "@/components/ui/icon";
 import { ActionMenu, type ActionMenuItem } from "@/components/ui/menu";
 import { ScrollRegion } from "@/components/ui/scroll-region";
 import { useToast } from "@/components/ui/toast";
-import { resolveRefund, retryRefund } from "@/data/payments.actions";
+import { closeFailedRefund, resolveRefund, retryRefund } from "@/data/payments.actions";
 import type { ActionResult } from "@/data/types";
 import { refundStateLine, type Refund } from "@/domain/order";
 import { refundOperations, type PaymentRecord } from "@/domain/payment";
+import { cn } from "@/lib/cn";
 import { formatDateTimeShort, formatNumber, formatPhone, formatSom } from "@/lib/format";
 
 import { runAction } from "../shared/action-client";
 import { newIdempotencyKey, shouldRenewKey } from "../shared/idempotency";
 import { PaymentStatusBadge, PROVIDER_LABEL, RefundStateBadge } from "../shared/status";
-import { isStaleRefundRefusal } from "./refusals";
+import { isClickStillPaidRefusal, isStaleRefundRefusal, refundRefusalMessage } from "./refusals";
 
 /** One refund operation the admin confirmed in the dialog. */
 export type RefundOperation =
   | { kind: "retry"; payment: PaymentRecord; refund: Refund }
-  | { kind: "resolve"; state: "succeeded" | "failed"; payment: PaymentRecord; refund: Refund };
+  | { kind: "resolve"; state: "succeeded" | "failed"; payment: PaymentRecord; refund: Refund }
+  | {
+      /** A failed Click refund closed after a Click status check; `manualPayout` = paid by hand. */
+      kind: "close";
+      manualPayout: boolean;
+      payment: PaymentRecord;
+      refund: Refund;
+    };
 
-const operationKey = (op: RefundOperation) =>
-  `${op.payment.id}:${op.refund.id}:${op.kind === "retry" ? "retry" : `resolve-${op.state}`}`;
+/** One key per payment, refund and step: the two close steps send different bodies. */
+const operationKey = (op: RefundOperation) => {
+  const step =
+    op.kind === "retry"
+      ? "retry"
+      : op.kind === "resolve"
+        ? `resolve-${op.state}`
+        : op.manualPayout
+          ? "payout"
+          : "close";
+  return `${op.payment.id}:${op.refund.id}:${step}`;
+};
+
+/** The dialog's line under the text: Click's answer before the payout step, or a refusal. */
+interface DialogNotice {
+  tone: "info" | "error";
+  text: string;
+}
 
 function dialogCopy(op: RefundOperation): { title: string; body: string; confirm: string } {
   const amount = formatSom(op.refund.amount);
@@ -42,6 +66,19 @@ function dialogCopy(op: RefundOperation): { title: string; body: string; confirm
           : `Buyurtma №${op.payment.orderId}: ${amount} uchun yangi qaytarish ochiladi; Payme kabinetida qo‘lda qaytariladi.`,
       confirm: "Qayta yuborish",
     };
+  }
+  if (op.kind === "close") {
+    return op.manualPayout
+      ? {
+          title: "Mijozga qo‘lda to‘landimi?",
+          body: `Buyurtma №${op.payment.orderId}: ${amount} mijozga Click’dan tashqari to‘langanini tekshirdingizmi? Click holati yana tekshiriladi va qaytarish «Qaytarildi» deb yopiladi; jurnalga «qo‘lda to‘landi» deb yoziladi.`,
+          confirm: "Qo‘lda to‘landi",
+        }
+      : {
+          title: "Qaytarishni yakunlaysizmi?",
+          body: `Buyurtma №${op.payment.orderId}: Click’dan to‘lov holati qayta so‘raladi. Click ${amount} ni qaytargan bo‘lsa, qaytarish «Qaytarildi» deb yopiladi va mijozga qo‘lda to‘lash kerak emas. Qaytarmagan bo‘lsa, mijozga qo‘lda to‘lab, «Qo‘lda to‘landi» bilan yakunlaysiz.`,
+          confirm: "Yakunlash",
+        };
   }
   if (op.state === "succeeded") {
     // A manual Click refund is paid to the customer outside Click (§5.1, M2).
@@ -66,17 +103,26 @@ function successToast(op: RefundOperation): { title: string; description?: strin
   if (op.kind === "retry") {
     return { title: "Qaytarish qayta yuborildi", description: `Buyurtma №${op.payment.orderId}` };
   }
+  if (op.kind === "close") {
+    return { title: "Qaytarish yakunlandi", description: `Buyurtma №${op.payment.orderId}` };
+  }
   return {
     title: op.state === "succeeded" ? "Qaytarish yakunlandi" : "Qaytarish bajarilmadi deb yopildi",
     description: `Buyurtma №${op.payment.orderId}`,
   };
 }
 
-/** The operations a payment row offers, one group per refund that has any (newest first). */
+/**
+ * The operations a payment row offers, one group per refund that has any
+ * (newest first). A failed Click refund offers "Yakunlash" (the server asks
+ * Click first) and, once Click answered that it still holds the money,
+ * "Qo‘lda to‘landi" (`stillPaid`).
+ */
 function rowItems(
   payment: PaymentRecord,
   open: (op: RefundOperation) => void,
   disabled: boolean,
+  stillPaid: ReadonlySet<number>,
 ): ActionMenuItem[] {
   const many = payment.refunds.length > 1;
   return payment.refunds.flatMap((refund) => {
@@ -92,6 +138,24 @@ function rowItems(
         disabled,
         onSelect: () => open({ kind: "retry", payment, refund }),
       });
+    }
+    if (ops.close) {
+      items.push({
+        key: `${refund.id}-close`,
+        label: `Yakunlash${suffix}`,
+        hint,
+        disabled,
+        onSelect: () => open({ kind: "close", manualPayout: false, payment, refund }),
+      });
+      if (stillPaid.has(refund.id)) {
+        items.push({
+          key: `${refund.id}-payout`,
+          label: `Qo‘lda to‘landi${suffix}`,
+          hint,
+          disabled,
+          onSelect: () => open({ kind: "close", manualPayout: true, payment, refund }),
+        });
+      }
     }
     if (ops.resolve) {
       items.push(
@@ -146,8 +210,12 @@ interface PaymentsTableProps {
 
 /**
  * Payment rows with the refund operations of §2.12: "Qayta yuborish" for a
- * failed refund (a new refund of the paid payment) and "Qaytarildi / Bajarilmadi
- * deb belgilash" for an unknown or manual_required one. Each operation is
+ * failed refund (a new refund of the paid payment), "Qaytarildi / Bajarilmadi
+ * deb belgilash" for an unknown or manual_required one, and "Yakunlash" for a
+ * failed Click refund (§7 item 18, M2: the server asks Click first; when
+ * Click still holds the money the dialog moves on to "Qo‘lda to‘landi",
+ * `manual_payout`, once staff paid the customer by hand; Click's 503 keeps
+ * the dialog open with the provider-unavailable message). Each operation is
  * confirmed in a dialog and sent with its own idempotency key (kept per
  * payment, refund and operation across retries, renewed after a success or
  * a 422 reuse). The answer is the updated payment row, shown at once; in api
@@ -159,6 +227,9 @@ export function PaymentsTable({ payments, sortHref, sortedAscending }: PaymentsT
   const [updated, setUpdated] = useState<ReadonlyMap<number, PaymentRecord>>(new Map());
   const [source, setSource] = useState(payments);
   const [operation, setOperation] = useState<RefundOperation | null>(null);
+  const [notice, setNotice] = useState<DialogNotice | null>(null);
+  /** Failed Click refunds Click still reports paid: the menu offers the payout step. */
+  const [stillPaid, setStillPaid] = useState<ReadonlySet<number>>(new Set());
   const [pending, startTransition] = useTransition();
   const keys = useRef(new Map<string, string>());
   const submitting = useRef(false);
@@ -187,26 +258,45 @@ export function PaymentsTable({ payments, sortHref, sortedAscending }: PaymentsT
     if (!op || submitting.current) return;
     submitting.current = true;
     const key = keyFor(op);
+    setNotice(null);
     startTransition(async () => {
       const result: ActionResult<PaymentRecord> = await runAction((csrf) =>
         op.kind === "retry"
           ? retryRefund(op.payment.id, op.refund.id, key, csrf)
-          : resolveRefund(op.payment.id, op.refund.id, op.state, key, csrf),
+          : op.kind === "close"
+            ? closeFailedRefund(op.payment.id, op.refund.id, op.manualPayout, key, csrf)
+            : resolveRefund(op.payment.id, op.refund.id, op.state, key, csrf),
       );
       submitting.current = false;
       if (shouldRenewKey(result)) keys.current.delete(operationKey(op));
       if (!result.ok) {
-        toast({ tone: "info", title: "Amal bajarilmadi", description: result.error });
+        // Click still holds the money (409): the same dialog moves on to the
+        // payout step with Click's answer under it (§7 item 18).
+        if (op.kind === "close" && !op.manualPayout && isClickStillPaidRefusal(result)) {
+          setStillPaid((current) => new Set(current).add(op.refund.id));
+          setOperation({ ...op, manualPayout: true });
+          setNotice({ tone: "info", text: result.error });
+          return;
+        }
         // A refusal that means the row changed under us (404, 409 other than
         // the busy order): close and re-read the board so the menu follows the
-        // server; a transient failure keeps the dialog open with the same key.
+        // server; a transient failure (busy order, Click's 503, the network)
+        // keeps the dialog open with the same key and says why inside it.
         if (isStaleRefundRefusal(result)) {
+          toast({ tone: "info", title: "Amal bajarilmadi", description: result.error });
           setOperation(null);
           startTransition(() => router.refresh());
+          return;
         }
+        setNotice({ tone: "error", text: refundRefusalMessage(op.kind, result) });
         return;
       }
       setUpdated((current) => new Map(current).set(result.data.id, result.data));
+      setStillPaid((current) => {
+        const next = new Set(current);
+        next.delete(op.refund.id);
+        return next;
+      });
       setOperation(null);
       toast(successToast(op));
     });
@@ -214,6 +304,7 @@ export function PaymentsTable({ payments, sortHref, sortedAscending }: PaymentsT
 
   const openOperation = (op: RefundOperation) => {
     setReturnTo(op.payment.id);
+    setNotice(null);
     setOperation(op);
   };
 
@@ -271,7 +362,7 @@ export function PaymentsTable({ payments, sortHref, sortedAscending }: PaymentsT
           </thead>
           <tbody>
             {rows.map((payment) => {
-              const items = rowItems(payment, openOperation, pending);
+              const items = rowItems(payment, openOperation, pending, stillPaid);
               return (
                 <tr key={payment.id} data-payment-id={payment.id}>
                   <td className="text-ink-muted tabular-nums">{payment.id}</td>
@@ -340,12 +431,27 @@ export function PaymentsTable({ payments, sortHref, sortedAscending }: PaymentsT
       <AlertDialog
         open={operation !== null}
         onOpenChange={(open) => {
-          if (!open && !pending) setOperation(null);
+          if (open || pending) return;
+          setOperation(null);
+          setNotice(null);
         }}
         onCloseAutoFocus={restoreFocus}
         title={copy?.title ?? ""}
         description={<p className="m-0 text-[14px] leading-5 text-ink">{copy?.body}</p>}
       >
+        {notice && (
+          <p
+            role="alert"
+            className={cn(
+              "m-0 text-body-sm leading-5",
+              notice.tone === "error"
+                ? "font-semibold text-danger"
+                : "rounded-md bg-warning-soft px-3 py-2 text-ink",
+            )}
+          >
+            {notice.text}
+          </p>
+        )}
         <div className="mt-1.5 flex flex-wrap justify-end gap-2">
           <AlertDialogCancel disabled={pending} className={buttonStyles({ variant: "outline" })}>
             Orqaga
@@ -360,7 +466,11 @@ export function PaymentsTable({ payments, sortHref, sortedAscending }: PaymentsT
             disabled={pending}
             aria-busy={pending}
           >
-            {pending ? "Yuborilmoqda…" : copy?.confirm}
+            {pending
+              ? operation?.kind === "close"
+                ? "Click tekshirilmoqda…"
+                : "Yuborilmoqda…"
+              : copy?.confirm}
           </Button>
         </div>
       </AlertDialog>

@@ -159,8 +159,15 @@ export type ApiCancelOrder = Schemas["CancelOrderRequest"];
 export type ApiTransition = Schemas["TransitionRequest"];
 export type ApiPayment = Schemas["Payment"];
 export type ApiPaginatedPayments = Schemas["PaginatedPaymentList"];
-/** `POST payments/{id}/refunds/{refund_id}/resolve/`: only these two states are accepted. */
-export type ApiResolveRefund = { state: "succeeded" | "failed" };
+/**
+ * `POST payments/{id}/refunds/{refund_id}/resolve/`: only these two states
+ * are accepted; `manual_payout` closes a failed Click refund Click still
+ * reports paid (M2, §7 item 18; ignored for other refunds).
+ */
+export type ApiResolveRefund = Omit<Schemas["ResolveRefundRequest"], "state" | "manual_payout"> & {
+  state: "succeeded" | "failed";
+  manual_payout?: boolean;
+};
 export type ApiDashboard = Schemas["Dashboard"];
 export type ApiDashboardBucket = Schemas["DashboardBucket"];
 export type ApiDashboardRange = Schemas["DashboardRangeEnum"];

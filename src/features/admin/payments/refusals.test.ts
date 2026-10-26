@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { isStaleRefundRefusal } from "./refusals";
+import { CLICK_STILL_PAID_MESSAGE } from "@/domain/payment";
+
+import {
+  CLICK_UNAVAILABLE_MESSAGE,
+  isClickStillPaidRefusal,
+  isStaleRefundRefusal,
+  refundRefusalMessage,
+} from "./refusals";
 
 describe("isStaleRefundRefusal (contract §2.12, §2.2 busy order)", () => {
   it("treats a changed row as stale and the busy order or a network error as transient", () => {
@@ -35,5 +42,44 @@ describe("isStaleRefundRefusal (contract §2.12, §2.2 busy order)", () => {
       }),
     ).toBe(false);
     expect(isStaleRefundRefusal({ ok: false, error: "Tarmoq xatosi." })).toBe(false);
+  });
+});
+
+describe("closing a failed Click refund (§7 item 18, M2)", () => {
+  const stillPaid = {
+    ok: false as const,
+    error: CLICK_STILL_PAID_MESSAGE,
+    code: "invalid_transition",
+  };
+  const clickFake = {
+    ok: false as const,
+    error:
+      "Click sinov rejimida: to‘lov holatini tekshirib bo‘lmaydi. Click ulanganidan keyin yakunlang.",
+    code: "invalid_transition",
+  };
+  const unavailable = {
+    ok: false as const,
+    error: "Tashqi xizmat javob bermadi. Qayta urinib ko‘ring.",
+    code: "provider_unavailable",
+  };
+
+  it("reads Click's still-paid 409 as the payout step, not as a stale row", () => {
+    expect(isClickStillPaidRefusal(stillPaid)).toBe(true);
+    expect(isStaleRefundRefusal(stillPaid)).toBe(false);
+    expect(isClickStillPaidRefusal(clickFake)).toBe(false);
+    expect(isStaleRefundRefusal(clickFake)).toBe(true);
+    expect(
+      isClickStillPaidRefusal({ ok: false, error: CLICK_STILL_PAID_MESSAGE, code: "conflict" }),
+    ).toBe(false);
+    expect(isClickStillPaidRefusal({ ok: true, data: null })).toBe(false);
+  });
+
+  it("names Click when it did not answer the status check, keeps other messages", () => {
+    expect(isStaleRefundRefusal(unavailable)).toBe(false);
+    expect(refundRefusalMessage("close", unavailable)).toBe(CLICK_UNAVAILABLE_MESSAGE);
+    expect(refundRefusalMessage("retry", unavailable)).toBe(unavailable.error);
+    expect(
+      refundRefusalMessage("close", { ok: false, error: "Tarmoq xatosi.", code: "network_error" }),
+    ).toBe("Tarmoq xatosi.");
   });
 });

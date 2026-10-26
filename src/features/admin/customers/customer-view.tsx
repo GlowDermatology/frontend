@@ -12,7 +12,7 @@ import { Card, CardTitle, DetailRow } from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
 import { useToast } from "@/components/ui/toast";
 import { formatPercent, type LedgerEntry } from "@/domain/cashback";
-import { lifetimeTotal, type Customer } from "@/domain/customer";
+import { canAdjustCashback, lifetimeTotal, type Customer } from "@/domain/customer";
 import {
   formatDateLong,
   formatDateTimeShort,
@@ -24,6 +24,7 @@ import {
 } from "@/lib/format";
 
 import { AdjustCashbackDialog } from "./adjust-cashback-dialog";
+import { balanceNote } from "./labels";
 import { LedgerTable, PurchasesTable } from "./ledger";
 
 const LANGUAGE_NAME = { uz: "O‘zbekcha", ru: "Ruscha", en: "Inglizcha" } as const;
@@ -95,6 +96,7 @@ export function CustomerView({ customer, now }: CustomerViewProps) {
   const lifetime = lifetimeTotal(customer);
   const { tier, device } = customer;
   const deleted = customer.status === "deleted";
+  const adjustable = canAdjustCashback(customer);
   const sameDay = device && formatDayMonthShort(device.lastActiveAt) === formatDayMonthShort(now);
 
   return (
@@ -127,10 +129,12 @@ export function CustomerView({ customer, now }: CustomerViewProps) {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" className="px-4" onClick={() => setAdjustOpen(true)}>
-            <Icon name="coins" size={18} />
-            Cashback tuzatish
-          </Button>
+          {adjustable && (
+            <Button variant="secondary" className="px-4" onClick={() => setAdjustOpen(true)}>
+              <Icon name="coins" size={18} />
+              Cashback tuzatish
+            </Button>
+          )}
           {!deleted && (
             <Link
               href={`/admin/notifications?customer=${customer.id}`}
@@ -193,11 +197,7 @@ export function CustomerView({ customer, now }: CustomerViewProps) {
         <Metric
           label="Cashback balansi"
           value={formatSom(balance)}
-          note={
-            held !== 0
-              ? `Band: ${formatSom(held)} · ishlatish mumkin: ${formatSom(available)}`
-              : "Yozuvlar yig‘indisidan hisoblanadi"
-          }
+          note={balanceNote(held, available)}
         />
         <Metric
           label="Onlayn buyurtmalar"
@@ -348,39 +348,41 @@ export function CustomerView({ customer, now }: CustomerViewProps) {
         </Card>
       </div>
 
-      <AdjustCashbackDialog
-        open={adjustOpen}
-        onOpenChange={setAdjustOpen}
-        customerId={customer.id}
-        balance={balance}
-        available={available}
-        onError={(message) =>
-          toast({ tone: "info", title: "Amal bajarilmadi", description: message })
-        }
-        onAdjusted={({ entry, balance: nextBalance, available: nextAvailable }) => {
-          // The server's balances when it sent them (api mode, which also
-          // re-renders the card); the demo adds the entry to what it shows.
-          setState((current) => {
-            // The refreshed card may already hold the entry (api mode).
-            if (current.ledger.some((row) => row.id === entry.id)) return current;
-            const balanceAfter = nextBalance ?? current.balance + entry.amount;
-            return {
-              ledger: [
-                { ...entry, balanceAfter: entry.balanceAfter ?? balanceAfter },
-                ...current.ledger,
-              ],
-              balance: balanceAfter,
-              available: nextAvailable ?? current.available + entry.amount,
-            };
-          });
-          setTab("cashback");
-          setAdjustOpen(false);
-          toast({
-            title: "Tuzatish yozuvi qo‘shildi",
-            description: "Sabab va admin amallar jurnaliga yozildi",
-          });
-        }}
-      />
+      {adjustable && (
+        <AdjustCashbackDialog
+          open={adjustOpen}
+          onOpenChange={setAdjustOpen}
+          customerId={customer.id}
+          balance={balance}
+          available={available}
+          onError={(message) =>
+            toast({ tone: "info", title: "Amal bajarilmadi", description: message })
+          }
+          onAdjusted={({ entry, balance: nextBalance, available: nextAvailable }) => {
+            // The server's balances when it sent them (api mode, which also
+            // re-renders the card); the demo adds the entry to what it shows.
+            setState((current) => {
+              // The refreshed card may already hold the entry (api mode).
+              if (current.ledger.some((row) => row.id === entry.id)) return current;
+              const balanceAfter = nextBalance ?? current.balance + entry.amount;
+              return {
+                ledger: [
+                  { ...entry, balanceAfter: entry.balanceAfter ?? balanceAfter },
+                  ...current.ledger,
+                ],
+                balance: balanceAfter,
+                available: nextAvailable ?? current.available + entry.amount,
+              };
+            });
+            setTab("cashback");
+            setAdjustOpen(false);
+            toast({
+              title: "Tuzatish yozuvi qo‘shildi",
+              description: "Sabab va admin amallar jurnaliga yozildi",
+            });
+          }}
+        />
+      )}
     </>
   );
 }

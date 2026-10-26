@@ -74,6 +74,15 @@ export function lifetimeTotal(customer: Pick<Customer, "totals">): number {
   return customer.totals.lifetime ?? customer.totals.store + customer.totals.online;
 }
 
+/**
+ * The card offers the cashback adjustment only while the account is active:
+ * a deleted customer's card is read-only (the backend would still accept an
+ * adjustment, contract §2.6, but the admin cannot start one from the card).
+ */
+export function canAdjustCashback(customer: Pick<Customer, "status">): boolean {
+  return customer.status !== "deleted";
+}
+
 /** A row of the customers list (contract §2.6 `CustomerListItem`), shared with the group members. */
 export type CustomerListItem = SegmentMember;
 

@@ -113,6 +113,40 @@ export function splitMemberList(input: string): string[] {
 }
 
 /**
+ * A list pasted into line `index` of the add-members dialog (one entry per
+ * line). The entries go in at the caret: the line's own text before and
+ * after the selection stays, each part as its own line, so "105" followed by
+ * a pasted "288,300" keeps 105. Blank lines after the paste point are
+ * dropped; at most `max` lines are kept and `dropped` counts what did not
+ * fit (the dialog says so instead of losing customers silently).
+ */
+export function pasteMemberLines(
+  rows: ReadonlyArray<string>,
+  index: number,
+  text: string,
+  selection: { start: number; end: number },
+  max: number = SEGMENT_MEMBERS_MAX,
+): { rows: string[]; focus: number; dropped: number } {
+  const current = rows[index] ?? "";
+  const head = current.slice(0, selection.start).trim();
+  const tail = current.slice(selection.end).trim();
+  const inserted = [...(head ? [head] : []), ...splitMemberList(text), ...(tail ? [tail] : [])];
+  const before = rows.slice(0, index);
+  const after = rows.slice(index + 1).filter((row) => row.trim() !== "");
+  const all = [...before, ...inserted, ...after];
+  const lastInserted = before.length + inserted.length - 1;
+  return {
+    rows: all.slice(0, max),
+    focus: Math.max(0, Math.min(lastInserted, max - 1)),
+    dropped: Math.max(0, all.length - max),
+  };
+}
+
+/** The dialog message for lines a paste could not add. */
+export const droppedLinesMessage = (dropped: number, max: number = SEGMENT_MEMBERS_MAX) =>
+  `${dropped} ta qator qo‘shilmadi: ko‘pi bilan ${max} ta.`;
+
+/**
  * The admin's "customer ids or phones" list (`splitMemberList` +
  * `parseMemberEntry`): ids and E.164 phones de-duplicated, the entries that
  * are not a whole phone in `incomplete`, the rest in `invalid`.

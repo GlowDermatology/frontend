@@ -15,6 +15,8 @@ import { useToast } from "@/components/ui/toast";
 import { addSegmentMembers, removeSegmentMember } from "@/data/segments.actions";
 import type { Page } from "@/data/types";
 import {
+  droppedLinesMessage,
+  pasteMemberLines,
   SEGMENT_MEMBERS_MAX,
   segmentRulesSummary,
   splitMemberList,
@@ -322,15 +324,18 @@ function AddMembersDialog({
     const text = event.clipboardData.getData("text");
     if (!/[,;\n\r]/.test(text)) return; // one entry: the browser pastes it
     event.preventDefault();
-    const entries = splitMemberList(text);
-    if (entries.length === 0) return;
-    clearErrors();
-    setRows((current) => {
-      const before = current.slice(0, index);
-      const after = current.slice(index + 1).filter((row) => row.trim() !== "");
-      return [...before, ...entries, ...after].slice(0, SEGMENT_MEMBERS_MAX);
+    if (splitMemberList(text).length === 0) return;
+    const input = event.currentTarget;
+    const value = rows[index] ?? "";
+    const pasted = pasteMemberLines(rows, index, text, {
+      start: input.selectionStart ?? value.length,
+      end: input.selectionEnd ?? value.length,
     });
-    focusRow(Math.min(index + entries.length - 1, SEGMENT_MEMBERS_MAX - 1));
+    clearErrors();
+    setRows(pasted.rows);
+    // Lines over the limit are not added; the form message says how many.
+    if (pasted.dropped > 0) setError(droppedLinesMessage(pasted.dropped));
+    focusRow(pasted.focus);
   };
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {

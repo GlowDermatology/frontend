@@ -445,6 +445,22 @@ describe("cancelling a scheduled campaign (M3)", () => {
       ok: false,
       code: "not_found",
     });
+    // Both re-read the history in the same roundtrip: the board shows what changed.
+    expect(refresh).toHaveBeenCalledTimes(2);
+  });
+
+  it("api: an answer that changed nothing does not re-read the history", async () => {
+    process.env.GLOWDERMA_DATA_SOURCE = "api";
+    verifyStaff.mockResolvedValue({ ok: true, mode: "api", token: "t", sid: null });
+    apiFetch.mockRejectedValueOnce(
+      apiError(503, {
+        code: "provider_unavailable",
+        message: "Xizmat vaqtincha ishlamayapti.",
+        errors: [],
+        request_id: "r",
+      }),
+    );
+    expect(await cancelNotification("4", KEY, CSRF)).toMatchObject({ ok: false });
     expect(refresh).not.toHaveBeenCalled();
   });
 
@@ -470,6 +486,8 @@ describe("cancelling a scheduled campaign (M3)", () => {
       ok: false,
       code: "not_found",
     });
+    // The fixtures never change: a re-render would only discard the page's own history.
+    expect(refresh).not.toHaveBeenCalled();
   });
 });
 

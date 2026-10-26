@@ -1,5 +1,6 @@
 "use server";
 
+import { refresh } from "next/cache";
 import { z } from "zod";
 
 import {
@@ -200,7 +201,9 @@ const cancelSchema = z.object({
  * cancelled record (a repeat answers the same record). Once the send started
  * the backend answers 409 `conflict` "Yuborish boshlangan: xabarni bekor
  * qilib bo‘lmaydi."; an unknown id 404. Both come back with the backend's
- * code and message; the board re-reads its history on them.
+ * code and message, and in api mode the route is refreshed with them, so the
+ * board shows the history as it now is (the client never re-reads: in mock
+ * mode that would discard the page's local history).
  */
 export async function cancelNotification(
   notificationId: string,
@@ -222,7 +225,11 @@ export async function cancelNotification(
         );
         return { ok: true, data: mapNotificationRecord(data) };
       } catch (error) {
-        return toActionResult(error);
+        const result = toActionResult(error);
+        // The campaign changed under the board: re-read the history in this
+        // roundtrip (api mode only; mock mode never refreshes, action-guard.ts).
+        if (result.code === "conflict" || result.code === "not_found") refresh();
+        return result;
       }
     });
   }

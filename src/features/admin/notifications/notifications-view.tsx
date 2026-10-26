@@ -2,7 +2,6 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { Controller, useForm, useWatch, type Path } from "react-hook-form";
 import { z } from "zod";
@@ -38,8 +37,14 @@ import { maskPhone } from "@/lib/phone";
 
 import { runAction } from "../shared/action-client";
 import { partitionFieldErrors } from "../shared/field-errors";
-import { newIdempotencyKey, shouldRenewKey, useIdempotencyKey } from "../shared/idempotency";
-import { cancelOutcome, canCancelCampaign } from "./cancel-campaign";
+import { useIdempotencyKey } from "../shared/idempotency";
+import {
+  applyCancelOutcome,
+  cancelKeyFor,
+  cancelOutcome,
+  canCancelCampaign,
+  settleCancelKey,
+} from "./cancel-campaign";
 
 const KIND_LABEL: Record<NotificationKind, string> = { promo: "Aksiya", general: "Umumiy" };
 
@@ -137,10 +142,10 @@ export function NotificationsView({
   // React Hook Form must re-run `register` after `reset()` (see ProductEditor).
   "use no memo";
   const toast = useToast();
-  const router = useRouter();
   const idBase = useId();
-  // A newer server history (the refresh after an api-mode send, a navigation
-  // back to the kept-mounted route) replaces the local one; a send prepends
+  // A newer server history (the refresh after an api-mode send or a refused
+  // cancel, a navigation back to the kept-mounted route) replaces the local
+  // one; a send prepends
   // its answer locally so mock mode, which persists nothing, shows it too.
   const [historySource, setHistorySource] = useState(initialHistory);
   const [history, setHistory] = useState(initialHistory);
@@ -177,34 +182,26 @@ export function NotificationsView({
     cancelInFlight.current = true;
     setCancelling(true);
     setCancelError(null);
-    let key = cancelKeys.current.get(target.id);
-    if (!key) {
-      key = newIdempotencyKey();
-      cancelKeys.current.set(target.id, key);
-    }
-    const sent = key;
-    const result = await runAction((csrf) => cancelNotification(target.id, sent, csrf));
+    const key = cancelKeyFor(cancelKeys.current, target.id);
+    const result = await runAction((csrf) => cancelNotification(target.id, key, csrf));
     cancelInFlight.current = false;
     setCancelling(false);
-    if (shouldRenewKey(result)) cancelKeys.current.delete(target.id);
-    const outcome = cancelOutcome(result);
-    if (outcome.type === "retryable") {
-      setCancelError(outcome.message);
-      return;
-    }
-    // The row's button is gone (cancelled) or about to go with the re-read
-    // (sent, or no longer there): focus the history table, not the button.
-    cancelFocus.current = null;
-    setCancelTarget(null);
-    if (outcome.type === "stale") {
-      // The send started meanwhile (409) or the campaign is gone (404).
-      toast({ tone: "info", title: "Amal bajarilmadi", description: outcome.message });
-      router.refresh();
-      return;
-    }
-    const cancelled = outcome.record;
-    setHistory((current) => current.map((r) => (r.id === cancelled.id ? cancelled : r)));
-    toast({ title: "Xabar bekor qilindi", description: `«${target.title}» yuborilmaydi` });
+    settleCancelKey(cancelKeys.current, target.id, result);
+    // A 409 / 404 was re-read by the Server Action in api mode (never in demo
+    // mode, where a re-render would only discard the page's own history).
+    applyCancelOutcome(cancelOutcome(result), target, {
+      showError: setCancelError,
+      close: () => {
+        // The row's button is gone (cancelled) or about to go with the re-read
+        // (sent, or no longer there): focus the history table, not the button.
+        cancelFocus.current = null;
+        setCancelTarget(null);
+      },
+      replaceRecord: (record) =>
+        setHistory((current) => current.map((r) => (r.id === record.id ? record : r))),
+      dropRecord: (id) => setHistory((current) => current.filter((r) => r.id !== id)),
+      toast,
+    });
   };
 
   const defaults: Values = {

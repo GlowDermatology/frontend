@@ -164,7 +164,10 @@ export function NotificationsView({
   const [cancelling, setCancelling] = useState(false);
   const cancelInFlight = useRef(false);
   const cancelKeys = useRef(new Map<string, string>());
-  /** The campaign whose button opened the dialog: focus returns to it, else to the table. */
+  /**
+   * The campaign whose button opened the dialog: focus returns to it when the
+   * dialog is dismissed, else (after an answer) to the history table.
+   */
   const cancelFocus = useRef<string | null>(null);
   const historyRegion = useRef<HTMLDivElement>(null);
 
@@ -189,7 +192,9 @@ export function NotificationsView({
       setCancelError(outcome.message);
       return;
     }
-    cancelFocus.current = target.id;
+    // The row's button is gone (cancelled) or about to go with the re-read
+    // (sent, or no longer there): focus the history table, not the button.
+    cancelFocus.current = null;
     setCancelTarget(null);
     if (outcome.type === "stale") {
       // The send started meanwhile (409) or the campaign is gone (404).

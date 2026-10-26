@@ -128,3 +128,36 @@ export type ApiTierWarning = Schemas["TierWarning"];
 export type ApiSegmentMembersInput = Schemas["SegmentMembersInputRequest"];
 export type ApiStaffListItem = Schemas["StaffListItem"];
 export type ApiPaginatedStaff = Schemas["PaginatedStaffListItemList"];
+
+/* --- Orders, payments, dashboard (contract §2.2, §2.10, §2.12) — F2d --- */
+
+/**
+ * openapi-typescript turns the `allOf: [Shipment]` of the order shapes into
+ * `Omit<Shipment, "state">`, which drops the discriminant; the payload is the
+ * plain `Shipment` union (contract §2.2), so it is restored here.
+ */
+export type ApiShipment = Schemas["Shipment"];
+export type ApiOrderSummary = Omit<Schemas["OrderSummary"], "shipment"> & {
+  shipment: ApiShipment;
+};
+export type ApiOrderDetail = Omit<Schemas["OrderDetail"], "shipment"> & { shipment: ApiShipment };
+export type ApiPaginatedOrders = Omit<Schemas["PaginatedOrderSummaryList"], "results"> & {
+  results: ApiOrderSummary[];
+};
+export type ApiStatusCounts = Schemas["StatusCounts"];
+export type ApiOrderEvent = Schemas["OrderEvent"];
+export type ApiOrderEventType = Schemas["OrderEventTypeEnum"];
+export type ApiOrderItem = Schemas["OrderItem"];
+export type ApiOrderCashback = Schemas["OrderCashback"];
+export type ApiCashbackHold = Schemas["CashbackHold"];
+export type ApiRefund = Schemas["Refund"];
+export type ApiRefundState = Schemas["RefundStateEnum"];
+export type ApiCancelOrder = Schemas["CancelOrderRequest"];
+export type ApiTransition = Schemas["TransitionRequest"];
+export type ApiPayment = Schemas["Payment"];
+export type ApiPaginatedPayments = Schemas["PaginatedPaymentList"];
+/** `POST payments/{id}/refunds/{refund_id}/resolve/`: only these two states are accepted. */
+export type ApiResolveRefund = { state: "succeeded" | "failed" };
+export type ApiDashboard = Schemas["Dashboard"];
+export type ApiDashboardBucket = Schemas["DashboardBucket"];
+export type ApiDashboardRange = Schemas["DashboardRangeEnum"];

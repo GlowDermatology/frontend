@@ -19,13 +19,14 @@ import { OAUTH_NOTICE_MAX_MESSAGE_LENGTH } from "./oauth";
 export const OAUTH_FAILED_MESSAGE = "Ijtimoiy tarmoq orqali kirish amalga oshmadi.";
 export const OAUTH_UNREACHABLE_MESSAGE = "API bilan bog‘lanib bo‘lmadi.";
 export const OAUTH_UNEXPECTED_MESSAGE = "Kutilmagan xato.";
+export const OAUTH_THROTTLED_MESSAGE = "Juda ko‘p urinish. Birozdan so‘ng qayta urinib ko‘ring.";
 
 export function oauthErrorMessage(error: unknown): string {
   if (!isApiError(error)) return OAUTH_UNEXPECTED_MESSAGE;
   if (error.status === 0) return OAUTH_UNREACHABLE_MESSAGE;
   if (error.status === 429) {
     return error.retryAfter === undefined
-      ? "Juda ko‘p urinish. Birozdan so‘ng qayta urinib ko‘ring."
+      ? OAUTH_THROTTLED_MESSAGE
       : `Juda ko‘p urinish. ${error.retryAfter} soniyadan so‘ng qayta urinib ko‘ring.`;
   }
   if (error.code === "validation_error") return OAUTH_FAILED_MESSAGE;

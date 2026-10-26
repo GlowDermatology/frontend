@@ -8,6 +8,7 @@ import {
   CALLBACK_MESSAGES,
   ConsumedStates,
   FAKE_OUTSIDE_DEVELOPMENT_WARNING,
+  FlowThrottle,
   OAUTH_FLOW_MAX_AGE_SECONDS,
   OAUTH_NOTICE_MAX_MESSAGE_LENGTH,
   authorizeUrl,
@@ -316,7 +317,14 @@ describe("checkCallback", () => {
   it("consumes the state only after it matched, and refuses a replay", () => {
     const store = new ConsumedStates();
     const consume = (f: OAuthFlow) =>
-      store.consume(consumedStateKey(key, f.state), flowExpiresAt(f), now);
+      store.consume(
+        {
+          key: consumedStateKey(key, f.state),
+          issuedAtMs: f.issuedAt,
+          expiresAtMs: flowExpiresAt(f),
+        },
+        now,
+      ) === "fresh";
     expect(checkCallback({ ...base, state: "wrong-state-value-1234", consume })).toMatchObject({
       reason: "state_mismatch",
     });
@@ -336,21 +344,50 @@ describe("checkCallback", () => {
 });
 
 describe("ConsumedStates", () => {
+  const entry = (key: string, expiresAtMs: number, issuedAtMs = now) => ({
+    key,
+    issuedAtMs,
+    expiresAtMs,
+  });
+
   it("remembers a key until its expiry, then forgets it", () => {
     const store = new ConsumedStates();
-    expect(store.consume("a", now + 1000, now)).toBe(true);
-    expect(store.consume("a", now + 1000, now + 999)).toBe(false);
-    expect(store.consume("a", now + 5000, now + 1000)).toBe(true);
+    expect(store.consume(entry("a", now + 1000), now)).toBe("fresh");
+    expect(store.consume(entry("a", now + 1000), now + 999)).toBe("used");
+    expect(store.consume(entry("a", now + 5000), now + 1000)).toBe("fresh");
     expect(store.size).toBe(1);
   });
 
-  it("stays bounded by dropping the oldest entries", () => {
-    const store = new ConsumedStates(2);
-    store.consume("a", now + 1000, now);
-    store.consume("b", now + 1000, now);
-    store.consume("c", now + 1000, now);
+  it("never evicts a live entry: a full set refuses new states instead (fail closed)", () => {
+    const store = new ConsumedStates({ limit: 2 });
+    expect(store.consume(entry("a", now + 1000), now)).toBe("fresh");
+    expect(store.consume(entry("b", now + 1000), now)).toBe("fresh");
+    // A flood of new states does not push "a" out ...
+    for (let i = 0; i < 100; i += 1) {
+      expect(store.consume(entry(`flood-${i}`, now + 1000), now)).toBe("full");
+    }
+    // ... so its replay is still refused.
+    expect(store.consume(entry("a", now + 1000), now)).toBe("used");
     expect(store.size).toBe(2);
-    expect(store.consume("c", now + 1000, now)).toBe(false);
+    // Once the entries expire there is room again.
+    expect(store.consume(entry("c", now + 5000), now + 1000)).toBe("fresh");
+  });
+
+  it("finds expired entries behind a live one when full", () => {
+    const store = new ConsumedStates({ limit: 2 });
+    store.consume(entry("long", now + 10_000), now);
+    store.consume(entry("short", now + 1000), now);
+    // "short" expired but sits behind the live "long".
+    expect(store.consume(entry("c", now + 10_000), now + 2000)).toBe("fresh");
+    expect(store.consume(entry("long", now + 10_000), now + 2000)).toBe("used");
+  });
+
+  it("refuses a flow issued before the process started (a restart forgets the set)", () => {
+    const store = new ConsumedStates({ startedAtMs: now });
+    expect(store.consume(entry("old", now + 600_000, now - 1), now + 10)).toBe("predates");
+    expect(store.consume(entry("old", now + 600_000, now - 1), now + 20)).toBe("predates");
+    expect(store.consume(entry("new", now + 600_000, now), now + 10)).toBe("fresh");
+    expect(store.size).toBe(1);
   });
 
   it("keys on an HMAC of the state, never the state itself", () => {
@@ -360,6 +397,28 @@ describe("ConsumedStates", () => {
     expect(stored).toBe(consumedStateKey(key, flow.state));
     expect(stored).not.toBe(consumedStateKey(otherKey, flow.state));
     expect(flowExpiresAt(flow)).toBe(now + OAUTH_FLOW_MAX_AGE_SECONDS * 1000 + 60_000);
+  });
+});
+
+describe("FlowThrottle", () => {
+  it("allows a client a limited number of flows per window", () => {
+    const throttle = new FlowThrottle({ max: 3, windowMs: 60_000 });
+    for (let i = 0; i < 3; i += 1) expect(throttle.allow("203.0.113.5", now)).toBe(true);
+    expect(throttle.allow("203.0.113.5", now + 1)).toBe(false);
+    expect(throttle.allow("203.0.113.6", now + 1)).toBe(true);
+    expect(throttle.allow("203.0.113.5", now + 60_000)).toBe(true);
+  });
+
+  it("stays bounded in the number of tracked clients", () => {
+    const throttle = new FlowThrottle({ max: 1, windowMs: 60_000, maxClients: 2 });
+    expect(throttle.allow("a", now)).toBe(true);
+    expect(throttle.allow("b", now)).toBe(true);
+    // Full of live windows: a new address is let through untracked.
+    expect(throttle.allow("c", now)).toBe(true);
+    expect(throttle.allow("c", now)).toBe(true);
+    // Expired windows make room again.
+    expect(throttle.allow("c", now + 60_000)).toBe(true);
+    expect(throttle.allow("c", now + 60_001)).toBe(false);
   });
 });
 

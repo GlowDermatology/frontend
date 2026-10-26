@@ -92,7 +92,11 @@ export function isIpLiteral(value: string): boolean {
  * Django falls back to its own `TRUSTED_PROXIES` resolution.
  */
 export async function clientIp(): Promise<string | undefined> {
-  const requestHeaders = await headers();
+  return clientIpFrom(await headers());
+}
+
+/** `clientIp` for headers already at hand (a route handler's request). */
+export function clientIpFrom(requestHeaders: Pick<Headers, "get">): string | undefined {
   const forwarded = requestHeaders.get("x-forwarded-for");
   const last = forwarded?.split(",").at(-1)?.trim();
   if (last && isIpLiteral(last)) return last;

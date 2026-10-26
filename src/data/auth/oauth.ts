@@ -30,8 +30,11 @@ import { safeNext } from "./next-param";
  *   callback links only with a token of that same `sid` (`sessionMatches`),
  *   so a planted link flow can never attach an identity to the victim's
  *   account;
- * - a state is single use on the server too (`ConsumedStates`), so a
- *   captured cookie and callback URL cannot be replayed within the 10 min;
+ * - a state is also single use in this Next process (`ConsumedStates`): a
+ *   captured cookie and callback URL replayed to the same process within the
+ *   10 min, or to it after a restart, is refused. Several instances do not
+ *   share that set; across them only the provider's single-use codes (live
+ *   mode) and Django guard against a replay (see the README);
  * - residual risk: a planted *login* flow can still sign the victim in to
  *   the attacker's own staff account (login CSRF). Binding it to another
  *   per-browser cookie would not help against the same cookie toss; the
@@ -360,42 +363,120 @@ export const CALLBACK_MESSAGES = {
 /* --- single use -------------------------------------------------------- */
 
 /**
- * The states this process has already accepted, until their flow would have
- * expired anyway. Keys are HMACs of the state (`consumedStateKey`), never the
- * state itself. Bounded: past `limit` live entries the oldest are dropped,
- * which only re-opens flows that are among the oldest still alive.
+ * - `fresh`: first use, now marked used;
+ * - `used`: a replay;
+ * - `predates`: the flow started before this process did, so whether it was
+ *   used cannot be known (a restart or a deploy forgets the set);
+ * - `full`: the set holds `limit` live entries and refuses to forget any
+ *   (fail closed).
+ */
+export type ConsumeResult = "fresh" | "used" | "predates" | "full";
+
+/**
+ * The states this process has accepted, until their flow would have expired
+ * anyway. Keys are HMACs of the state (`consumedStateKey`), never the state
+ * itself.
  *
- * Process-local: with several Next instances behind one origin a replay can
- * land on another instance; there the provider's own single-use codes (and
- * Django's exchange) are the remaining guard. See the README.
+ * - A live entry is never evicted: evicting one would let its cookie and
+ *   callback URL be replayed. Past `limit` live entries new callbacks are
+ *   refused instead (`full`); `start` throttles flows per client IP
+ *   (`FlowThrottle`), so one client cannot fill the set.
+ * - A flow issued before `startedAtMs` (this process's start) is refused
+ *   (`predates`): after a restart nothing is known about it.
+ *
+ * Still per process: with several Next instances behind one origin a replay
+ * can land on an instance that has not seen the state. Only a check every
+ * instance shares (Django refusing a PKCE verifier it has seen) closes that;
+ * see the README.
  */
 export class ConsumedStates {
   private readonly entries = new Map<string, number>();
+  private readonly limit: number;
+  private readonly startedAtMs: number;
+  private lastFullScanMs = Number.NEGATIVE_INFINITY;
 
-  constructor(private readonly limit = 10_000) {}
+  constructor(options: { limit?: number; startedAtMs?: number } = {}) {
+    this.limit = options.limit ?? 100_000;
+    this.startedAtMs = options.startedAtMs ?? Number.NEGATIVE_INFINITY;
+  }
 
-  /** Marks `key` used until `expiresAtMs`; `false` when it already was. */
-  consume(key: string, expiresAtMs: number, nowMs: number): boolean {
-    this.prune(nowMs);
-    const until = this.entries.get(key);
-    if (until !== undefined && until > nowMs) return false;
-    this.entries.set(key, expiresAtMs);
-    while (this.entries.size > this.limit) {
-      const oldest = this.entries.keys().next().value;
-      if (oldest === undefined) break;
-      this.entries.delete(oldest);
+  /** Marks `key` used until `expiresAtMs` (see `ConsumeResult`). */
+  consume(
+    entry: { key: string; issuedAtMs: number; expiresAtMs: number },
+    nowMs: number,
+  ): ConsumeResult {
+    if (entry.issuedAtMs < this.startedAtMs) return "predates";
+    this.pruneHead(nowMs);
+    const until = this.entries.get(entry.key);
+    if (until !== undefined && until > nowMs) return "used";
+    if (until !== undefined) this.entries.delete(entry.key);
+    if (this.entries.size >= this.limit) {
+      // Entries are inserted roughly in expiry order, so `pruneHead` may stop
+      // before an expired entry further in; a full scan finds those, at most
+      // once a second.
+      if (nowMs - this.lastFullScanMs >= 1000) {
+        this.lastFullScanMs = nowMs;
+        for (const [key, expiresAt] of this.entries) {
+          if (expiresAt <= nowMs) this.entries.delete(key);
+        }
+      }
+      if (this.entries.size >= this.limit) return "full";
     }
-    return true;
+    this.entries.set(entry.key, entry.expiresAtMs);
+    return "fresh";
   }
 
   get size(): number {
     return this.entries.size;
   }
 
-  private prune(nowMs: number): void {
-    for (const [key, until] of this.entries) {
-      if (until <= nowMs) this.entries.delete(key);
+  /** Drops expired entries from the oldest end, up to the first live one. */
+  private pruneHead(nowMs: number): void {
+    for (const [key, expiresAt] of this.entries) {
+      if (expiresAt > nowMs) return;
+      this.entries.delete(key);
     }
+  }
+}
+
+/**
+ * Flows a client may start per window (`start` refuses the rest). Generous
+ * for a clinic behind one NAT address, small next to `ConsumedStates`'
+ * limit, so filling that set takes hundreds of addresses. Fixed windows,
+ * keyed on the client IP the edge reports; bounded to `maxClients` tracked
+ * addresses (past that, once expired windows are dropped, new addresses are
+ * let through, and the consumed-state limit still holds).
+ */
+export class FlowThrottle {
+  private readonly windows = new Map<string, { startedAt: number; count: number }>();
+  private readonly max: number;
+  private readonly windowMs: number;
+  private readonly maxClients: number;
+
+  constructor(options: { max?: number; windowMs?: number; maxClients?: number } = {}) {
+    this.max = options.max ?? 30;
+    this.windowMs = options.windowMs ?? 60_000;
+    this.maxClients = options.maxClients ?? 50_000;
+  }
+
+  /** Counts one flow for `client`; `false` when its window is used up. */
+  allow(client: string, nowMs: number): boolean {
+    const current = this.windows.get(client);
+    if (current && nowMs - current.startedAt < this.windowMs) {
+      if (current.count >= this.max) return false;
+      current.count += 1;
+      return true;
+    }
+    if (current) this.windows.delete(client);
+    if (this.windows.size >= this.maxClients) {
+      for (const [key, window] of this.windows) {
+        if (nowMs - window.startedAt < this.windowMs) break;
+        this.windows.delete(key);
+      }
+      if (this.windows.size >= this.maxClients) return true;
+    }
+    this.windows.set(client, { startedAt: nowMs, count: 1 });
+    return true;
   }
 }
 

@@ -59,7 +59,8 @@ import { serverEnv } from "@/lib/env.server";
  *    receives, when it lapsed during the round trip) — only when that token
  *    belongs to the session sealed into the flow by `start` — and returns to
  *    the account card.
- *    A state is accepted once per process (`consumeFlowState`): replaying a
+ *    A state is accepted once per process (`consumeFlowState`), and a flow
+ *    issued before the process started not at all: replaying a
  *    captured cookie and callback URL reads as an expired request.
  * 4. Failures go back to the login page or the account card with a signed
  *    `?oauth=` notice carrying the backend's Uzbek message.

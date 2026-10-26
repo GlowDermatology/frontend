@@ -237,6 +237,31 @@ describe("GET /admin/auth/oauth/[provider]/start", () => {
     expect(allowed.headers.get("location")).toMatch(/^\/admin\/auth\/oauth\/google\/fake\?/);
   });
 
+  it("throttles flows per client IP and sends the excess back with a notice", async () => {
+    const from = (ip: string, intent = "login") =>
+      start(
+        get(`/admin/auth/oauth/google/start?intent=${intent}&next=%2Fadmin%2Forders`, {
+          headers: { "x-forwarded-for": `10.9.9.9, ${ip}` },
+        }),
+        ctx("google"),
+      );
+    for (let i = 0; i < 30; i += 1) {
+      expect((await from("198.51.100.7")).headers.get("location")).toMatch(/\/fake\?/);
+    }
+    const refused = await from("198.51.100.7");
+    const location = refused.headers.get("location") ?? "";
+    expect(location).toMatch(/^\/admin\/login\?next=%2Fadmin%2Forders&oauth=/);
+    expect(noticeOf(location)?.message).toBe(
+      "Juda ko‘p urinish. Birozdan so‘ng qayta urinib ko‘ring.",
+    );
+    expect(setCookies(refused)).toEqual([]);
+    expect((await from("198.51.100.7", "link")).headers.get("location")).toMatch(
+      /^\/admin\/settings\?oauth=/,
+    );
+    // The forgeable left-hand hops do not matter; another edge-reported address is unaffected.
+    expect((await from("198.51.100.8")).headers.get("location")).toMatch(/\/fake\?/);
+  });
+
   it("redirects live mode to Google with the public client id", async () => {
     vi.stubEnv("GLOWDERMA_OAUTH_MODE", "live");
     vi.stubEnv("GLOWDERMA_GOOGLE_CLIENT_ID", "cid.apps.googleusercontent.com");
@@ -344,6 +369,25 @@ describe("GET /admin/auth/oauth/[provider]/callback", () => {
     expect(first.headers.get("location")).toBe("/admin/orders");
     const replay = await callback(get(url, { cookies: cookie }), ctx("google"));
     const location = replay.headers.get("location") ?? "";
+    expect(location).toMatch(/^\/admin\/login\?next=%2Fadmin%2Forders&oauth=/);
+    expect(noticeOf(location)?.message).toBe("Kirish so‘rovi eskirgan. Qayta urinib ko‘ring.");
+  });
+
+  it("refuses a flow issued before this process started (a replay after a restart)", async () => {
+    const startedAt = Date.now() - process.uptime() * 1000;
+    const flow = newFlow({
+      provider: "google",
+      intent: "login",
+      next: "/admin/orders",
+      nowMs: startedAt - 5000,
+    });
+    const response = await callback(
+      get(`/admin/auth/oauth/google/callback?code=c&state=${flow.state}`, {
+        cookies: `gd_oauth=${sealFlow(flow, key)}`,
+      }),
+      ctx("google"),
+    );
+    const location = response.headers.get("location") ?? "";
     expect(location).toMatch(/^\/admin\/login\?next=%2Fadmin%2Forders&oauth=/);
     expect(noticeOf(location)?.message).toBe("Kirish so‘rovi eskirgan. Qayta urinib ko‘ring.");
   });

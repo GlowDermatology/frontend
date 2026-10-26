@@ -1,5 +1,7 @@
 import type { NextRequest } from "next/server";
 
+import { clientIpFrom } from "@/data/api/client";
+
 import {
   clearSessionCookies,
   oauthFlowCookie,
@@ -7,9 +9,10 @@ import {
   type SessionCookie,
 } from "@/data/auth/cookies";
 import { seeOther } from "@/data/auth/html-page";
+import { safeNext } from "@/data/auth/next-param";
 import { authorizeUrl, newFlow, sealFlow, type OAuthIntent } from "@/data/auth/oauth";
-import { oauthKey } from "@/data/auth/oauth-env";
-import { OAUTH_UNREACHABLE_MESSAGE } from "@/data/auth/oauth-errors";
+import { allowFlowStart, oauthKey } from "@/data/auth/oauth-env";
+import { OAUTH_THROTTLED_MESSAGE, OAUTH_UNREACHABLE_MESSAGE } from "@/data/auth/oauth-errors";
 import {
   enabledProvider,
   notFoundPage,
@@ -36,6 +39,11 @@ import { serverEnv } from "@/lib/env.server";
  * the session ended, goes back to the settings page or the login page without
  * touching the provider. `next` is honoured for a login only and validated
  * like the login page's (`safeNext`).
+ *
+ * Each client IP (as the edge reports it) may start a limited number of
+ * flows per minute (`allowFlowStart`); past that the login page or the
+ * account card says to try again later. That keeps one client from filling
+ * the callback's set of used states.
  */
 export async function GET(
   request: NextRequest,
@@ -55,6 +63,15 @@ export async function GET(
   if (!redirectUri || !clientId) return notFoundPage();
 
   const nowMs = Date.now();
+  if (!allowFlowStart(clientIpFrom(request.headers), nowMs)) {
+    const back =
+      intent === "link"
+        ? "/admin/settings"
+        : `/admin/login?next=${encodeURIComponent(safeNext(params.get("next")))}`;
+    return seeOther(
+      withNotice(back, { kind: "error", provider, message: OAUTH_THROTTLED_MESSAGE }, nowMs),
+    );
+  }
   let sid: string | null = null;
   let renewed: SessionCookie | null = null;
   if (intent === "link") {

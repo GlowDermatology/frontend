@@ -106,6 +106,7 @@ export async function getDashboard(query: DashboardQuery): Promise<DashboardData
         next_appointment_at: attention.nextAppointmentAt,
         new_from_billz: attention.newFromBillz,
         refunds_needing_action: attention.refundsNeedingAction,
+        bts_polling_failing: false,
       },
       generated_at: referenceNow().toISOString(),
     };

@@ -414,6 +414,7 @@ describe("dashboard (§5.7)", () => {
         next_appointment_at: null,
         new_from_billz: 0,
         refunds_needing_action: 0,
+        bts_polling_failing: false,
       },
       generated_at: "2026-10-24T12:05:00+05:00",
     });

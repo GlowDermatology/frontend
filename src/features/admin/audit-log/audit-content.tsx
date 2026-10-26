@@ -1,7 +1,6 @@
 import type { Route } from "next";
 
-import { isApiError } from "@/data/api/errors";
-import { PageLimitExceededError } from "@/data/api/pages";
+import { optionalRead } from "@/data/api/optional-read";
 import { listAuditLog } from "@/data/audit";
 import { getMe, requireStaff } from "@/data/auth";
 import { listStaff } from "@/data/staff";
@@ -94,14 +93,6 @@ export async function AuditContent({ searchParams }: { searchParams: Promise<Sea
 }
 
 /** The staff directory, or no options when it cannot be read (the log itself still renders). */
-async function staffOrEmpty(): Promise<StaffMember[]> {
-  try {
-    return await listStaff();
-  } catch (error) {
-    if (isApiError(error) || error instanceof PageLimitExceededError) {
-      console.error("[audit-log] staff directory unavailable", error);
-      return [];
-    }
-    throw error;
-  }
+function staffOrEmpty(): Promise<StaffMember[]> {
+  return optionalRead("audit-log staff directory", listStaff, []);
 }

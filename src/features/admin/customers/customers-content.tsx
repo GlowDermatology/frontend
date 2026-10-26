@@ -3,6 +3,7 @@ import type { Route } from "next";
 
 import { buttonStyles } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { optionalRead } from "@/data/api/optional-read";
 import { requireStaff } from "@/data/auth";
 import { listCustomers } from "@/data/customers";
 import { listSegmentOptions } from "@/data/segments";
@@ -20,13 +21,19 @@ import { customerListHref, hasActiveCustomerFilters, parseCustomerQuery } from "
 /**
  * Data boundary of `/admin/customers` (contract §2.6 `GET customers/`):
  * search, status, group and ordering in the URL, pages of 20 or 50, the
- * `mijozlar` export with the same filters. A failed read throws to the
- * admin error boundary like the other boards.
+ * `mijozlar` export with the same filters. A failed customers read throws
+ * to the admin error boundary like the other boards; the group options are
+ * optional.
  */
 export async function CustomersContent({ searchParams }: { searchParams: Promise<SearchParams> }) {
   await requireStaff();
   const query = parseCustomerQuery(await searchParams);
-  const [page, groups] = await Promise.all([listCustomers(query), listSegmentOptions()]);
+  // The group options are a convenience: when `GET segments/` fails, the
+  // filter offers "Hammasi" and the current `#id` and the rows still render.
+  const [page, groups] = await Promise.all([
+    listCustomers(query),
+    optionalRead("customers group options", listSegmentOptions, []),
+  ]);
   const exportHref = customerListHref(
     { ...query, page: undefined, pageSize: undefined },
     "/admin/customers/export",

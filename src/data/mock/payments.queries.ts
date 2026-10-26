@@ -1,5 +1,4 @@
-import { REFUND_STATES_NEEDING_ACTION } from "@/domain/order";
-import type { PaymentListQuery, PaymentRecord } from "@/domain/payment";
+import { refundNeedsAction, type PaymentListQuery, type PaymentRecord } from "@/domain/payment";
 import { tashkentParts, toLocalIsoDate } from "@/lib/format";
 
 import { referenceNow } from "../config";
@@ -9,7 +8,8 @@ import { PAYMENTS } from "./payments";
 /**
  * Mock implementation of `src/data/payments.ts` over the fixtures, with the
  * API's filter semantics (§2.12: period and dates on `created_at`, search by
- * order id, transaction id or ≥3 phone digits).
+ * order id, transaction id or ≥3 phone digits; `refund_state=failed` leaves
+ * out a failed refund a later succeeded one superseded, `refundNeedsAction`).
  */
 
 function inPeriod(iso: string, period: PaymentListQuery["period"], now: Date): boolean {
@@ -46,7 +46,10 @@ export function filterPayments(
     if (query.status && p.status !== query.status) return false;
     if (query.provider && p.provider !== query.provider) return false;
     if (query.refund === "needs_action") {
-      if (!p.refunds.some((r) => REFUND_STATES_NEEDING_ACTION.includes(r.state))) return false;
+      if (!p.refunds.some((r) => refundNeedsAction(r, p))) return false;
+    } else if (query.refund === "failed") {
+      // §2.12: only a failed refund that still needs staff (not a superseded one).
+      if (!p.refunds.some((r) => r.state === "failed" && refundNeedsAction(r, p))) return false;
     } else if (query.refund && !p.refunds.some((r) => r.state === query.refund)) return false;
     return !query.q || matchesSearch(p, query.q);
   });

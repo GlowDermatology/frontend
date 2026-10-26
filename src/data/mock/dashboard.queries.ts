@@ -1,6 +1,6 @@
 import type { DashboardData, DashboardQuery, DashboardRange } from "@/domain/dashboard";
 import { customBucket, rangeDays } from "@/domain/dashboard";
-import { REFUND_STATES_NEEDING_ACTION } from "@/domain/order";
+import { refundNeedsAction } from "@/domain/payment";
 import { addDays, startOfLocalDay, toLocalIsoDate } from "@/lib/format";
 
 import { mapDashboard } from "../api/mappers/dashboard";
@@ -73,9 +73,10 @@ export async function getDashboard(query: DashboardQuery): Promise<DashboardData
     pendingAppointments: pending.count,
     nextAppointmentAt: pending.nextAt,
     newFromBillz: catalog.newFromBillz,
-    refundsNeedingAction: PAYMENTS.flatMap((p) => p.refunds).filter((r) =>
-      REFUND_STATES_NEEDING_ACTION.includes(r.state),
-    ).length,
+    refundsNeedingAction: PAYMENTS.reduce(
+      (count, p) => count + p.refunds.filter((r) => refundNeedsAction(r, p)).length,
+      0,
+    ),
   };
   const today = toLocalIsoDate(referenceNow());
 

@@ -11,7 +11,7 @@ import {
   type RefundState,
   type Shipment,
 } from "./order";
-import { hasOpenRefund, OPEN_REFUND_STATES, refundOperations } from "./payment";
+import { hasOpenRefund, OPEN_REFUND_STATES, refundNeedsAction, refundOperations } from "./payment";
 
 /**
  * Rules the orders, payments and dashboard screens rely on in mock mode (the
@@ -127,6 +127,32 @@ describe("refundOperations (contract §2.12)", () => {
     // Closed siblings (succeeded, failed) do not block it.
     expect(refundOperations({ state: "failed" }, paid("failed", "failed")).retry).toBe(true);
     expect(hasOpenRefund(paid("failed", "succeeded"))).toBe(false);
+  });
+});
+
+describe("refundNeedsAction (contract §2.10, §2.12, M2)", () => {
+  const refund = (id: number, state: RefundState) => ({ id, state });
+  it("leaves out a failed refund a later succeeded one superseded, or of a refunded payment", () => {
+    const failed = refund(1, "failed");
+    expect(refundNeedsAction(failed, { status: "paid", refunds: [failed] })).toBe(true);
+    expect(
+      refundNeedsAction(failed, {
+        status: "paid",
+        refunds: [refund(2, "succeeded"), failed],
+      }),
+    ).toBe(false);
+    expect(refundNeedsAction(failed, { status: "refunded", refunds: [failed] })).toBe(false);
+    // An earlier success does not supersede a later failure.
+    const later = refund(3, "failed");
+    expect(
+      refundNeedsAction(later, { status: "paid", refunds: [later, refund(2, "succeeded")] }),
+    ).toBe(true);
+    for (const state of ["unknown", "manual_required"] as const) {
+      expect(refundNeedsAction(refund(1, state), { status: "paid", refunds: [] })).toBe(true);
+    }
+    for (const state of ["requested", "submitting", "succeeded"] as const) {
+      expect(refundNeedsAction(refund(1, state), { status: "paid", refunds: [] })).toBe(false);
+    }
   });
 });
 

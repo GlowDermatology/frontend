@@ -3,7 +3,14 @@
  * §2.12). A payment belongs to one order; refunds are created by an order
  * cancellation and settled by the provider (Click) or by hand (Payme).
  */
-import type { CustomerRef, PaymentProvider, PaymentStatus, Refund, RefundState } from "./order";
+import {
+  REFUND_STATES_NEEDING_ACTION,
+  type CustomerRef,
+  type PaymentProvider,
+  type PaymentStatus,
+  type Refund,
+  type RefundState,
+} from "./order";
 
 export interface PaymentRecord {
   id: number;
@@ -55,6 +62,24 @@ export const OPEN_REFUND_STATES: ReadonlyArray<RefundState> = [
 /** Whether one of the payment's refunds is still open (a retry would get 409 `conflict`). */
 export function hasOpenRefund(payment: Pick<PaymentRecord, "refunds">): boolean {
   return payment.refunds.some((refund) => OPEN_REFUND_STATES.includes(refund.state));
+}
+
+/**
+ * Whether a refund still needs staff (contract §2.10
+ * `attention.refunds_needing_action`, M2): `unknown` and `manual_required`
+ * always; a `failed` one unless a later refund of the same payment
+ * succeeded (a staff retry returned the money) or the payment is
+ * `refunded`. `payments/?refund_state=failed` (§2.12) applies the same rule,
+ * so the mock filters and counters use it too.
+ */
+export function refundNeedsAction(
+  refund: Pick<Refund, "id" | "state">,
+  payment: { status: PaymentStatus; refunds: ReadonlyArray<Pick<Refund, "id" | "state">> },
+): boolean {
+  if (!REFUND_STATES_NEEDING_ACTION.includes(refund.state)) return false;
+  if (refund.state !== "failed") return true;
+  if (payment.status === "refunded") return false;
+  return !payment.refunds.some((other) => other.id > refund.id && other.state === "succeeded");
 }
 
 /** The admin operations a refund offers (contract §2.12). */

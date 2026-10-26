@@ -4,7 +4,7 @@
  *
  * Source: openapi/schema.yaml of the backend repository
  * Commit: acd1534e0c62e3ea0365012805ba41ac317b129f
- * Generated: 2026-10-26T05:53:47.520Z (openapi-typescript)
+ * Generated: 2026-10-26T07:36:20.372Z (openapi-typescript)
  */
 
 export interface paths {

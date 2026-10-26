@@ -8,6 +8,7 @@ import {
   CALLBACK_MESSAGES,
   ConsumedStates,
   OAUTH_FLOW_MAX_AGE_SECONDS,
+  OAUTH_NOTICE_MAX_MESSAGE_LENGTH,
   authorizeUrl,
   checkCallback,
   consumedStateKey,
@@ -457,5 +458,19 @@ describe("oauthErrorMessage (callback error mapping)", () => {
       "API bilan bog‘lanib bo‘lmadi.",
     );
     expect(oauthErrorMessage(new Error("boom"))).toBe("Kutilmagan xato.");
+  });
+
+  it("never returns a message longer than a notice can carry", () => {
+    const longest = "x".repeat(OAUTH_NOTICE_MAX_MESSAGE_LENGTH);
+    expect(oauthErrorMessage(new ApiError(400, envelope("oauth_exchange_failed", longest)))).toBe(
+      longest,
+    );
+    const tooLong = longest + "x";
+    const message = oauthErrorMessage(
+      new ApiError(400, envelope("oauth_exchange_failed", tooLong)),
+    );
+    expect(message).toBe(OAUTH_FAILED_MESSAGE);
+    const token = sealNotice({ kind: "error", provider: "google", message, issuedAt: now }, key);
+    expect(openNotice(token, key, now)?.message).toBe(OAUTH_FAILED_MESSAGE);
   });
 });

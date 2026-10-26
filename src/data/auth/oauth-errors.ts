@@ -1,4 +1,5 @@
 import { isApiError, type ApiError } from "../api/errors";
+import { OAUTH_NOTICE_MAX_MESSAGE_LENGTH } from "./oauth";
 
 /**
  * The Uzbek text the login page or the account card shows when Django
@@ -10,7 +11,9 @@ import { isApiError, type ApiError } from "../api/errors";
  * means this server sent a body Django does not accept (a `redirect_uri`
  * that differs from `OAUTH_REDIRECT_URI`, a missing nonce): the admin cannot
  * fix that, so it reads as a failed sign-in; the callback logs the details
- * (`oauthRefusalLog`, every refusal but a 401).
+ * (`oauthRefusalLog`, every refusal but a 401). A message longer than a
+ * notice can carry (`OAUTH_NOTICE_MAX_MESSAGE_LENGTH`) reads as a failed
+ * sign-in too.
  */
 
 export const OAUTH_FAILED_MESSAGE = "Ijtimoiy tarmoq orqali kirish amalga oshmadi.";
@@ -30,7 +33,11 @@ export function oauthErrorMessage(error: unknown): string {
   if (error.code.startsWith("http_") || error.code === "invalid_json") {
     return error.status >= 500 ? OAUTH_UNREACHABLE_MESSAGE : OAUTH_FAILED_MESSAGE;
   }
-  return error.body.message || OAUTH_FAILED_MESSAGE;
+  // A message the notice could not carry (`openNotice` drops it) would leave
+  // the page without any error at all.
+  const message = error.body.message;
+  if (!message || message.length > OAUTH_NOTICE_MAX_MESSAGE_LENGTH) return OAUTH_FAILED_MESSAGE;
+  return message;
 }
 
 /**

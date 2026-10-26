@@ -56,6 +56,8 @@ export const OAUTH_PROVIDER_LABEL: Record<OAuthProvider, string> = {
 export const OAUTH_FLOW_MAX_AGE_SECONDS = 10 * 60;
 /** How long a signed `?oauth=` notice stays displayable after the callback issued it. */
 export const OAUTH_NOTICE_MAX_AGE_SECONDS = 5 * 60;
+/** The longest notice message `openNotice` displays; `oauthErrorMessage` never produces a longer one. */
+export const OAUTH_NOTICE_MAX_MESSAGE_LENGTH = 500;
 export const OAUTH_COOKIE_PATH = "/admin/auth";
 /** The Graph API version of the backend's live Facebook adapter (`FACEBOOK_GRAPH_VERSION`). */
 export const FACEBOOK_DIALOG_VERSION = "v21.0";
@@ -481,7 +483,8 @@ export function openNotice(token: unknown, key: Buffer, nowMs: number): OAuthNot
   const notice = raw as Record<string, unknown>;
   if (notice.kind !== "error" && notice.kind !== "linked" && notice.kind !== "demo") return null;
   if (!isOAuthProvider(notice.provider)) return null;
-  if (typeof notice.message !== "string" || notice.message.length > 500) return null;
+  if (typeof notice.message !== "string" || notice.message.length > OAUTH_NOTICE_MAX_MESSAGE_LENGTH)
+    return null;
   if (typeof notice.issuedAt !== "number") return null;
   const age = nowMs - notice.issuedAt;
   if (age < -60_000 || age > OAUTH_NOTICE_MAX_AGE_SECONDS * 1000) return null;

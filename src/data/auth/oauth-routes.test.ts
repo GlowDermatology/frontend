@@ -435,6 +435,26 @@ describe("GET /admin/auth/oauth/[provider]/callback", () => {
       expect(cookies).toMatch(/gd_oauth=; Path=\/admin\/auth; Max-Age=0/);
     });
 
+    it("shows the generic failure when the backend's message is too long for a notice", async () => {
+      vi.mocked(apiOAuthLogin).mockRejectedValue(
+        new ApiError(400, {
+          code: "oauth_exchange_failed",
+          message: "x".repeat(600),
+          errors: [],
+          request_id: "r1",
+        }),
+      );
+      vi.spyOn(console, "warn").mockImplementation(() => {});
+      const { flow, cookie } = flowCookie("google", "login", "/admin/orders");
+      const response = await callback(
+        get(`/admin/auth/oauth/google/callback?code=c&state=${flow.state}`, { cookies: cookie }),
+        ctx("google"),
+      );
+      expect(noticeOf(response.headers.get("location"))?.message).toBe(
+        "Ijtimoiy tarmoq orqali kirish amalga oshmadi.",
+      );
+    });
+
     it("sends no nonce for Facebook", async () => {
       vi.mocked(apiOAuthLogin).mockRejectedValue(
         new ApiError(401, {

@@ -1,15 +1,15 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { Button, buttonStyles } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { ActionMenu, type ActionMenuItem } from "@/components/ui/menu";
 import { useToast } from "@/components/ui/toast";
-import { changeOrderStatus, retryShipment } from "@/data/orders.actions";
+import { changeOrderStatus, loadOrder, retryShipment } from "@/data/orders.actions";
 import type { ActionResult } from "@/data/types";
-import { canCancel, manualTransitions, type Order, type OrderStatus } from "@/domain/order";
+import { REFUND_STATE_LABEL, shipmentPending, type Order, type OrderStatus } from "@/domain/order";
 import { cn } from "@/lib/cn";
 import { formatDateTimeLong } from "@/lib/format";
 
@@ -25,6 +25,8 @@ import {
   OrderPaymentCard,
   OrderShipmentCard,
 } from "./order-sections";
+import { isStaleRefusal } from "./refusals";
+import { pollShipment } from "./shipment-poll";
 
 const CHANNEL_LABEL: Record<Order["channel"], string> = {
   ios: "Mobil ilova (iOS)",
@@ -84,16 +86,69 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
   const statusKey = useIdempotencyKey();
   const shipmentKey = useIdempotencyKey();
 
+  const replaceOrder = (next: Order) => {
+    setOrder(next);
+    setNow((current) => latestEventAt(next, current));
+  };
+
+  /** Re-reads the order after a refusal that says it changed (`isStaleRefusal`). */
+  const reloadIfStale = async (result: ActionResult<unknown>) => {
+    if (!isStaleRefusal(result)) return;
+    const fresh = await runAction((csrf) => loadOrder(order.id, csrf));
+    if (fresh.ok) replaceOrder(fresh.data);
+  };
+
   const apply = (result: ActionResult<Order>, success: { title: string; description?: string }) => {
     if (!result.ok) {
       toast({ tone: "info", title: "Amal bajarilmadi", description: result.error });
       return false;
     }
-    setOrder(result.data);
-    setNow((current) => latestEventAt(result.data, current));
+    replaceOrder(result.data);
     toast(success);
     return true;
   };
+
+  // A BTS create is queued or in flight (after "BTS ga yuborish", or already
+  // when the page loaded): re-read the order until the outcome arrives, at
+  // most POLL_MAX_ATTEMPTS times; leaving the page stops the poll.
+  const awaitingShipment = shipmentPending(order.shipment);
+  const orderId = order.id;
+  useEffect(() => {
+    if (!awaitingShipment) return;
+    const controller = new AbortController();
+    void pollShipment({
+      load: () => runAction((csrf) => loadOrder(orderId, csrf)),
+      signal: controller.signal,
+      onPending: (next) => setOrder(next),
+    }).then((outcome) => {
+      if (outcome.kind === "aborted") return;
+      if (outcome.kind === "timeout") {
+        toast({
+          tone: "info",
+          title: "BTS javobi hali kelmadi",
+          description: "So‘rov navbatda. Sahifani birozdan so‘ng yangilang.",
+        });
+        return;
+      }
+      setOrder(outcome.order);
+      setNow((current) => latestEventAt(outcome.order, current));
+      const { shipment } = outcome.order;
+      toast(
+        shipment.state === "created"
+          ? {
+              title: "BTS buyurtmasi yaratildi",
+              description: `Yetkazish raqami ${shipment.trackingNumber}`,
+            }
+          : {
+              tone: "info",
+              title: "BTS ga yuborilmadi",
+              description:
+                "Urinish muvaffaqiyatsiz tugadi. Manzilni tekshirib, qayta urinib ko‘ring.",
+            },
+      );
+    });
+    return () => controller.abort();
+  }, [awaitingShipment, orderId, toast]);
 
   const runStatusChange = (status: OrderStatus) => {
     setPendingAction("status");
@@ -103,8 +158,11 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
       );
       apply(result, {
         title: "Holat yangilandi",
-        description: `«${ORDER_STATUS_META[status].label}» · mijozga push yuborildi`,
+        description: result.ok
+          ? `«${ORDER_STATUS_META[status].label}» · ${result.data.history[0]?.note ?? ""}`
+          : undefined,
       });
+      await reloadIfStale(result);
       setPendingAction(null);
     });
   };
@@ -115,20 +173,27 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
       const result = shipmentKey.settle(
         await runAction((csrf) => retryShipment(order.id, shipmentKey.key, csrf)),
       );
-      const ok = apply(result, {
-        title: "BTS buyurtmasi yaratildi",
-        description:
-          result.ok && result.data.shipment.state === "created"
-            ? `Yetkazish raqami ${result.data.shipment.trackingNumber}`
-            : undefined,
-      });
+      const created = result.ok && result.data.shipment.state === "created";
+      const ok = apply(
+        result,
+        created && result.data.shipment.state === "created"
+          ? {
+              title: "BTS buyurtmasi yaratildi",
+              description: `Yetkazish raqami ${result.data.shipment.trackingNumber}`,
+            }
+          : {
+              title: "BTS ga yuborildi",
+              description: "Natija kelishi bilan sahifa yangilanadi.",
+            },
+      );
+      await reloadIfStale(result);
       setPendingAction(null);
       // The retry button turns into a disabled status; keep focus on the page.
       if (ok) headingRef.current?.focus();
     });
   };
 
-  const statusItems: ActionMenuItem[] = manualTransitions(order).map((status) => ({
+  const statusItems: ActionMenuItem[] = order.availableActions.transitions.map((status) => ({
     key: status,
     label: ORDER_STATUS_META[status].label,
     hint: transitionHint(order, status),
@@ -179,7 +244,17 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
             }
           />
 
-          {shipment.state === "failed" && order.status !== "cancelled" ? (
+          {awaitingShipment ? (
+            <button
+              type="button"
+              disabled
+              aria-live="polite"
+              className="inline-flex h-11 items-center gap-2 rounded-md border border-dashed border-line-strong px-4 text-label font-bold text-ink-muted"
+            >
+              <Icon name="refresh" size={18} className="animate-spin" />
+              BTS ga yuborilmoqda…
+            </button>
+          ) : order.availableActions.retryShipment ? (
             <Button
               variant="secondary"
               className={headerButton}
@@ -206,7 +281,7 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
             </button>
           ) : null}
 
-          {canCancel(order) && (
+          {order.availableActions.cancel && (
             <Button
               variant="danger"
               className={headerButton}
@@ -244,17 +319,24 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
           headingRef.current?.focus();
         }}
         onCancelled={(cancelled) => {
-          const paid = order.payment.status === "paid";
+          const refund = cancelled.refunds[0];
+          const newRefund = refund && !order.refunds.some((r) => r.id === refund.id);
           focusHeadingOnClose.current = true;
-          setOrder(cancelled);
-          setNow((current) => latestEventAt(cancelled, current));
+          replaceOrder(cancelled);
           setCancelOpen(false);
           toast({
             title: "Buyurtma bekor qilindi",
-            description: paid
-              ? "Qaytarish va cashback yozuvlari yaratildi"
+            description: newRefund
+              ? REFUND_STATE_LABEL[refund.state]
               : "Band qilingan mahsulotlar bo‘shatildi",
           });
+        }}
+        onRefused={(result) => {
+          toast({ tone: "info", title: "Amal bajarilmadi", description: result.error });
+          if (isStaleRefusal(result)) {
+            setCancelOpen(false);
+            void reloadIfStale(result);
+          }
         }}
       />
     </>

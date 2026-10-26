@@ -23,12 +23,15 @@ function isAdminPath(path: string): boolean {
 /**
  * Percent-encodes every character outside printable ASCII (a space, `€`,
  * U+2028, …), so the result is a valid `Location` header value: the
- * `Headers` constructor throws on anything above U+00FF. `null` for a lone
- * surrogate, which has no UTF-8 encoding.
+ * `Headers` constructor throws on anything above U+00FF. `"` is encoded too:
+ * it is the one remaining character JSON escapes, so a `next` of
+ * `MAX_LENGTH` cannot double in size inside the sealed flow cookie and push
+ * it past the browser's 4096-byte limit. `null` for a lone surrogate, which
+ * has no UTF-8 encoding.
  */
 function encodeNonAscii(value: string): string | null {
   try {
-    return value.replace(/[^\x21-\x7e]/gu, (char) => encodeURIComponent(char));
+    return value.replace(/[^\x21-\x7e]|"/gu, (char) => encodeURIComponent(char));
   } catch {
     return null;
   }

@@ -19,6 +19,7 @@ import {
   isPkceVerifier,
   newFlow,
   nonceForExchange,
+  oauthCookieName,
   oauthRedirectUri,
   openFlow,
   openNotice,
@@ -217,6 +218,20 @@ describe("the sealed flow cookie", () => {
     expect(openFlow(`${payload}.${signature}.x`, key, now)).toBeNull();
     for (const value of [undefined, "", "abc", "a.b", 42, "x".repeat(5000)]) {
       expect(openFlow(value, key, now)).toBeNull();
+    }
+  });
+
+  it("fits the browser's 4096-byte cookie limit with the longest accepted next", () => {
+    for (const next of [
+      "/admin/x?q=" + '"'.repeat(2030),
+      "/admin/x?q=" + '"'.repeat(679),
+      "/admin/" + "a".repeat(2041),
+      "/admin/" + "€".repeat(226),
+    ]) {
+      const longest = newFlow({ provider: "google", intent: "login", next, nowMs: now });
+      expect(longest.next.length).toBeLessThanOrEqual(2048);
+      const cookie = `${oauthCookieName(true)}=${sealFlow(longest, key)}`;
+      expect(cookie.length).toBeLessThanOrEqual(4096);
     }
   });
 

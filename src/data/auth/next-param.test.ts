@@ -57,6 +57,7 @@ describe("safeNext and the Location header", () => {
     expect(safeNext("/admin/ x")).toBe("/admin/%E2%80%A8x");
     expect(safeNext("/admin/products?q=Ali Valiyev")).toBe("/admin/products?q=Ali%20Valiyev");
     expect(safeNext("/admin/orders?q=крем")).toBe("/admin/orders?q=%D0%BA%D1%80%D0%B5%D0%BC");
+    expect(safeNext('/admin/products?q="krem"')).toBe("/admin/products?q=%22krem%22");
     for (const value of ["/admin/€", "/admin/ x", "/admin/x?q=\u{1F600}"]) {
       expect(() => new Headers({ Location: safeNext(value) })).not.toThrow();
     }

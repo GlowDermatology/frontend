@@ -30,15 +30,24 @@ The specs mutate data; reset the dataset with `seed_demo --reset` when you need 
 spec restores what it changed or takes only state the seed has to spare, never a design order (№10248–№10252, except
 the retry below), and is skipped with a reason once the seed has nothing left for it:
 
-| Spec                            | What it does                                                                                                                         | Effect on the seed                                                                                |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| `cashback-adjustment.spec.ts`   | Double-submits +1 000 so‘m (one ledger row), then takes it back out with "Ayirish"                                                   | Balance restored; two ledger rows with unique reasons                                             |
-| `orders.spec.ts` cancel         | Cancels the oldest processing order (Payme first: its refund is manual, "Payme kabinetida qaytarish kerak"), checks history and line | One processing order cancelled                                                                    |
-| `orders.spec.ts` transition     | Marks the oldest order with the courier delivered from the status menu                                                               | One `handed_to_courier` order delivered                                                           |
-| `orders.spec.ts` retry shipment | Retries the failed BTS hand-off (the seed's №10250, fake BTS fails its first attempt only) and waits for the parcel                  | №10250 gets its parcel (skipped afterwards)                                                       |
-| `payments.spec.ts`              | Marks a manual Payme refund returned from "Harakat kerak"; cancels a Payme order first when none is open                             | One manual refund settled (one Payme order cancelled when the cancel spec did not leave a refund) |
-| `notifications.spec.ts`         | Schedules a push to the `E2E_CUSTOMER_PATH` customer (never "everyone") and finds it in the history after a reload                   | One scheduled message per run (the API has no cancel; nothing is sent without the beat)           |
-| `appointments.spec.ts`          | Confirms a requested visit on today's board and finds it confirmed after a reload                                                    | One request confirmed (the seed has three on its "today")                                         |
+| Spec                            | What it does                                                                                                                             | Effect on the seed                                                                                |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `cashback-adjustment.spec.ts`   | Double-submits +1 000 so‘m (one ledger row), then takes it back out with "Ayirish"                                                       | Balance restored; two ledger rows with unique reasons                                             |
+| `orders.spec.ts` cancel         | Cancels the oldest processing order (Payme first: its refund is manual, "Payme kabinetida qaytarish kerak"), checks history and line     | One processing order cancelled                                                                    |
+| `orders.spec.ts` transition     | Marks the oldest order with the courier delivered from the status menu                                                                   | One `handed_to_courier` order delivered                                                           |
+| `orders.spec.ts` retry shipment | Retries the failed BTS hand-off (the seed's №10250, fake BTS fails its first attempt only) and waits for the parcel                      | №10250 gets its parcel (skipped afterwards)                                                       |
+| `payments.spec.ts`              | Marks a manual Payme refund returned from "Harakat kerak"; cancels a Payme order first when none is open                                 | One manual refund settled (one Payme order cancelled when the cancel spec did not leave a refund) |
+| `notifications.spec.ts`         | Schedules a push to the `E2E_CUSTOMER_PATH` customer (never "everyone") for 31 Dec 9999 10:00 and finds it in the history after a reload | One scheduled message per run, never due (the API has no cancel; cleanup below)                   |
+| `appointments.spec.ts`          | Confirms a requested visit on today's board and finds it confirmed after a reload                                                        | One request confirmed (the seed has three on its "today")                                         |
+
+The scheduled pushes wait for 31 December 9999, the furthest date the API accepts, so no beat ever sends them to the
+customer (a near date would be really sent). The admin API cannot cancel a campaign; remove them with
+`seed_demo --reset`, or keep the rest of the data and delete only the spec's messages from the backend shell:
+
+```bash
+uv run python manage.py shell -c "from glowderma.notifications.models import Campaign; \
+  print(Campaign.objects.filter(title__startswith='e2e rejalashtirilgan', state='scheduled').delete())"
+```
 
 On a fresh dataset every spec runs; from the second run on the retry spec is skipped, and after a few runs the
 cancel spec falls back to Click orders and the payments and appointments specs are skipped until the next

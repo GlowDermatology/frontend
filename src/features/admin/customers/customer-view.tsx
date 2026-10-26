@@ -12,7 +12,7 @@ import { Card, CardTitle, DetailRow } from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
 import { useToast } from "@/components/ui/toast";
 import { formatPercent, type LedgerEntry } from "@/domain/cashback";
-import { canAdjustCashback, lifetimeTotal, type Customer } from "@/domain/customer";
+import { canAdjustCashback, canNotify, lifetimeTotal, type Customer } from "@/domain/customer";
 import {
   formatDateLong,
   formatDateTimeShort,
@@ -135,7 +135,7 @@ export function CustomerView({ customer, now }: CustomerViewProps) {
               Cashback tuzatish
             </Button>
           )}
-          {!deleted && (
+          {canNotify(customer) && (
             <Link
               href={`/admin/notifications?customer=${customer.id}`}
               className={buttonStyles({ variant: "secondary" })}
@@ -156,7 +156,7 @@ export function CustomerView({ customer, now }: CustomerViewProps) {
           <span>
             <b>Mijoz hisobini o‘chirgan.</b> Ism va manzil o‘chirildi; xaridlar va cashback balansi
             telefon raqamiga bog‘langan holda saqlanadi va qayta ro‘yxatdan o‘tganda tiklanadi.
-            Bildirishnoma yuborib bo‘lmaydi.
+            Balansni tuzatish mumkin; bildirishnoma yuborib bo‘lmaydi.
           </span>
         </div>
       )}

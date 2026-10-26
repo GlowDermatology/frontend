@@ -75,11 +75,17 @@ export function lifetimeTotal(customer: Pick<Customer, "totals">): number {
 }
 
 /**
- * The card offers the cashback adjustment only while the account is active:
- * a deleted customer's card is read-only (the backend would still accept an
- * adjustment, contract §2.6, but the admin cannot start one from the card).
+ * Whether the card offers the cashback adjustment. Contract §2.6 accepts an
+ * adjustment for a deleted customer too (the balance is kept for
+ * reactivation), so every card offers it; the deleted state stays visible and
+ * only the notification button is hidden (`canNotify`).
  */
 export function canAdjustCashback(customer: Pick<Customer, "status">): boolean {
+  return customer.status === "active" || customer.status === "deleted";
+}
+
+/** A deleted account has no devices or language left to push to: no "Bildirishnoma yuborish". */
+export function canNotify(customer: Pick<Customer, "status">): boolean {
   return customer.status !== "deleted";
 }
 

@@ -96,6 +96,23 @@ describe("mock mode", () => {
     expect((await exportCustomers({ sort: "registered_desc", status: "deleted" })).length).toBe(6);
   });
 
+  it("accepts an adjustment on a deleted customer's card (contract §2.6)", async () => {
+    const deleted = await listCustomers({ ...LIST, status: "deleted" });
+    const id = deleted.items[0]!.id;
+    const card = await getCustomer(id);
+    expect(card?.status).toBe("deleted");
+    const result = await adjustCashback(
+      id,
+      { direction: "add", amount: 500, reason: "Qayta tiklash" },
+      KEY,
+      CSRF,
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      data: { entry: { kind: "adjustment", amount: 500 } },
+    });
+  });
+
   it("builds the card with the server-shaped tier, balances and balance_after", async () => {
     const malika = await getCustomer("5");
     expect(malika).toMatchObject({

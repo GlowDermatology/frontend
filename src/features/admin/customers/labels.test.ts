@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { canAdjustCashback } from "@/domain/customer";
+import { canAdjustCashback, canNotify } from "@/domain/customer";
 
 import { balanceNote } from "./labels";
 
@@ -13,8 +13,10 @@ describe("customer card copy", () => {
     );
   });
 
-  it("keeps a deleted customer's card read-only", () => {
+  it("allows the adjustment on a deleted customer's card (§2.6) but no notification", () => {
     expect(canAdjustCashback({ status: "active" })).toBe(true);
-    expect(canAdjustCashback({ status: "deleted" })).toBe(false);
+    expect(canAdjustCashback({ status: "deleted" })).toBe(true);
+    expect(canNotify({ status: "active" })).toBe(true);
+    expect(canNotify({ status: "deleted" })).toBe(false);
   });
 });

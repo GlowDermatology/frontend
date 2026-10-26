@@ -443,12 +443,13 @@ export function PaymentsTable({ payments, sortHref, sortedAscending }: PaymentsT
           <p
             role="alert"
             className={cn(
-              "m-0 text-body-sm leading-5",
-              notice.tone === "error"
-                ? "font-semibold text-danger"
-                : "rounded-md bg-warning-soft px-3 py-2 text-ink",
+              "m-0 flex items-start gap-1.5 text-body-sm leading-5 text-ink",
+              notice.tone === "error" ? "font-semibold" : "rounded-md bg-warning-soft px-3 py-2",
             )}
           >
+            {notice.tone === "error" && (
+              <Icon name="alert-circle" size={16} className="mt-0.5 shrink-0 text-danger" />
+            )}
             {notice.text}
           </p>
         )}

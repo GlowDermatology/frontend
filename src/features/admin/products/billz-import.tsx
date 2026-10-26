@@ -135,7 +135,8 @@ export function BillzImport({ className }: { className?: string }) {
           aria-live="polite"
           className={cn(
             "max-w-[360px] text-caption font-normal text-ink-muted tabular-nums",
-            tone === "danger" && "text-danger",
+            // The deeper red keeps AA contrast for a long failure message.
+            tone === "danger" && "text-danger-strong",
           )}
         >
           {status}

@@ -9,8 +9,11 @@ const overlayClass =
   "fixed inset-0 z-40 bg-scrim data-[state=closed]:animate-fade-out data-[state=open]:animate-fade-in";
 
 const contentClass =
-  "fixed top-[clamp(24px,14vh,160px)] left-1/2 z-50 flex max-h-[calc(100dvh-48px)] w-[calc(100%-48px)] -translate-x-1/2 flex-col gap-4 overflow-y-auto rounded-lg bg-surface-raised p-6 text-ink shadow-lg focus-visible:outline-none data-[state=closed]:animate-pop-out data-[state=open]:animate-pop-in";
+  "fixed top-[clamp(24px,14vh,160px)] left-1/2 z-50 flex max-h-[calc(100dvh_-_clamp(24px,14vh,160px)_-_24px)] w-[calc(100%-48px)] -translate-x-1/2 flex-col gap-4 overflow-y-auto rounded-lg bg-surface-raised p-6 text-ink shadow-lg focus-visible:outline-none data-[state=closed]:animate-pop-out data-[state=open]:animate-pop-in";
 
+/* The height leaves the top offset plus 24px free, so a tall dialog (the
+   banner form on a phone) scrolls inside the viewport and its buttons can
+   always be reached; `100dvh − 48px` let it run off the bottom edge. */
 const titleClass = "text-heading text-ink";
 
 /**

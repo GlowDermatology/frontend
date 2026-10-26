@@ -12,7 +12,7 @@ import { ActionMenu, type ActionMenuItem } from "@/components/ui/menu";
 import { ScrollRegion } from "@/components/ui/scroll-region";
 import { useToast } from "@/components/ui/toast";
 import { closeFailedRefund, resolveRefund, retryRefund } from "@/data/payments.actions";
-import { refundStateLine, type Refund } from "@/domain/order";
+import { manualRefundNote, refundStateLine, type Refund } from "@/domain/order";
 import { refundOperations, type PaymentRecord } from "@/domain/payment";
 import { cn } from "@/lib/cn";
 import { formatDateTimeShort, formatNumber, formatPhone, formatSom } from "@/lib/format";
@@ -144,6 +144,11 @@ function rowItems(
   });
 }
 
+/**
+ * The newest refund: its state, the §5.1 line of a manual one (by
+ * `manual_reason` and provider) with why a Click refund is paid by hand
+ * (`Refund.manual_reason`, M3), and the amount.
+ */
 function RefundSummary({ refunds }: { refunds: ReadonlyArray<Refund> }) {
   const newest = refunds[0];
   if (!newest) {
@@ -153,12 +158,14 @@ function RefundSummary({ refunds }: { refunds: ReadonlyArray<Refund> }) {
       </span>
     );
   }
+  const note = manualRefundNote(newest);
   return (
     <span className="flex max-w-[240px] flex-col items-start gap-1">
       <RefundStateBadge state={newest.state} />
       {newest.state === "manual_required" && (
         <span className="text-[12px] leading-4 text-ink">{refundStateLine(newest)}</span>
       )}
+      {note && <span className="text-[12px] leading-4 text-ink-muted">{note}</span>}
       <span className="text-[12px] text-ink-muted tabular-nums">
         {formatSom(newest.amount)}
         {refunds.length > 1 && ` · jami ${refunds.length} ta`}

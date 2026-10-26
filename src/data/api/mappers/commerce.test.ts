@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { manualRefundNote, refundStateLine } from "@/domain/order";
+
 import customFixture from "../__fixtures__/dashboard-custom.json";
 import weekFixture from "../__fixtures__/dashboard-week.json";
 import order10248Fixture from "../__fixtures__/order-10248.json";
@@ -270,6 +272,69 @@ describe("manual refunds by reason and provider (§4, §5.1, M2)", () => {
     ]);
     expect(manualRefundReasons([requested(3, { provider: "payme", manual: true })])).toEqual(
       new Map([[3, "payme"]]),
+    );
+  });
+
+  /** An M3 `Refund`: it carries its own `manual_reason`. */
+  const m3Refund = (
+    id: number,
+    provider: "click" | "payme",
+    state: string,
+    manual_reason: string | null,
+  ) => ({
+    id,
+    state,
+    provider,
+    amount: 120_000,
+    requested_at: "2026-10-24T12:00:00+05:00",
+    updated_at: "2026-10-24T12:00:00+05:00",
+    completed_at: null,
+    manual_reason,
+  });
+
+  it("takes the refund's own manual_reason first and the history only without one (M3)", () => {
+    const order = mapOrder({
+      ...order10248,
+      status: "cancelled",
+      refunds: [
+        m3Refund(14, "click", "manual_required", "fake_mode"),
+        m3Refund(13, "click", "manual_required", null),
+      ],
+      history: [
+        // The refund object wins over an event that says otherwise.
+        requested(14, { provider: "click", manual: true, manual_reason: "no_paydoc" }),
+        // A refund answered without a reason keeps the one its request names.
+        requested(13, { provider: "click", manual: true, manual_reason: "no_paydoc" }),
+      ],
+    } as unknown as ApiOrderDetail);
+    expect(order.refunds.map((r) => [r.id, r.manualReason])).toEqual([
+      [14, "fake_mode"],
+      [13, "no_paydoc"],
+    ]);
+  });
+
+  it("gives the payments rows the refund's manual_reason, which the board words", () => {
+    const row = paymentsFixture.results[0]!;
+    const payment = mapPayment({
+      ...row,
+      status: "paid",
+      refunds: [
+        m3Refund(22, "click", "manual_required", "no_paydoc"),
+        m3Refund(21, "click", "failed", null),
+        m3Refund(20, "click", "succeeded", "later_reason"),
+      ],
+    } as unknown as ApiPayment);
+    expect(payment.refunds.map((r) => [r.id, r.manualReason])).toEqual([
+      [22, "no_paydoc"],
+      [21, undefined],
+      [20, undefined],
+    ]);
+    expect("manualReason" in payment.refunds[1]!).toBe(false);
+    expect(refundStateLine(payment.refunds[0]!)).toBe(
+      "Mijozga qo‘lda to‘lang, so‘ng «Qaytarildi» deb belgilang",
+    );
+    expect(manualRefundNote(payment.refunds[0]!)).toBe(
+      "Click to‘lov raqami yo‘q · qo‘lda to‘lanadi",
     );
   });
 });

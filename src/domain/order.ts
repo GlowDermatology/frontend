@@ -132,9 +132,12 @@ export interface Refund {
   /** Set once the refund succeeded. */
   completedAt?: string;
   /**
-   * Why the refund was created `manual_required`, from its `refund_requested`
-   * event. Only the order detail reads the events, so the payments board
-   * never has it.
+   * Why the refund is (or was) `manual_required`: the refund's own
+   * `manual_reason` (M3, in `orders/{id}/` `refunds[]` and the `payments/`
+   * rows; it stays after the refund is resolved), else — for a refund the
+   * API answers without one — the `refund_requested` event's `manual_reason`
+   * (order detail only, since only it reads the history). Absent for a
+   * refund that was never manual.
    */
   manualReason?: ManualRefundReason;
 }
@@ -160,14 +163,20 @@ export const MANUAL_REFUND_LINE: Record<PaymentProvider, string> = {
 };
 
 /**
- * The refund state line (contract §5.1 "Refund state", §7 item 3): chosen by
- * state **and** provider, since a `manual_required` refund is a Click one
- * when Click cannot return the money itself.
+ * The refund state line (contract §5.1 "Refund state", §7 item 3; also the
+ * `Qaytarish` column of the payments export): chosen by state, and for
+ * `manual_required` by `manual_reason` and provider — the Payme cabinet line
+ * only for reason `payme` (or, without a reason, a Payme refund), the Click
+ * payout line otherwise, since a `manual_required` refund is a Click one
+ * when Click cannot return the money itself. Never assumes Payme.
  */
-export function refundStateLine(refund: Pick<Refund, "state" | "provider">): string {
-  return refund.state === "manual_required"
-    ? MANUAL_REFUND_LINE[refund.provider]
-    : REFUND_STATE_LABEL[refund.state];
+export function refundStateLine(
+  refund: Pick<Refund, "state" | "provider"> & { manualReason?: ManualRefundReason },
+): string {
+  if (refund.state !== "manual_required") return REFUND_STATE_LABEL[refund.state];
+  const payme =
+    refund.manualReason === "payme" || (!refund.manualReason && refund.provider === "payme");
+  return MANUAL_REFUND_LINE[payme ? "payme" : "click"];
 }
 
 /**
@@ -179,6 +188,28 @@ export const MANUAL_REFUND_NOTE: Record<ManualRefundReason, string> = {
   no_paydoc: "Click to‘lov raqami yo‘q · qo‘lda to‘lanadi",
   fake_mode: "Click sinov rejimida · qo‘lda to‘lanadi",
 };
+
+/**
+ * Why a refund that still needs a payout is paid by hand, when its line does
+ * not already say so: a `manual_required` Click refund without a Click
+ * payment id or with Click in test mode (§5.1 note). A Payme refund's line
+ * already names the Payme cabinet, so it has no note.
+ */
+export function manualRefundNote(
+  refund: Pick<Refund, "state"> & { manualReason?: ManualRefundReason },
+): string | null {
+  if (refund.state !== "manual_required" || !refund.manualReason) return null;
+  return refund.manualReason === "payme" ? null : MANUAL_REFUND_NOTE[refund.manualReason];
+}
+
+/**
+ * `Refund.manual_reason` (M3) → the reason; `null` (never manual) or a value
+ * this build does not know → `undefined`. Unlike `manualRefundReason`, an
+ * absent value is not read as Payme: the refund object states it.
+ */
+export function refundManualReason(value: unknown): ManualRefundReason | undefined {
+  return MANUAL_REFUND_REASONS.find((reason) => reason === value);
+}
 
 /**
  * `refund_requested.data.manual_reason` → the reason: absent or `null` (M1

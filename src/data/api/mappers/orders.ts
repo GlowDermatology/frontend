@@ -1,6 +1,7 @@
 import {
   manualRefundReason,
   MANUAL_REFUND_NOTE,
+  refundManualReason,
   type CustomerRef,
   type ManualRefundReason,
   type Order,
@@ -119,8 +120,9 @@ export function mapOrderSummary(api: ApiOrderSummary): OrderSummary {
   };
 }
 
+/** `Refund` (§2.2); `manual_reason` (M3) says why it is (or was) manual. */
 export function mapRefund(api: ApiRefund): Refund {
-  return {
+  const refund: Refund = {
     id: api.id,
     state: api.state,
     provider: api.provider,
@@ -129,6 +131,9 @@ export function mapRefund(api: ApiRefund): Refund {
     updatedAt: api.updated_at,
     completedAt: api.completed_at ?? undefined,
   };
+  const reason = refundManualReason(api.manual_reason);
+  if (reason) refund.manualReason = reason;
+  return refund;
 }
 
 /** `PCT(p)` (§5): `"1.00"` → `1`, `"1.50"` → `1,5`, `"0.57"` → `0,57`. */
@@ -414,7 +419,9 @@ export function mapOrder(api: ApiOrderDetail, options: MapOrderOptions = {}): Or
     cashbackUsed: api.cashback_used,
     refunds: api.refunds.map((refund) => {
       const mapped = mapRefund(refund);
-      const reason = reasons.get(refund.id);
+      // The refund's own reason (M3) wins; a refund answered without one
+      // (written before the field) falls back to its `refund_requested` event.
+      const reason = mapped.manualReason ?? reasons.get(refund.id);
       return reason ? { ...mapped, manualReason: reason } : mapped;
     }),
     cashbackHold: api.cashback_hold

@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { customBucket, rangeDays, validateCustomRange } from "./dashboard";
 import {
+  manualRefundNote,
   manualRefundReason,
   orderActions,
+  refundManualReason,
   refundStateLine,
   REFUND_STATE_LABEL,
   shipmentPending,
@@ -210,6 +212,52 @@ describe("refund state line (contract §5.1, §7 item 3, M2)", () => {
     );
     // The filter and badge name never assumes Payme.
     expect(REFUND_STATE_LABEL.manual_required).not.toMatch(/Payme/);
+  });
+
+  it("picks a manual refund's line by manual_reason first, then by provider (M3)", () => {
+    const manual = { state: "manual_required" as const };
+    const PAYME = "Payme kabinetida qaytarish kerak";
+    const CLICK = "Mijozga qo‘lda to‘lang, so‘ng «Qaytarildi» deb belgilang";
+    expect(refundStateLine({ ...manual, provider: "payme", manualReason: "payme" })).toBe(PAYME);
+    expect(refundStateLine({ ...manual, provider: "click", manualReason: "no_paydoc" })).toBe(
+      CLICK,
+    );
+    expect(refundStateLine({ ...manual, provider: "click", manualReason: "fake_mode" })).toBe(
+      CLICK,
+    );
+    // A Click reason is never worded as Payme, whatever the provider says.
+    expect(refundStateLine({ ...manual, provider: "payme", manualReason: "no_paydoc" })).toBe(
+      CLICK,
+    );
+    // Without a reason the provider decides (rows written before the field).
+    expect(refundStateLine({ ...manual, provider: "payme" })).toBe(PAYME);
+    expect(refundStateLine({ ...manual, provider: "click" })).toBe(CLICK);
+    // The reason stays after the refund settled; the line follows the state.
+    expect(
+      refundStateLine({ state: "succeeded", provider: "click", manualReason: "no_paydoc" }),
+    ).toBe("Qaytarildi");
+  });
+
+  it("notes why a manual Click refund is paid by hand, and nothing else", () => {
+    expect(manualRefundNote({ state: "manual_required", manualReason: "no_paydoc" })).toBe(
+      "Click to‘lov raqami yo‘q · qo‘lda to‘lanadi",
+    );
+    expect(manualRefundNote({ state: "manual_required", manualReason: "fake_mode" })).toBe(
+      "Click sinov rejimida · qo‘lda to‘lanadi",
+    );
+    // Payme's line already names the cabinet; a settled or reason-less refund has no note.
+    expect(manualRefundNote({ state: "manual_required", manualReason: "payme" })).toBeNull();
+    expect(manualRefundNote({ state: "manual_required" })).toBeNull();
+    expect(manualRefundNote({ state: "succeeded", manualReason: "no_paydoc" })).toBeNull();
+  });
+
+  it("reads Refund.manual_reason strictly: null and unknown values are no reason", () => {
+    expect(refundManualReason("payme")).toBe("payme");
+    expect(refundManualReason("no_paydoc")).toBe("no_paydoc");
+    expect(refundManualReason("fake_mode")).toBe("fake_mode");
+    expect(refundManualReason(null)).toBeUndefined();
+    expect(refundManualReason(undefined)).toBeUndefined();
+    expect(refundManualReason("later_reason")).toBeUndefined();
   });
 
   it("reads manual_reason, an absent one (M1 rows) as Payme", () => {

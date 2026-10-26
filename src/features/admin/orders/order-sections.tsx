@@ -10,7 +10,7 @@ import { Card, CardTitle, DetailRow } from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
 import {
   itemsSubtotal,
-  MANUAL_REFUND_NOTE,
+  manualRefundNote,
   promoSubtotal,
   refundStateLine,
   shipmentPending,
@@ -273,21 +273,11 @@ export function OrderCustomerCard({ order }: { order: Order }) {
   );
 }
 
-/**
- * Why the newest refund is paid out by hand, when the order's history says
- * so and the line does not already: a Click refund without a Click payment
- * id or with Click in test mode (§4 `manual_reason`, §5.1 note). A Payme
- * refund's line already names the Payme cabinet.
- */
-function manualReasonNote(refund: Order["refunds"][number] | undefined): string | null {
-  if (refund?.state !== "manual_required" || !refund.manualReason) return null;
-  return refund.manualReason === "payme" ? null : MANUAL_REFUND_NOTE[refund.manualReason];
-}
-
 export function OrderPaymentCard({ order }: { order: Order }) {
   const { payment } = order;
   const newest = order.refunds[0];
-  const reasonNote = manualReasonNote(newest);
+  // Why the newest refund is paid out by hand (§5.1 note; Payme's line says it already).
+  const reasonNote = newest ? manualRefundNote(newest) : null;
   return (
     <Card aria-labelledby="order-payment-title" className="flex flex-col gap-2.5">
       <div className="flex items-center justify-between gap-3">

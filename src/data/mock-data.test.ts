@@ -71,6 +71,18 @@ describe("mock dataset", () => {
       ["click", "no_paydoc"],
       ["payme", "payme"],
     ]);
+    // The payments rows carry the same reasons on the refund itself (M3 `Refund.manual_reason`).
+    expect(manual.map((p) => [p.provider, p.refunds[0]?.manualReason]).sort()).toEqual([
+      ["click", "fake_mode"],
+      ["click", "no_paydoc"],
+      ["payme", "payme"],
+    ]);
+    // Every Payme refund is a cabinet refund, also once settled; an automatic Click one has none.
+    const settled = PAYMENTS.flatMap((p) => p.refunds).filter((r) => r.state === "succeeded");
+    const reasonsOf = (provider: string) =>
+      new Set(settled.filter((r) => r.provider === provider).map((r) => r.manualReason));
+    expect(reasonsOf("payme")).toEqual(new Set(["payme"]));
+    expect(reasonsOf("click")).toEqual(new Set([undefined]));
     // The late capture: the order stays cancelled, its request is a history row of its own.
     const late = orders.find((o) => o?.refunds[0]?.manualReason === "fake_mode")!;
     expect(late.cancellation?.reason).toBe("reservation_expired");

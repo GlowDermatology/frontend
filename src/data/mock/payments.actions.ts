@@ -63,6 +63,7 @@ export async function retryRefund(
           amount: refund.amount,
           requestedAt: at,
           updatedAt: at,
+          ...(payment.provider === "payme" ? { manualReason: "payme" as const } : {}),
         },
         ...payment.refunds,
       ],

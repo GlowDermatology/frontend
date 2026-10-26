@@ -501,13 +501,19 @@ function cancelledAt(seed: OrderSeed): string {
   return plusMinutes(seed.at, seed.cancellation?.reason === "reservation_expired" ? 15 : 60);
 }
 
-/** The order's refunds, newest first: a settled one for `refunded`, or the open demo refund. */
+/**
+ * The order's refunds, newest first: a settled one for `refunded`, or the
+ * open demo refund. Like the API's `Refund.manual_reason` (M3), every Payme
+ * refund says `payme` (a cabinet refund, also once settled) and a manual
+ * Click refund says why.
+ */
 export function refundsOf(seed: OrderSeed): Refund[] {
   const open = OPEN_REFUNDS.get(seed.id);
   if (seed.payment !== "refunded" && !open) return [];
   const requestedAt = open?.lateCapture ? confirmedAtOf(seed)! : cancelledAt(seed);
   const state: RefundState = open?.state ?? "succeeded";
   const updatedAt = plusMinutes(requestedAt, state === "manual_required" ? 0 : 4);
+  const manualReason = open?.reason ?? (seed.provider === "payme" ? "payme" : undefined);
   return [
     {
       id: refundIdOf(seed.id),
@@ -517,6 +523,7 @@ export function refundsOf(seed: OrderSeed): Refund[] {
       requestedAt,
       updatedAt,
       completedAt: state === "succeeded" ? updatedAt : undefined,
+      ...(manualReason ? { manualReason } : {}),
     },
   ];
 }
@@ -570,9 +577,7 @@ export function buildOrderDetail(seed: OrderSeed): Order {
   // A late capture never confirms the order: no "Jarayonda" row, no cashback.
   const paid = (seed.payment === "paid" || seed.payment === "refunded") && !lateCapture;
   const confirmedAt = confirmedAtOf(seed);
-  const refunds = refundsOf(seed).map((refund) =>
-    openRefund?.reason ? { ...refund, manualReason: openRefund.reason } : refund,
-  );
+  const refunds = refundsOf(seed);
   const credit = calculateCashback(
     {
       amount: subtotal,

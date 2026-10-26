@@ -66,5 +66,6 @@ export function mapStaffAccount(me: Me): StaffAccount {
     displayName: me.display_name,
     linkedProviders: [...me.linked_providers],
     sessionExpiresAt: me.session_expires_at || null,
+    authMethod: me.auth_method ?? null,
   };
 }

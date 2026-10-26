@@ -1,3 +1,5 @@
+import { LINK_NEEDS_PASSWORD_MESSAGE } from "@/domain/settings";
+
 import { isApiError, type ApiError } from "../api/errors";
 import { OAUTH_NOTICE_MAX_MESSAGE_LENGTH } from "./oauth";
 
@@ -47,10 +49,11 @@ export function oauthErrorMessage(error: unknown): string {
  * (or from before the backend recorded how a session signed in) is refused
  * with 403 `permission_denied` "Ruxsat yo‘q." before the provider is called
  * (contract §2.1, M2): only a password sign-in may attach an identity. The
- * backend's text does not say what to do, so the account card says it.
+ * backend's text does not say what to do, so the account card says it. Since
+ * M3 the card hides «Bog‘lash» for such a session (`Me.auth_method`); this
+ * mapping stays for a link started anyway (an old tab, a hand-typed URL).
  */
-export const OAUTH_LINK_NEEDS_PASSWORD_MESSAGE =
-  "Ijtimoiy tarmoq orqali ochilgan sessiyada hisob bog‘lab bo‘lmaydi. Chiqing, email va parol bilan qayta kiring, so‘ng «Bog‘lash»ni bosing.";
+export const OAUTH_LINK_NEEDS_PASSWORD_MESSAGE = LINK_NEEDS_PASSWORD_MESSAGE;
 
 /** `oauthErrorMessage` for the link flow: a 403 asks for a password sign-in first. */
 export function oauthLinkErrorMessage(error: unknown): string {

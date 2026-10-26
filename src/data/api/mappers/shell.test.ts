@@ -511,7 +511,19 @@ describe("settings and account", () => {
       displayName: "Administrator",
       linkedProviders: ["google"],
       sessionExpiresAt: "2026-10-26T15:33:54+05:00",
+      authMethod: "password",
     });
+    const base = {
+      id: 1,
+      email: "admin@glowderma.uz",
+      display_name: "Administrator",
+      is_superuser: false,
+      linked_providers: [],
+      session_expires_at: "2026-10-26T15:33:54+05:00",
+    };
+    expect(mapStaffAccount({ ...base, auth_method: "google" }).authMethod).toBe("google");
+    // A session opened before the backend recorded how it signed in (M3).
+    expect(mapStaffAccount({ ...base, auth_method: null }).authMethod).toBeNull();
     const envelope = {
       code: "validation_error",
       message: "Maydonlarni tekshiring.",

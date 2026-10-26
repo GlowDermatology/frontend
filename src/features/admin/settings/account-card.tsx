@@ -79,7 +79,8 @@ export function AccountCard({ account, providers = [], notice = null }: AccountC
   const unlinkInFlight = useRef(false);
   /** The row whose action should take focus once the confirmation closes. */
   const focusRow = useRef<string | null>(null);
-  const social = socialBlock(providers, linked);
+  // A session that did not sign in with the password cannot link (M3 `auth_method`).
+  const social = socialBlock(providers, linked, account?.authMethod ?? null);
 
   // A link flow's outcome (the callback lands here with `?oauth=`): drop the
   // token through the router (so a later `refresh()` does not render it
@@ -277,6 +278,12 @@ export function AccountCard({ account, providers = [], notice = null }: AccountC
               </li>
             ))}
           </ul>
+        )}
+        {social.kind === "rows" && social.linkHint && (
+          <p className="m-0 flex items-start gap-1.5 text-body-sm text-ink">
+            <Icon name="info" size={16} className="mt-0.5 shrink-0 text-gold-ink" />
+            {social.linkHint}
+          </p>
         )}
       </div>
 

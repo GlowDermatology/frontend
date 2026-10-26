@@ -7,6 +7,8 @@ import { Card } from "@/components/ui/card";
 import { verifyStaff } from "@/data/auth";
 import { cookieNames } from "@/data/auth/cookie-names";
 import { safeNext } from "@/data/auth/next-param";
+import { OAUTH_PROVIDER_LABEL } from "@/data/auth/oauth";
+import { oauthConfig, requestNotice } from "@/data/auth/oauth-env";
 import { LoginForm } from "@/features/admin/auth/login-form";
 import { Skeleton } from "@/features/admin/shared/skeleton";
 import { serverEnv } from "@/lib/env.server";
@@ -50,18 +52,34 @@ function LoginFallback() {
 
 /**
  * Request-time part: reads `next`, bounces a browser that already has a valid
- * session, and hands the current csrf cookie to the form.
+ * session, and hands the current csrf cookie, the enabled social sign-in
+ * providers (`GLOWDERMA_OAUTH_PROVIDERS`) and a failed social sign-in's
+ * signed `?oauth=` notice (the backend's message) to the form.
  */
 async function LoginGate({
   searchParams,
 }: {
   searchParams: PageProps<"/admin/login">["searchParams"];
 }) {
-  const next = safeNext((await searchParams).next);
+  const query = await searchParams;
+  const next = safeNext(query.next);
   const session = await verifyStaff();
   if (session.ok) redirect(next);
   const csrf = (await cookies()).get(cookieNames(serverEnv.cookieSecure()).csrf)?.value ?? "";
-  return <LoginForm next={next} csrf={csrf} />;
+  const notice = await requestNotice(query.oauth);
+  const providers = oauthConfig().providers.map((id) => ({
+    id,
+    label: OAUTH_PROVIDER_LABEL[id],
+    href: `/admin/auth/oauth/${id}/start?next=${encodeURIComponent(next)}`,
+  }));
+  return (
+    <LoginForm
+      next={next}
+      csrf={csrf}
+      providers={providers}
+      notice={notice?.kind === "error" ? notice.message : null}
+    />
+  );
 }
 
 export default function LoginPage({ searchParams }: PageProps<"/admin/login">) {

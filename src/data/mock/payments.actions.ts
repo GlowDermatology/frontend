@@ -1,4 +1,4 @@
-import { OPEN_REFUND_STATES, refundOperations, type PaymentRecord } from "@/domain/payment";
+import { hasOpenRefund, refundOperations, type PaymentRecord } from "@/domain/payment";
 
 import { referenceNow } from "../config";
 import type { ActionResult } from "../types";
@@ -27,14 +27,16 @@ export async function retryRefund(
   const found = lookup(paymentId, refundId);
   if (!found) return NOT_FOUND;
   const { payment, refund } = found;
-  if (!refundOperations(refund, payment).retry) {
+  // The contract's order: a refund that cannot be retried at all is
+  // `invalid_transition`; a retriable one blocked by an open sibling is `conflict`.
+  if (refund.state !== "failed" || payment.status !== "paid") {
     return {
       ok: false,
       error: "Bu qaytarishni qayta yuborib bo‘lmaydi.",
       code: "invalid_transition",
     };
   }
-  if (payment.refunds.some((r) => OPEN_REFUND_STATES.includes(r.state))) {
+  if (hasOpenRefund(payment)) {
     return {
       ok: false,
       error: "Bu to‘lov uchun qaytarish allaqachon jarayonda.",

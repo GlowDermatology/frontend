@@ -1277,6 +1277,23 @@ describe("refund actions in mock mode", () => {
     expect(await retryRefund(failed.id, 1, KEY, CSRF)).toMatchObject({ code: "not_found" });
     expect(refresh).not.toHaveBeenCalled();
   });
+
+  it("refuses a retry with 409 conflict while another refund of the payment is open", async () => {
+    const { PAYMENTS } = await import("./mock/payments");
+    const failed = PAYMENTS.find((p) => p.refunds[0]?.state === "failed")!;
+    const refunds = failed.refunds;
+    const open = { ...refunds[0]!, id: refunds[0]!.id + 1, state: "manual_required" as const };
+    (failed as { refunds: typeof refunds }).refunds = [open, ...refunds];
+    try {
+      expect(await retryRefund(failed.id, refunds[0]!.id, KEY, CSRF)).toEqual({
+        ok: false,
+        error: "Bu to‘lov uchun qaytarish allaqachon jarayonda.",
+        code: "conflict",
+      });
+    } finally {
+      (failed as { refunds: typeof refunds }).refunds = refunds;
+    }
+  });
 });
 
 /* --- end orders / payments actions --- */

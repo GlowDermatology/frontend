@@ -44,24 +44,6 @@ export interface PaymentListQuery {
 
 export const PAYMENT_PAGE_SIZES = [20, 50] as const;
 
-/** The admin operations a refund offers (contract §2.12). */
-export interface RefundOperations {
-  /** `failed` → a new refund of the payment (while the payment is still `paid`). */
-  retry: boolean;
-  /** `unknown` / `manual_required` → closed by hand as succeeded or failed. */
-  resolve: boolean;
-}
-
-export function refundOperations(
-  refund: Pick<Refund, "state">,
-  payment: Pick<PaymentRecord, "status">,
-): RefundOperations {
-  return {
-    retry: refund.state === "failed" && payment.status === "paid",
-    resolve: refund.state === "unknown" || refund.state === "manual_required",
-  };
-}
-
 /** Refund states that keep a new refund of the same order from starting. */
 export const OPEN_REFUND_STATES: ReadonlyArray<RefundState> = [
   "requested",
@@ -69,3 +51,29 @@ export const OPEN_REFUND_STATES: ReadonlyArray<RefundState> = [
   "manual_required",
   "unknown",
 ];
+
+/** Whether one of the payment's refunds is still open (a retry would get 409 `conflict`). */
+export function hasOpenRefund(payment: Pick<PaymentRecord, "refunds">): boolean {
+  return payment.refunds.some((refund) => OPEN_REFUND_STATES.includes(refund.state));
+}
+
+/** The admin operations a refund offers (contract §2.12). */
+export interface RefundOperations {
+  /**
+   * `failed` → a new refund of the payment, while the payment is still `paid`
+   * and no other refund of it is open (the API refuses that with 409 `conflict`).
+   */
+  retry: boolean;
+  /** `unknown` / `manual_required` → closed by hand as succeeded or failed. */
+  resolve: boolean;
+}
+
+export function refundOperations(
+  refund: Pick<Refund, "state">,
+  payment: Pick<PaymentRecord, "status" | "refunds">,
+): RefundOperations {
+  return {
+    retry: refund.state === "failed" && payment.status === "paid" && !hasOpenRefund(payment),
+    resolve: refund.state === "unknown" || refund.state === "manual_required",
+  };
+}

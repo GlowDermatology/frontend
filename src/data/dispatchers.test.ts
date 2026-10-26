@@ -524,6 +524,18 @@ describe("dispatchers in api mode", () => {
     expect(page.items.map((p) => p.id)).toEqual([3, 2, 1]);
     expect(page.items[2]?.customer.name).toBe("O‘chirilgan mijoz");
     expect(page.total).toBe(3);
+
+    // A payment with a failed and a manual_required refund comes back in both lists: once here.
+    const both = {
+      ...payment(4, "2026-10-23T10:00:00+05:00", "manual_required"),
+      refunds: [refund(5, "manual_required"), refund(4, "failed")],
+    };
+    byState.failed = [byState.failed![0], both];
+    byState.manual_required = [both, byState.manual_required![0]];
+    const merged = await d.payments.listPayments({ ...PAYMENT_QUERY, refund: "needs_action" });
+    expect(merged.items.map((p) => p.id)).toEqual([3, 4, 2, 1]);
+    expect(merged.total).toBe(4);
+    expect(merged.items[1]?.refunds.map((r) => r.state)).toEqual(["manual_required", "failed"]);
   });
 
   it("returns the dashboard's custom-range 400 as field errors", async () => {

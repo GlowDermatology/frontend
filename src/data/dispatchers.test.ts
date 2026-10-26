@@ -452,7 +452,7 @@ describe("dispatchers in api mode", () => {
       "Jarayonda",
       "To‘lov kutilmoqda",
     ]);
-    // GLOWDERMA_MEDIA_HOSTS is unset here: no photo host may be loaded by next/image.
+    // The recorded photos point at 127.0.0.1:8000, never a configured GLOWDERMA_MEDIA_HOSTS entry.
     expect(order?.items.every((item) => item.imageUrl === undefined)).toBe(true);
     expect((await d.orders.getRecentOrders(6)).length).toBe(6);
     expect(cachedGet).toHaveBeenLastCalledWith(

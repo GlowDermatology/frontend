@@ -3,11 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 
 import { Icon } from "@/components/ui/icon";
-import { SearchInput, TextInput } from "@/components/ui/field";
+import { SearchInput } from "@/components/ui/field";
 import { SelectMenu } from "@/components/ui/menu";
 import type { OrderListQuery, OrderPeriod } from "@/data/orders";
 import type { FulfilmentMethod, PaymentStatus } from "@/domain/order";
 
+import { DateRangeFields } from "../shared/date-range-fields";
 import { useListNavigation } from "../shared/list-transition";
 import { FULFILMENT_LABEL, PAYMENT_STATUS_META } from "../shared/status";
 import { DEFAULT_PERIOD, PAGE_SIZES, hasActiveFilters, orderListHref } from "./query";
@@ -20,8 +21,6 @@ interface OrdersToolbarProps {
   /** Name of the customer the list is filtered to (`?customer=`), when known. */
   customerName?: string;
 }
-
-const dateInput = "h-11 w-[150px] text-[14px] tabular-nums";
 
 /**
  * Filters of the orders list; every change is a URL navigation inside the
@@ -96,30 +95,11 @@ export function OrdersToolbar({ query, periodLabels, customerName }: OrdersToolb
           })),
         ]}
       />
-      <label className="flex items-center gap-2">
-        <span className="text-body-sm text-ink-muted">Sanadan</span>
-        <TextInput
-          type="date"
-          name="date_from"
-          aria-label="Sanadan"
-          className={dateInput}
-          value={query.dateFrom ?? ""}
-          max={query.dateTo}
-          onChange={(event) => update({ dateFrom: event.target.value || undefined, period: "all" })}
-        />
-      </label>
-      <label className="flex items-center gap-2">
-        <span className="text-body-sm text-ink-muted">gacha</span>
-        <TextInput
-          type="date"
-          name="date_to"
-          aria-label="Sanagacha"
-          className={dateInput}
-          value={query.dateTo ?? ""}
-          min={query.dateFrom}
-          onChange={(event) => update({ dateTo: event.target.value || undefined, period: "all" })}
-        />
-      </label>
+      <DateRangeFields
+        from={query.dateFrom}
+        to={query.dateTo}
+        onCommit={(patch) => update({ ...patch, period: "all" })}
+      />
       {query.customer && (
         <button
           type="button"

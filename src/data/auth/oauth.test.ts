@@ -170,7 +170,9 @@ describe("the sealed flow cookie", () => {
     const forged: OAuthFlow = { ...flow, intent: "login", next: "/admin/orders" };
     const forgedPayload = Buffer.from(JSON.stringify(forged)).toString("base64url");
     expect(openFlow(`${forgedPayload}.${signature}`, key, now)).toBeNull();
-    expect(openFlow(`${payload}.${signature.slice(0, -2)}AA`, key, now)).toBeNull();
+    // A different tail every time (a random signature ends in "AA" once in 4096 runs).
+    const tail = signature.endsWith("AA") ? "BB" : "AA";
+    expect(openFlow(`${payload}.${signature.slice(0, -2)}${tail}`, key, now)).toBeNull();
     expect(openFlow(`${payload}.${signature}.x`, key, now)).toBeNull();
     for (const value of [undefined, "", "abc", "a.b", 42, "x".repeat(5000)]) {
       expect(openFlow(value, key, now)).toBeNull();

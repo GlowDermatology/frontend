@@ -31,10 +31,24 @@ export function parseGroupParam(value: string | undefined): string | undefined {
   return value && /^[1-9]\d{0,11}$/.test(value) ? value : undefined;
 }
 
+/**
+ * The search text as the API takes it: control characters (U+0000 is a 400
+ * `null_characters_not_allowed` in Django) are removed before trimming, and
+ * the result is cut to 64 characters. Nothing left → no search.
+ */
+export function parseSearchParam(value: string | undefined): string | undefined {
+  return (
+    value
+      ?.replace(/\p{Cc}/gu, "")
+      .trim()
+      .slice(0, 64) || undefined
+  );
+}
+
 export function parseCustomerQuery(params: SearchParams): CustomerListQuery {
   const size = oneOf(firstParam(params, "size"), SIZES);
   return {
-    q: firstParam(params, "q")?.trim().slice(0, 64) || undefined,
+    q: parseSearchParam(firstParam(params, "q")),
     status: oneOf(firstParam(params, "status"), STATUSES),
     group: parseGroupParam(firstParam(params, "group")),
     sort: oneOf(firstParam(params, "sort"), CUSTOMER_SORTS) ?? "registered_desc",

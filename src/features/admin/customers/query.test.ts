@@ -42,6 +42,16 @@ describe("customers list URL state", () => {
     expect(parseCustomerQuery({ q: "x".repeat(80) }).q).toHaveLength(64);
   });
 
+  it("removes control characters from the search so Django never sees a NUL (400)", () => {
+    expect(parseCustomerQuery({ q: "\u0000abc" }).q).toBe("abc");
+    expect(parseCustomerQuery({ q: "\u0000" }).q).toBeUndefined();
+    expect(parseCustomerQuery({ q: "\u0000\u0001 \u007f" }).q).toBeUndefined();
+    expect(parseCustomerQuery({ q: " Ma\u0000lika\t\n" }).q).toBe("Malika");
+    expect(parseCustomerQuery({ q: "90 123\u009f" }).q).toBe("90 123");
+    // The cut to 64 characters applies after the removal.
+    expect(parseCustomerQuery({ q: "\u0000".repeat(10) + "y".repeat(70) }).q).toBe("y".repeat(64));
+  });
+
   it("writes short links and keeps the filters in the export link", () => {
     expect(customerListHref({ sort: "registered_desc", pageSize: 20, page: 1 })).toBe(
       "/admin/customers",

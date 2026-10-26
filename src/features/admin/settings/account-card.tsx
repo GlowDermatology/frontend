@@ -37,6 +37,22 @@ export interface SocialNotice {
 const EMPTY: ChangePasswordValues = { currentPassword: "", newPassword: "", confirmPassword: "" };
 const PASSWORD_FIELDS = Object.keys(EMPTY);
 
+/**
+ * Where focus goes when the «Uzish» confirmation closes: the row's action —
+ * «Uzish» after a dismissal or a refusal, «Bog‘lash» after a success in a
+ * password session — else the row itself (a session that cannot link shows
+ * no action on an unlinked row), else the block's heading (a provider that
+ * is no longer enabled leaves no row once unlinked).
+ */
+function unlinkFocusTarget(id: string | null): HTMLElement | null {
+  return (
+    (id &&
+      (document.getElementById(`social-action-${id}`) ??
+        document.getElementById(`social-row-${id}`))) ||
+    document.getElementById("social-title")
+  );
+}
+
 interface AccountCardProps {
   account: StaffAccount | null;
   /** Social sign-in providers enabled on this server (`GLOWDERMA_OAUTH_PROVIDERS`). */
@@ -77,7 +93,7 @@ export function AccountCard({ account, providers = [], notice = null }: AccountC
   const [unlinkTarget, setUnlinkTarget] = useState<SocialProviderOption | null>(null);
   const [unlinking, setUnlinking] = useState(false);
   const unlinkInFlight = useRef(false);
-  /** The row whose action should take focus once the confirmation closes. */
+  /** The row that takes focus back once the confirmation closes (see `unlinkFocusTarget`). */
   const focusRow = useRef<string | null>(null);
   // A session that did not sign in with the password cannot link (M3 `auth_method`).
   const social = socialBlock(providers, linked, account?.authMethod);
@@ -231,7 +247,7 @@ export function AccountCard({ account, providers = [], notice = null }: AccountC
       <span aria-hidden="true" className="h-px bg-line" />
 
       <div className="flex flex-col gap-2">
-        <h3 id="social-title" className="m-0 text-label text-ink">
+        <h3 id="social-title" tabIndex={-1} className="m-0 text-label text-ink">
           Ijtimoiy tarmoq orqali kirish
         </h3>
         {social.kind === "off" ? (
@@ -247,6 +263,8 @@ export function AccountCard({ account, providers = [], notice = null }: AccountC
             {social.rows.map((row) => (
               <li
                 key={row.id}
+                id={`social-row-${row.id}`}
+                tabIndex={-1}
                 className="flex items-center justify-between gap-3 rounded-md border border-line px-3.5 py-2.5"
               >
                 <span className="flex items-center gap-2 text-body-sm font-semibold text-ink">
@@ -317,14 +335,12 @@ export function AccountCard({ account, providers = [], notice = null }: AccountC
           }
         }}
         onCloseAutoFocus={(event) => {
-          // The "Uzish" button is replaced by "Bog‘lash" after a success: focus the row's action.
-          const target =
-            focusRow.current && document.getElementById(`social-action-${focusRow.current}`);
+          // Never Radix's default: after a success the «Uzish» that opened the
+          // dialog is gone, and focus would fall to <body>.
+          event.preventDefault();
+          const id = focusRow.current;
           focusRow.current = null;
-          if (target) {
-            event.preventDefault();
-            target.focus();
-          }
+          unlinkFocusTarget(id)?.focus();
         }}
         title={`${unlinkTarget?.label ?? ""} hisobini uzasizmi?`}
         description={

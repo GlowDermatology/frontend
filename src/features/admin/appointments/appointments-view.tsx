@@ -147,6 +147,8 @@ export function AppointmentsView({
     () => (initial.find((a) => a.status === "requested") ?? initial[0])?.id ?? null,
   );
   const [rejectOpen, setRejectOpen] = useState(false);
+  // ADM-14.1: «Keldi» is final (no action follows it).
+  const [attendOpen, setAttendOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelError, setCancelError] = useState<string | null>(null);
@@ -238,6 +240,7 @@ export function AppointmentsView({
         await runAction((csrf) => updateAppointment(id, action, idempotency.key, csrf)),
       );
       setRejectOpen(false);
+      setAttendOpen(false);
       if (!result.ok) {
         toast({ tone: "info", title: "Amal bajarilmadi", description: result.error });
         return;
@@ -588,7 +591,7 @@ export function AppointmentsView({
                     variant="outline"
                     disabled={pending}
                     aria-busy={pending}
-                    onClick={() => run("attend")}
+                    onClick={() => setAttendOpen(true)}
                   >
                     Keldi deb belgilash
                   </Button>
@@ -622,6 +625,29 @@ export function AppointmentsView({
           )}
         </Card>
       </div>
+
+      <AlertDialog
+        open={attendOpen}
+        onOpenChange={(open) => !pending && setAttendOpen(open)}
+        title="Mijoz keldi deb belgilaysizmi?"
+        description={
+          selected && (
+            <p className="m-0 text-[14px] leading-5 text-ink">
+              {selected.customer.name}ning {formatTime(selected.start)} dagi qabuli «Keldi» deb
+              yakunlanadi. Bu amalni qaytarib bo‘lmaydi.
+            </p>
+          )
+        }
+      >
+        <div className="mt-1.5 flex flex-wrap justify-end gap-2">
+          <AlertDialogCancel disabled={pending} className={buttonStyles({ variant: "outline" })}>
+            Orqaga
+          </AlertDialogCancel>
+          <Button disabled={pending} aria-busy={pending} onClick={() => run("attend")}>
+            Keldi deb belgilash
+          </Button>
+        </div>
+      </AlertDialog>
 
       <AlertDialog
         open={rejectOpen}

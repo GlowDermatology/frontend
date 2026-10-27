@@ -3,8 +3,9 @@
 import { useId, useRef, useState, type ReactNode } from "react";
 
 import { Rings } from "@/components/brand/rings";
-import { Button } from "@/components/ui/button";
+import { Button, buttonStyles } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
+import { AlertDialog, AlertDialogCancel } from "@/components/ui/dialog";
 import { Icon } from "@/components/ui/icon";
 import { SelectMenu } from "@/components/ui/menu";
 import { SegmentedControl } from "@/components/ui/segmented-control";
@@ -185,7 +186,18 @@ export function CashbackEditor({
         ?.focus(),
     );
 
+  // ADM-14.1: a policy version is never edited afterwards; confirm before it is created.
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const askSave = () => {
+    if (hasError) {
+      focusFirstInvalid();
+      return;
+    }
+    setConfirmOpen(true);
+  };
+
   const save = async () => {
+    setConfirmOpen(false);
     if (inFlight.current) return;
     if (hasError) {
       focusFirstInvalid();
@@ -283,7 +295,7 @@ export function CashbackEditor({
           <Button variant="ghost" onClick={resetDraft} disabled={saving}>
             O‘zgarishlarni bekor qilish
           </Button>
-          <Button className="px-5" onClick={save} disabled={saving} aria-busy={saving}>
+          <Button className="px-5" onClick={askSave} disabled={saving} aria-busy={saving}>
             <Icon name="check" size={18} />
             {saving ? "Saqlanmoqda…" : "Yangi versiyani saqlash"}
           </Button>
@@ -605,6 +617,25 @@ export function CashbackEditor({
           </Card>
         </div>
       </div>
+
+      <AlertDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Yangi cashback versiyasini saqlaysizmi?"
+        description={
+          <p className="m-0 text-[14px] leading-5 text-ink">
+            {formatDayMonth(effectiveFrom)}dan boshlab yangi xaridlarga shu foizlar qo‘llanadi.
+            Saqlangan versiyani keyin o‘zgartirib bo‘lmaydi: faqat yangisini qo‘shish mumkin.
+          </p>
+        }
+      >
+        <div className="mt-1.5 flex flex-wrap justify-end gap-2">
+          <AlertDialogCancel className={buttonStyles({ variant: "outline" })}>
+            Bekor qilish
+          </AlertDialogCancel>
+          <Button onClick={save}>Saqlash</Button>
+        </div>
+      </AlertDialog>
     </>
   );
 }

@@ -12,7 +12,7 @@ const uz = {
     languages: { uz: "O‘zbekcha", ru: "Русский", en: "English" },
     save: "Saqlash",
     saved: "O‘zgarishlar saqlandi",
-    since: (date: string) => `${date} dan beri mijozimiz`,
+    since: (date: string) => `${date}dan beri mijozimiz`,
   },
   contact: {
     title: "Telefon va email",

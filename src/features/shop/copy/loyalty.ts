@@ -18,7 +18,7 @@ const uz = {
     nextTier: (remaining: string, percent: string) => `${remaining} xariddan so‘ng — ${percent}%`,
     topTier: "Siz eng yuqori darajadasiz",
     tiersTitle: "Qanday ishlaydi",
-    tierRow: (from: string, to: string | null) => (to ? `${from} — ${to}` : `${from} dan yuqori`),
+    tierRow: (from: string, to: string | null) => (to ? `${from} — ${to}` : `${from}dan yuqori`),
     promoRule: "Aksiyadagi mahsulotlarga cashback berilmaydi.",
     ledgerTitle: "Tarix",
     ledgerEmpty: "Hozircha cashback harakati yo‘q.",

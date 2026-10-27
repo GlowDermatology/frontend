@@ -76,9 +76,7 @@ interface AuthPanelProps {
 function Heading({ title, lead }: { title: string; lead?: ReactNode }) {
   return (
     <div className="flex flex-col gap-3">
-      <h1 className="m-0 font-serif text-headline-sm font-semibold text-ink">
-        {title}
-      </h1>
+      <h1 className="m-0 font-serif text-headline-sm font-semibold text-ink">{title}</h1>
       {lead ? <p className="m-0 text-body text-pretty text-ink-muted">{lead}</p> : null}
     </div>
   );

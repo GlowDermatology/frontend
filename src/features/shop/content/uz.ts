@@ -175,7 +175,7 @@ export const uz = {
     about: "Shifokor haqida",
     empty: "Mutaxassislar ro‘yxati tez orada e’lon qilinadi.",
     servicesCount: (count: number) => `${count} ta xizmat`,
-    priceFrom: (price: string) => `${price} dan`,
+    priceFrom: (price: string) => `${price}dan`,
     serviceColumns: { service: "Xizmat", duration: "Davomiyligi", price: "Narxi" },
   },
   services: {

@@ -11,7 +11,6 @@ import { BodySkeleton, privateMetadata } from "../../account/account-shell";
 import { CartView } from "../../cart/cart-view";
 import { CheckoutView } from "../../cart/checkout-view";
 import { Container, PageHeading } from "../../components/layout-primitives";
-import { commonCopy } from "../../copy/common";
 import { ordersCopy } from "../../copy/orders";
 import { shopPath } from "../../routing/routes";
 import { settle } from "../settle";
@@ -87,7 +86,7 @@ function Frame({
 }) {
   return (
     <Container className="pb-[clamp(56px,7vw,112px)]">
-      <PageHeading eyebrow={commonCopy[locale].eyebrow} title={title} lead={lead} />
+      <PageHeading eyebrow={ordersCopy[locale].cart.eyebrow} title={title} lead={lead} />
       {children}
     </Container>
   );

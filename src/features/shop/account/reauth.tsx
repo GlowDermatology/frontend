@@ -50,7 +50,10 @@ export function ReauthStep({
           autoComplete="current-password"
           value={value.password ?? ""}
           onChange={(event) => onChange({ password: event.target.value })}
-          error={passwordError}
+          // The API's "required" for the first, password-less attempt is the
+          // reason this step opened, not a mistake (U17): an error shows only
+          // once a password was entered.
+          error={value.password ? passwordError : undefined}
         />
         <button
           type="button"

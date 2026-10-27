@@ -94,7 +94,9 @@ function OptionCard({
       <span className="flex min-w-0 flex-col">
         <span className="text-label text-ink">{title}</span>
         {hint ? (
-          <span className={cn("text-body-sm", checked ? "text-ink" : "text-ink-muted")}>{hint}</span>
+          <span className={cn("text-body-sm", checked ? "text-ink" : "text-ink-muted")}>
+            {hint}
+          </span>
         ) : null}
       </span>
     </label>
@@ -415,12 +417,15 @@ export function CheckoutView({
               {money(quote?.itemsSubtotal ?? cart.itemsSubtotal)}
             </dd>
           </div>
-          <div className="flex justify-between gap-3">
-            <dt className="text-ink-muted">{t.deliveryFee}</dt>
-            <dd className="m-0 tabular-nums">
-              {quote ? (quote.deliveryFee > 0 ? money(quote.deliveryFee) : t.free) : "—"}
-            </dd>
-          </div>
+          {/* Pickup has no delivery line (U17). */}
+          {fulfilment === "delivery" ? (
+            <div className="flex justify-between gap-3">
+              <dt className="text-ink-muted">{t.deliveryFee}</dt>
+              <dd className="m-0 tabular-nums">
+                {quote ? (quote.deliveryFee > 0 ? money(quote.deliveryFee) : t.free) : "—"}
+              </dd>
+            </div>
+          ) : null}
           {quote && quote.cashbackToUse > 0 ? (
             <div className="flex justify-between gap-3">
               <dt className="text-ink-muted">{t.cashback}</dt>

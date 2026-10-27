@@ -260,7 +260,8 @@ const MONTHS_EN = [
 /** "1-oktabr 2026" · "1 октября 2026" · "1 October 2026" (Tashkent calendar day). */
 export function formatLongDate(input: DateInput, locale: SiteLocale): string {
   const p = tashkentParts(input);
-  if (locale === "uz") return formatDateLong(input);
+  // Uzbek long dates read year first: "2026-yil 28-oktabr".
+  if (locale === "uz") return `${p.year}-yil ${p.day}-${MONTHS[p.month]}`;
   if (locale === "ru") return `${p.day}${NBSP}${MONTHS_RU_GENITIVE[p.month]} ${p.year}`;
   return `${p.day}${NBSP}${MONTHS_EN[p.month]} ${p.year}`;
 }

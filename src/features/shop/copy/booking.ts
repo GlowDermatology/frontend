@@ -51,8 +51,7 @@ const uz = {
     book: "Qabulga yozilish",
     cancel: "Bekor qilish",
     cancelTitle: "Qabulni bekor qilasizmi?",
-    cancelBody: (when: string) =>
-      `${when} dagi qabul bekor qilinadi va vaqt boshqalarga bo‘shaydi.`,
+    cancelBody: (when: string) => `Qabul (${when}) bekor qilinadi, vaqt boshqalar uchun bo‘shaydi.`,
     cancelConfirm: "Ha, bekor qilish",
     cancelKeep: "Yo‘q",
     cancelled: "Qabul bekor qilindi",

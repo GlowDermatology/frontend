@@ -257,24 +257,19 @@ export function CartView({ locale, initial, canCheckout, supportPhone }: CartVie
         >
           {copy.summary}
         </h2>
-        <dl className="m-0 flex flex-col gap-3 text-body">
-          <div className="flex items-baseline justify-between gap-3">
-            <dt className="text-ink-muted">{copy.items(cart.quantityTotal)}</dt>
-            <dd className="m-0 font-semibold tabular-nums">{money(cart.itemsSubtotal)}</dd>
-          </div>
-          {cart.cashbackAvailable > 0 ? (
-            <div className="flex items-baseline justify-between gap-3">
-              <dt className="text-ink-muted">{copy.cashbackAvailable}</dt>
-              <dd className="m-0 font-semibold text-ink tabular-nums">
-                {money(cart.cashbackAvailable)}
-              </dd>
-            </div>
-          ) : null}
-        </dl>
-        <div className="flex items-baseline justify-between gap-3 border-t border-line pt-4">
-          <span className="text-subheading">{copy.subtotal}</span>
+        {/* One subtotal line (U17): the count lives in its label. */}
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="text-subheading">{copy.items(cart.quantityTotal)}</span>
           <span className="text-price-lg tabular-nums">{money(cart.itemsSubtotal)}</span>
         </div>
+        {cart.cashbackAvailable > 0 ? (
+          <p className="m-0 flex items-baseline justify-between gap-3 border-t border-line pt-4 text-body">
+            <span className="text-ink-muted">{copy.cashbackAvailable}</span>
+            <span className="font-semibold text-ink tabular-nums">
+              {money(cart.cashbackAvailable)}
+            </span>
+          </p>
+        ) : null}
         <p className="m-0 text-body-sm text-ink-muted">{copy.deliveryNote}</p>
         {!canCheckout.sales ? (
           <FormAlert>{copy.salesOff}</FormAlert>

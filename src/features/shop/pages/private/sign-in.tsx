@@ -127,9 +127,7 @@ export async function SignInPage({
     <Container className="py-[clamp(28px,5vw,72px)]">
       <div className="grid gap-8 nav:min-h-[640px] nav:grid-cols-[minmax(0,1fr)_minmax(0,520px)] nav:gap-12">
         <Aside locale={locale} />
-        <section
-          className="mx-auto flex w-full max-w-[520px] flex-col justify-center rounded-lg border border-line bg-surface-raised p-[clamp(20px,4vw,44px)]"
-        >
+        <section className="mx-auto flex w-full max-w-[520px] flex-col justify-center rounded-lg border border-line bg-surface-raised p-[clamp(20px,4vw,44px)]">
           <Suspense fallback={<FormSkeleton />}>
             <Body locale={locale} searchParams={searchParams} />
           </Suspense>

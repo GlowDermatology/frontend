@@ -16,7 +16,7 @@ describe("formatPrice", () => {
 describe("formatLongDate", () => {
   it("uses the Tashkent calendar day", () => {
     // 20:30 UTC on 30 Sep is already 1 Oct in Tashkent.
-    expect(formatLongDate("2026-09-30T20:30:00Z", "uz")).toBe("1-oktabr 2026");
+    expect(formatLongDate("2026-09-30T20:30:00Z", "uz")).toBe("2026-yil 1-oktabr");
     expect(formatLongDate("2026-09-30T20:30:00Z", "ru")).toBe(`1${NBSP}октября 2026`);
     expect(formatLongDate("2026-09-30T20:30:00Z", "en")).toBe(`1${NBSP}October 2026`);
   });

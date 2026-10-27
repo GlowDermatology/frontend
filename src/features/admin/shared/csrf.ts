@@ -1,4 +1,5 @@
 import { cookieNames } from "@/data/auth/cookie-names";
+import { documentCookie, readCookie } from "@/lib/actions/action-client";
 
 /**
  * The readable `gd_csrf` double-submit cookie, minted by `src/proxy.ts` on
@@ -7,26 +8,6 @@ import { cookieNames } from "@/data/auth/cookie-names";
  * Returns `""` outside a browser or when the cookie is absent; the action then
  * fails with `code: "csrf"` and asks for a reload.
  */
-export function readCsrfCookie(cookieString: string | undefined = readDocumentCookie()): string {
-  if (!cookieString) return "";
-  const name = cookieNames(false).csrf;
-  for (const part of cookieString.split(";")) {
-    const trimmed = part.trim();
-    if (trimmed.startsWith(`${name}=`)) {
-      return safeDecode(trimmed.slice(name.length + 1));
-    }
-  }
-  return "";
-}
-
-function readDocumentCookie(): string | undefined {
-  return typeof document === "undefined" ? undefined : document.cookie;
-}
-
-function safeDecode(value: string): string {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
+export function readCsrfCookie(cookieString: string | undefined = documentCookie()): string {
+  return readCookie(cookieNames(false).csrf, cookieString);
 }

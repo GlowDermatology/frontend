@@ -19,12 +19,39 @@ export interface CustomerPurchase {
   reversed?: boolean;
 }
 
+/** The app installation's platform (contract §2.6, `OrderChannel`). */
+export type DevicePlatform = "ios" | "android";
+
+export const DEVICE_PLATFORM_LABEL: Record<DevicePlatform, string> = {
+  ios: "iOS",
+  android: "Android",
+};
+
 export interface CustomerDevice {
+  platform?: DevicePlatform;
   model: string;
   os: string;
   appVersion: string;
   lastActiveAt: string;
   pushEnabled: boolean;
+}
+
+/**
+ * One app installation of the customer (contract §2.6 `devices[]`, gap
+ * ADM-8.1): active ones first, then by last activity; at most 20.
+ */
+export interface CustomerDeviceRow {
+  id: string;
+  platform: DevicePlatform;
+  model: string;
+  os: string;
+  appVersion: string;
+  pushEnabled: boolean;
+  /** `false` after a logout, a sign-in on another phone or the account deletion. */
+  isActive: boolean;
+  lastActiveAt: string;
+  /** The installation's first sign-in. */
+  createdAt: string;
 }
 
 /** The card's tier block (contract §2.6 `tier`, §5.3 `TierInfo`). */
@@ -52,7 +79,11 @@ export interface Customer {
    * `lifetime` is the server's total when it sent one.
    */
   totals: { store: number; online: number; lifetime?: number };
-  onlineOrders: { count: number; lastOrderId?: number; lastOrderAt?: string };
+  /**
+   * `count` = paid, non-reversed online purchases; `allCount` = every order of
+   * any status (the rows `orders/?customer=` lists; gap ADM-8.1).
+   */
+  onlineOrders: { count: number; lastOrderId?: number; lastOrderAt?: string; allCount?: number };
   /** Current rate and the next tier. */
   tier: CustomerTier;
   /** Cashback balance (the server's, never the sum of the rows the page shows). */
@@ -68,6 +99,8 @@ export interface Customer {
   ledger: LedgerEntry[];
   purchases: CustomerPurchase[];
   device?: CustomerDevice;
+  /** Every app installation (≤ 20), active first. */
+  devices: CustomerDeviceRow[];
 }
 
 export function lifetimeTotal(customer: Pick<Customer, "totals">): number {

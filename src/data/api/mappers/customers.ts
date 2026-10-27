@@ -117,6 +117,7 @@ export function mapCustomerCard(api: ApiCustomerCard): Customer {
       count: api.online_orders.count,
       lastOrderId: nullToUndefined(api.online_orders.last_order_id),
       lastOrderAt: nullToUndefined(api.online_orders.last_order_at),
+      allCount: api.online_orders.all_count ?? undefined,
     },
     tier: mapCustomerTier(api.tier),
     balance: api.balance,
@@ -128,6 +129,7 @@ export function mapCustomerCard(api: ApiCustomerCard): Customer {
     purchases: api.purchases.map(mapPurchase),
     device: api.device
       ? {
+          platform: api.device.platform,
           model: api.device.model,
           os: api.device.os,
           appVersion: api.device.app_version,
@@ -135,6 +137,17 @@ export function mapCustomerCard(api: ApiCustomerCard): Customer {
           pushEnabled: api.device.push_enabled,
         }
       : undefined,
+    devices: (api.devices ?? []).map((row) => ({
+      id: idString(row.id),
+      platform: row.platform,
+      model: row.model,
+      os: row.os,
+      appVersion: row.app_version,
+      pushEnabled: row.push_enabled,
+      isActive: row.is_active,
+      lastActiveAt: row.last_active_at,
+      createdAt: row.created_at,
+    })),
   };
 }
 

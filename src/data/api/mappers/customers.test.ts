@@ -70,6 +70,29 @@ describe("mapCustomerCard (Malika, customer 5)", () => {
     expect(malika.purchases).toHaveLength(25);
   });
 
+  it("lists every installation, active first, and every order's count (gap ADM-8.1)", () => {
+    expect(malika.onlineOrders.allCount).toBe(13);
+    expect(malika.device?.platform).toBe("ios");
+    expect(malika.devices).toEqual([
+      {
+        id: "5",
+        platform: "ios",
+        model: "iPhone 14",
+        os: "iOS 18.1",
+        appVersion: "1.0.0",
+        pushEnabled: true,
+        isActive: true,
+        lastActiveAt: "2026-10-24T09:12:00+05:00",
+        createdAt: "2025-03-12T10:20:00+05:00",
+      },
+      expect.objectContaining({ id: "3", platform: "android", isActive: false }),
+    ]);
+    // A card before the gap closure has no `devices` key: an empty list.
+    const older: Partial<typeof malikaFixture> = { ...malikaFixture };
+    delete older.devices;
+    expect(mapCustomerCard(older as unknown as ApiCustomerCard).devices).toEqual([]);
+  });
+
   it("maps the full ledger with the server's balance_after and the §5.3 strings", () => {
     expect(malika.ledger).toHaveLength(15);
     expect(malika.ledger.map((e) => e.id).slice(0, 3)).toEqual(["121", "120", "112"]);
@@ -135,6 +158,7 @@ describe("mapCustomerCard (Malika, customer 5)", () => {
       deletedAt: "2026-10-20T10:00:00+05:00",
       address: undefined,
       device: undefined,
+      devices: [],
       ledger: [],
     });
   });

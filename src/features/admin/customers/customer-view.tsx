@@ -12,12 +12,20 @@ import { Card, CardTitle, DetailRow } from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
 import { useToast } from "@/components/ui/toast";
 import { formatPercent, type LedgerEntry } from "@/domain/cashback";
-import { canAdjustCashback, canNotify, lifetimeTotal, type Customer } from "@/domain/customer";
+import {
+  canAdjustCashback,
+  canNotify,
+  DEVICE_PLATFORM_LABEL,
+  lifetimeTotal,
+  type Customer,
+} from "@/domain/customer";
+import { cn } from "@/lib/cn";
 import {
   formatDateLong,
   formatDateTimeShort,
   formatDayMonthShort,
   formatMillions,
+  formatNumber,
   formatPhone,
   formatSom,
   formatTime,
@@ -94,10 +102,14 @@ export function CustomerView({ customer, now }: CustomerViewProps) {
   const held = balance - available;
   const visibleRows = showAll ? rows : rows.slice(0, LEDGER_PREVIEW);
   const lifetime = lifetimeTotal(customer);
-  const { tier, device } = customer;
+  const { tier, devices } = customer;
   const deleted = customer.status === "deleted";
   const adjustable = canAdjustCashback(customer);
-  const sameDay = device && formatDayMonthShort(device.lastActiveAt) === formatDayMonthShort(now);
+  const lastActive = (at: string) =>
+    formatDayMonthShort(at) === formatDayMonthShort(now)
+      ? `bugun, ${formatTime(at)}`
+      : formatDateTimeShort(at);
+  const allOrders = customer.onlineOrders.allCount ?? 0;
 
   return (
     <>
@@ -207,7 +219,16 @@ export function CustomerView({ customer, now }: CustomerViewProps) {
               ? `Oxirgisi: ${formatDayMonthShort(customer.onlineOrders.lastOrderAt)}, №${customer.onlineOrders.lastOrderId}`
               : "Hali buyurtma yo‘q"
           }
-        />
+        >
+          {allOrders > 0 && (
+            <Link
+              href={`/admin/orders?customer=${customer.id}`}
+              className="self-start text-[13px] leading-[18px] font-bold text-ink underline decoration-line-strong underline-offset-4 hover:decoration-gold"
+            >
+              Buyurtmalari ({formatNumber(allOrders)})
+            </Link>
+          )}
+        </Metric>
       </div>
 
       <div className="flex flex-wrap items-start gap-4">
@@ -230,7 +251,7 @@ export function CustomerView({ customer, now }: CustomerViewProps) {
                 Xaridlar
               </Tabs.Trigger>
               <Tabs.Trigger value="device" className={tabTrigger}>
-                Qurilma
+                Qurilmalar
               </Tabs.Trigger>
             </Tabs.List>
 
@@ -277,25 +298,44 @@ export function CustomerView({ customer, now }: CustomerViewProps) {
               value="device"
               className="flex flex-col gap-3.5 p-5 focus-visible:outline-offset-[-2px]"
             >
-              {device ? (
-                <div className="flex items-center gap-3.5 rounded-md bg-surface px-4 py-3.5">
-                  <Icon name="phone" size={24} className="shrink-0 text-gold-ink" />
-                  <span className="flex flex-1 flex-col gap-0.5">
-                    <span className="text-[14px] leading-5 font-bold text-ink">
-                      {device.model} · {device.os}
-                    </span>
-                    <span className="text-caption font-normal text-ink-muted tabular-nums">
-                      Ilova {device.appVersion} · oxirgi faollik{" "}
-                      {sameDay
-                        ? `bugun, ${formatTime(device.lastActiveAt)}`
-                        : formatDateTimeShort(device.lastActiveAt)}{" "}
-                      · push {device.pushEnabled ? "yoqilgan" : "o‘chirilgan"}
-                    </span>
-                  </span>
-                  <Badge tone="success">Faol</Badge>
-                </div>
+              {devices.length > 0 ? (
+                <ul aria-label="Qurilmalar" className="m-0 flex list-none flex-col gap-2 p-0">
+                  {devices.map((row) => (
+                    <li
+                      key={row.id}
+                      className={cn(
+                        "flex flex-wrap items-center gap-3.5 rounded-md bg-surface px-4 py-3.5",
+                        !row.isActive && "border border-dashed border-line bg-transparent",
+                      )}
+                    >
+                      <Icon
+                        name="phone"
+                        size={24}
+                        className={cn(
+                          "shrink-0",
+                          row.isActive ? "text-gold-ink" : "text-ink-muted",
+                        )}
+                      />
+                      <span className="flex min-w-0 flex-[1_1_220px] flex-col gap-0.5">
+                        <span className="text-[14px] leading-5 font-bold text-ink">
+                          {DEVICE_PLATFORM_LABEL[row.platform]} · {row.model} · {row.os}
+                        </span>
+                        <span className="text-caption font-normal text-ink-muted tabular-nums">
+                          Ilova {row.appVersion} · oxirgi faollik{" "}
+                          <time dateTime={row.lastActiveAt}>{lastActive(row.lastActiveAt)}</time> ·
+                          push {row.pushEnabled ? "yoqilgan" : "o‘chirilgan"}
+                        </span>
+                      </span>
+                      {row.isActive ? (
+                        <Badge tone="success">Faol</Badge>
+                      ) : (
+                        <Badge tone="muted">Faol emas</Badge>
+                      )}
+                    </li>
+                  ))}
+                </ul>
               ) : (
-                <p className="m-0 text-body-sm text-ink-muted">Faol qurilma yo‘q.</p>
+                <p className="m-0 text-body-sm text-ink-muted">Qurilma yo‘q.</p>
               )}
               <p className="m-0 flex gap-2.5 text-body-sm leading-5 text-ink-muted">
                 <Icon name="info" size={18} className="mt-px shrink-0 text-gold-ink" />

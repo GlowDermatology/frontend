@@ -131,18 +131,48 @@ function malika(): Customer {
     language: "uz",
     address: "Toshkent, Chilonzor, 9-kvartal",
     totals: { store: 9_940_000, online: 3_640_000 },
-    onlineOrders: { count: 12, lastOrderId: 10248, lastOrderAt: t("2026-10-23T14:02:00") },
+    onlineOrders: {
+      count: 12,
+      lastOrderId: 10248,
+      lastOrderAt: t("2026-10-23T14:02:00"),
+      allCount: 13,
+    },
     upcomingAppointments: 1,
     groups: ["Doimiy mijozlar", "10 mln+ xarid"],
     ledger: [...MALIKA_LEDGER],
     purchases: MALIKA_PURCHASES,
     device: {
+      platform: "ios",
       model: "iPhone 14",
       os: "iOS 18.1",
       appVersion: "1.0.0",
       lastActiveAt: t("2026-10-24T09:12:00"),
       pushEnabled: true,
     },
+    devices: [
+      {
+        id: "5",
+        platform: "ios",
+        model: "iPhone 14",
+        os: "iOS 18.1",
+        appVersion: "1.0.0",
+        pushEnabled: true,
+        isActive: true,
+        lastActiveAt: t("2026-10-24T09:12:00"),
+        createdAt: t("2025-03-12T10:20:00"),
+      },
+      {
+        id: "3",
+        platform: "android",
+        model: "Samsung Galaxy A54",
+        os: "Android 14",
+        appVersion: "0.9.2",
+        pushEnabled: false,
+        isActive: false,
+        lastActiveAt: t("2025-11-02T18:40:00"),
+        createdAt: t("2025-03-01T09:00:00"),
+      },
+    ],
   });
 }
 
@@ -222,17 +252,36 @@ function fromOrders(id: string): Customer {
   const lifetime = store + online;
 
   const deleted = DELETED_CUSTOMER_IDS.has(id);
+  // Drawn in the fixtures' original order (registration, language, device),
+  // so every generated customer keeps its values.
+  const registeredAt = t(
+    `2025-${String(random.int(1, 12)).padStart(2, "0")}-${String(random.int(1, 28)).padStart(2, "0")}T12:00:00`,
+  );
+  const language: Customer["language"] = random.chance(0.75) ? "uz" : "ru";
+  const phone = random.chance(0.55)
+    ? { platform: "ios" as const, model: "iPhone 13", os: "iOS 18.1", appVersion: "1.0.0" }
+    : {
+        platform: "android" as const,
+        model: "Samsung Galaxy A54",
+        os: "Android 14",
+        appVersion: "1.0.0",
+      };
+  const pushEnabled = random.chance(0.8);
+  const lastActiveAt = t("2026-10-23T20:15:00");
   return withBalances({
     ...ref,
     ...(deleted && { name: DELETED_CUSTOMER_LABEL, deletedAt: t("2026-10-05T18:40:00") }),
     status: deleted ? "deleted" : "active",
-    registeredAt: t(
-      `2025-${String(random.int(1, 12)).padStart(2, "0")}-${String(random.int(1, 28)).padStart(2, "0")}T12:00:00`,
-    ),
-    language: random.chance(0.75) ? "uz" : "ru",
+    registeredAt,
+    language,
     address: deleted ? undefined : orders.find((o) => o.address)?.address,
     totals: { store, online },
-    onlineOrders: { count: orders.length, lastOrderId: last?.id, lastOrderAt: last?.createdAt },
+    onlineOrders: {
+      count: orders.length,
+      lastOrderId: last?.id,
+      lastOrderAt: last?.createdAt,
+      allCount: orders.length,
+    },
     upcomingAppointments: 0,
     groups: deleted
       ? []
@@ -242,16 +291,18 @@ function fromOrders(id: string): Customer {
         ],
     ledger,
     purchases,
-    device: deleted
-      ? undefined
-      : {
-          ...(random.chance(0.55)
-            ? { model: "iPhone 13", os: "iOS 18.1" }
-            : { model: "Samsung Galaxy A54", os: "Android 14" }),
-          appVersion: "1.0.0",
-          lastActiveAt: t("2026-10-23T20:15:00"),
-          pushEnabled: random.chance(0.8),
-        },
+    device: deleted ? undefined : { ...phone, lastActiveAt, pushEnabled },
+    // A deleted customer keeps the list, every entry inactive (contract §2.6).
+    devices: [
+      {
+        id: `${id}01`,
+        ...phone,
+        pushEnabled: deleted ? false : pushEnabled,
+        isActive: !deleted,
+        lastActiveAt,
+        createdAt: t("2025-06-01T12:00:00"),
+      },
+    ],
   });
 }
 

@@ -205,3 +205,90 @@ export function addDays(isoDate: string, days: number): string {
   const start = startOfLocalDay(isoDate);
   return toLocalIsoDate(new Date(start.getTime() + days * 24 * 60 * 60 * 1000));
 }
+
+/* -------------------------------------------------------------------------- */
+/* Storefront (uz / ru / en) — same hand-written approach, no Intl.           */
+/* -------------------------------------------------------------------------- */
+
+export type SiteLocale = "uz" | "ru" | "en";
+
+/**
+ * A price in so‘m for the storefront's language: "185 000 so‘m",
+ * "185 000 сум", "185,000 UZS". Grouping is deterministic (no `Intl`), so the
+ * server and the browser render the same string.
+ */
+export function formatPrice(value: number, locale: SiteLocale): string {
+  if (locale === "uz") return formatSom(value);
+  if (locale === "ru") return `${formatNumber(value)}${NBSP}сум`;
+  const sign = value < 0 ? "-" : "";
+  const digits = Math.abs(Math.trunc(value))
+    .toString()
+    .replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return `${sign}${digits}${NBSP}UZS`;
+}
+
+const MONTHS_RU_GENITIVE = [
+  "января",
+  "февраля",
+  "марта",
+  "апреля",
+  "мая",
+  "июня",
+  "июля",
+  "августа",
+  "сентября",
+  "октября",
+  "ноября",
+  "декабря",
+] as const;
+
+const MONTHS_EN = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+] as const;
+
+/** "1-oktabr 2026" · "1 октября 2026" · "1 October 2026" (Tashkent calendar day). */
+export function formatLongDate(input: DateInput, locale: SiteLocale): string {
+  const p = tashkentParts(input);
+  if (locale === "uz") return formatDateLong(input);
+  if (locale === "ru") return `${p.day}${NBSP}${MONTHS_RU_GENITIVE[p.month]} ${p.year}`;
+  return `${p.day}${NBSP}${MONTHS_EN[p.month]} ${p.year}`;
+}
+
+/** "30 daqiqa" · "30 мин" · "30 min"; whole hours read "1 soat 30 daqiqa". */
+export function formatDuration(minutes: number, locale: SiteLocale): string {
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  const unit = {
+    uz: { h: "soat", m: "daqiqa" },
+    ru: { h: "ч", m: "мин" },
+    en: { h: "h", m: "min" },
+  }[locale];
+  const parts: string[] = [];
+  if (hours > 0) parts.push(`${hours}${NBSP}${unit.h}`);
+  if (rest > 0 || hours === 0) parts.push(`${rest}${NBSP}${unit.m}`);
+  return parts.join(" ");
+}
+
+/**
+ * Russian plural form: 1 товар, 2 товара, 5 товаров (`forms` = one, few,
+ * many). Uzbek and English callers pass their own simple forms.
+ */
+export function pluralRu(count: number, forms: readonly [string, string, string]): string {
+  const n = Math.abs(count) % 100;
+  const last = n % 10;
+  if (n > 10 && n < 20) return forms[2];
+  if (last === 1) return forms[0];
+  if (last >= 2 && last <= 4) return forms[1];
+  return forms[2];
+}

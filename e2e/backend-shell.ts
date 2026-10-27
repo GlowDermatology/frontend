@@ -146,3 +146,135 @@ export function setCampaignState(
     throw new Error(`the backend moved ${JSON.stringify(answer)} campaigns «${title}» to ${to}`);
   }
 }
+
+/* --- Gap closure specs: arrange and clean up what no API can (test-only) --- */
+
+/** The last line of a shell run, parsed as JSON. */
+function shellJson<T>(code: string): T {
+  return JSON.parse(djangoShell(code).trim().split("\n").at(-1) ?? "null") as T;
+}
+
+const SETTINGS_FIELDS = [
+  "terms_uz",
+  "terms_ru",
+  "terms_en",
+  "privacy_policy_uz",
+  "privacy_policy_ru",
+  "privacy_policy_en",
+  "terms_draft_uz",
+  "terms_draft_ru",
+  "terms_draft_en",
+  "privacy_policy_draft_uz",
+  "privacy_policy_draft_ru",
+  "privacy_policy_draft_en",
+  "terms_version",
+  "terms_updated_at",
+];
+
+/**
+ * The legal texts and the published version (`SiteSettings`), as an opaque
+ * JSON string for `restoreLegalTexts`: the settings spec publishes a new
+ * version, which asks every customer to accept it, so it puts the seed's
+ * version back afterwards.
+ */
+export function snapshotLegalTexts(): string {
+  const code = [
+    "import json",
+    "from glowderma.site_config.models import SiteSettings",
+    "s = SiteSettings.load()",
+    `fields = json.loads(${JSON.stringify(JSON.stringify(SETTINGS_FIELDS))})`,
+    "print(json.dumps({f: (getattr(s, f).isoformat() if f == 'terms_updated_at' and getattr(s, f) else getattr(s, f)) for f in fields}))",
+  ].join("\n");
+  return JSON.stringify(shellJson<Record<string, string | null>>(code));
+}
+
+/** Writes a `snapshotLegalTexts` back and starts a new public-settings cache generation. */
+export function restoreLegalTexts(snapshot: string): void {
+  const code = [
+    "import json",
+    "from django.utils.dateparse import parse_datetime",
+    "from glowderma.site_config.models import SiteSettings",
+    "from glowderma.site_config.selectors import invalidate_public_settings",
+    `data = json.loads(${JSON.stringify(snapshot)})`,
+    "if data.get('terms_updated_at'): data['terms_updated_at'] = parse_datetime(data['terms_updated_at'])",
+    "changed = SiteSettings.objects.filter(pk=1).update(**data)",
+    "invalidate_public_settings()",
+    "print(json.dumps({'changed': changed}))",
+  ].join("\n");
+  const answer = shellJson<{ changed: number }>(code);
+  if (answer.changed !== 1)
+    throw new Error(`the backend did not restore the settings: ${JSON.stringify(answer)}`);
+}
+
+/**
+ * Removes the specialists and services a spec created (names starting with
+ * `prefix`, never a seeded one): the admin API never deletes them (§2.17),
+ * and the spec books no appointment, so nothing protects them.
+ */
+export function deleteClinicRows(prefix: string): { specialists: number; services: number } {
+  const code = [
+    "import json",
+    "from glowderma.professionals.models import Professional, Service",
+    `prefix = json.loads(${JSON.stringify(JSON.stringify(prefix))})`,
+    "p = Professional.objects.filter(name__startswith=prefix).delete()[0]",
+    "s = Service.objects.filter(name_uz__startswith=prefix).delete()[0]",
+    "print(json.dumps({'specialists': p, 'services': s}))",
+  ].join("\n");
+  return shellJson(code);
+}
+
+/** Removes the staff accounts a spec invited (emails starting with `prefix`; never the seeded admin). */
+export function deleteStaffAccounts(prefix: string): number {
+  if (!prefix.startsWith("e2e")) throw new Error("only e2e accounts are deleted");
+  const code = [
+    "import json",
+    "from glowderma.accounts.models import StaffUser",
+    `prefix = json.loads(${JSON.stringify(JSON.stringify(prefix))})`,
+    "print(json.dumps(StaffUser.objects.filter(email__startswith=prefix).delete()[0]))",
+  ].join("\n");
+  return shellJson<number>(code);
+}
+
+/** Removes the categories (slug prefix) and banners (Uzbek title prefix) a spec left behind. */
+export function deleteCatalogRows(slugPrefix: string, titlePrefix: string): void {
+  const code = [
+    "import json",
+    "from glowderma.catalog.models import Banner, Category",
+    `slug = json.loads(${JSON.stringify(JSON.stringify(slugPrefix))})`,
+    `title = json.loads(${JSON.stringify(JSON.stringify(titlePrefix))})`,
+    "c = Category.objects.filter(slug__startswith=slug, products__isnull=True).delete()[0]",
+    "b = Banner.objects.filter(title_uz__startswith=title).delete()[0]",
+    "print(json.dumps({'categories': c, 'banners': b}))",
+  ].join("\n");
+  shellJson(code);
+}
+
+/**
+ * Adds `count` cancelled campaigns titled `<prefix> <n>` (scheduled for 31
+ * December 9999, never sent), so the history has more than one page; the
+ * seed has four. `deleteCampaigns` removes them again.
+ */
+export function createCancelledCampaigns(prefix: string, count: number): number {
+  const code = [
+    "import json",
+    "from datetime import datetime",
+    "from zoneinfo import ZoneInfo",
+    "from django.utils import timezone",
+    "from glowderma.notifications.models import Campaign",
+    `prefix = json.loads(${JSON.stringify(JSON.stringify(prefix))})`,
+    "far = datetime(9999, 12, 31, 10, tzinfo=ZoneInfo('Asia/Tashkent'))",
+    `rows = [Campaign(kind='general', title=f'{prefix} {n:02d}', body='E2E tarix: yuborilmaydi.', audience_type='all', link_kind='none', state='cancelled', scheduled_at=far, cancelled_at=timezone.now(), recipient_count=0) for n in range(1, ${Number(count)} + 1)]`,
+    "print(json.dumps(len(Campaign.objects.bulk_create(rows))))",
+  ].join("\n");
+  return shellJson<number>(code);
+}
+
+export function deleteCampaigns(prefix: string): number {
+  const code = [
+    "import json",
+    "from glowderma.notifications.models import Campaign",
+    `prefix = json.loads(${JSON.stringify(JSON.stringify(prefix))})`,
+    "print(json.dumps(Campaign.objects.filter(title__startswith=prefix).delete()[0]))",
+  ].join("\n");
+  return shellJson<number>(code);
+}

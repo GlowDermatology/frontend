@@ -12,3 +12,10 @@ export function adminCredentials(): { email: string; password: string } {
 
 /** Origin of the frontend under test. */
 export const BASE_URL = process.env.E2E_BASE_URL ?? "http://localhost:3000";
+
+/**
+ * The backend's origin, for the specs that read the customer API (free
+ * slots, public settings, banners) to check what the admin changed;
+ * unset, those checks are skipped.
+ */
+export const API_URL = process.env.E2E_API_URL;

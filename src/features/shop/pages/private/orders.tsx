@@ -54,13 +54,19 @@ export async function orderMetadata(
   const locale = await localeInput;
   const { id } = await params;
   const number = Number(id);
-  return privateMetadata(
-    locale,
-    { kind: "order", slug: id },
-    Number.isInteger(number)
-      ? ordersCopy[locale].order.titleNumber(number)
-      : ordersCopy[locale].orders.title,
-  );
+  const copy = ordersCopy[locale];
+  // The tab must not promise an order the customer does not have (U13).
+  const order =
+    Number.isInteger(number) && number > 0
+      ? await getOrder(locale, number).catch(() => undefined)
+      : null;
+  const title =
+    order === null
+      ? copy.order.notFoundTitle
+      : Number.isInteger(number)
+        ? copy.order.titleNumber(number)
+        : copy.orders.title;
+  return privateMetadata(locale, { kind: "order", slug: id }, title);
 }
 
 async function OrdersBody({

@@ -12,6 +12,7 @@ import {
   mintDeviceId,
 } from "@/data/customer-auth/cookies";
 import { lookupSlug } from "@/data/customer-auth/legacy-redirect";
+import { slugExists } from "@/data/customer-auth/slug-exists";
 import { decideShopProxy } from "@/data/customer-auth/proxy-decision";
 import { shopPath } from "@/features/shop/routing/routes";
 
@@ -36,6 +37,9 @@ import { shopPath } from "@/features/shop/routing/routes";
  * The env is read directly (not through `serverEnv`): the decisions must
  * stay free of the `server-only` marker and of lazy throws.
  */
+
+/** The route that answers an unknown storefront slug with the localized 404 (U3). */
+const NOT_FOUND_PATH = "/gd-not-found";
 
 function cookieSecure(): boolean {
   const value = process.env.GLOWDERMA_COOKIE_SECURE;
@@ -113,6 +117,24 @@ async function shopProxy(request: NextRequest, secure: boolean): Promise<NextRes
       return response;
     }
     return NextResponse.next();
+  }
+
+  if (decision.kind === "check-slug") {
+    let response: NextResponse;
+    if ((await slugExists(decision.entity, decision.slug)) === false) {
+      // A real 404 (the streamed page could only render a 200 "not found").
+      const target = new URL(
+        decision.locale === "uz" ? NOT_FOUND_PATH : `/${decision.locale}${NOT_FOUND_PATH}`,
+        request.nextUrl,
+      );
+      response = NextResponse.rewrite(target, { status: 404 });
+    } else {
+      response = NextResponse.next();
+    }
+    if (decision.mintCsrf) {
+      setCookie(response.cookies, customerCsrfCookie({ secure, value: mintCsrf() }));
+    }
+    return response;
   }
 
   let response: NextResponse;

@@ -341,7 +341,7 @@ describe("decideShopProxy", () => {
   };
 
   it("leaves anonymous public pages untouched (no cookies)", () => {
-    for (const pathname of ["/", "/katalog", "/ru/products/serum", "/en/specialists"]) {
+    for (const pathname of ["/", "/katalog", "/en/specialists"]) {
       expect(decideShopProxy({ ...base, pathname })).toEqual({
         kind: "pass",
         mintDeviceId: false,
@@ -374,7 +374,27 @@ describe("decideShopProxy", () => {
     expect(decideShopProxy({ ...base, pathname: "/mahsulotlar/12", mode: "mock" }).kind).toBe(
       "pass",
     );
-    expect(decideShopProxy({ ...base, pathname: "/kategoriyalar/12" }).kind).toBe("pass");
+    expect(decideShopProxy({ ...base, pathname: "/kategoriyalar/12" }).kind).toBe("check-slug");
+  });
+
+  it("asks the proxy to check product, category and specialist slugs (real 404s)", () => {
+    expect(decideShopProxy({ ...base, pathname: "/mahsulotlar/serum" })).toEqual({
+      kind: "check-slug",
+      entity: "product",
+      slug: "serum",
+      locale: "uz",
+      mintCsrf: false,
+    });
+    expect(
+      decideShopProxy({ ...base, pathname: "/en/categories/serums", hasRefresh: true }),
+    ).toMatchObject({
+      kind: "check-slug",
+      entity: "category",
+      mintCsrf: true,
+    });
+    expect(decideShopProxy({ ...base, pathname: "/mahsulotlar/serum", mode: "mock" }).kind).toBe(
+      "pass",
+    );
   });
 
   it("mints the device id and csrf on private pages", () => {
@@ -495,5 +515,15 @@ describe("slugFromBody (legacy id redirect)", () => {
     expect(slugFromBody({ slug: "12" })).toBeNull();
     expect(slugFromBody({ slug: "../x" })).toBeNull();
     expect(slugFromBody(null)).toBeNull();
+  });
+});
+
+describe("categorySlugs", () => {
+  it("reads the slugs of a categories answer, ignoring junk", async () => {
+    const { categorySlugs } = await import("./slug-exists");
+    expect([...categorySlugs({ results: [{ slug: "serums" }, { slug: 3 }, null] })]).toEqual([
+      "serums",
+    ]);
+    expect(categorySlugs(null).size).toBe(0);
   });
 });

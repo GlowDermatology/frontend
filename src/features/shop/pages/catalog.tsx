@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { siteConfig } from "@/config/site";
@@ -20,8 +20,9 @@ import {
   isIndexableCatalogView,
   parseCatalogQuery,
   type RawSearchParams,
+  catalogSearchParams,
 } from "../routing/catalog-query";
-import { shopPath } from "../routing/routes";
+import { shopHref, shopPath } from "../routing/routes";
 import { categoryDescription, categoryTitle } from "../seo/describe";
 import { JsonLd } from "../seo/json-ld-script";
 import { breadcrumbLd, itemListLd } from "../seo/json-ld";
@@ -74,6 +75,16 @@ async function CatalogBody({
     settle(getCategories(locale), [], "categories"),
     listProducts(locale, requested),
   ]);
+  // An out-of-range ?page= is not a page of its own (U4): go to the last one.
+  if (requested.page > page.pageCount) {
+    redirect(
+      shopHref(
+        locale,
+        { kind: "catalog" },
+        catalogSearchParams({ ...requested, page: page.pageCount }),
+      ),
+    );
+  }
   const crumbs = [
     { label: dict.product.breadcrumbHome, href: shopPath(locale, { kind: "home" }) },
     { label: dict.catalog.title },
@@ -174,6 +185,15 @@ async function CategoryBody({
   const dict = getShopDictionary(locale);
   const requested = { ...parseCatalogQuery(await searchParams), category: slug };
   const { page, query } = await listProducts(locale, requested);
+  if (requested.page > page.pageCount) {
+    redirect(
+      shopHref(
+        locale,
+        { kind: "category", slug },
+        catalogSearchParams({ ...requested, category: undefined, page: page.pageCount }),
+      ),
+    );
+  }
   const path = shopPath(locale, { kind: "category", slug });
   return (
     <Container className="pb-[clamp(64px,8vw,120px)]">

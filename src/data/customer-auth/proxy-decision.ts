@@ -38,6 +38,14 @@ export type ShopProxyDecision =
   | { kind: "pass"; mintDeviceId: boolean; mintCsrf: boolean }
   | { kind: "refresh"; location: string; mintDeviceId: boolean; mintCsrf: boolean }
   | {
+      /** A slug page (api mode): the proxy checks the entity exists, else a real 404. */
+      kind: "check-slug";
+      entity: "product" | "specialist" | "category";
+      slug: string;
+      locale: "uz" | "ru" | "en";
+      mintCsrf: boolean;
+    }
+  | {
       kind: "legacy-id";
       entity: "product" | "specialist";
       id: string;
@@ -59,6 +67,18 @@ export function decideShopProxy(input: ShopProxyInput): ShopProxyDecision {
       isNumericId(route.slug)
     ) {
       return { kind: "legacy-id", entity: route.kind, id: route.slug, locale };
+    }
+    if (
+      input.mode === "api" &&
+      (route.kind === "product" || route.kind === "specialist" || route.kind === "category")
+    ) {
+      return {
+        kind: "check-slug",
+        entity: route.kind,
+        slug: route.slug,
+        locale,
+        mintCsrf: input.hasRefresh && !input.hasCsrf,
+      };
     }
     // A signed-in customer on a public page (add to cart, "book") needs the
     // csrf token for the island's Server Action; anonymous visitors get none.

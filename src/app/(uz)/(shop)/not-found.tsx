@@ -1,12 +1,6 @@
-import type { Metadata } from "next";
-
 import { ShopNotFound } from "@/features/shop/pages/errors";
 
-export const metadata: Metadata = {
-  title: "Sahifa topilmadi — Glow Derma",
-  robots: { index: false, follow: false },
-};
-
+/** Localized 404 inside the shop chrome; the title and robots tag come from `ShopNotFound`. */
 export default function UzShopNotFound() {
   return <ShopNotFound locale="uz" />;
 }

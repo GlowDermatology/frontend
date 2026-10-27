@@ -75,16 +75,17 @@ export function ShopHeader({ locale, dict }: { locale: Locale; dict: ShopDiction
             links={links}
             openLabel={dict.header.menuOpen}
             closeLabel={dict.header.menuClose}
+            language={
+              <Suspense
+                fallback={
+                  <LanguageSwitcherFallback current={locale} label={dict.header.languageLabel} />
+                }
+              >
+                <LanguageSwitcher current={locale} label={dict.header.languageLabel} />
+              </Suspense>
+            }
           />
         </div>
-      </div>
-      {/* Phones: the language pill gets its own row under the header. */}
-      <div className={cn("flex justify-end border-t border-line py-2 sm:hidden", gutter)}>
-        <Suspense
-          fallback={<LanguageSwitcherFallback current={locale} label={dict.header.languageLabel} />}
-        >
-          <LanguageSwitcher current={locale} label={dict.header.languageLabel} />
-        </Suspense>
       </div>
     </header>
   );

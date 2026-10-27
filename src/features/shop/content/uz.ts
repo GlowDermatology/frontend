@@ -160,6 +160,7 @@ export const uz = {
     pickupNote: "Do‘kondan olib ketish yoki Toshkent bo‘ylab yetkazib berish",
     cashbackNote: "Har bir xariddan cashback",
     related: "Shu toifadan",
+    alternatives: "Sotuvda bor o‘xshash mahsulotlar",
     galleryLabel: "Mahsulot rasmlari",
     imageLabel: (index: number, total: number) => `${total} ta rasmdan ${index}-si`,
     noImage: "Rasm hali qo‘shilmagan",
@@ -178,6 +179,8 @@ export const uz = {
     servicesCount: (count: number) => `${count} ta xizmat`,
     priceFrom: (price: string) => `${price}dan`,
     serviceColumns: { service: "Xizmat", duration: "Davomiyligi", price: "Narxi" },
+    others: "Boshqa mutaxassislar",
+    bookService: (name: string) => `${name}: qabulga yozilish`,
   },
   services: {
     title: "Xizmatlar va narxlar",

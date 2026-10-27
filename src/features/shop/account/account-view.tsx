@@ -92,12 +92,25 @@ function Card({
   );
 }
 
-function Row({ label, value, action }: { label: string; value: ReactNode; action?: ReactNode }) {
+function Row({
+  label,
+  value,
+  hint,
+  action,
+}: {
+  /** Left out when the card title already says it (the password card). */
+  label?: string;
+  value: ReactNode;
+  /** A note that belongs to the value, right under it. */
+  hint?: ReactNode;
+  action?: ReactNode;
+}) {
   return (
     <div className="flex flex-col gap-3 border-b border-line pb-4 last:border-b-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex min-w-0 flex-col gap-0.5">
-        <span className="text-body-sm text-ink-muted">{label}</span>
+        {label ? <span className="text-body-sm text-ink-muted">{label}</span> : null}
         <span className="text-label break-words text-ink">{value}</span>
+        {hint ? <span className="text-caption text-ink-muted">{hint}</span> : null}
       </div>
       {action ? <div className="shrink-0">{action}</div> : null}
     </div>
@@ -326,10 +339,9 @@ function ContactCard({
             <span className="font-normal text-ink-muted">{copy.phoneMissing}</span>
           )
         }
+        hint={me.phone ? copy.phoneFixed : undefined}
         action={
-          me.phone ? (
-            <span className="text-caption text-ink-muted">{copy.phoneFixed}</span>
-          ) : (
+          me.phone ? null : (
             <Button size="sm" onClick={() => setPhoneOpen(true)}>
               {copy.phoneAdd}
             </Button>
@@ -425,7 +437,6 @@ function PasswordCard({
   return (
     <Card id="password-title" title={copy.title}>
       <Row
-        label={copy.title}
         value={me.hasPassword ? copy.hasPassword : copy.noPassword}
         action={
           !open ? (

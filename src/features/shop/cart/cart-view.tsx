@@ -1,6 +1,5 @@
 "use client";
 
-import { localizeVolume } from "@/features/shop/content/volume";
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
@@ -13,6 +12,7 @@ import type { ShopCart, ShopCartLine } from "@/domain/shop-account";
 import { cn } from "@/lib/cn";
 import type { Locale } from "@/lib/i18n/locales";
 
+import { localizeVolume } from "../content/volume";
 import { FormAlert } from "../account/controls";
 import { useShopSession } from "../account/session-context";
 import { failureText, useShopAction } from "../account/use-shop-action";

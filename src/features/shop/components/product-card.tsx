@@ -1,4 +1,3 @@
-import { localizeVolume } from "@/features/shop/content/volume";
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +6,7 @@ import { formatPrice } from "@/lib/format";
 import type { Locale } from "@/lib/i18n/locales";
 import { cn } from "@/lib/cn";
 
+import { localizeVolume } from "../content/volume";
 import type { ShopDictionary } from "../content";
 import { shopPath } from "../routing/routes";
 import { ProductImage } from "./product-image";

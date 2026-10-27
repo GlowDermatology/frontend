@@ -1,5 +1,5 @@
-import { localizeVolume } from "@/features/shop/content/volume";
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
@@ -17,6 +17,7 @@ import type { Locale } from "@/lib/i18n/locales";
 type LocaleInput = Locale | Promise<Locale>;
 import { cn } from "@/lib/cn";
 
+import { localizeVolume } from "../content/volume";
 import { AddToCart, type AddToCartState } from "../components/add-to-cart";
 import { Container, Eyebrow, sectionSpacing, textLink } from "../components/layout-primitives";
 import { ProductGrid } from "../components/product-card";
@@ -108,6 +109,61 @@ function Details({ product, dict }: { product: ShopProduct; dict: ShopDictionary
         </details>
       ))}
     </div>
+  );
+}
+
+/**
+ * A sold-out product: up to three in-stock alternatives right under the
+ * buy button, above the fold, instead of only at the bottom (polish).
+ */
+async function Alternatives({
+  locale,
+  product,
+  dict,
+}: {
+  locale: Locale;
+  product: ShopProduct;
+  dict: ShopDictionary;
+}) {
+  const related = await settle(getRelatedProducts(locale, product, 4), [], "related products");
+  const inStock = related.filter((item) => item.inStock && item.available > 0).slice(0, 3);
+  if (inStock.length === 0) return null;
+  return (
+    <section
+      aria-labelledby="alternatives-title"
+      className="flex flex-col gap-3 rounded-lg border border-line bg-surface-raised p-4"
+    >
+      <h2 id="alternatives-title" className="m-0 text-label text-ink">
+        {dict.product.alternatives}
+      </h2>
+      <ul className="m-0 flex list-none flex-col gap-2 p-0">
+        {inStock.map((item) => (
+          <li key={item.id}>
+            <Link
+              href={shopPath(locale, { kind: "product", slug: item.segment })}
+              className="flex items-center gap-3 rounded-md p-1.5 text-ink no-underline hover:bg-gold-soft"
+            >
+              <span className="relative block aspect-product w-12 shrink-0 overflow-hidden rounded-sm bg-gold-soft">
+                {item.image ? (
+                  <Image src={item.image} alt="" fill sizes="48px" className="object-cover" />
+                ) : null}
+              </span>
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate text-label">{item.name}</span>
+                {item.volume ? (
+                  <span className="text-caption text-ink-muted">
+                    {localizeVolume(item.volume, locale)}
+                  </span>
+                ) : null}
+              </span>
+              <span className="shrink-0 text-label tabular-nums">
+                {formatPrice(item.price, locale)}
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -241,6 +297,11 @@ async function ProductBody({
               salesOff: dict.product.salesOff,
             }}
           />
+          {state === "sold_out" ? (
+            <Suspense fallback={null}>
+              <Alternatives locale={locale} product={product} dict={dict} />
+            </Suspense>
+          ) : null}
           <ul className="m-0 flex list-none flex-col gap-3 p-0 text-body text-ink">
             <li className="flex items-center gap-3">
               <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gold-soft text-gold-ink">

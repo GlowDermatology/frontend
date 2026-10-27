@@ -74,13 +74,13 @@ test("«Faol seanslar»: the other browser is signed out", async ({ page, browse
   await expect(table.getByRole("columnheader", { name: "Joylashuv" })).toBeVisible();
   await expect(table.getByRole("columnheader", { name: "Yaratilgan" })).toBeVisible();
   await expect(table.getByRole("columnheader", { name: "Yangilangan" })).toBeVisible();
-  await expect(table.getByText("Joriy")).toHaveCount(1);
+  await expect(table.getByText("Shu qurilma")).toHaveCount(1);
   expect(await table.getByRole("row").count()).toBeGreaterThanOrEqual(3);
 
   // Row menu ⋯ «Chiqish» on the other browser's row.
   const otherRow = table
     .getByRole("row")
-    .filter({ hasNot: page.getByText("Joriy") })
+    .filter({ hasNot: page.getByText("Shu qurilma") })
     .last();
   await otherRow.getByRole("button", { name: /amallar/ }).click();
   await page.getByRole("menuitem", { name: "Chiqish" }).click();
@@ -95,7 +95,7 @@ test("«Faol seanslar»: the other browser is signed out", async ({ page, browse
   // Stacked cards below md.
   await page.setViewportSize({ width: 390, height: 900 });
   await expect(page.getByRole("table")).toBeHidden();
-  await expect(page.getByRole("listitem").getByText("Joriy")).toBeVisible();
+  await expect(page.getByRole("listitem").getByText("Shu qurilma")).toBeVisible();
 });
 
 for (const width of [390, 1440]) {

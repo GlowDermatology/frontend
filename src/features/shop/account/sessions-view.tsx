@@ -9,7 +9,7 @@ import { AlertDialog, AlertDialogCancel } from "@/components/ui/dialog";
 import { Icon } from "@/components/ui/icon";
 import { revokeOtherSessions, revokeSession } from "@/data/shop/account.actions";
 import type { ShopSession } from "@/domain/shop-account";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, formatShortDateTime } from "@/lib/format";
 import type { Locale } from "@/lib/i18n/locales";
 
 import { accountCopy } from "../copy/account";
@@ -111,9 +111,15 @@ export function SessionsView({ locale, initial }: { locale: Locale; initial: Sho
         <span className="text-label text-ink">{session.device}</span>
         {session.current ? <Badge tone="success">{copy.current}</Badge> : null}
       </span>
-      {session.platform ? (
-        <span className="text-caption text-ink-muted">{copy.platform[session.platform]}</span>
-      ) : null}
+      {/* Platform and sign-in time: two "Veb-brauzer (Linux)" rows stay tellable apart. */}
+      <span className="text-caption text-ink-muted">
+        {[
+          session.platform ? copy.platform[session.platform] : null,
+          formatShortDateTime(session.createdAt, locale),
+        ]
+          .filter(Boolean)
+          .join(" · ")}
+      </span>
     </span>
   );
 

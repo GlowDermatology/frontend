@@ -156,6 +156,7 @@ export const ru: ShopDictionary = {
     pickupNote: "Самовывоз из магазина или доставка по Ташкенту",
     cashbackNote: "Кешбэк с каждой покупки",
     related: "Из этой категории",
+    alternatives: "Похожие товары в наличии",
     galleryLabel: "Фотографии товара",
     imageLabel: (index, total) => `Фото ${index} из ${total}`,
     noImage: "Фото пока не добавлено",
@@ -174,6 +175,8 @@ export const ru: ShopDictionary = {
     servicesCount: (count) => services(count),
     priceFrom: (price) => `от ${price}`,
     serviceColumns: { service: "Услуга", duration: "Длительность", price: "Цена" },
+    others: "Другие специалисты",
+    bookService: (name) => `${name}: записаться`,
   },
   services: {
     title: "Услуги и цены",

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { DropdownMenu } from "radix-ui";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/cn";
@@ -175,10 +175,12 @@ interface MenuProps {
   links: ReadonlyArray<{ href: string; label: string }>;
   openLabel: string;
   closeLabel: string;
+  /** The language pills, at the foot of the panel (phones have no other place). */
+  language?: ReactNode;
 }
 
 /** Disclosure menu below the `nav` breakpoint, where the inline links do not fit. */
-export function ShopMenu({ links, openLabel, closeLabel }: MenuProps) {
+export function ShopMenu({ links, openLabel, closeLabel, language }: MenuProps) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -238,6 +240,11 @@ export function ShopMenu({ links, openLabel, closeLabel }: MenuProps) {
             </li>
           ))}
         </ul>
+        {language ? (
+          <div className="mx-auto flex max-w-page justify-start border-t border-line px-[clamp(16px,4vw,48px)] py-3 sm:hidden">
+            {language}
+          </div>
+        ) : null}
       </div>
     </div>
   );

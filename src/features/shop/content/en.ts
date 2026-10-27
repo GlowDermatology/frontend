@@ -152,6 +152,7 @@ export const en: ShopDictionary = {
     pickupNote: "In-store pickup or delivery across Tashkent",
     cashbackNote: "Cashback on every purchase",
     related: "From this category",
+    alternatives: "Similar products in stock",
     galleryLabel: "Product images",
     imageLabel: (index, total) => `Image ${index} of ${total}`,
     noImage: "No image yet",
@@ -170,6 +171,8 @@ export const en: ShopDictionary = {
     servicesCount: (count) => plural(count, "service", "services"),
     priceFrom: (price) => `from ${price}`,
     serviceColumns: { service: "Service", duration: "Duration", price: "Price" },
+    others: "Other specialists",
+    bookService: (name) => `Book ${name}`,
   },
   services: {
     title: "Services and prices",

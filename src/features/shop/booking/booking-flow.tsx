@@ -228,20 +228,22 @@ export function BookingFlow({
   const stepClass =
     "flex flex-col gap-4 rounded-lg border border-line bg-surface-raised p-[clamp(18px,2.4vw,28px)]";
   const heading = (number: number, title: string, done: string | null, onChange?: () => void) => (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <h2 className="m-0 flex items-center gap-3 text-subheading">
+    // One row in every state: the change button never wraps under a long
+    // name, so done steps line up (polish).
+    <div className="flex items-center justify-between gap-3">
+      <h2 className="m-0 flex min-w-0 flex-1 items-center gap-3 text-subheading">
         <span
           className={cn(
-            "flex size-8 items-center justify-center rounded-full text-label",
+            "flex size-8 shrink-0 items-center justify-center rounded-full text-label",
             done ? "bg-gold text-on-gold" : "bg-gold-soft text-gold-ink",
           )}
         >
           {done ? <Icon name="check" size={16} strokeWidth={2.2} /> : number}
         </span>
-        {done ?? title}
+        <span className="min-w-0 text-pretty">{done ?? title}</span>
       </h2>
       {done && onChange ? (
-        <Button variant="ghost" size="sm" onClick={onChange}>
+        <Button variant="ghost" size="sm" className="shrink-0" onClick={onChange}>
           {copy.change}
         </Button>
       ) : null}

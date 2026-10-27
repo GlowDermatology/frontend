@@ -155,6 +155,15 @@ async function SpecialistBody({
   const path = shopPath(locale, { kind: "specialist", slug: specialist.segment });
   // The booking flow opens on this specialist's services.
   const book = shopHref(locale, { kind: "booking" }, { specialist: specialist.id });
+  const cheapest = specialist.services.reduce<number | null>(
+    (min, service) => (min === null || service.price < min ? service.price : min),
+    null,
+  );
+  const facts = [
+    specialist.experienceYears ? t.experience(specialist.experienceYears) : null,
+    specialist.services.length > 0 ? t.servicesCount(specialist.services.length) : null,
+    cheapest !== null ? t.priceFrom(formatPrice(cheapest, locale)) : null,
+  ].filter((fact): fact is string => fact !== null);
   return (
     <Container className="pb-[clamp(64px,8vw,120px)]">
       <JsonLd
@@ -189,10 +198,8 @@ async function SpecialistBody({
             >
               {specialist.name}
             </h1>
-            {specialist.experienceYears ? (
-              <p className="m-0 text-body text-ink-muted">
-                {t.experience(specialist.experienceYears)}
-              </p>
+            {facts.length > 0 ? (
+              <p className="m-0 text-body text-ink-muted">{facts.join(" · ")}</p>
             ) : null}
           </div>
           <Link
@@ -272,7 +279,19 @@ async function SpecialistBody({
                   {specialist.services.map((service) => (
                     <tr key={service.id} className="border-b border-line">
                       <th scope="row" className="py-4 pr-4 font-semibold text-ink">
-                        {service.name}
+                        {/* Straight to the booking flow with this service chosen. */}
+                        <Link
+                          href={shopHref(
+                            locale,
+                            { kind: "booking" },
+                            { specialist: specialist.id, service: service.id },
+                          )}
+                          prefetch={false}
+                          aria-label={t.bookService(service.name)}
+                          className="text-ink underline decoration-gold underline-offset-4 hover:text-gold-ink"
+                        >
+                          {service.name}
+                        </Link>
                       </th>
                       <td className="py-4 pr-4 whitespace-nowrap text-ink-muted">
                         {formatDuration(service.durationMin, locale)}
@@ -288,7 +307,37 @@ async function SpecialistBody({
           ) : null}
         </div>
       </article>
+      <Suspense fallback={null}>
+        <OtherSpecialists locale={locale} currentId={specialist.id} />
+      </Suspense>
     </Container>
+  );
+}
+
+/** The rest of the team under a profile (up to three). */
+async function OtherSpecialists({ locale, currentId }: { locale: Locale; currentId: number }) {
+  const dict = getShopDictionary(locale);
+  const others = (await getSpecialists(locale).catch(() => [])).filter((s) => s.id !== currentId);
+  if (others.length === 0) return null;
+  return (
+    <section
+      aria-labelledby="other-specialists-title"
+      className="mt-[clamp(48px,6vw,96px)] flex flex-col gap-8 border-t border-line pt-[clamp(40px,5vw,72px)]"
+    >
+      <h2
+        id="other-specialists-title"
+        className="m-0 font-serif text-headline-sm font-semibold text-ink"
+      >
+        {dict.specialists.others}
+      </h2>
+      <ul className="m-0 grid list-none gap-6 p-0 sm:grid-cols-2 nav:grid-cols-3">
+        {others.slice(0, 3).map((other) => (
+          <li key={other.id}>
+            <SpecialistCard specialist={other} locale={locale} dict={dict} />
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

@@ -160,7 +160,7 @@ export function PhoneGate({
             ) : null}
           </>
         )}
-        {message && !error?.fieldErrors?.phone && !error?.fieldErrors?.code ? (
+        {message && !error?.fieldErrors ? (
           <FormAlert>{message}</FormAlert>
         ) : null}
         {taken || signInAgain ? (

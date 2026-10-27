@@ -278,3 +278,34 @@ export function deleteCampaigns(prefix: string): number {
   ].join("\n");
   return shellJson<number>(code);
 }
+
+const SEO_FIELDS = ["uz", "ru", "en"].flatMap((l) => [`seo_title_${l}`, `seo_description_${l}`]);
+
+/**
+ * Puts a product's website fields back after a stopped SEO spec: its slug,
+ * its English description and empty SEO texts (the seed has none). Written
+ * with `update()`, so no audit row and no `last_change`.
+ */
+export function restoreProductSeo(id: number, slug: string, enDescription: string): void {
+  const code = [
+    "import json",
+    "from glowderma.catalog.models import Product",
+    `slug = json.loads(${JSON.stringify(JSON.stringify(slug))})`,
+    `desc = json.loads(${JSON.stringify(JSON.stringify(enDescription))})`,
+    `fields = {f: '' for f in ${JSON.stringify(SEO_FIELDS)}}`,
+    `print(json.dumps(Product.objects.filter(pk=${Number(id)}).update(slug=slug, description_en=desc, **fields)))`,
+  ].join("\n");
+  shellJson(code);
+}
+
+/** Empties a category's SEO texts again (the seed has none). */
+export function clearCategorySeo(slug: string): void {
+  const code = [
+    "import json",
+    "from glowderma.catalog.models import Category",
+    `slug = json.loads(${JSON.stringify(JSON.stringify(slug))})`,
+    `fields = {f: '' for f in ${JSON.stringify(SEO_FIELDS)}}`,
+    "print(json.dumps(Category.objects.filter(slug=slug).update(**fields)))",
+  ].join("\n");
+  shellJson(code);
+}

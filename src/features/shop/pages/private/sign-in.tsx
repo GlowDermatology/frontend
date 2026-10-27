@@ -83,7 +83,9 @@ async function Body({ locale, searchParams }: { locale: Locale; searchParams: Se
   const params = await searchParams;
   const rawNext = first(params.next);
   const session = await readCustomerSession();
-  if (session.accessToken) {
+  // `?switch=1` (the phone gate's "sign in with this number"): sign in as
+  // another account on this browser, which replaces this browser's session.
+  if (session.accessToken && first(params.switch) !== "1") {
     redirect(rawNext ? safeShopNext(rawNext, locale) : shopPath(locale, { kind: "account" }));
   }
   const next = safeShopNext(rawNext, locale);

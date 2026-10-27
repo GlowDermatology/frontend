@@ -5,15 +5,15 @@ import { useState } from "react";
 
 import { Button, buttonStyles } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
-import { attachPhone, sendPhoneCode } from "@/data/shop/account.actions";
+import { attachPhone, sendPhoneCode, type Reauth } from "@/data/shop/account.actions";
 import type { CodeSent } from "@/data/shop/auth.actions";
 import type { ShopMe } from "@/domain/shop-account";
 import type { Locale } from "@/lib/i18n/locales";
 
 import { commonCopy } from "../copy/common";
-import { authCopy } from "../copy/auth";
 import { shopHref } from "../routing/routes";
-import { CodeField, FormAlert, PasswordField, PhoneField } from "./controls";
+import { CodeField, FormAlert, PhoneField } from "./controls";
+import { ReauthStep } from "./reauth";
 import { failureText, useShopAction } from "./use-shop-action";
 
 /**
@@ -22,8 +22,10 @@ import { failureText, useShopAction } from "./use-shop-action";
  * dialog attaches one — `me/phone/code/` then `me/phone/` — and hands the
  * caller back to its retry. A number held by another account
  * (`phone_taken`) is never merged: the customer may sign in with it instead.
- * The password is asked only when the API asks for it (a session older than
- * ten minutes on an account that has one).
+ * When the API asks for re-authentication (`reauth_required`, B-W2: an
+ * account with a password, phone or e-mail) the password is asked — or a
+ * code to the account's own e-mail for "I have no password"; a number held
+ * by a deleted account (`details.deleted`) offers to register with it.
  */
 export function PhoneGate({
   locale,
@@ -31,8 +33,11 @@ export function PhoneGate({
   onOpenChange,
   onAttached,
   next,
+  hasPassword = true,
 }: {
   locale: Locale;
+  /** Whether the account has a password (unknown at checkout: the password is offered first). */
+  hasPassword?: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAttached: (me: ShopMe) => void;
@@ -40,19 +45,16 @@ export function PhoneGate({
   next: string;
 }) {
   const copy = commonCopy[locale];
-  const fieldCopy = authCopy[locale].fields;
   const { run, pending, error, setError } = useShopAction(locale);
   const [phone, setPhone] = useState("");
   const [sent, setSent] = useState<(CodeSent & { at: number }) | null>(null);
   const [code, setCode] = useState("");
-  const [askPassword, setAskPassword] = useState(false);
-  const [password, setPassword] = useState("");
+  const [reauth, setReauth] = useState<Reauth | null>(null);
 
   const reset = () => {
     setSent(null);
     setCode("");
-    setAskPassword(false);
-    setPassword("");
+    setReauth(null);
     setError(null);
   };
 
@@ -70,7 +72,7 @@ export function PhoneGate({
         locale,
         phone,
         code,
-        reauth: askPassword ? { password } : undefined,
+        reauth: reauth ?? undefined,
         csrf,
       }),
     );
@@ -81,12 +83,28 @@ export function PhoneGate({
       setPhone("");
       return;
     }
-    if (result.fieldErrors?.password) setAskPassword(true);
+    if (
+      result.code === "reauth_required" ||
+      result.fieldErrors?.password ||
+      result.fieldErrors?.verification_token
+    ) {
+      // B-W2: a password (or a reset code to the account's own phone/e-mail) is needed.
+      setReauth((current) => current ?? {});
+    }
   };
 
   const taken = error?.code === "phone_taken";
-  const reauth = error?.code === "reauth_required";
-  const message = error ? failureText(error, locale) : "";
+  const takenByDeleted =
+    taken &&
+    typeof error?.details === "object" &&
+    error.details !== null &&
+    (error.details as { deleted?: unknown }).deleted === true;
+  const signInAgain =
+    error?.code === "reauth_required" &&
+    reauth !== null &&
+    Boolean(reauth.password || reauth.verificationToken);
+  const message =
+    error && !(error.code === "reauth_required" && !signInAgain) ? failureText(error, locale) : "";
 
   return (
     <Dialog
@@ -128,29 +146,33 @@ export function PhoneGate({
               resendPending={pending}
               error={error?.fieldErrors?.code}
             />
-            {askPassword ? (
-              <PasswordField
-                label={copy.phoneGate.passwordLabel}
-                hint={copy.phoneGate.passwordHint}
-                showLabel={fieldCopy.showPassword}
-                hideLabel={fieldCopy.hidePassword}
-                autoComplete="current-password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                error={error?.fieldErrors?.password}
-              />
+            {reauth ? (
+              <div className="flex flex-col gap-2">
+                <p className="m-0 text-body-sm text-ink-muted">{copy.phoneGate.passwordHint}</p>
+                <ReauthStep
+                  locale={locale}
+                  hasPassword={hasPassword}
+                  value={reauth}
+                  onChange={setReauth}
+                  passwordError={error?.fieldErrors?.password}
+                />
+              </div>
             ) : null}
           </>
         )}
         {message && !error?.fieldErrors?.phone && !error?.fieldErrors?.code ? (
           <FormAlert>{message}</FormAlert>
         ) : null}
-        {taken || reauth ? (
+        {taken || signInAgain ? (
           <Link
-            href={shopHref(locale, { kind: "signIn" }, { next })}
+            href={shopHref(
+              locale,
+              { kind: "signIn" },
+              { next, switch: 1, mode: takenByDeleted ? "signup" : undefined },
+            )}
             className={buttonStyles({ variant: "secondary", className: "self-start" })}
           >
-            {copy.phoneGate.signInWithIt}
+            {takenByDeleted ? copy.phoneGate.registerWithIt : copy.phoneGate.signInWithIt}
           </Link>
         ) : null}
         <div className="flex flex-wrap items-center justify-end gap-2 pt-1">

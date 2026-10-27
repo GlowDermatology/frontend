@@ -35,6 +35,7 @@ import type { Locale } from "@/lib/i18n/locales";
 
 import { SocialButtons, type SocialToken } from "../auth/social-buttons";
 import type { SocialConfig } from "../auth/social-config";
+import { visibleProviders } from "./social-rows";
 import { authCopy } from "../copy/auth";
 import { accountCopy } from "../copy/account";
 import { commonCopy } from "../copy/common";
@@ -553,14 +554,14 @@ function SocialCard({
   return (
     <Card id="social-title" title={copy.title}>
       <p className="m-0 -mt-2 text-body-sm text-ink-muted">{copy.lead}</p>
-      {(["google", "facebook", "apple"] as const).map((provider) => {
+      {visibleProviders(me, config).map((provider) => {
         const linked = me.linkedProviders.includes(provider);
         const available = config[provider] !== null;
         return (
           <Row
             key={provider}
             label={copy.names[provider]}
-            value={linked ? copy.linked : available ? copy.notLinked : copy.unavailable}
+            value={linked ? copy.linked : copy.notLinked}
             action={
               linked ? (
                 <Button
@@ -895,7 +896,9 @@ export function AccountView({
       <ProfileCard locale={locale} me={me} onSaved={onSaved} />
       <ContactCard locale={locale} me={me} onSaved={onSaved} />
       <PasswordCard locale={locale} me={me} onSaved={onSaved} />
-      <SocialCard locale={locale} me={me} config={social} onSaved={onSaved} />
+      {visibleProviders(me, social).length > 0 ? (
+        <SocialCard locale={locale} me={me} config={social} onSaved={onSaved} />
+      ) : null}
       <AddressesCard locale={locale} initial={addresses} regions={regions} />
       <DangerCard locale={locale} me={me} />
     </>

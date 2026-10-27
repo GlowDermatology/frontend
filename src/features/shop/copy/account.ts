@@ -57,7 +57,6 @@ const uz = {
     linkBody: "Xavfsizlik uchun shaxsingizni tasdiqlang, so‘ng profilni tanlang.",
     linkedNotice: (provider: string) => `${provider} profili bog‘landi`,
     unlinkedNotice: (provider: string) => `${provider} profili uzildi`,
-    unavailable: "Sozlanmagan",
   },
   addresses: {
     title: "Manzillar",
@@ -188,7 +187,6 @@ const ru: Copy = {
     linkBody: "Для безопасности подтвердите, что это вы, затем выберите профиль.",
     linkedNotice: (provider) => `Профиль ${provider} привязан`,
     unlinkedNotice: (provider) => `Профиль ${provider} отвязан`,
-    unavailable: "Не настроено",
   },
   addresses: {
     title: "Адреса",
@@ -317,7 +315,6 @@ const en: Copy = {
     linkBody: "For your security, confirm it is you, then choose the account.",
     linkedNotice: (provider) => `${provider} linked`,
     unlinkedNotice: (provider) => `${provider} unlinked`,
-    unavailable: "Not configured",
   },
   addresses: {
     title: "Addresses",

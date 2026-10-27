@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { Suspense } from "react";
+import { Suspense, type ReactNode } from "react";
 
 import { CountPill } from "@/components/ui/badge";
 import { Icon } from "@/components/ui/icon";
+import { getMe } from "@/data/auth";
 import { getNavCounts } from "@/data/shell";
 import { cn } from "@/lib/cn";
 
@@ -34,6 +35,16 @@ async function NavCount({ kind }: { kind: NonNullable<NavItem["badge"]> }) {
   );
 }
 
+/**
+ * A manager-only item (Xodimlar, contract §2.16): streamed after `auth/me/`
+ * answers, rendered only when the caller may manage staff.
+ */
+async function ManagerOnly({ children }: { children: ReactNode }) {
+  const me = await getMe();
+  if (!me || !(me.is_manager || me.is_superuser)) return null;
+  return <>{children}</>;
+}
+
 const itemClass =
   "flex h-10 items-center gap-3 rounded-md px-3 text-label text-ink no-underline transition-colors duration-150 hover:bg-gold-soft";
 
@@ -49,7 +60,7 @@ export function SidebarContent({ section }: { section?: AdminSection }) {
         <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
           {NAV_ITEMS.map((item) => {
             const active = item.section === section;
-            return (
+            const entry = (
               <li key={item.section}>
                 <Link
                   href={item.href}
@@ -69,6 +80,13 @@ export function SidebarContent({ section }: { section?: AdminSection }) {
                   )}
                 </Link>
               </li>
+            );
+            return item.managerOnly ? (
+              <Suspense key={item.section} fallback={null}>
+                <ManagerOnly>{entry}</ManagerOnly>
+              </Suspense>
+            ) : (
+              entry
             );
           })}
           <li>

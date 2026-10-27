@@ -1,12 +1,16 @@
 import "server-only";
 
-import type { StaffMember } from "@/domain/staff";
+import type { StaffAccountRow, StaffListQuery, StaffMember } from "@/domain/staff";
 
+import { apiStaffPage } from "./api/admin";
 import { apiListStaff } from "./api/customers";
-import { mapStaffMember } from "./api/mappers/staff";
+import { mapPage } from "./api/mappers/page";
+import { mapStaffMember, mapStaffRow, staffListParams } from "./api/mappers/staff";
 import { collectAllPages } from "./api/pages";
 import { requireApiToken } from "./auth";
+import * as mock from "./mock/staff";
 import { dataSource } from "./source";
+import type { Page } from "./types";
 
 /**
  * Staff directory read seam (contract §2.16 `GET staff/`), the options of the
@@ -32,4 +36,17 @@ export async function listStaff(): Promise<StaffMember[]> {
     return rows.map(mapStaffMember);
   }
   return [...MOCK_STAFF];
+}
+
+/**
+ * The staff screen's page (contract §2.16 `GET staff/` with the manager
+ * columns; gap FND-4): search on the full name or email, active or not.
+ */
+export async function listStaffAccounts(query: StaffListQuery): Promise<Page<StaffAccountRow>> {
+  if ((await dataSource()) === "api") {
+    const token = await requireApiToken();
+    const { data } = await apiStaffPage(token, staffListParams(query));
+    return mapPage(data, mapStaffRow);
+  }
+  return mock.listStaffAccounts(query);
 }

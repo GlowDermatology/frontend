@@ -14,6 +14,7 @@ export type AdminSection =
   | "notifications"
   | "payments"
   | "audit-log"
+  | "staff"
   | "settings";
 
 export interface NavItem {
@@ -23,6 +24,8 @@ export interface NavItem {
   icon: IconName;
   /** Live count shown as a pill (work waiting for the admin). */
   badge?: "orders" | "appointments";
+  /** Shown only to managers (`Me.is_manager`, contract §2.16). */
+  managerOnly?: boolean;
 }
 
 export const NAV_ITEMS: ReadonlyArray<NavItem> = [
@@ -59,5 +62,6 @@ export const NAV_ITEMS: ReadonlyArray<NavItem> = [
     href: "/admin/audit-log",
     icon: "history",
   },
+  { section: "staff", label: "Xodimlar", href: "/admin/staff", icon: "shield", managerOnly: true },
   { section: "settings", label: "Sozlamalar", href: "/admin/settings", icon: "sliders" },
 ];

@@ -134,6 +134,10 @@ export type ApiTierWarning = Schemas["TierWarning"];
 /** `POST segments/{id}/members/`: either list or both (contract §2.8). */
 export type ApiSegmentMembersInput = Schemas["SegmentMembersInputRequest"];
 export type ApiStaffListItem = Schemas["StaffListItem"];
+export type ApiStaffMember = Schemas["StaffMember"];
+export type ApiStaffCredentials = Schemas["StaffCredentials"];
+export type ApiStaffCreate = Schemas["StaffCreateRequest"];
+export type ApiStaffPatch = Partial<Schemas["PatchedStaffUpdateRequest"]>;
 export type ApiPaginatedStaff = Schemas["PaginatedStaffListItemList"];
 
 /* --- Orders, payments, dashboard (contract §2.2, §2.10, §2.12) — F2d --- */

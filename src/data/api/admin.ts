@@ -20,8 +20,13 @@ import type {
   ApiSegmentMembersInput,
   ApiSegmentPatch,
   ApiSegmentWrite,
+  ApiPaginatedStaff,
   ApiSettings,
   ApiSettingsPatch,
+  ApiStaffCreate,
+  ApiStaffCredentials,
+  ApiStaffMember,
+  ApiStaffPatch,
   ApiStatusTemplate,
   ApiTemplateStatus,
   ApiTemplateUpdate,
@@ -276,6 +281,61 @@ export function apiNavCounts(token: string) {
 /** → 204; revokes the staff member's other sessions (§2.1). `auth/*` ignores idempotency keys. */
 export function apiChangePassword(token: string, body: ChangePasswordRequest) {
   return apiFetch<undefined>(`${BASE}/auth/change-password/`, { method: "POST", body, token });
+}
+
+/* --- Staff management (contract §2.16; every route but the list is manager-only) --- */
+
+/** The staff screen's page: uncached-by-key reads share `cachedGet` like the other lists. */
+export function apiStaffPage(token: string, params: Record<string, QueryValue>) {
+  return cachedGet<ApiPaginatedStaff>(`${BASE}/staff/`, params, token);
+}
+
+/** `Idempotency-Key` required; 201 with the temporary password, shown once. */
+export function apiCreateStaff(token: string, body: ApiStaffCreate, idempotencyKey: string) {
+  return apiFetch<ApiStaffCredentials>(`${BASE}/staff/`, {
+    method: "POST",
+    body,
+    token,
+    idempotencyKey,
+  });
+}
+
+export function apiPatchStaff(
+  token: string,
+  staffId: string,
+  body: ApiStaffPatch,
+  idempotencyKey: string,
+) {
+  return apiFetch<ApiStaffMember>(`${BASE}/staff/${id(staffId)}/`, {
+    method: "PATCH",
+    body,
+    token,
+    idempotencyKey,
+  });
+}
+
+/** `deactivate` and `reset-password` require the key; `reactivate` honours it. */
+export function apiStaffAction(
+  token: string,
+  staffId: string,
+  action: "deactivate" | "reactivate",
+  idempotencyKey: string,
+) {
+  return apiFetch<ApiStaffMember>(`${BASE}/staff/${id(staffId)}/${action}/`, {
+    method: "POST",
+    body: {},
+    token,
+    idempotencyKey,
+  });
+}
+
+export function apiResetStaffPassword(token: string, staffId: string, idempotencyKey: string) {
+  return apiFetch<ApiStaffCredentials>(`${BASE}/staff/${id(staffId)}/reset-password/`, {
+    method: "POST",
+    body: {},
+    token,
+    idempotencyKey,
+  });
 }
 
 /**

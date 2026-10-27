@@ -104,7 +104,9 @@ export async function requireApiToken(): Promise<string> {
 
 /** Shown in mock mode, matching the design's sidebar user block. */
 export const MOCK_ME: Me = {
-  id: 0,
+  // The demo staff list's Administrator (`src/data/mock/staff.ts`), so the
+  // staff screen knows its own row.
+  id: 1,
   email: "admin",
   display_name: "Administrator",
   is_superuser: true,

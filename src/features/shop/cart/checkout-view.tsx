@@ -126,7 +126,7 @@ export function CheckoutView({
   const [provider, setProvider] = useState<PaymentProvider>(providers[0] ?? "click");
   const [useCashback, setUseCashback] = useState(false);
   const [note, setNote] = useState("");
-  const [quote, setQuote] = useState<ShopQuote | null>(null);
+  const [rawQuote, setQuote] = useState<ShopQuote | null>(null);
   const [addressOpen, setAddressOpen] = useState(false);
   const [gateOpen, setGateOpen] = useState(false);
   const [consentNeeded, setConsentNeeded] = useState(false);
@@ -146,13 +146,11 @@ export function CheckoutView({
     cashbackToUse: useCashback ? Math.max(0, cart.cashbackAvailable) : 0,
   };
   const needsAddress = fulfilment === "delivery" && addressId === null;
+  const quote = needsAddress ? null : rawQuote;
 
   const runQuote = quoting.run;
   useEffect(() => {
-    if (needsAddress) {
-      setQuote(null);
-      return;
-    }
+    if (needsAddress) return;
     const id = ++requestId.current;
     void runQuote((csrf) =>
       quoteCheckout({

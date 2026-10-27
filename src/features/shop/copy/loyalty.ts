@@ -1,0 +1,130 @@
+import { formatPrice } from "@/lib/format";
+
+import type { CopySet, Widen } from "./widen";
+
+/** Cashback (balance, tiers, ledger) and the in-store QR code. */
+const uz = {
+  cashback: {
+    title: "Cashback",
+    lead: "Har bir xariddan qaytadigan bonus — keyingi buyurtmada ishlating.",
+    available: "Ishlatish mumkin",
+    balance: "Balans",
+    held: "Band qilingan",
+    heldHint: "To‘lanmagan buyurtmalar uchun vaqtincha band",
+    negative: "Balans manfiy: qaytarilgan xarid uchun cashback ushlab qolindi.",
+    lifetime: "Jami xaridlar",
+    tier: (percent: string) => `Joriy daraja: ${percent}%`,
+    noTier: "Daraja hali yo‘q",
+    nextTier: (remaining: string, percent: string) => `${remaining} xariddan so‘ng — ${percent}%`,
+    topTier: "Siz eng yuqori darajadasiz",
+    tiersTitle: "Qanday ishlaydi",
+    tierRow: (from: string, to: string | null) => (to ? `${from} — ${to}` : `${from} dan yuqori`),
+    promoRule: "Aksiyadagi mahsulotlarga cashback berilmaydi.",
+    ledgerTitle: "Tarix",
+    ledgerEmpty: "Hozircha cashback harakati yo‘q.",
+    showQr: "Do‘kon uchun QR kod",
+    progressLabel: "Keyingi darajagacha",
+  },
+  qr: {
+    title: "QR kod",
+    lead: "Do‘konda kassirga ko‘rsating — xarid hisobingizga yoziladi va cashback beriladi.",
+    alt: "Shaxsiy QR kod",
+    refreshesIn: (seconds: number) => `${seconds} soniyadan so‘ng yangilanadi`,
+    refresh: "Yangilash",
+    expired: "Kod eskirdi",
+    hint: "Kod har 50 soniyada yangilanadi va faqat bir marta ishlaydi. Skanerlashdan keyin xato chiqsa, «Yangilash»ni bosing.",
+    hidden: "Kod vaqtincha yashirildi",
+    phoneTitle: "QR uchun telefon raqami kerak",
+    phoneBody:
+      "Kassir xaridni telefon raqamingiz bo‘yicha biriktiradi. Raqamni bir marta tasdiqlang.",
+    phoneAction: "Raqamni tasdiqlash",
+    failed: "Kodni yuklab bo‘lmadi.",
+    balance: (amount: string) => `Cashback: ${amount}`,
+  },
+  money: (amount: number) => formatPrice(amount, "uz"),
+};
+
+type Copy = Widen<typeof uz>;
+
+const ru: Copy = {
+  cashback: {
+    title: "Кешбэк",
+    lead: "Бонус с каждой покупки — используйте его в следующем заказе.",
+    available: "Доступно",
+    balance: "Баланс",
+    held: "В резерве",
+    heldHint: "Временно зарезервировано под неоплаченные заказы",
+    negative: "Баланс отрицательный: кешбэк удержан за возвращённую покупку.",
+    lifetime: "Всего покупок",
+    tier: (percent) => `Текущий уровень: ${percent}%`,
+    noTier: "Уровня пока нет",
+    nextTier: (remaining, percent) => `Ещё ${remaining} покупок — и ${percent}%`,
+    topTier: "У вас максимальный уровень",
+    tiersTitle: "Как это работает",
+    tierRow: (from, to) => (to ? `${from} — ${to}` : `от ${from}`),
+    promoRule: "На акционные товары кешбэк не начисляется.",
+    ledgerTitle: "История",
+    ledgerEmpty: "Движений кешбэка пока нет.",
+    showQr: "QR-код для магазина",
+    progressLabel: "До следующего уровня",
+  },
+  qr: {
+    title: "QR-код",
+    lead: "Покажите кассиру в магазине — покупка запишется в аккаунт, и начислится кешбэк.",
+    alt: "Персональный QR-код",
+    refreshesIn: (seconds) => `Обновится через ${seconds} с`,
+    refresh: "Обновить",
+    expired: "Код устарел",
+    hint: "Код обновляется каждые 50 секунд и действует один раз. Если после сканирования ошибка — нажмите «Обновить».",
+    hidden: "Код временно скрыт",
+    phoneTitle: "Для QR нужен номер телефона",
+    phoneBody: "Кассир привязывает покупку по вашему номеру. Подтвердите номер один раз.",
+    phoneAction: "Подтвердить номер",
+    failed: "Не удалось загрузить код.",
+    balance: (amount) => `Кешбэк: ${amount}`,
+  },
+  money: (amount) => formatPrice(amount, "ru"),
+};
+
+const en: Copy = {
+  cashback: {
+    title: "Cashback",
+    lead: "A bonus back from every purchase — spend it on your next order.",
+    available: "Available",
+    balance: "Balance",
+    held: "On hold",
+    heldHint: "Held for unpaid orders for now",
+    negative: "Your balance is negative: cashback was taken back for a returned purchase.",
+    lifetime: "All purchases",
+    tier: (percent) => `Current level: ${percent}%`,
+    noTier: "No level yet",
+    nextTier: (remaining, percent) => `${remaining} more in purchases for ${percent}%`,
+    topTier: "You are at the top level",
+    tiersTitle: "How it works",
+    tierRow: (from, to) => (to ? `${from} — ${to}` : `${from} and above`),
+    promoRule: "Products on offer do not earn cashback.",
+    ledgerTitle: "History",
+    ledgerEmpty: "No cashback activity yet.",
+    showQr: "QR code for the store",
+    progressLabel: "To the next level",
+  },
+  qr: {
+    title: "QR code",
+    lead: "Show it to the cashier in store — the purchase is added to your account and earns cashback.",
+    alt: "Personal QR code",
+    refreshesIn: (seconds) => `Refreshes in ${seconds} s`,
+    refresh: "Refresh",
+    expired: "Code expired",
+    hint: "The code refreshes every 50 seconds and works once. If the scan fails, tap “Refresh”.",
+    hidden: "The code is hidden for now",
+    phoneTitle: "The QR code needs a phone number",
+    phoneBody: "The cashier links the purchase by your phone number. Confirm it once.",
+    phoneAction: "Confirm my number",
+    failed: "Could not load the code.",
+    balance: (amount) => `Cashback: ${amount}`,
+  },
+  money: (amount) => formatPrice(amount, "en"),
+};
+
+export const loyaltyCopy = { uz, ru, en } satisfies CopySet<typeof uz>;
+export type LoyaltyCopy = Copy;

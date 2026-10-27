@@ -25,13 +25,15 @@ let fonts: Promise<Array<{ name: string; data: Buffer; weight: 600; style: "norm
 
 function loadFonts() {
   fonts ??= Promise.all(
+    // One family name per subset: Satori does not fall back between faces
+    // that share a name, so Cyrillic (U18) needs its own entry in the stack.
     [
-      "cormorant-garamond-latin-600-normal.woff",
-      "cormorant-garamond-latin-ext-600-normal.woff",
-      "cormorant-garamond-cyrillic-600-normal.woff",
-    ].map(async (file) => ({
-      name: "Cormorant",
-      data: await readFile(join(FONT_DIR, file)),
+      ["Cormorant", "cormorant-garamond-latin-600-normal.woff"],
+      ["CormorantExt", "cormorant-garamond-latin-ext-600-normal.woff"],
+      ["CormorantCyr", "cormorant-garamond-cyrillic-600-normal.woff"],
+    ].map(async ([name, file]) => ({
+      name: name!,
+      data: await readFile(join(FONT_DIR, file!)),
       weight: 600 as const,
       style: "normal" as const,
     })),
@@ -64,7 +66,7 @@ export async function brandImage(input: {
         display: "flex",
         position: "relative",
         background: OG_PALETTE.banner,
-        fontFamily: "Cormorant",
+        fontFamily: "Cormorant, CormorantExt, CormorantCyr",
         overflow: "hidden",
       }}
     >

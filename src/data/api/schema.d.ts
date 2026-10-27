@@ -3,8 +3,8 @@
  * GENERATED FILE — do not edit by hand. Regenerate with `npm run gen:api`.
  *
  * Source: openapi/schema.yaml of the backend repository
- * Commit: 0db5aaa818d1f0529cd9710cfe939b8e0bf5a287
- * Generated: 2026-10-27T23:31:29.409Z (openapi-typescript)
+ * Commit: 13c250b8a79431c9e9ea3a64011231fb963401f0
+ * Generated: 2026-10-27T23:35:12.199Z (openapi-typescript)
  */
 
 export interface paths {
@@ -4878,6 +4878,8 @@ export interface components {
             name: string;
             price: number;
             promo: boolean;
+            /** @description The Billz product id / barcode (`billz_id`), the shop's article code; null if unknown. */
+            sku: string | null;
             /** @description The website URL segment (B-W1); `catalog/products/{slug}/`. */
             slug: string;
             stock_status: components["schemas"]["StockStatusEnum"];
@@ -4929,6 +4931,8 @@ export interface components {
             seo_description: string;
             /** @description Staff-written page title in this language; "" = none. */
             seo_title: string;
+            /** @description The Billz product id / barcode (`billz_id`), the shop's article code; null if unknown. */
+            sku: string | null;
             /** @description The website URL segment (B-W1); `catalog/products/{slug}/`. */
             slug: string;
             stock_status: components["schemas"]["StockStatusEnum"];

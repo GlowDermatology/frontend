@@ -22,12 +22,12 @@ interface PlannedSeoFields {
 }
 
 /**
- * Optional on any API version: a product's brand and stock-keeping code (not
- * in the M2 contract). Without a real SKU the JSON-LD leaves `sku` out.
+ * Optional on any API version: a product's brand and pre-promotion price
+ * (no real source in the API yet; `sku` is in the contract since
+ * feat/customer-web, the Billz article code).
  */
 interface PlannedBrand {
   brand?: string | null;
-  sku?: string | null;
   /** The price before the promotion, for a struck-through «AKSIYA» price. */
   old_price?: number | null;
 }

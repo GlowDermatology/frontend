@@ -82,6 +82,7 @@ describe("buildCustomerHeaders", () => {
 const card: ApiCustomerProductCard = {
   id: 1,
   content_language: "uz",
+  sku: " 4780012345678 ",
   name: " Gialuron kislotali serum ",
   volume: "30 ml",
   price: 185000,
@@ -117,7 +118,7 @@ describe("mapProductCard", () => {
       available: 12,
       inStock: true,
       brand: null,
-      sku: null,
+      sku: "4780012345678",
       oldPrice: null,
       contentLanguage: "uz",
       updatedAt: null,

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
+import { AlertDialog, AlertDialogCancel } from "@/components/ui/dialog";
 import { Button, buttonStyles } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { ActionMenu, type ActionMenuItem } from "@/components/ui/menu";
@@ -150,6 +151,10 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
     return () => controller.abort();
   }, [awaitingShipment, orderId, toast]);
 
+  const [confirmStatus, setConfirmStatus] = useState<OrderStatus | null>(null);
+  const [confirmShown, setConfirmShown] = useState<OrderStatus | null>(null);
+  if (confirmStatus !== null && confirmStatus !== confirmShown) setConfirmShown(confirmStatus);
+
   const runStatusChange = (status: OrderStatus) => {
     setPendingAction("status");
     startTransition(async () => {
@@ -199,7 +204,8 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
     key: status,
     label: ORDER_STATUS_META[status].label,
     hint: transitionHint(order, status),
-    onSelect: () => runStatusChange(status),
+    // Gap ADM-14.1: a forward transition cannot be undone and pushes to the customer.
+    onSelect: () => setConfirmStatus(status),
   }));
 
   const { shipment } = order;
@@ -310,6 +316,37 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
         </div>
       </div>
 
+      <AlertDialog
+        open={confirmStatus !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmStatus(null);
+        }}
+        title={
+          confirmShown
+            ? `Holatni «${ORDER_STATUS_META[confirmShown].label}» ga o‘zgartirasizmi?`
+            : ""
+        }
+        description={
+          <p className="m-0 text-[14px] leading-5 text-ink">
+            Buyurtma №{order.id} mijozi push xabar oladi. Bu amalni qaytarib bo‘lmaydi.
+          </p>
+        }
+      >
+        <div className="mt-1.5 flex flex-wrap justify-end gap-2">
+          <AlertDialogCancel className={buttonStyles({ variant: "outline" })}>
+            Bekor qilish
+          </AlertDialogCancel>
+          <Button
+            onClick={() => {
+              const status = confirmStatus;
+              setConfirmStatus(null);
+              if (status) runStatusChange(status);
+            }}
+          >
+            Holatni o‘zgartirish
+          </Button>
+        </div>
+      </AlertDialog>
       <CancelOrderDialog
         order={order}
         open={cancelOpen}

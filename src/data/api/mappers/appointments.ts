@@ -37,6 +37,7 @@ export function mapSpecialistDay(api: ApiSpecialistDay): Specialist {
       workingHours: { ...DEFAULT_HOURS },
       blocks: [{ ...DEFAULT_HOURS, kind: "off", label: "Ish kuni emas" }],
       working: false,
+      ...(api.is_active === false ? { isActive: false } : {}),
     };
   }
   return {
@@ -51,6 +52,7 @@ export function mapSpecialistDay(api: ApiSpecialistDay): Specialist {
       label: block.label ?? (block.kind === "busy" ? "Band qilingan" : "Ish vaqti emas"),
     })),
     working: true,
+    ...(api.is_active === false ? { isActive: false } : {}),
   };
 }
 

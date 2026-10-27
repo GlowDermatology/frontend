@@ -368,6 +368,11 @@ export function AppointmentsView({
                       <span className="text-body-sm font-bold text-ink">{specialist.name}</span>
                       <span className="text-caption font-normal text-ink-muted">
                         {specialist.role}
+                        {specialist.isActive === false && (
+                          <span className="ml-1.5 rounded-sm border border-line-strong px-1 text-[10px] font-bold tracking-[0.06em] text-ink uppercase">
+                            Nofaol
+                          </span>
+                        )}
                       </span>
                     </span>
                   </span>

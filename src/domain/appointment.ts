@@ -14,6 +14,12 @@ export interface Specialist {
    * default day as one "Ish kuni emas" block). Absent = working.
    */
   working?: boolean;
+  /**
+   * `false` for a specialist deactivated with `force` who still has
+   * appointments that day (contract §2.9, FND-1): the column stays, marked
+   * «Nofaol», and its appointments stay actionable. Absent = active.
+   */
+  isActive?: boolean;
 }
 
 export interface Appointment {

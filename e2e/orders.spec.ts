@@ -70,6 +70,12 @@ test("an order handed to the courier is marked delivered from the status menu", 
   await expect(heading(page)).toHaveText(`Buyurtma №${id}`);
   await page.getByRole("button", { name: /Holatni o‘zgartirish/ }).click();
   await page.getByRole("menuitem", { name: /Yetkazildi/ }).click();
+  // ADM-14.1: the irreversible transition is confirmed first.
+  const confirm = page.getByRole("alertdialog", {
+    name: "Holatni «Yetkazildi» ga o‘zgartirasizmi?",
+  });
+  await confirm.getByRole("button", { name: "Holatni o‘zgartirish" }).click();
+  await expect(confirm).toBeHidden();
   await expect(toast(page, "Holat yangilandi")).toBeVisible();
   const history = page.locator('[aria-labelledby="order-history-title"]');
   await expect(history.getByRole("listitem").first()).toContainText("Yetkazildi");

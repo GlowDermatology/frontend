@@ -123,6 +123,16 @@ describe("appointments", () => {
     });
   });
 
+  it("marks a deactivated specialist's column (FND-1: is_active false)", () => {
+    const api = dayFixture as ApiDaySchedule;
+    const inactive = mapAppointmentDay({
+      ...api,
+      specialists: api.specialists.map((s, i) => (i === 0 ? { ...s, is_active: false } : s)),
+    });
+    expect(inactive.specialists[0]?.isActive).toBe(false);
+    expect(inactive.specialists[1]).not.toHaveProperty("isActive");
+  });
+
   it("draws a day off (working_hours null) as one 'Ish kuni emas' block over 09–18", () => {
     const off = mapAppointmentDay(dayOffFixture as ApiDaySchedule);
     expect(off.appointments).toEqual([]);

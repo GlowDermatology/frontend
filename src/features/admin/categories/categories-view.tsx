@@ -18,6 +18,7 @@ import { ExportMenu } from "../shared/export-menu";
 import { useIdempotencyKey } from "../shared/idempotency";
 import { PageHeader } from "../shared/page-header";
 import { ReorderButtons } from "../shared/reorder-buttons";
+import { ListFilterBar, useListFilter } from "../shared/list-filter";
 import { useRowDrag } from "../shared/row-drag";
 import { upsertRow, useOrderedList } from "../shared/use-ordered-list";
 import { CategoryDialog } from "./category-dialog";
@@ -58,6 +59,11 @@ export function CategoriesView({ categories, exportHref }: CategoriesViewProps) 
       }),
   });
   const { rowProps } = useRowDrag(move);
+  const filter = useListFilter<Category>(
+    (category) => [category.name.uz, category.name.ru, category.name.en, category.slug],
+    (category) => category.isActive,
+  );
+  const shown = items.filter(filter.matches).length;
   const [dialog, setDialog] = useState<DialogState>(null);
   // Mounts a fresh dialog (and form) for every opening.
   const [instance, setInstance] = useState(0);
@@ -133,6 +139,7 @@ export function CategoriesView({ categories, exportHref }: CategoriesViewProps) 
         aria-label="Kategoriyalar ro‘yxati"
         className="overflow-hidden rounded-lg bg-surface-raised shadow-sm"
       >
+        {items.length > 0 && <ListFilterBar label="Nomi yoki slug" filter={filter} />}
         {items.length > 0 ? (
           <ScrollRegion label="Kategoriyalar jadvali">
             <table className="data-table min-w-[820px]">
@@ -154,89 +161,102 @@ export function CategoriesView({ categories, exportHref }: CategoriesViewProps) 
                 </tr>
               </thead>
               <tbody>
-                {items.map((category, index) => (
-                  <tr key={category.slug} {...rowProps(index)}>
-                    <td>
-                      <span className="inline-flex items-center gap-1">
-                        <Icon name="grip" size={16} className="text-ink-muted" />
-                        <ReorderButtons
-                          subject={`«${category.name.uz}»`}
-                          index={index}
-                          count={items.length}
-                          onMove={move}
-                        />
-                      </span>
-                    </td>
-                    <td className="w-14">
-                      <span className="relative flex size-10 items-center justify-center overflow-hidden rounded-md border border-line bg-surface text-ink-muted">
-                        {category.imageUrl ? (
-                          category.imageUrl.startsWith("blob:") ? (
-                            // Demo preview of a picked image (object URL).
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={category.imageUrl}
-                              alt=""
-                              className="size-full object-cover"
-                            />
+                {items.map((category, index) =>
+                  !filter.matches(category) ? null : (
+                    <tr key={category.slug} {...(filter.filtered ? {} : rowProps(index))}>
+                      <td>
+                        <span className="inline-flex items-center gap-1">
+                          <Icon name="grip" size={16} className="text-ink-muted" />
+                          {filter.filtered ? (
+                            <span className="w-6 text-right text-body-sm text-ink-muted tabular-nums">
+                              {index + 1}
+                            </span>
                           ) : (
-                            <Image
-                              src={category.imageUrl}
-                              alt=""
-                              fill
-                              sizes="40px"
-                              className="object-cover"
+                            <ReorderButtons
+                              subject={`«${category.name.uz}»`}
+                              index={index}
+                              count={items.length}
+                              onMove={move}
                             />
-                          )
-                        ) : (
-                          <Icon name="image" size={16} />
-                        )}
-                      </span>
-                    </td>
-                    <td>
-                      <span className="flex flex-col">
-                        <span className="font-bold text-ink">{category.name.uz}</span>
-                        <span className="text-[12px] text-ink-muted">
-                          {[category.name.ru, category.name.en].filter(Boolean).join(" · ") ||
-                            "Tarjimalar to‘ldirilmagan"}
+                          )}
                         </span>
-                      </span>
-                    </td>
-                    <td className="font-mono text-[12px] text-ink-muted">{category.slug}</td>
-                    <td className="text-right tabular-nums">
-                      {formatNumber(category.productCount)}
-                    </td>
-                    <td>
-                      <Badge tone={category.isActive ? "success" : "neutral"}>
-                        {category.isActive ? "Faol" : "Faol emas"}
-                      </Badge>
-                    </td>
-                    <td>
-                      <span className="flex justify-end gap-0.5">
-                        <button
-                          type="button"
-                          aria-label={`«${category.name.uz}» — tahrirlash`}
-                          onClick={() => openDialog({ mode: "edit", category })}
-                          className={iconButtonClass}
-                        >
-                          <Icon name="pencil" size={18} />
-                        </button>
-                        <button
-                          type="button"
-                          aria-label={`«${category.name.uz}» — o‘chirish`}
-                          onClick={() => {
-                            setDeleteError(null);
-                            setDeleting(category);
-                          }}
-                          className={`${iconButtonClass} hover:text-danger`}
-                        >
-                          <Icon name="trash" size={18} />
-                        </button>
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="w-14">
+                        <span className="relative flex size-10 items-center justify-center overflow-hidden rounded-md border border-line bg-surface text-ink-muted">
+                          {category.imageUrl ? (
+                            category.imageUrl.startsWith("blob:") ? (
+                              // Demo preview of a picked image (object URL).
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={category.imageUrl}
+                                alt=""
+                                className="size-full object-cover"
+                              />
+                            ) : (
+                              <Image
+                                src={category.imageUrl}
+                                alt=""
+                                fill
+                                sizes="40px"
+                                className="object-cover"
+                              />
+                            )
+                          ) : (
+                            <Icon name="image" size={16} />
+                          )}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="flex flex-col">
+                          <span className="font-bold text-ink">{category.name.uz}</span>
+                          <span className="text-[12px] text-ink-muted">
+                            {[category.name.ru, category.name.en].filter(Boolean).join(" · ") ||
+                              "Tarjimalar to‘ldirilmagan"}
+                          </span>
+                        </span>
+                      </td>
+                      <td className="font-mono text-[12px] text-ink-muted">{category.slug}</td>
+                      <td className="text-right tabular-nums">
+                        {formatNumber(category.productCount)}
+                      </td>
+                      <td>
+                        <Badge tone={category.isActive ? "success" : "neutral"}>
+                          {category.isActive ? "Faol" : "Faol emas"}
+                        </Badge>
+                      </td>
+                      <td>
+                        <span className="flex justify-end gap-0.5">
+                          <button
+                            type="button"
+                            aria-label={`«${category.name.uz}» — tahrirlash`}
+                            onClick={() => openDialog({ mode: "edit", category })}
+                            className={iconButtonClass}
+                          >
+                            <Icon name="pencil" size={18} />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`«${category.name.uz}» — o‘chirish`}
+                            onClick={() => {
+                              setDeleteError(null);
+                              setDeleting(category);
+                            }}
+                            className={`${iconButtonClass} hover:text-danger`}
+                          >
+                            <Icon name="trash" size={18} />
+                          </button>
+                        </span>
+                      </td>
+                    </tr>
+                  ),
+                )}
               </tbody>
             </table>
+            {shown === 0 && (
+              <p className="m-0 px-6 py-10 text-center text-body-sm text-ink-muted">
+                Hech narsa topilmadi. Qidiruv yoki holatni o‘zgartirib ko‘ring.
+              </p>
+            )}
           </ScrollRegion>
         ) : (
           <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">

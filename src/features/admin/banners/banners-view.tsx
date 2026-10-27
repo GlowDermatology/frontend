@@ -24,6 +24,7 @@ import { ExportMenu } from "../shared/export-menu";
 import { useIdempotencyKey } from "../shared/idempotency";
 import { PageHeader } from "../shared/page-header";
 import { ReorderButtons } from "../shared/reorder-buttons";
+import { ListFilterBar, useListFilter } from "../shared/list-filter";
 import { useRowDrag } from "../shared/row-drag";
 import { upsertRow, useOrderedList } from "../shared/use-ordered-list";
 import { BannerDialog } from "./banner-dialog";
@@ -99,6 +100,11 @@ export function BannersView({ banners, categories, now, exportHref }: BannersVie
     merge: keepPreviews,
   });
   const { rowProps } = useRowDrag(move);
+  const filter = useListFilter<Banner>(
+    (banner) => [banner.title.uz, banner.title.ru, banner.title.en],
+    (banner) => banner.isActive,
+  );
+  const shown = items.filter(filter.matches).length;
   const [dialog, setDialog] = useState<DialogState>(null);
   // Mounts a fresh dialog (and form) for every opening.
   const [instance, setInstance] = useState(0);
@@ -188,6 +194,7 @@ export function BannersView({ banners, categories, now, exportHref }: BannersVie
         aria-label="Bannerlar ro‘yxati"
         className="overflow-hidden rounded-lg bg-surface-raised shadow-sm"
       >
+        {items.length > 0 && <ListFilterBar label="Sarlavha bo‘yicha qidirish" filter={filter} />}
         {items.length > 0 ? (
           <ScrollRegion label="Bannerlar jadvali">
             <table className="data-table min-w-[900px]">
@@ -206,18 +213,25 @@ export function BannersView({ banners, categories, now, exportHref }: BannersVie
               </thead>
               <tbody>
                 {items.map((banner, index) => {
+                  if (!filter.matches(banner)) return null;
                   const state = SCHEDULE_META[bannerScheduleState(banner, nowDate)];
                   return (
-                    <tr key={banner.id} {...rowProps(index)}>
+                    <tr key={banner.id} {...(filter.filtered ? {} : rowProps(index))}>
                       <td>
                         <span className="inline-flex items-center gap-1">
                           <Icon name="grip" size={16} className="text-ink-muted" />
-                          <ReorderButtons
-                            subject={`«${banner.title.uz}»`}
-                            index={index}
-                            count={items.length}
-                            onMove={move}
-                          />
+                          {filter.filtered ? (
+                            <span className="w-6 text-right text-body-sm text-ink-muted tabular-nums">
+                              {index + 1}
+                            </span>
+                          ) : (
+                            <ReorderButtons
+                              subject={`«${banner.title.uz}»`}
+                              index={index}
+                              count={items.length}
+                              onMove={move}
+                            />
+                          )}
                         </span>
                       </td>
                       <td>
@@ -283,6 +297,11 @@ export function BannersView({ banners, categories, now, exportHref }: BannersVie
                 })}
               </tbody>
             </table>
+            {shown === 0 && (
+              <p className="m-0 px-6 py-10 text-center text-body-sm text-ink-muted">
+                Hech narsa topilmadi. Qidiruv yoki holatni o‘zgartirib ko‘ring.
+              </p>
+            )}
           </ScrollRegion>
         ) : (
           <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">

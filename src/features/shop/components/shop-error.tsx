@@ -40,7 +40,7 @@ export function ShopError({ locale, reset }: { locale: Locale; reset: () => void
  */
 export function ShopErrorPage({ locale, reset }: { locale: Locale; reset: () => void }) {
   return (
-    <div className="flex min-h-dvh flex-col bg-surface text-ink">
+    <div className="gd-shop flex min-h-dvh flex-col bg-surface text-ink">
       <header className="border-b border-line">
         <div className="mx-auto flex max-w-page items-center px-[clamp(16px,4vw,48px)] py-4">
           <a

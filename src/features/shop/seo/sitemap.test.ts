@@ -37,6 +37,7 @@ describe("sitemaps", () => {
         inStock: true,
         brand: null,
         sku: null,
+        oldPrice: null,
         updatedAt: "2026-10-20T10:00:00+05:00",
       },
     ]);

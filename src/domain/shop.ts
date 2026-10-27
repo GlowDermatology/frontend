@@ -30,6 +30,8 @@ export interface ShopProductCard {
   brand: string | null;
   /** The store's stock-keeping code, when the API sends one. */
   sku: string | null;
+  /** The price before a promotion (always above `price`), when the API sends one. */
+  oldPrice: number | null;
   updatedAt: string | null;
 }
 

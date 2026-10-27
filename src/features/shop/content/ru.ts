@@ -146,6 +146,7 @@ export const ru: ShopDictionary = {
     lowStock: (count) => `Осталось мало: ${count} шт.`,
     outOfStock: "Нет в наличии",
     promo: "Акция",
+    oldPrice: "Старая цена:",
     description: "Описание",
     ingredients: "Состав",
     usage: "Способ применения",

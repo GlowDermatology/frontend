@@ -17,7 +17,7 @@ export function ShopChrome({ locale, children }: { locale: Locale; children: Rea
   const dict = getShopDictionary(locale);
   return (
     <ShopSessionProvider locale={locale}>
-      <div className="flex min-h-dvh flex-col bg-surface text-ink">
+      <div className="gd-shop flex min-h-dvh flex-col bg-surface text-ink">
         <a
           href={`#${MAIN_ID}`}
           className="sr-only z-50 rounded-md bg-ink px-4 py-3 text-label text-surface focus:not-sr-only focus:fixed focus:top-3 focus:left-3"

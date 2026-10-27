@@ -33,6 +33,7 @@ const product: ShopProduct = {
   inStock: true,
   brand: null,
   sku: null,
+  oldPrice: null,
   updatedAt: null,
   description: "",
   ingredients: "",

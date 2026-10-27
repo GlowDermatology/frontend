@@ -49,7 +49,8 @@ export function ProductCard({
         zoom
       />
       <div className="flex flex-1 flex-col gap-1.5 px-0.5">
-        <div className="flex min-h-6 flex-wrap items-center gap-2">
+        {/* Always one badge row tall, badges or not, so cards line up. */}
+        <div className="flex h-6 flex-nowrap items-center gap-2 overflow-hidden">
           {product.promo ? (
             <Badge tone="gold" dot={false}>
               {dict.product.promo}
@@ -79,6 +80,15 @@ export function ProductCard({
           )}
         >
           {formatPrice(product.price, locale)}
+          {product.promo && product.oldPrice ? (
+            <>
+              {" "}
+              <s className="text-body-sm font-normal text-ink-muted">
+                <span className="sr-only">{dict.product.oldPrice}</span>
+                {formatPrice(product.oldPrice, locale)}
+              </s>
+            </>
+          ) : null}
         </p>
       </div>
       {/* The stretched link's focus ring, drawn around the whole card. */}

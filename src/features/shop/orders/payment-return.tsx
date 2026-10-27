@@ -70,38 +70,41 @@ export function PaymentReturn({
       aria-live="polite"
       className="relative flex flex-col items-center gap-4 overflow-hidden rounded-lg border border-line bg-surface-raised px-6 py-[clamp(36px,5vw,56px)] text-center"
     >
-      <Rings
-        viewBox={400}
-        rings={[
-          [70, 0.5],
-          [110, 0.3],
-          [150, 0.16],
-        ]}
-        className={cn(
-          "absolute top-1/2 left-1/2 size-[440px] -translate-x-1/2 -translate-y-1/2",
-          phase === "checking" && "motion-safe:animate-pulse",
-        )}
-      />
-      <span
-        className={cn(
-          "relative flex size-16 animate-pop-in items-center justify-center rounded-full",
-          view.tone === "success" && "bg-success-soft text-success",
-          view.tone === "danger" && "bg-danger-soft text-danger-strong",
-          view.tone === "gold" && "bg-gold-soft text-gold-ink",
-        )}
-      >
-        <Icon
-          name={
-            phase === "paid"
-              ? "check"
-              : phase === "failed" || phase === "expired"
-                ? "alert-circle"
-                : "clock"
-          }
-          size={30}
-          strokeWidth={2}
+      {/* The rings sit behind the icon, centred on it. */}
+      <div className="relative flex items-center justify-center py-6">
+        <Rings
+          viewBox={400}
+          rings={[
+            [70, 0.5],
+            [110, 0.3],
+            [150, 0.16],
+          ]}
+          className={cn(
+            "pointer-events-none absolute top-1/2 left-1/2 size-[240px] -translate-x-1/2 -translate-y-1/2",
+            phase === "checking" && "motion-safe:animate-pulse",
+          )}
         />
-      </span>
+        <span
+          className={cn(
+            "relative flex size-16 animate-pop-in items-center justify-center rounded-full",
+            view.tone === "success" && "bg-success-soft text-success",
+            view.tone === "danger" && "bg-danger-soft text-danger-strong",
+            view.tone === "gold" && "bg-gold-soft text-gold-ink",
+          )}
+        >
+          <Icon
+            name={
+              phase === "paid"
+                ? "check"
+                : phase === "failed" || phase === "expired"
+                  ? "alert-circle"
+                  : "clock"
+            }
+            size={30}
+            strokeWidth={2}
+          />
+        </span>
+      </div>
       <h2 className="relative m-0 font-serif text-headline-sm font-semibold text-ink">
         {view.title}
       </h2>

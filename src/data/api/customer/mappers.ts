@@ -91,6 +91,10 @@ export function mapProductCard(
     inStock: api.stock_status === "in_stock" && available > 0,
     brand: optionalText(api.brand),
     sku: optionalText(api.sku),
+    oldPrice:
+      typeof api.old_price === "number" && api.old_price > api.price
+        ? Math.trunc(api.old_price)
+        : null,
     updatedAt: isoOrNull(api.updated_at),
   };
 }

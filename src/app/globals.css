@@ -279,6 +279,21 @@
   }
 }
 
+/*
+ * Storefront figures: Cormorant's old-style digits make prices, balances and
+ * percentages dance; lining figures everywhere in the serif, tabular ones
+ * where amounts line up. Unlayered on purpose: it must beat the
+ * `tabular-nums` utility, which would otherwise drop `lining-nums`.
+ */
+.gd-shop .font-serif {
+  font-variant-numeric: lining-nums;
+}
+.gd-shop .text-price,
+.gd-shop .text-price-lg,
+.gd-shop .tabular-nums {
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   html {
     scroll-behavior: smooth;

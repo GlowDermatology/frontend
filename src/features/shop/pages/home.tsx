@@ -129,9 +129,65 @@ function BannerFrame({
   );
 }
 
+/**
+ * The hero without a banner: up to three product photos over the brand's
+ * rings, editorial-style (decorative — the products are listed below). With
+ * no photo at all the plain rings panel stays.
+ */
+const COLLAGE_SLOTS = [
+  "left-[6%] top-[9%] w-[54%] z-10",
+  "right-[6%] top-[4%] w-[36%] ring-1 ring-gold/50 ring-offset-4 ring-offset-banner",
+  "right-[10%] bottom-[7%] w-[40%] z-20 ring-1 ring-gold/50 ring-offset-4 ring-offset-banner",
+] as const;
+
+function HeroCollage({ images }: { images: ReadonlyArray<string> }) {
+  return (
+    <div
+      aria-hidden="true"
+      className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-banner nav:aspect-[4/5]"
+    >
+      <Rings
+        viewBox={800}
+        rings={[
+          [150, 0.55],
+          [210, 0.38],
+          [270, 0.25],
+          [330, 0.15],
+          [392, 0.08],
+        ]}
+        className="absolute top-1/2 left-1/2 size-[140%] -translate-x-1/2 -translate-y-1/2"
+      />
+      {images.map((src, index) => (
+        <div
+          key={src}
+          className={cn(
+            "absolute aspect-product overflow-hidden rounded-lg bg-surface-raised shadow-lg",
+            images.length === 1
+              ? "top-1/2 left-1/2 w-[58%] -translate-x-1/2 -translate-y-1/2"
+              : COLLAGE_SLOTS[index],
+          )}
+        >
+          <Image
+            src={src}
+            alt=""
+            fill
+            priority={index === 0}
+            sizes="(min-width: 72rem) 340px, 55vw"
+            className="object-cover"
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 async function Hero({ locale, dict }: { locale: Locale; dict: ShopDictionary }) {
-  const banners = await settle(getBanners(locale), [], "banners");
+  const [banners, featured] = await Promise.all([
+    settle(getBanners(locale), [], "banners"),
+    settle(getFeaturedProducts(locale, 8), [], "featured products"),
+  ]);
   const [lead, ...rest] = banners.filter((banner) => banner.image);
+  const collage = featured.filter((product) => product.image).slice(0, 3);
   return (
     <section aria-labelledby="hero-title" className="relative">
       <Container>
@@ -173,6 +229,8 @@ async function Hero({ locale, dict }: { locale: Locale; dict: ShopDictionary }) 
               sizes="(min-width: 72rem) 620px, 100vw"
               className="aspect-[4/5] w-full sm:aspect-[4/3] nav:aspect-[4/5]"
             />
+          ) : collage.length > 0 ? (
+            <HeroCollage images={collage.map((product) => product.image as string)} />
           ) : (
             <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg bg-banner nav:aspect-[4/5]">
               <Rings

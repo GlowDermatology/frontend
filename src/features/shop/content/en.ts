@@ -142,6 +142,7 @@ export const en: ShopDictionary = {
     lowStock: (count) => `Only ${count} left`,
     outOfStock: "Out of stock",
     promo: "Offer",
+    oldPrice: "Was",
     description: "Description",
     ingredients: "Ingredients",
     usage: "How to use",

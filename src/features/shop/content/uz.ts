@@ -149,6 +149,7 @@ export const uz = {
     lowStock: (count: number) => `Oz qoldi: ${count} ta`,
     outOfStock: "Tugagan",
     promo: "Aksiya",
+    oldPrice: "Avvalgi narx:",
     description: "Tavsif",
     ingredients: "Tarkibi",
     usage: "Qo‘llash tartibi",

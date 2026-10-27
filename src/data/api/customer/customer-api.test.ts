@@ -93,6 +93,14 @@ const card: ApiCustomerProductCard = {
 };
 
 describe("mapProductCard", () => {
+  it("keeps an old price only when it is above the current one", () => {
+    expect(mapProductCard({ ...card, promo: true, old_price: 220000 }, HOSTS).oldPrice).toBe(
+      220000,
+    );
+    expect(mapProductCard({ ...card, old_price: 100 }, HOSTS).oldPrice).toBeNull();
+    expect(mapProductCard(card, HOSTS).oldPrice).toBeNull();
+  });
+
   it("maps an M2 card (no slug yet): the id is the URL segment", () => {
     expect(mapProductCard(card, HOSTS)).toEqual({
       id: 1,
@@ -109,6 +117,7 @@ describe("mapProductCard", () => {
       inStock: true,
       brand: null,
       sku: null,
+      oldPrice: null,
       updatedAt: null,
     });
   });

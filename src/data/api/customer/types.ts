@@ -28,6 +28,8 @@ interface PlannedSeoFields {
 interface PlannedBrand {
   brand?: string | null;
   sku?: string | null;
+  /** The price before the promotion, for a struck-through «AKSIYA» price. */
+  old_price?: number | null;
 }
 
 /** The B-W1 keys, kept optional so an older API (or a recorded fixture) still type-checks. */

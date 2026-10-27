@@ -9,7 +9,7 @@ import { createRefreshCoordinator, type CustomerRefreshOutcome } from "./refresh
 
 /**
  * The process-wide single-flight refresh (`./refresh.ts`). Every caller —
- * the refresh route today, W3b's Server Actions tomorrow — goes through
+ * the refresh route and the client plumbing of the Server Actions — goes through
  * `refreshCustomerSession`, so two requests carrying the same refresh
  * cookie never rotate it twice.
  */

@@ -7,7 +7,7 @@ import type { ApiServiceList, ApiSpecialist, ApiSpecialistList } from "./types";
 
 /**
  * Specialists and services (contract §2.11, public part). Slots and booking
- * (`specialists/{id}/slots/`, `appointments/`) are W3b. Throws `ApiError`.
+ * (`specialists/{id}/slots/`, `appointments/`) live in `./commerce.ts`. Throws `ApiError`.
  */
 
 export function apiSpecialists(locale: Locale) {

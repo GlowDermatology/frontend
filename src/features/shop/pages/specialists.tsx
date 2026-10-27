@@ -145,7 +145,7 @@ async function SpecialistBody({
   const dict = getShopDictionary(locale);
   const t = dict.specialists;
   const path = shopPath(locale, { kind: "specialist", slug: specialist.segment });
-  // W3b: the booking flow (specialist → service → slot) behind this link.
+  // The booking flow opens on this specialist's services.
   const book = shopHref(locale, { kind: "booking" }, { specialist: specialist.id });
   return (
     <Container className="pb-[clamp(64px,8vw,120px)]">

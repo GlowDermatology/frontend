@@ -6,10 +6,9 @@ import { customerFetchFrom, type CustomerDevice } from "./client";
 
 /**
  * Session endpoints the BFF route handlers need (contract §2.1.6–§2.1.7).
- * Sign-in, registration, codes and social sign-in are W3b
- * (`auth/send-code/`, `verify-code/`, `set-password/`, `login/`,
- * `reset-password/`, `social/…`): add them here, setting the cookies with
- * `sessionCookies()` and `deviceKeyCookie()` from `src/data/customer-auth`.
+ * Sign-in, registration, codes and social sign-in are in `./account.ts`;
+ * their Server Actions set the cookies with `sessionCookies()` and
+ * `deviceKeyCookie()` (`src/data/shop/private.ts`).
  */
 
 export interface ApiCustomerTokens {
@@ -37,8 +36,8 @@ export function apiCustomerRefresh(input: {
 
 /**
  * `POST auth/logout/` → 204; 401 `SESSION_EXPIRED` counts as logged out.
- * `scope` (`current` | `all`) arrives with B-W1's multi-session support and
- * is sent only when asked for, so the call works on both API versions.
+ * `scope` (`current` | `others` | `all`, B-W1) is sent only when asked for
+ * (`all` = «Hamma joydan chiqish»), so the call also works on an older API.
  */
 export function apiCustomerLogout(input: {
   refresh: string;

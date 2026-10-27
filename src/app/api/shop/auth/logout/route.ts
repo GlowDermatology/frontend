@@ -18,8 +18,8 @@ import { parseAllowedOrigins } from "@/lib/origins";
  * required: a same-origin request (fetch metadata, then Origin/Referer
  * against the host and `GLOWDERMA_ALLOWED_ORIGINS`) and the double-submit
  * token (`X-CSRF-Token` header or `csrf` form field) matching
- * `gd_cust_csrf`. `scope` = `current` (default) or `all` ("Hamma joydan
- * chiqish", sent to the API once B-W1 supports it). Whatever the API answers
+ * `gd_cust_csrf`. `scope` = `current` (default) or `all` («Hamma joydan
+ * chiqish» of the «Faol seanslar» page, B-W1). Whatever the API answers
  * — 204, or 401 for an already-dead session, or a transport failure — the
  * browser is signed out: the session cookies are cleared (the device id and
  * key stay) and the response is a 303 to `next` (default: the home page of

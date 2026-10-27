@@ -1,8 +1,12 @@
-import { PlaceholderPage, placeholderMetadata } from "@/features/shop/pages/placeholder";
+import type { Metadata } from "next";
 
-/** W3a placeholder (noindex); W3b replaces it with the real screen. */
-export const metadata = placeholderMetadata("uz", "booking");
+import { BookingPage, bookingMetadata } from "@/features/shop/pages/private/booking";
 
-export default function Page() {
-  return <PlaceholderPage locale="uz" kind="booking" />;
+/** Booking: specialist, service, date, time, confirm (private: noindex). */
+export function generateMetadata(): Promise<Metadata> {
+  return bookingMetadata("uz");
+}
+
+export default function Page({ searchParams }: PageProps<"/qabulga-yozilish">) {
+  return <BookingPage locale={"uz"} searchParams={searchParams} />;
 }

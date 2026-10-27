@@ -49,6 +49,8 @@ export interface ShopMetadataInput {
   noindex?: boolean;
   /** Whether the page exists in every language (all storefront pages do). */
   alternates?: boolean;
+  /** `og:type`; a product page says `product` (U14). */
+  ogType?: "website" | "product" | "profile";
 }
 
 export function absoluteUrl(path: string): string {
@@ -83,7 +85,9 @@ export function buildShopMetadata(input: ShopMetadataInput): Metadata {
       ? { index: false, follow: true, googleBot: { index: false, follow: true } }
       : { index: true, follow: true, "max-image-preview": "large" },
     openGraph: {
-      type: "website",
+      // Next types only the article/profile/… unions; "product" passes through
+      // as og:type with the basic fields.
+      type: (input.ogType ?? "website") as "website",
       siteName: siteConfig.name,
       title,
       description,

@@ -21,9 +21,13 @@ interface PlannedSeoFields {
   seo_description?: string | null;
 }
 
-/** Optional on any API version: a product's brand (not in the M2 contract). */
+/**
+ * Optional on any API version: a product's brand and stock-keeping code (not
+ * in the M2 contract). Without a real SKU the JSON-LD leaves `sku` out.
+ */
 interface PlannedBrand {
   brand?: string | null;
+  sku?: string | null;
 }
 
 /** The B-W1 keys, kept optional so an older API (or a recorded fixture) still type-checks. */

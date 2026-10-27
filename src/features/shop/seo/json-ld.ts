@@ -88,12 +88,18 @@ export function clinicLd(input: {
   origin: string;
   settings: ShopSettings;
   location?: { latitude: number | null; longitude: number | null } | null;
+  /** Configured fallbacks (`clinic-facts.ts`). */
+  facts?: {
+    openingHours: ReadonlyArray<JsonLdNode>;
+    geo: { latitude: number; longitude: number } | null;
+  };
 }): JsonLdNode {
-  const { origin, settings, location } = input;
-  const geo =
+  const { origin, settings, location, facts } = input;
+  const point =
     location && location.latitude !== null && location.longitude !== null
-      ? { "@type": "GeoCoordinates", latitude: location.latitude, longitude: location.longitude }
-      : undefined;
+      ? { latitude: location.latitude, longitude: location.longitude }
+      : (facts?.geo ?? null);
+  const geo = point ? { "@type": "GeoCoordinates", ...point } : undefined;
   return compact({
     "@context": "https://schema.org",
     "@type": ["MedicalClinic", "Store"],
@@ -104,6 +110,7 @@ export function clinicLd(input: {
     telephone: phones(settings)[0],
     address: postalAddress(settings.pickupAddress),
     geo,
+    openingHoursSpecification: facts?.openingHours.length ? [...facts.openingHours] : undefined,
     medicalSpecialty: ["Dermatology"],
     currenciesAccepted: "UZS",
     parentOrganization: { "@id": ids(origin).organization },
@@ -112,6 +119,8 @@ export function clinicLd(input: {
 
 export function websiteLd(input: {
   origin: string;
+  /** The language's home URL (`/`, `/ru`, `/en`). */
+  url: string;
   locale: Locale;
   name: string;
   searchUrlTemplate: string;
@@ -119,9 +128,11 @@ export function websiteLd(input: {
   return {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    "@id": ids(input.origin).website,
+    // One node per language: the same @id with three names/URLs would merge
+    // into one contradictory entity (U14).
+    "@id": `${input.url.replace(/\/$/, "")}/#website`,
     name: input.name,
-    url: input.origin,
+    url: input.url,
     inLanguage: input.locale,
     publisher: { "@id": ids(input.origin).organization },
     potentialAction: {
@@ -164,7 +175,7 @@ export function productLd(input: {
     name: product.name,
     description: input.description,
     image: images,
-    sku: String(product.id),
+    sku: product.sku ?? undefined,
     category: product.category?.name,
     brand: product.brand ? { "@type": "Brand", name: product.brand } : undefined,
     size: product.volume || undefined,

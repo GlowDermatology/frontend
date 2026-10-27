@@ -1,5 +1,6 @@
 "use client";
 
+import { localizeVolume } from "@/features/shop/content/volume";
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
@@ -193,7 +194,9 @@ export function CartView({ locale, initial, canCheckout, supportPhone }: CartVie
                     {line.name}
                   </p>
                   {line.volume ? (
-                    <p className="m-0 text-body-sm text-ink-muted">{line.volume}</p>
+                    <p className="m-0 text-body-sm text-ink-muted">
+                      {localizeVolume(line.volume, locale)}
+                    </p>
                   ) : null}
                   <p className="m-0 text-label text-ink tabular-nums">
                     {money(line.unitPrice)}

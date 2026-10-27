@@ -28,6 +28,8 @@ export interface ShopProductCard {
   available: number;
   inStock: boolean;
   brand: string | null;
+  /** The store's stock-keeping code, when the API sends one. */
+  sku: string | null;
   updatedAt: string | null;
 }
 

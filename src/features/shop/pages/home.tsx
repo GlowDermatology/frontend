@@ -33,6 +33,7 @@ import { SpecialistCard } from "../components/specialist-card";
 import { getShopDictionary, type ShopDictionary } from "../content";
 import { shopHref, shopPath } from "../routing/routes";
 import { JsonLd } from "../seo/json-ld-script";
+import { clinicFacts } from "../seo/clinic-facts";
 import { clinicLd, organizationLd, websiteLd } from "../seo/json-ld";
 import { absoluteUrl, buildShopMetadata } from "../seo/metadata";
 import { settle } from "./settle";
@@ -312,7 +313,10 @@ async function Clinic({ locale, dict }: { locale: Locale; dict: ShopDictionary }
     settle(getSpecialists(locale), [], "specialists"),
   ]);
   if (!settings) return null;
-  const location = specialists[0]?.location ?? null;
+  // The first location with coordinates (the clinic's geo, U14).
+  const location =
+    specialists.find((s) => s.location.latitude !== null && s.location.longitude !== null)
+      ?.location ?? null;
   const origin = siteConfig.url;
   const phones = phonesOf(settings, dict);
   return (
@@ -323,9 +327,10 @@ async function Clinic({ locale, dict }: { locale: Locale; dict: ShopDictionary }
       <JsonLd
         data={[
           organizationLd({ origin, settings }),
-          clinicLd({ origin, settings, location }),
+          clinicLd({ origin, settings, location, facts: clinicFacts() }),
           websiteLd({
             origin,
+            url: absoluteUrl(shopPath(locale, { kind: "home" })),
             locale,
             name: dict.meta.siteName,
             searchUrlTemplate: `${absoluteUrl(shopPath(locale, { kind: "catalog" }))}?q={search_term_string}`,

@@ -108,6 +108,7 @@ describe("mapProductCard", () => {
       available: 12,
       inStock: true,
       brand: null,
+      sku: null,
       updatedAt: null,
     });
   });

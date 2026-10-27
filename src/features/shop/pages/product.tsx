@@ -1,3 +1,4 @@
+import { localizeVolume } from "@/features/shop/content/volume";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -24,7 +25,7 @@ import { ShopBreadcrumbs } from "../components/shop-breadcrumbs";
 import { ProductGridSkeleton, ProductSkeleton } from "../components/skeletons";
 import { getShopDictionary, type ShopDictionary } from "../content";
 import { shopPath } from "../routing/routes";
-import { productDescription, productTitle } from "../seo/describe";
+import { productDescription, productTitle, type UzTexts } from "../seo/describe";
 import { JsonLd } from "../seo/json-ld-script";
 import { breadcrumbLd, productLd } from "../seo/json-ld";
 import { absoluteUrl, buildShopMetadata } from "../seo/metadata";
@@ -43,15 +44,26 @@ export async function productMetadata(
   if (!product) return { robots: { index: false, follow: false } };
   const dict = getShopDictionary(locale);
   const image = product.images[0]?.url ?? product.imageUrl;
+  const uz = await uzTexts(locale, slug);
   return buildShopMetadata({
     locale,
     route: { kind: "product", slug: product.segment },
-    title: productTitle(product),
-    description: productDescription(product, locale, dict),
+    title: productTitle(product, locale, uz),
+    description: productDescription(product, locale, dict, uz),
+    ogType: "product",
     images: image
       ? [{ url: image, alt: product.name }]
       : [{ url: `/og/home/${locale}`, width: 1200, height: 630, alt: dict.meta.ogAlt }],
   });
+}
+
+/** The Uzbek texts behind a ru/en page, to spot untranslated fallbacks (U6). */
+async function uzTexts(locale: Locale, slug: string): Promise<UzTexts> {
+  if (locale === "uz") return null;
+  const uz = await getProduct("uz", slug).catch(() => null);
+  return uz
+    ? { description: uz.description, seoTitle: uz.seoTitle, seoDescription: uz.seoDescription }
+    : null;
 }
 
 function StockLine({ product, dict }: { product: ShopProduct; dict: ShopDictionary }) {
@@ -165,7 +177,7 @@ async function ProductBody({
             origin: siteConfig.url,
             product,
             url,
-            description: productDescription(product, locale, dict),
+            description: productDescription(product, locale, dict, await uzTexts(locale, slug)),
           }),
           breadcrumbLd(
             crumbs.map((crumb) => ({
@@ -201,7 +213,9 @@ async function ProductBody({
             </h1>
             {product.volume || product.brand ? (
               <p className="m-0 text-body text-ink-muted">
-                {[product.brand, product.volume].filter(Boolean).join(" · ")}
+                {[product.brand, localizeVolume(product.volume, locale)]
+                  .filter(Boolean)
+                  .join(" · ")}
               </p>
             ) : null}
           </div>
@@ -245,7 +259,7 @@ async function ProductBody({
             {product.volume ? (
               <>
                 <dt className="text-ink-muted">{dict.product.volume}</dt>
-                <dd className="m-0 text-ink">{product.volume}</dd>
+                <dd className="m-0 text-ink">{localizeVolume(product.volume, locale)}</dd>
               </>
             ) : null}
             {product.brand ? (

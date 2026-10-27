@@ -3,6 +3,7 @@ import { formatPrice } from "@/lib/format";
 import type { Locale } from "@/lib/i18n/locales";
 
 import type { ShopDictionary } from "../content";
+import { localizeVolume } from "../content/volume";
 import { clampDescription } from "./metadata";
 
 /**
@@ -13,24 +14,49 @@ import { clampDescription } from "./metadata";
  * from name, volume, category and price — never an empty description.
  */
 
-export function productTitle(product: ShopProduct): string {
-  if (product.seoTitle) return product.seoTitle;
-  return product.volume ? `${product.name}, ${product.volume}` : product.name;
+/** The Uzbek texts of the same product, to spot an untranslated fallback (U6). */
+export type UzTexts = Pick<ShopProduct, "description" | "seoTitle" | "seoDescription"> | null;
+
+const squash = (value: string | null | undefined) => (value ?? "").replace(/\s+/g, " ").trim();
+
+/**
+ * A ru/en text the API filled from Uzbek (staff left the translation empty)
+ * counts as missing: a Russian page must not describe itself in Uzbek.
+ */
+function own(
+  value: string | null | undefined,
+  locale: Locale,
+  uz: UzTexts | undefined,
+  key: keyof NonNullable<UzTexts>,
+): string {
+  if (!value) return "";
+  if (locale !== "uz" && uz && squash(uz[key]) === squash(value)) return "";
+  return value;
+}
+
+export function productTitle(product: ShopProduct, locale: Locale = "uz", uz?: UzTexts): string {
+  const seoTitle = own(product.seoTitle, locale, uz, "seoTitle");
+  if (seoTitle) return seoTitle;
+  const volume = localizeVolume(product.volume, locale);
+  return volume ? `${product.name}, ${volume}` : product.name;
 }
 
 export function productDescription(
   product: ShopProduct,
   locale: Locale,
   dict: ShopDictionary,
+  uz?: UzTexts,
 ): string {
-  if (product.seoDescription) return clampDescription(product.seoDescription);
-  if (product.description.replace(/\s+/g, "").length >= 50) {
-    return clampDescription(product.description);
+  const seoDescription = own(product.seoDescription, locale, uz, "seoDescription");
+  if (seoDescription) return clampDescription(seoDescription);
+  const description = own(product.description, locale, uz, "description");
+  if (description.replace(/\s+/g, "").length >= 50) {
+    return clampDescription(description);
   }
   return clampDescription(
     dict.meta.productDescription({
       name: product.name,
-      volume: product.volume,
+      volume: localizeVolume(product.volume, locale),
       category: product.category?.name ?? null,
       price: formatPrice(product.price, locale),
     }),

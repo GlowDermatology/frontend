@@ -1,3 +1,4 @@
+import { localizeVolume } from "@/features/shop/content/volume";
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
@@ -67,7 +68,9 @@ export function ProductCard({
           </Link>
         </Heading>
         {product.volume ? (
-          <p className="m-0 text-body-sm text-ink-muted">{product.volume}</p>
+          <p className="m-0 text-body-sm text-ink-muted">
+            {localizeVolume(product.volume, locale)}
+          </p>
         ) : null}
         <p
           className={cn(

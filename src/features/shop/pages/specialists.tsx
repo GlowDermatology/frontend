@@ -124,9 +124,17 @@ export async function specialistMetadata(
     description:
       specialist.bio ||
       dict.meta.specialistDescription(specialist.name, specialist.roleLabel, services),
-    images: specialist.photoUrl
-      ? [{ url: specialist.photoUrl, alt: specialist.name }]
-      : [{ url: `/og/home/${locale}`, width: 1200, height: 630, alt: dict.meta.ogAlt }],
+    // Its own branded card first (name and role), then the portrait (U14).
+    images: [
+      {
+        url: `/og/specialist/${locale}/${encodeURIComponent(specialist.segment)}`,
+        width: 1200,
+        height: 630,
+        alt: specialist.name,
+      },
+      ...(specialist.photoUrl ? [{ url: specialist.photoUrl, alt: specialist.name }] : []),
+    ],
+    ogType: "profile",
   });
 }
 

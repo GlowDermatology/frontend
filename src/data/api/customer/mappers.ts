@@ -90,6 +90,7 @@ export function mapProductCard(
     available,
     inStock: api.stock_status === "in_stock" && available > 0,
     brand: optionalText(api.brand),
+    sku: optionalText(api.sku),
     updatedAt: isoOrNull(api.updated_at),
   };
 }

@@ -32,6 +32,7 @@ const product: ShopProduct = {
   available: 12,
   inStock: true,
   brand: null,
+  sku: null,
   updatedAt: null,
   description: "",
   ingredients: "",
@@ -142,6 +143,21 @@ describe("entity descriptions", () => {
     expect(productTitle({ ...product, seoTitle: "Serum SPF" })).toBe("Serum SPF");
   });
 
+  it("never describes a ru/en page with the Uzbek fallback text (U6)", () => {
+    const ru = getShopDictionary("ru");
+    const description =
+      "Yengil serum teringizni chuqur namlaydi va tiniqlashtiradi, har kuni ertalab.";
+    const uzTexts = { description, seoTitle: null, seoDescription: null };
+    const fallback = productDescription({ ...product, description }, "ru", ru, uzTexts);
+    expect(fallback).not.toContain("Yengil serum");
+    expect(fallback).toContain("30 мл");
+    const translated = "Лёгкая сыворотка глубоко увлажняет кожу и выравнивает её тон каждый день.";
+    expect(productDescription({ ...product, description: translated }, "ru", ru, uzTexts)).toBe(
+      translated,
+    );
+    expect(productTitle(product, "ru")).toBe("Gialuron kislotali serum, 30 мл");
+  });
+
   it("describes a category by its name and count when staff left it empty", () => {
     expect(
       categoryDescription(
@@ -182,7 +198,6 @@ describe("JSON-LD", () => {
     expect(ld).toMatchObject({
       "@type": "Product",
       name: "Gialuron kislotali serum",
-      sku: "1",
       image: ["https://media.glowderma.uz/a.webp"],
       offers: {
         "@type": "Offer",
@@ -191,16 +206,19 @@ describe("JSON-LD", () => {
         availability: "https://schema.org/InStock",
       },
     });
+    // No made-up brand or SKU (the product id is not one).
     expect(ld).not.toHaveProperty("brand");
+    expect(ld).not.toHaveProperty("sku");
     expect(
       productLd({
         origin: ORIGIN,
-        product: { ...product, inStock: false, brand: "CeraVe" },
+        product: { ...product, inStock: false, brand: "CeraVe", sku: "CV-HA-30" },
         url: "u",
         description: "d",
       }),
     ).toMatchObject({
       brand: { "@type": "Brand", name: "CeraVe" },
+      sku: "CV-HA-30",
       offers: { availability: "https://schema.org/OutOfStock" },
     });
   });
@@ -224,18 +242,38 @@ describe("JSON-LD", () => {
       geo: { latitude: 41.3, longitude: 69.2 },
     });
     expect(clinicLd({ origin: ORIGIN, settings, location: null })).not.toHaveProperty("geo");
+    const hours = {
+      "@type": "OpeningHoursSpecification",
+      dayOfWeek: ["Monday"],
+      opens: "09:00",
+      closes: "20:00",
+    };
+    expect(
+      clinicLd({
+        origin: ORIGIN,
+        settings,
+        location: { latitude: null, longitude: null },
+        facts: { openingHours: [hours], geo: { latitude: 41.31, longitude: 69.28 } },
+      }),
+    ).toMatchObject({
+      geo: { "@type": "GeoCoordinates", latitude: 41.31, longitude: 69.28 },
+      openingHoursSpecification: [hours],
+    });
   });
 
   it("declares the site search", () => {
     expect(
       websiteLd({
         origin: ORIGIN,
-        locale: "uz",
+        url: `${ORIGIN}/ru`,
+        locale: "ru",
         name: "Glow Derma",
         searchUrlTemplate: `${ORIGIN}/katalog?q={search_term_string}`,
       }),
     ).toMatchObject({
       "@type": "WebSite",
+      "@id": `${ORIGIN}/ru/#website`,
+      url: `${ORIGIN}/ru`,
       potentialAction: {
         "@type": "SearchAction",
         target: { urlTemplate: `${ORIGIN}/katalog?q={search_term_string}` },

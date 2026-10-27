@@ -326,7 +326,7 @@ const en: Copy = {
     added: "Added to your bag",
     inCart: (count) => `In your bag: ${count}`,
     viewCart: "View bag",
-    maxReached: "Your bag holds all we have in stock. Need more? Contact the store.",
+    maxReached: "You already have all our stock of this in your bag. Need more? Contact the store.",
     signIn: "Sign in to add to your bag",
   },
   cart: {
@@ -345,7 +345,7 @@ const en: Copy = {
     remove: "Remove",
     removeLabel: (name) => `Remove ${name} from your bag`,
     removed: (name) => `${name} was removed from your bag`,
-    maxReached: "Your bag holds all we have in stock. Need more? Contact the store.",
+    maxReached: "You already have all our stock of this in your bag. Need more? Contact the store.",
     status: {
       ok: "",
       insufficient: (available) => `Only ${available} left — lower the quantity`,

@@ -56,6 +56,10 @@ const nextConfig: NextConfig = {
     content: { stale: 300, revalidate: 3_600, expire: 604_800 },
   },
   htmlLimitedBots: HTML_LIMITED_BOTS,
+  // The OG image routes read the vendored Cormorant WOFF files at runtime.
+  outputFileTracingIncludes: {
+    "/og/**": ["./src/features/shop/og/fonts/*"],
+  },
   reactCompiler: true,
   typedRoutes: true,
   poweredByHeader: false,

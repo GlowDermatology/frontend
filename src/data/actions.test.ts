@@ -535,6 +535,54 @@ describe("api mode (catalog actions wired)", () => {
         body: { name: category.name, is_active: false },
       }),
     );
+    // Gap ADM-5.1: a picked image goes as multipart with the dotted names; a
+    // removal is a JSON PATCH with `remove_image: true`.
+    const png = new File([new Uint8Array([137, 80, 78, 71])], "c.png", { type: "image/png" });
+    const withImage = new FormData();
+    withImage.set("image", png);
+    const imageUrl = "http://localhost:8001/media/categories/9/77aa1b2c3d4e5f60.png";
+    apiFetch.mockResolvedValueOnce(respond(201, { ...category, image_url: imageUrl }));
+    expect(
+      await createCategory(
+        { slug: "masks", name: category.name, isActive: true },
+        KEY,
+        CSRF,
+        withImage,
+      ),
+    ).toMatchObject({ ok: true, data: { imageUrl } });
+    const created = apiFetch.mock.calls.at(-1)![1];
+    expect(created.body).toBeUndefined();
+    expect(
+      Object.fromEntries([...created.formData.entries()].filter(([k]: [string]) => k !== "image")),
+    ).toEqual({
+      slug: "masks",
+      "name.uz": "Niqoblar",
+      "name.ru": "",
+      "name.en": "",
+      is_active: "true",
+    });
+    expect(created.formData.get("image")).toBeInstanceOf(File);
+    const removal = new FormData();
+    removal.set("remove_image", "true");
+    apiFetch.mockResolvedValueOnce(respond(200, { ...category, image_url: null }));
+    expect(
+      await updateCategory("masks", { name: category.name, isActive: true }, KEY, CSRF, removal),
+    ).toMatchObject({ ok: true, data: { imageUrl: null } });
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/categories/masks/",
+      expect.objectContaining({
+        body: { name: category.name, is_active: true, remove_image: true },
+      }),
+    );
+    // A wrong type is refused before the round trip, on the picker's field.
+    const gif = new FormData();
+    gif.set("image", new File(["x"], "c.gif", { type: "image/gif" }));
+    const calls = apiFetch.mock.calls.length;
+    expect(
+      await updateCategory("masks", { name: category.name, isActive: true }, KEY, CSRF, gif),
+    ).toMatchObject({ ok: false, fieldErrors: { image: "Faqat JPEG, PNG yoki WebP rasm." } });
+    expect(apiFetch).toHaveBeenCalledTimes(calls);
+
     apiFetch.mockResolvedValueOnce(respond(200, { results: [{ ...category, position: 0 }] }));
     expect(await reorderCategories(["masks"], CSRF)).toMatchObject({
       ok: true,

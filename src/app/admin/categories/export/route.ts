@@ -12,13 +12,14 @@ export async function GET(request: Request) {
     apiParams: {},
     signal: request.signal,
     mock: async () => ({
-      header: ["Slug", "Nomi", "Tartib", "Faol", "Mahsulotlar"],
+      header: ["Slug", "Nomi", "Tartib", "Faol", "Mahsulotlar", "Rasm"],
       rows: (await exportCategories()).map((c) => [
         c.slug,
         c.name.uz,
         c.position,
         c.isActive,
         c.productCount,
+        c.imageUrl ?? "",
       ]),
     }),
   });

@@ -14,6 +14,7 @@ import { billzImportSummary, isJobDone } from "./job";
 const category = (slug: string, uz: string, productCount = 0): Category => ({
   slug,
   name: { uz, ru: "", en: "" },
+  imageUrl: null,
   position: 0,
   isActive: true,
   productCount,

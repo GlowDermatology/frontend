@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +18,7 @@ import { ExportMenu } from "../shared/export-menu";
 import { useIdempotencyKey } from "../shared/idempotency";
 import { PageHeader } from "../shared/page-header";
 import { ReorderButtons } from "../shared/reorder-buttons";
+import { useRowDrag } from "../shared/row-drag";
 import { upsertRow, useOrderedList } from "../shared/use-ordered-list";
 import { CategoryDialog } from "./category-dialog";
 
@@ -47,7 +49,15 @@ export function CategoriesView({ categories, exportHref }: CategoriesViewProps) 
     label: (category) => `«${category.name.uz}»`,
     send: (slugs) => runAction((csrf) => reorderCategories(slugs, csrf)),
     onError: (message) => toast({ tone: "info", title: "Amal bajarilmadi", description: message }),
+    // Keep a demo preview: mock uploads store no bytes, so the server rows
+    // never carry the picked image.
+    merge: (server, local) =>
+      server.map((row) => {
+        const preview = local.find((l) => l.slug === row.slug)?.imageUrl;
+        return !row.imageUrl && preview?.startsWith("blob:") ? { ...row, imageUrl: preview } : row;
+      }),
   });
+  const { rowProps } = useRowDrag(move);
   const [dialog, setDialog] = useState<DialogState>(null);
   // Mounts a fresh dialog (and form) for every opening.
   const [instance, setInstance] = useState(0);
@@ -64,8 +74,10 @@ export function CategoriesView({ categories, exportHref }: CategoriesViewProps) 
     setDialog(state);
   };
 
-  const onSaved = (category: Category, mode: "create" | "edit") => {
-    apply((rows) => upsertRow(rows, category, slugOf));
+  const onSaved = (category: Category, mode: "create" | "edit", previewUrl: string | null) => {
+    // Demo mode keeps the local preview of a picked image (no bytes are stored).
+    const row = category.imageUrl === "" ? { ...category, imageUrl: previewUrl } : category;
+    apply((rows) => upsertRow(rows, row, slugOf));
     toast({
       title: mode === "create" ? "Kategoriya qo‘shildi" : "Kategoriya saqlandi",
       description: category.name.uz,
@@ -123,10 +135,13 @@ export function CategoriesView({ categories, exportHref }: CategoriesViewProps) 
       >
         {items.length > 0 ? (
           <ScrollRegion label="Kategoriyalar jadvali">
-            <table className="data-table min-w-[760px]">
+            <table className="data-table min-w-[820px]">
               <thead>
                 <tr>
                   <th scope="col">TARTIB</th>
+                  <th scope="col">
+                    <span className="sr-only">Rasm</span>
+                  </th>
                   <th scope="col">NOMI</th>
                   <th scope="col">SLUG</th>
                   <th scope="col" className="text-right!">
@@ -140,14 +155,42 @@ export function CategoriesView({ categories, exportHref }: CategoriesViewProps) 
               </thead>
               <tbody>
                 {items.map((category, index) => (
-                  <tr key={category.slug}>
+                  <tr key={category.slug} {...rowProps(index)}>
                     <td>
-                      <ReorderButtons
-                        subject={`«${category.name.uz}»`}
-                        index={index}
-                        count={items.length}
-                        onMove={move}
-                      />
+                      <span className="inline-flex items-center gap-1">
+                        <Icon name="grip" size={16} className="text-ink-muted" />
+                        <ReorderButtons
+                          subject={`«${category.name.uz}»`}
+                          index={index}
+                          count={items.length}
+                          onMove={move}
+                        />
+                      </span>
+                    </td>
+                    <td className="w-14">
+                      <span className="relative flex size-10 items-center justify-center overflow-hidden rounded-md border border-line bg-surface text-ink-muted">
+                        {category.imageUrl ? (
+                          category.imageUrl.startsWith("blob:") ? (
+                            // Demo preview of a picked image (object URL).
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={category.imageUrl}
+                              alt=""
+                              className="size-full object-cover"
+                            />
+                          ) : (
+                            <Image
+                              src={category.imageUrl}
+                              alt=""
+                              fill
+                              sizes="40px"
+                              className="object-cover"
+                            />
+                          )
+                        ) : (
+                          <Icon name="image" size={16} />
+                        )}
+                      </span>
                     </td>
                     <td>
                       <span className="flex flex-col">
@@ -213,7 +256,8 @@ export function CategoriesView({ categories, exportHref }: CategoriesViewProps) 
         )}
         <div className="flex flex-wrap items-center gap-2 border-t border-line px-4 py-3 text-caption font-normal text-ink-muted">
           <Icon name="info" size={14} />
-          Tartib ilovadagi ketma-ketlikni belgilaydi. Mahsulotli kategoriyani o‘chirib bo‘lmaydi.
+          Tartibni qatorni sudrab yoki strelkalar bilan o‘zgartiring; u ilovadagi ketma-ketlikni
+          belgilaydi. Mahsulotli kategoriyani o‘chirib bo‘lmaydi.
         </div>
       </section>
 

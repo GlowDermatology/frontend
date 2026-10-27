@@ -24,6 +24,7 @@ import { ExportMenu } from "../shared/export-menu";
 import { useIdempotencyKey } from "../shared/idempotency";
 import { PageHeader } from "../shared/page-header";
 import { ReorderButtons } from "../shared/reorder-buttons";
+import { useRowDrag } from "../shared/row-drag";
 import { upsertRow, useOrderedList } from "../shared/use-ordered-list";
 import { BannerDialog } from "./banner-dialog";
 
@@ -97,6 +98,7 @@ export function BannersView({ banners, categories, now, exportHref }: BannersVie
     onError: (message) => toast({ tone: "info", title: "Amal bajarilmadi", description: message }),
     merge: keepPreviews,
   });
+  const { rowProps } = useRowDrag(move);
   const [dialog, setDialog] = useState<DialogState>(null);
   // Mounts a fresh dialog (and form) for every opening.
   const [instance, setInstance] = useState(0);
@@ -206,14 +208,17 @@ export function BannersView({ banners, categories, now, exportHref }: BannersVie
                 {items.map((banner, index) => {
                   const state = SCHEDULE_META[bannerScheduleState(banner, nowDate)];
                   return (
-                    <tr key={banner.id}>
+                    <tr key={banner.id} {...rowProps(index)}>
                       <td>
-                        <ReorderButtons
-                          subject={`«${banner.title.uz}»`}
-                          index={index}
-                          count={items.length}
-                          onMove={move}
-                        />
+                        <span className="inline-flex items-center gap-1">
+                          <Icon name="grip" size={16} className="text-ink-muted" />
+                          <ReorderButtons
+                            subject={`«${banner.title.uz}»`}
+                            index={index}
+                            count={items.length}
+                            onMove={move}
+                          />
+                        </span>
                       </td>
                       <td>
                         <BannerThumb src={banner.imageUrl} alt="" />
@@ -297,7 +302,8 @@ export function BannersView({ banners, categories, now, exportHref }: BannersVie
         )}
         <div className="flex flex-wrap items-center gap-2 border-t border-line px-4 py-3 text-caption font-normal text-ink-muted">
           <Icon name="info" size={14} />
-          Tartib ilovadagi ketma-ketlikni belgilaydi. Muddat Toshkent vaqti bo‘yicha.
+          Tartibni qatorni sudrab yoki strelkalar bilan o‘zgartiring. Muddat Toshkent vaqti
+          bo‘yicha.
         </div>
       </section>
 

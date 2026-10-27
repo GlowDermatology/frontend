@@ -109,10 +109,23 @@ export function apiListCategories(token: string, params: Record<string, QueryVal
   return cachedGet<ApiPaginatedCategories>(`${BASE}/categories/`, params, token);
 }
 
-export function apiCreateCategory(token: string, body: ApiCategoryWrite, idempotencyKey: string) {
+/** JSON, or multipart when an image is sent (gap ADM-5.1, contract §2.4). */
+type CategoryBody<T> = { json: T } | { formData: FormData };
+
+function categoryRequest<T>(body: CategoryBody<T>) {
+  return "json" in body
+    ? { body: body.json }
+    : { formData: body.formData, timeoutMs: 30_000 as const };
+}
+
+export function apiCreateCategory(
+  token: string,
+  body: CategoryBody<ApiCategoryWrite>,
+  idempotencyKey: string,
+) {
   return apiFetch<ApiCategory>(`${BASE}/categories/`, {
     method: "POST",
-    body,
+    ...categoryRequest(body),
     token,
     idempotencyKey,
   });
@@ -121,12 +134,12 @@ export function apiCreateCategory(token: string, body: ApiCategoryWrite, idempot
 export function apiPatchCategory(
   token: string,
   slug: string,
-  body: ApiCategoryPatch,
+  body: CategoryBody<ApiCategoryPatch>,
   idempotencyKey: string,
 ) {
   return apiFetch<ApiCategory>(`${BASE}/categories/${encodeURIComponent(slug)}/`, {
     method: "PATCH",
-    body,
+    ...categoryRequest(body),
     token,
     idempotencyKey,
   });

@@ -21,6 +21,7 @@ const CREATED_AT = "2026-06-01T09:00:00+05:00";
 export const CATEGORIES: ReadonlyArray<Category> = SEEDS.map(([slug, uz, ru, en], position) => ({
   slug,
   name: { uz, ru, en },
+  imageUrl: null,
   position,
   isActive: true,
   productCount: PRODUCTS.filter((product) => product.category === slug).length,

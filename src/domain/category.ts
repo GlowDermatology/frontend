@@ -10,6 +10,8 @@ export type CategoryName = Record<ContentLanguage, string>;
 export interface Category {
   slug: string;
   name: CategoryName;
+  /** Absolute media URL of the category image (gap ADM-5.1), `null` when none. */
+  imageUrl: string | null;
   position: number;
   isActive: boolean;
   productCount: number;

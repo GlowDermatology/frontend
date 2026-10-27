@@ -15,7 +15,14 @@ const bySlug = (slug: string) => CATEGORIES.find((c) => c.slug === slug) ?? null
 
 export const CATEGORY_HAS_PRODUCTS_MESSAGE = "Kategoriyada mahsulotlar bor.";
 
-export async function createCategory(values: CategoryFormValues): Promise<ActionResult<Category>> {
+/**
+ * The upload keeps no bytes: a picked image answers with an empty
+ * `imageUrl` and the dialog's list keeps its local preview, as the banners do.
+ */
+export async function createCategory(
+  values: CategoryFormValues,
+  image: File | null = null,
+): Promise<ActionResult<Category>> {
   await delay(400);
   if (bySlug(values.slug)) {
     return {
@@ -30,6 +37,7 @@ export async function createCategory(values: CategoryFormValues): Promise<Action
     data: {
       slug: values.slug,
       name: values.name,
+      imageUrl: image ? "" : null,
       position: CATEGORIES.length,
       isActive: values.isActive,
       productCount: 0,
@@ -42,6 +50,7 @@ export async function createCategory(values: CategoryFormValues): Promise<Action
 export async function updateCategory(
   slug: string,
   values: CategoryEditValues,
+  media: { image: File | null; remove: boolean } = { image: null, remove: false },
 ): Promise<ActionResult<Category>> {
   await delay(400);
   const before = bySlug(slug);
@@ -51,6 +60,7 @@ export async function updateCategory(
     data: {
       ...before,
       name: values.name,
+      imageUrl: media.image ? "" : media.remove ? null : before.imageUrl,
       isActive: values.isActive,
       updatedAt: referenceNow().toISOString(),
     },

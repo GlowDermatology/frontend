@@ -1,11 +1,12 @@
-import { LandingPage } from "@/features/landing/landing-page";
-import { buildLandingMetadata } from "@/features/landing/metadata";
+import type { Metadata } from "next";
 
-/** Marketing content must never become request-time rendering. */
-export const ensureStatic = "navigation";
+import { HomeSwitch, homeSwitchMetadata } from "@/features/shop/pages/home-switch";
 
-export const metadata = buildLandingMetadata("uz");
+/** `/`: the storefront home in api mode, the static landing in mock mode. */
+export function generateMetadata(): Promise<Metadata> {
+  return homeSwitchMetadata("uz");
+}
 
 export default function HomePage() {
-  return <LandingPage locale="uz" />;
+  return <HomeSwitch locale="uz" />;
 }

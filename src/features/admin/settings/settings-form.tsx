@@ -66,11 +66,6 @@ export function SettingsForm({ settings: initial }: { settings: SiteSettings }) 
     setPhone(next.supportPhone ? formatPhone(next.supportPhone) : "");
     setAddress(next.pickupAddress);
   };
-  if (initial !== source) {
-    setSource(initial);
-    load(initial);
-  }
-
   const values: SettingsFormValues = {
     reservationMinutes: minutes.trim() === "" ? Number.NaN : Number(minutes),
     supportPhone: phone.trim() === "" ? "" : normalizePhone(phone),
@@ -78,6 +73,14 @@ export function SettingsForm({ settings: initial }: { settings: SiteSettings }) 
   };
   const baseline = toValues(settings);
   const dirty = JSON.stringify(values) !== JSON.stringify(baseline);
+
+  // A newer server copy (the refresh after a save here or in another card)
+  // replaces the fields only while nothing is being edited here.
+  if (initial !== source) {
+    setSource(initial);
+    if (dirty) setSettings(initial);
+    else load(initial);
+  }
 
   const focusFirstInvalid = useFocusFirstInvalid();
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {

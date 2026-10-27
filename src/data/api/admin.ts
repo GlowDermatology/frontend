@@ -255,6 +255,16 @@ export function apiPatchSettings(token: string, body: ApiSettingsPatch, idempote
   });
 }
 
+/** Publishes the terms / privacy drafts as a new version (§2.11): empty body, key required. */
+export function apiPublishTerms(token: string, idempotencyKey: string) {
+  return apiFetch<ApiSettings>(`${BASE}/settings/terms/publish/`, {
+    method: "POST",
+    body: {},
+    token,
+    idempotencyKey,
+  });
+}
+
 export function apiListAuditLog(token: string, params: Record<string, QueryValue>) {
   return cachedGet<ApiPaginatedAuditLog>(`${BASE}/audit-log/`, params, token);
 }

@@ -51,7 +51,16 @@ import {
 } from "./notifications";
 import { mapPage } from "./page";
 import { mapSegment, mapSegmentMember, segmentCreateBody, segmentPatchBody } from "./segments";
-import { mapSettings, mapStaffAccount, settingsFormValues, settingsPatchBody } from "./settings";
+import {
+  contactsFormValues,
+  contactsPatchBody,
+  legalTextsFormValues,
+  legalTextsPatchBody,
+  mapSettings,
+  mapStaffAccount,
+  settingsFormValues,
+  settingsPatchBody,
+} from "./settings";
 
 /**
  * Recorded JSON from the M1d backend (`src/data/api/__fixtures__`, backend
@@ -476,7 +485,7 @@ describe("segments", () => {
 describe("settings and account", () => {
   const settings = mapSettings(settingsFixture as ApiSettings);
 
-  it("maps the singleton with the integrations mode", () => {
+  it("maps the singleton with the integrations mode, contacts and legal texts (gap closure)", () => {
     expect(settings).toEqual({
       reservationMinutes: 15,
       supportPhone: "+998712000000",
@@ -485,10 +494,45 @@ describe("settings and account", () => {
         ru: "",
         en: "",
       },
+      storePhone: "+998712000001",
+      cosmetologistPhone: "+998712000002",
+      telegramUrl: "https://t.me/glowderma",
+      instagramUrl: "https://instagram.com/glowderma",
+      websiteUrl: "https://glowderma.uz",
+      terms: settingsFixture.terms,
+      privacyPolicy: settingsFixture.privacy_policy,
+      bookingPolicy: settingsFixture.booking_policy,
+      termsVersion: "20241220-1",
+      termsUpdatedAt: "2024-12-20T10:00:00+05:00",
+      termsUnpublishedChanges: false,
       integrationsMode: "fake",
       updatedAt: settingsFixture.updated_at,
       updatedBy: null,
     });
+  });
+
+  it("patches only the changed contacts, an emptied one as null", () => {
+    const baseline = contactsFormValues(settings);
+    expect(contactsPatchBody(baseline, baseline)).toEqual({});
+    expect(
+      contactsPatchBody(baseline, {
+        ...baseline,
+        storePhone: "",
+        telegramUrl: "https://t.me/glow_derma",
+      }),
+    ).toEqual({ store_phone: null, telegram_url: "https://t.me/glow_derma" });
+  });
+
+  it("patches only the changed languages of each legal text", () => {
+    const baseline = legalTextsFormValues(settings);
+    expect(legalTextsPatchBody(baseline, baseline)).toEqual({});
+    expect(
+      legalTextsPatchBody(baseline, {
+        ...baseline,
+        terms: { ...baseline.terms, ru: "Новые условия" },
+        bookingPolicy: { ...baseline.bookingPolicy, en: "" },
+      }),
+    ).toEqual({ terms: { ru: "Новые условия" }, booking_policy: { en: "" } });
   });
 
   it("patches only changed fields, address leaves, and an emptied phone as null", () => {

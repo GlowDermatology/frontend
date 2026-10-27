@@ -7,6 +7,26 @@ export interface SiteSettings {
   /** E.164 or `null` (not shown in the app). */
   supportPhone: string | null;
   pickupAddress: Record<ContentLanguage, string>;
+  /** The app's Settings section phone (E.164) or `null` (gap X-SET-CONTACTS). */
+  storePhone: string | null;
+  /** The AI section's cosmetologist phone (Phase 2), E.164 or `null`. */
+  cosmetologistPhone: string | null;
+  /** `https` links or `null`, shown in the app. */
+  telegramUrl: string | null;
+  instagramUrl: string | null;
+  websiteUrl: string | null;
+  /** Terms of Use, the DRAFT staff edit (gap X-SET-LEGAL); `""` = not filled. */
+  terms: Record<ContentLanguage, string>;
+  /** Privacy Policy, the DRAFT. */
+  privacyPolicy: Record<ContentLanguage, string>;
+  /** Cancellation / reschedule terms of bookings; one copy, served as soon as it is saved. */
+  bookingPolicy: Record<ContentLanguage, string>;
+  /** The published version (`YYYYMMDD-n`), `null` while never published. */
+  termsVersion: string | null;
+  /** When that version was published, `null` while never published. */
+  termsUpdatedAt: string | null;
+  /** A terms / privacy draft differs from the published copy. */
+  termsUnpublishedChanges: boolean;
   /** Read-only, from the backend's `INTEGRATIONS_MODE`. */
   integrationsMode: "fake" | "live";
   updatedAt: string;
@@ -17,6 +37,48 @@ export interface SiteSettings {
 export const RESERVATION_MIN = 5;
 export const RESERVATION_MAX = 60;
 export const PICKUP_ADDRESS_MAX = 200;
+
+/** The legal texts of the settings (contract §2.11) and their limits in characters. */
+export const LEGAL_DOCUMENTS = ["terms", "privacyPolicy", "bookingPolicy"] as const;
+export type LegalDocument = (typeof LEGAL_DOCUMENTS)[number];
+
+export const LEGAL_TEXT_MAX: Record<LegalDocument, number> = {
+  terms: 50_000,
+  privacyPolicy: 50_000,
+  bookingPolicy: 5_000,
+};
+
+export const LEGAL_DOCUMENT_LABEL: Record<LegalDocument, string> = {
+  terms: "Foydalanish shartlari",
+  privacyPolicy: "Maxfiylik siyosati",
+  bookingPolicy: "Qabul qoidalari",
+};
+
+/** Characters as the server counts them (code points, not UTF-16 units). */
+export function characterCount(value: string): number {
+  return [...value].length;
+}
+
+/** Whether a text has a visible character (the server stores an invisible-only text as `""`). */
+export function hasVisibleText(value: string): boolean {
+  return /[^\s\p{Cf}]/u.test(value);
+}
+
+/**
+ * The next `terms_version` the server would issue (contract §2.11):
+ * `YYYYMMDD-n`, the Tashkent day and its count on that day from 1; a stored
+ * version of a later day keeps that day and counts on.
+ */
+export function nextTermsVersion(current: string | null, tashkentDay: string): string {
+  const day = tashkentDay.replaceAll("-", "");
+  const match = current ? /^(\d{8})-(\d+)$/.exec(current) : null;
+  if (!match || match[1]! < day) return `${day}-1`;
+  return `${match[1]}-${Number(match[2]) + 1}`;
+}
+
+/** The refusal of a publication without the Uzbek terms or privacy text (409 `conflict`). */
+export const PUBLISH_NEEDS_UZ_MESSAGE =
+  "Foydalanish shartlari va maxfiylik siyosatining o‘zbekcha matnini kiriting, so‘ng e’lon qiling.";
 
 /** How the current session's sign-in was proven (contract §2.1 `Me.auth_method`, M3). */
 export type StaffAuthMethod = "password" | "google" | "facebook" | "apple";

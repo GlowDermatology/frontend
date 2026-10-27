@@ -11,16 +11,25 @@ import {
 } from "./action-guard";
 import { z } from "zod";
 
-import { apiChangePassword, apiPatchSettings } from "./api/admin";
+import { apiChangePassword, apiPatchSettings, apiPublishTerms } from "./api/admin";
 import { apiOAuthUnlink } from "./api/auth";
 import { toActionResult } from "./api/mappers/errors";
 import { OAUTH_PROVIDERS, type OAuthProvider } from "./auth/oauth";
-import { mapSettings, settingsPatchBody } from "./api/mappers/settings";
+import {
+  contactsPatchBody,
+  legalTextsPatchBody,
+  mapSettings,
+  settingsPatchBody,
+} from "./api/mappers/settings";
 import * as mock from "./mock/settings.actions";
 import {
   changePasswordSchema,
+  contactsFormSchema,
+  legalTextsFormSchema,
   settingsFormSchema,
   type ChangePasswordValues,
+  type ContactsFormValues,
+  type LegalTextsFormValues,
   type SettingsFormValues,
 } from "./settings.schema";
 import { dataSource } from "./source";
@@ -71,6 +80,130 @@ export async function updateSettings(
     });
   }
   return mock.updateSettings(parsed.data);
+}
+
+/**
+ * The contacts card (gap X-SET-CONTACTS): `PATCH settings/` with the changed
+ * phones and links only; `""` clears a value (`null`). Field errors come
+ * back on `storePhone`, `cosmetologistPhone`, `telegramUrl`, `instagramUrl`
+ * and `websiteUrl`.
+ */
+export async function updateContacts(
+  values: ContactsFormValues,
+  baseline: ContactsFormValues,
+  key: string,
+  csrf: string,
+): Promise<ActionResult<SiteSettings>> {
+  const guard = await guardAction(csrf);
+  if (!guard.ok) return guard;
+  const parsedKey = idempotencyKeySchema.safeParse(key);
+  if (!parsedKey.success) return { ok: false, error: "Noto‘g‘ri so‘rov kaliti." };
+  const parsed = contactsFormSchema.safeParse(values);
+  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  // The baseline only decides what is sent; a malformed one sends every field.
+  const parsedBaseline = contactsFormSchema.safeParse(baseline);
+  const base: ContactsFormValues = parsedBaseline.success
+    ? parsedBaseline.data
+    : {
+        storePhone: "\0",
+        cosmetologistPhone: "\0",
+        telegramUrl: "\0",
+        instagramUrl: "\0",
+        websiteUrl: "\0",
+      };
+  if ((await dataSource()) === "api") {
+    return apiMutation("updateContacts", async () => {
+      try {
+        const { data } = await apiPatchSettings(
+          sessionToken(guard.session),
+          contactsPatchBody(base, parsed.data),
+          parsedKey.data,
+        );
+        return { ok: true, data: mapSettings(data) };
+      } catch (error) {
+        return toActionResult(error);
+      }
+    });
+  }
+  return mock.updateContacts(parsed.data);
+}
+
+const UNKNOWN_TEXT = { uz: "\0", ru: "\0", en: "\0" };
+
+/**
+ * The legal texts card (gap X-SET-LEGAL): `PATCH settings/` with the changed
+ * languages of the terms and privacy DRAFTS and of the booking policy.
+ * Saving never publishes (`publishTerms` does). Field errors come back as
+ * `terms.uz`, `privacyPolicy.ru`, `bookingPolicy.en`, …
+ */
+export async function updateLegalTexts(
+  values: LegalTextsFormValues,
+  baseline: LegalTextsFormValues,
+  key: string,
+  csrf: string,
+): Promise<ActionResult<SiteSettings>> {
+  const guard = await guardAction(csrf);
+  if (!guard.ok) return guard;
+  const parsedKey = idempotencyKeySchema.safeParse(key);
+  if (!parsedKey.success) return { ok: false, error: "Noto‘g‘ri so‘rov kaliti." };
+  const parsed = legalTextsFormSchema.safeParse(values);
+  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  const parsedBaseline = legalTextsFormSchema.safeParse(baseline);
+  const base: LegalTextsFormValues = parsedBaseline.success
+    ? parsedBaseline.data
+    : { terms: UNKNOWN_TEXT, privacyPolicy: UNKNOWN_TEXT, bookingPolicy: UNKNOWN_TEXT };
+  if ((await dataSource()) === "api") {
+    return apiMutation("updateLegalTexts", async () => {
+      try {
+        const { data } = await apiPatchSettings(
+          sessionToken(guard.session),
+          legalTextsPatchBody(base, parsed.data),
+          parsedKey.data,
+        );
+        return { ok: true, data: mapSettings(data) };
+      } catch (error) {
+        return toActionResult(error);
+      }
+    });
+  }
+  return mock.updateLegalTexts(parsed.data);
+}
+
+/**
+ * `POST settings/terms/publish/` (contract §2.11; `Idempotency-Key`
+ * required, one per confirmation dialog): publishes the saved terms and
+ * privacy drafts as a new `terms_version`, after which every customer is
+ * asked to accept it again. 409 `conflict` without the Uzbek texts.
+ *
+ * `drafts` is used by the demo only (it keeps no saved drafts); the API
+ * publishes what it stored.
+ */
+export async function publishTerms(
+  drafts: LegalTextsFormValues & { termsVersion: string | null },
+  key: string,
+  csrf: string,
+): Promise<ActionResult<SiteSettings>> {
+  const guard = await guardAction(csrf);
+  if (!guard.ok) return guard;
+  const parsedKey = idempotencyKeySchema.safeParse(key);
+  if (!parsedKey.success) return { ok: false, error: "Noto‘g‘ri so‘rov kaliti." };
+  if ((await dataSource()) === "api") {
+    return apiMutation("publishTerms", async () => {
+      try {
+        const { data } = await apiPublishTerms(sessionToken(guard.session), parsedKey.data);
+        return { ok: true, data: mapSettings(data) };
+      } catch (error) {
+        return toActionResult(error);
+      }
+    });
+  }
+  const parsed = legalTextsFormSchema.safeParse(drafts);
+  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  const version =
+    typeof drafts.termsVersion === "string" && /^\d{8}-\d+$/.test(drafts.termsVersion)
+      ? drafts.termsVersion
+      : null;
+  return mock.publishTerms({ ...parsed.data, termsVersion: version });
 }
 
 /** No idempotency key: `auth/*` endpoints never store responses (§1.7). */

@@ -1,6 +1,14 @@
 import { z } from "zod";
 
-import { PICKUP_ADDRESS_MAX, RESERVATION_MAX, RESERVATION_MIN } from "@/domain/settings";
+import {
+  characterCount,
+  LEGAL_TEXT_MAX,
+  PICKUP_ADDRESS_MAX,
+  RESERVATION_MAX,
+  RESERVATION_MIN,
+  type LegalDocument,
+} from "@/domain/settings";
+import { contactUrlError } from "@/lib/link-url";
 import { PHONE_PATTERN } from "@/lib/phone";
 
 /**
@@ -31,6 +39,61 @@ export const settingsFormSchema = z.object({
 });
 
 export type SettingsFormValues = z.infer<typeof settingsFormSchema>;
+
+/** E.164, or `""` for none (sent as `null`). */
+const optionalPhone = z
+  .string()
+  .trim()
+  .refine((value) => value === "" || PHONE_PATTERN.test(value), {
+    error: "Telefon raqamini to‘g‘ri kiriting.",
+  });
+
+function contactUrl(kind: "telegram" | "instagram" | "website") {
+  return z
+    .string()
+    .trim()
+    .superRefine((value, ctx) => {
+      const message = contactUrlError(value, kind);
+      if (message) ctx.addIssue({ code: "custom", message });
+    });
+}
+
+/**
+ * The contacts card (gap X-SET-CONTACTS, contract §2.11): two phones and
+ * three `https` links; `""` clears a value (sent as `null`).
+ */
+export const contactsFormSchema = z.object({
+  storePhone: optionalPhone,
+  cosmetologistPhone: optionalPhone,
+  telegramUrl: contactUrl("telegram"),
+  instagramUrl: contactUrl("instagram"),
+  websiteUrl: contactUrl("website"),
+});
+
+export type ContactsFormValues = z.infer<typeof contactsFormSchema>;
+
+function legalText(document: LegalDocument) {
+  const max = LEGAL_TEXT_MAX[document];
+  return z.string().refine((value) => characterCount(value.trim()) <= max, {
+    error: `${max} belgidan oshmasin.`,
+  });
+}
+
+function legalTexts(document: LegalDocument) {
+  return z.object({ uz: legalText(document), ru: legalText(document), en: legalText(document) });
+}
+
+/**
+ * The legal texts card (gap X-SET-LEGAL): the terms and privacy DRAFTS and
+ * the booking policy, per language. Saving never publishes.
+ */
+export const legalTextsFormSchema = z.object({
+  terms: legalTexts("terms"),
+  privacyPolicy: legalTexts("privacyPolicy"),
+  bookingPolicy: legalTexts("bookingPolicy"),
+});
+
+export type LegalTextsFormValues = z.infer<typeof legalTextsFormSchema>;
 
 export const PASSWORD_MIN = 12;
 

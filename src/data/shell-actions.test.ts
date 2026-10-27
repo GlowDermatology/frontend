@@ -61,7 +61,14 @@ import {
   removeSegmentMember,
   updateSegment,
 } from "./segments.actions";
-import { changePassword, unlinkSocialAccount, updateSettings } from "./settings.actions";
+import {
+  changePassword,
+  publishTerms,
+  unlinkSocialAccount,
+  updateContacts,
+  updateLegalTexts,
+  updateSettings,
+} from "./settings.actions";
 
 const KEY = "6f1c2a0e-9b8d-4c37-8a1e-2f3b4c5d6e7f";
 const CSRF = "csrf-token";
@@ -740,6 +747,183 @@ describe("settings and password", () => {
       "/api/v1/admin/settings/",
       expect.objectContaining({ method: "PATCH", body: { reservation_minutes: 20 } }),
     );
+  });
+
+  const contacts = {
+    storePhone: "+998712000001",
+    cosmetologistPhone: "",
+    telegramUrl: "https://t.me/glowderma",
+    instagramUrl: "",
+    websiteUrl: "https://glowderma.uz",
+  };
+
+  it("validates the contacts and patches only the changed ones (gap X-SET-CONTACTS)", async () => {
+    expect(
+      await updateContacts(
+        {
+          ...contacts,
+          telegramUrl: "https://example.uz/glowderma",
+          websiteUrl: "http://glowderma.uz",
+          cosmetologistPhone: "12",
+        },
+        contacts,
+        KEY,
+        CSRF,
+      ),
+    ).toMatchObject({
+      ok: false,
+      fieldErrors: {
+        telegramUrl: "Telegram havolasi https://t.me/… ko‘rinishida bo‘lsin.",
+        websiteUrl: "Havolani https:// bilan to‘liq kiriting.",
+        cosmetologistPhone: "Telefon raqamini to‘g‘ri kiriting.",
+      },
+    });
+    expect(
+      await updateContacts({ ...contacts, storePhone: "" }, contacts, KEY, CSRF),
+    ).toMatchObject({
+      ok: true,
+      data: { storePhone: null, telegramUrl: "https://t.me/glowderma" },
+    });
+
+    process.env.GLOWDERMA_DATA_SOURCE = "api";
+    verifyStaff.mockResolvedValue({ ok: true, mode: "api", token: "t", sid: null });
+    apiFetch.mockResolvedValueOnce(respond(200, { ...settingsFixture, store_phone: null }));
+    expect(
+      await updateContacts({ ...contacts, storePhone: "" }, contacts, KEY, CSRF),
+    ).toMatchObject({ ok: true, data: { storePhone: null } });
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/settings/",
+      expect.objectContaining({
+        method: "PATCH",
+        body: { store_phone: null },
+        idempotencyKey: KEY,
+      }),
+    );
+    apiFetch.mockRejectedValueOnce(
+      apiError(400, {
+        code: "validation_error",
+        message: "Maydonlarni tekshiring.",
+        errors: [
+          {
+            field: "instagram_url",
+            code: "invalid",
+            message: "Instagram havolasi https://instagram.com/… ko‘rinishida bo‘lsin.",
+          },
+        ],
+        request_id: "r",
+      }),
+    );
+    expect(
+      await updateContacts(
+        { ...contacts, instagramUrl: "https://instagram.com/a/b" },
+        contacts,
+        KEY,
+        CSRF,
+      ),
+    ).toMatchObject({ ok: false });
+  });
+
+  const texts = {
+    terms: { uz: "Shartlar", ru: "", en: "" },
+    privacyPolicy: { uz: "Siyosat", ru: "", en: "" },
+    bookingPolicy: { uz: "Qoidalar", ru: "", en: "" },
+  };
+
+  it("saves only the changed languages of the legal texts and maps their field errors", async () => {
+    expect(
+      await updateLegalTexts(
+        { ...texts, bookingPolicy: { ...texts.bookingPolicy, en: "x".repeat(5001) } },
+        texts,
+        KEY,
+        CSRF,
+      ),
+    ).toMatchObject({ ok: false, fieldErrors: { "bookingPolicy.en": "5000 belgidan oshmasin." } });
+    expect(
+      await updateLegalTexts(
+        { ...texts, terms: { ...texts.terms, ru: "  Условия \r\n" } },
+        texts,
+        KEY,
+        CSRF,
+      ),
+    ).toMatchObject({
+      ok: true,
+      data: { terms: { ru: "Условия" }, termsUnpublishedChanges: true },
+    });
+
+    process.env.GLOWDERMA_DATA_SOURCE = "api";
+    verifyStaff.mockResolvedValue({ ok: true, mode: "api", token: "t", sid: null });
+    apiFetch.mockResolvedValueOnce(
+      respond(200, { ...settingsFixture, terms_unpublished_changes: true }),
+    );
+    expect(
+      await updateLegalTexts(
+        { ...texts, privacyPolicy: { ...texts.privacyPolicy, en: "Policy" } },
+        texts,
+        KEY,
+        CSRF,
+      ),
+    ).toMatchObject({ ok: true, data: { termsUnpublishedChanges: true } });
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/settings/",
+      expect.objectContaining({ method: "PATCH", body: { privacy_policy: { en: "Policy" } } }),
+    );
+    apiFetch.mockRejectedValueOnce(
+      apiError(400, {
+        code: "validation_error",
+        message: "Maydonlarni tekshiring.",
+        errors: [{ field: "terms.uz", code: "max_length", message: "50000 belgidan oshmasin." }],
+        request_id: "r",
+      }),
+    );
+    expect(
+      await updateLegalTexts({ ...texts, terms: { ...texts.terms, uz: "y" } }, texts, KEY, CSRF),
+    ).toMatchObject({ ok: false, fieldErrors: { "terms.uz": "50000 belgidan oshmasin." } });
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("publishes with the dialog's key; 409 without the Uzbek texts (contract §2.11)", async () => {
+    const empty = { ...texts, terms: { uz: " \u200b ", ru: "Условия", en: "" } };
+    expect(await publishTerms({ ...empty, termsVersion: null }, KEY, CSRF)).toEqual({
+      ok: false,
+      error:
+        "Foydalanish shartlari va maxfiylik siyosatining o‘zbekcha matnini kiriting, so‘ng e’lon qiling.",
+      code: "conflict",
+    });
+    // The demo's reference day is 2026-10-24 (Tashkent).
+    expect(await publishTerms({ ...texts, termsVersion: "20261024-1" }, KEY, CSRF)).toMatchObject({
+      ok: true,
+      data: { termsVersion: "20261024-2", termsUnpublishedChanges: false },
+    });
+    expect(await publishTerms({ ...texts, termsVersion: null }, "nope", CSRF)).toMatchObject({
+      ok: false,
+    });
+
+    process.env.GLOWDERMA_DATA_SOURCE = "api";
+    verifyStaff.mockResolvedValue({ ok: true, mode: "api", token: "t", sid: null });
+    apiFetch.mockResolvedValueOnce(
+      respond(200, { ...settingsFixture, terms_version: "20261027-1" }),
+    );
+    expect(await publishTerms({ ...texts, termsVersion: null }, KEY, CSRF)).toMatchObject({
+      ok: true,
+      data: { termsVersion: "20261027-1" },
+    });
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/settings/terms/publish/",
+      expect.objectContaining({ method: "POST", body: {}, idempotencyKey: KEY }),
+    );
+    apiFetch.mockRejectedValueOnce(
+      apiError(409, {
+        code: "conflict",
+        message:
+          "Foydalanish shartlari va maxfiylik siyosatining o‘zbekcha matnini kiriting, so‘ng e’lon qiling.",
+        errors: [],
+        request_id: "r",
+      }),
+    );
+    expect(await publishTerms({ ...texts, termsVersion: null }, KEY, CSRF)).toMatchObject({
+      ok: false,
+      code: "conflict",
+    });
   });
 
   it("changes the password without a key or refresh; maps the backend's field errors", async () => {

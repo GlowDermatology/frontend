@@ -98,11 +98,15 @@ export type ApiPaginatedCustomers = Schemas["PaginatedCustomerListItemList"];
 /* --- Shell: settings, audit log, nav counts (contract §2.10, §2.11, §2.13) --- */
 
 export type ApiSettings = Schemas["Settings"];
+type I18nLeaves = Partial<Record<"uz" | "ru" | "en", string>>;
 export type ApiSettingsPatch = Omit<
   Partial<Schemas["PatchedSettingsPatchRequest"]>,
-  "pickup_address"
+  "pickup_address" | "terms" | "privacy_policy" | "booking_policy"
 > & {
-  pickup_address?: Partial<Record<"uz" | "ru" | "en", string>>;
+  pickup_address?: I18nLeaves;
+  terms?: I18nLeaves;
+  privacy_policy?: I18nLeaves;
+  booking_policy?: I18nLeaves;
 };
 export type ApiAuditEntry = Schemas["AuditEntry"];
 export type ApiPaginatedAuditLog = Schemas["PaginatedAuditEntryList"];

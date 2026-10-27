@@ -5,6 +5,8 @@ import { getSettings, getStaffAccount } from "@/data/settings";
 
 import { PageHeader } from "../shared/page-header";
 import { AccountCard, type SocialNotice } from "./account-card";
+import { ContactsCard } from "./contacts-card";
+import { LegalTextsCard } from "./legal-texts-card";
 import { SettingsForm } from "./settings-form";
 
 /**
@@ -40,11 +42,13 @@ export async function SettingsContent({
       <div className="flex flex-wrap items-start gap-4">
         <div className="flex min-w-0 flex-[3_1_520px] flex-col gap-4">
           <SettingsForm settings={settings} />
+          <ContactsCard settings={settings} />
         </div>
         <div className="flex min-w-0 flex-[2_1_360px] flex-col gap-4">
           <AccountCard account={account} providers={providers} notice={notice} />
         </div>
       </div>
+      <LegalTextsCard settings={settings} />
     </>
   );
 }

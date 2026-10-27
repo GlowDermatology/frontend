@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { BILLZ_AUTH_FAILED_MESSAGE, BILLZ_LISTING_INCOMPLETE_MESSAGE } from "@/domain/job";
+import { emptySeo } from "@/domain/seo";
 
 import bannerFixture from "../__fixtures__/banner.json";
 import categoriesFixture from "../__fixtures__/categories.json";
@@ -91,6 +92,27 @@ describe("mapProduct", () => {
       ingredients:
         "Aqua, Sodium Hyaluronate, Hydrolyzed Hyaluronic Acid, Sodium Acetylated Hyaluronate, Panthenol, Glycerin, Allantoin, Betaine, 1,2-Hexanediol.",
       usage: "",
+    });
+  });
+
+  it("maps the slug, the SEO texts and «SEO holati» (B-W1)", () => {
+    const mapped = mapProduct(product);
+    expect(mapped.slug).toBe("gialuron-kislotali-serum");
+    expect(mapped.seo).toEqual(emptySeo());
+    expect(mapped.seoStatus.ok).toBe(false);
+    expect(mapped.seoStatus.issues[0]).toEqual({
+      code: "description_missing",
+      severity: "warning",
+      language: "en",
+      message: "Tavsif (inglizcha) yo‘q.",
+    });
+    // A backend before B-W1 sends none: an empty slug and a passing checklist.
+    const { slug, seo, seo_status, ...old } = product;
+    void [slug, seo, seo_status];
+    expect(mapProduct(old as ApiProduct)).toMatchObject({
+      slug: "",
+      seo: emptySeo(),
+      seoStatus: { ok: true, issues: [] },
     });
   });
 
@@ -241,17 +263,36 @@ describe("product write bodies", () => {
     promo: false,
     status: "active" as const,
     images: [],
+    slug: "gialuron-kislotali-serum",
+    seo: emptySeo(),
   };
 
   it("creates hidden with the slug or null", () => {
-    expect(productCreateBody({ ...values, category: "" })).toEqual({
+    expect(productCreateBody({ ...values, category: "", slug: "" })).toEqual({
       billz_id: "4607012301",
       texts: values.texts,
       price: 185_000,
       category: null,
       promo: false,
       status: "hidden",
+      seo: emptySeo(),
     });
+    // A typed slug is sent; an empty one lets the server derive it (B-W1).
+    expect(productCreateBody({ ...values, slug: "serum-30" })).toMatchObject({
+      slug: "serum-30",
+    });
+  });
+
+  it("patches the slug and the changed SEO leaves only (B-W1)", () => {
+    const baseline = { ...values };
+    const seo = emptySeo();
+    seo.ru.title = "Сыворотка";
+    expect(productPatchBody(baseline, { ...values, slug: "yangi", seo })).toEqual({
+      slug: "yangi",
+      seo: { ru: { title: "Сыворотка" } },
+    });
+    // `""` keeps the stored slug: the server refuses an empty one.
+    expect(productPatchBody(baseline, { ...values, slug: "" })).toEqual({});
   });
 
   it("patches only what changed against the baseline, texts as changed leaves", () => {
@@ -289,6 +330,8 @@ describe("product write bodies", () => {
       billzId: loaded.billzId,
       promo: loaded.promo,
       status: loaded.status,
+      slug: loaded.slug,
+      seo: loaded.seo,
     };
     const edited = {
       ...values,
@@ -316,6 +359,15 @@ describe("categories", () => {
       name: { ru: "Сыворотки", en: "Serums" },
       createdAt: "2026-10-25T23:02:37+05:00",
     });
+    // B-W1: `seo` filled per language, `seo_status` as the server sent it.
+    expect(mapped[0]!.seo).toEqual(emptySeo());
+    expect(mapped[0]!.seoStatus.ok).toBe(false);
+    expect(mapped[0]!.seoStatus.issues[0]).toEqual({
+      code: "image_missing",
+      severity: "warning",
+      language: null,
+      message: "Kategoriya rasmi yo‘q: ijtimoiy tarmoqlarda umumiy rasm chiqadi.",
+    });
   });
 
   it("builds the write bodies (slug only on create)", () => {
@@ -323,15 +375,18 @@ describe("categories", () => {
       slug: "masks",
       name: { uz: "Niqoblar", ru: "", en: "Masks" },
       isActive: false,
+      seo: emptySeo(),
     };
     expect(categoryCreateBody(values)).toEqual({
       slug: "masks",
       name: { uz: "Niqoblar", ru: "", en: "Masks" },
       is_active: false,
+      seo: emptySeo(),
     });
     expect(categoryPatchBody(values)).toEqual({
       name: { uz: "Niqoblar", ru: "", en: "Masks" },
       is_active: false,
+      seo: emptySeo(),
     });
   });
 });

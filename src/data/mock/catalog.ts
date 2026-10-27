@@ -5,6 +5,7 @@ import type {
   ProductArtRef,
   ProductTexts,
 } from "@/domain/product";
+import { emptySeo, productSeoStatus, slugifyName, type SeoTexts } from "@/domain/seo";
 
 import { createRandom } from "./random";
 
@@ -49,6 +50,7 @@ interface Seed {
   isNewFromBillz?: boolean;
   images?: Product["images"];
   lastChange?: Product["lastChange"];
+  seo?: SeoTexts;
 }
 
 /** Rows exactly as they appear in the design, in display order. */
@@ -62,6 +64,15 @@ const DESIGN_PRODUCTS: Seed[] = [
     stock: 12,
     art: { kind: "dropper" },
     images: SERUM_IMAGES,
+    seo: {
+      uz: {
+        title: "Gialuron kislotali serum 30 ml — namlantirish",
+        description:
+          "Uch xil gialuron kislotali yengil serum: terini chuqur namlaydi, tez so‘riladi. Toshkent bo‘ylab yetkazib berish.",
+      },
+      ru: { title: "Сыворотка с гиалуроновой кислотой", description: "" },
+      en: { title: "", description: "" },
+    },
     lastChange: {
       by: "Administrator",
       at: "2026-10-22T18:04:00+05:00",
@@ -535,22 +546,50 @@ function buildCatalog(): Product[] {
     seed.texts = texts({});
   });
 
-  return [...fixed, ...generated].map((seed, index) => ({
-    id: String(index + 1),
-    billzId: seed.billzId,
-    billzName: seed.billzName,
-    volume: seed.volume,
-    category: seed.category,
-    price: seed.price,
-    stock: seed.stock,
-    promo: seed.promo ?? false,
-    status: seed.status ?? "active",
-    isNewFromBillz: seed.isNewFromBillz ?? false,
-    texts: seed.texts,
-    art: seed.art,
-    images: seed.images ?? (seed.art ? [{ id: "img-1", label: "Asosiy rasm", art: seed.art }] : []),
-    lastChange: seed.lastChange,
-  }));
+  const takenSlugs = new Set<string>();
+  const uniqueSlug = (seed: Seed): string => {
+    const base =
+      slugifyName(seed.texts.uz.name) || slugifyName(seed.billzName) || `mahsulot-${seed.billzId}`;
+    let slug = base;
+    for (let attempt = 2; takenSlugs.has(slug); attempt++) slug = `${base}-${attempt}`;
+    takenSlugs.add(slug);
+    return slug;
+  };
+
+  return [...fixed, ...generated].map((seed, index) =>
+    withSeoStatus({
+      id: String(index + 1),
+      billzId: seed.billzId,
+      billzName: seed.billzName,
+      volume: seed.volume,
+      category: seed.category,
+      price: seed.price,
+      stock: seed.stock,
+      promo: seed.promo ?? false,
+      status: seed.status ?? "active",
+      isNewFromBillz: seed.isNewFromBillz ?? false,
+      texts: seed.texts,
+      art: seed.art,
+      images:
+        seed.images ?? (seed.art ? [{ id: "img-1", label: "Asosiy rasm", art: seed.art }] : []),
+      lastChange: seed.lastChange,
+      slug: uniqueSlug(seed),
+      seo: seed.seo ?? emptySeo(),
+    }),
+  );
+}
+
+/** The demo's `seo_status`, computed the way the server does (`catalog.seo`). */
+export function withSeoStatus(product: Omit<Product, "seoStatus">): Product {
+  return {
+    ...product,
+    seoStatus: productSeoStatus({
+      texts: product.texts,
+      imageCount: product.images.length,
+      category: product.category,
+      seo: product.seo,
+    }),
+  };
 }
 
 export const PRODUCTS: ReadonlyArray<Product> = buildCatalog();

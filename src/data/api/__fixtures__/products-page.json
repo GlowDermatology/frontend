@@ -64,6 +64,68 @@
         "old_price": 175000,
         "new_price": 185000
       },
+      "slug": "gialuron-kislotali-serum",
+      "seo": {
+        "uz": {
+          "title": "",
+          "description": ""
+        },
+        "ru": {
+          "title": "",
+          "description": ""
+        },
+        "en": {
+          "title": "",
+          "description": ""
+        }
+      },
+      "seo_status": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "description_missing",
+            "severity": "warning",
+            "language": "en",
+            "message": "Tavsif (inglizcha) yo‘q."
+          },
+          {
+            "code": "seo_title_missing",
+            "severity": "info",
+            "language": "uz",
+            "message": "SEO sarlavha (o‘zbekcha) yo‘q: sayt nomdan foydalanadi."
+          },
+          {
+            "code": "seo_description_missing",
+            "severity": "info",
+            "language": "uz",
+            "message": "SEO tavsif (o‘zbekcha) yo‘q: sayt uni tavsifdan yasaydi."
+          },
+          {
+            "code": "seo_title_missing",
+            "severity": "info",
+            "language": "ru",
+            "message": "SEO sarlavha (ruscha) yo‘q: sayt nomdan foydalanadi."
+          },
+          {
+            "code": "seo_description_missing",
+            "severity": "info",
+            "language": "ru",
+            "message": "SEO tavsif (ruscha) yo‘q: sayt uni tavsifdan yasaydi."
+          },
+          {
+            "code": "seo_title_missing",
+            "severity": "info",
+            "language": "en",
+            "message": "SEO sarlavha (inglizcha) yo‘q: sayt nomdan foydalanadi."
+          },
+          {
+            "code": "seo_description_missing",
+            "severity": "info",
+            "language": "en",
+            "message": "SEO tavsif (inglizcha) yo‘q: sayt uni tavsifdan yasaydi."
+          }
+        ]
+      },
       "created_at": "2025-03-11T16:00:00+05:00",
       "updated_at": "2026-10-22T18:04:00+05:00"
     },
@@ -102,6 +164,110 @@
       "main_image_url": null,
       "images": [],
       "last_change": null,
+      "slug": "vit-c-serum-20ml",
+      "seo": {
+        "uz": {
+          "title": "",
+          "description": ""
+        },
+        "ru": {
+          "title": "",
+          "description": ""
+        },
+        "en": {
+          "title": "",
+          "description": ""
+        }
+      },
+      "seo_status": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "name_missing",
+            "severity": "error",
+            "language": "uz",
+            "message": "O‘zbekcha nom yo‘q: sahifa Billz nomi bilan chiqadi."
+          },
+          {
+            "code": "description_missing",
+            "severity": "error",
+            "language": "uz",
+            "message": "Tavsif (o‘zbekcha) yo‘q."
+          },
+          {
+            "code": "images_missing",
+            "severity": "error",
+            "language": null,
+            "message": "Mahsulotda rasm yo‘q."
+          },
+          {
+            "code": "name_translation_missing",
+            "severity": "warning",
+            "language": "ru",
+            "message": "Nomning ruscha tarjimasi yo‘q."
+          },
+          {
+            "code": "name_translation_missing",
+            "severity": "warning",
+            "language": "en",
+            "message": "Nomning inglizcha tarjimasi yo‘q."
+          },
+          {
+            "code": "description_missing",
+            "severity": "warning",
+            "language": "ru",
+            "message": "Tavsif (ruscha) yo‘q."
+          },
+          {
+            "code": "description_missing",
+            "severity": "warning",
+            "language": "en",
+            "message": "Tavsif (inglizcha) yo‘q."
+          },
+          {
+            "code": "category_missing",
+            "severity": "warning",
+            "language": null,
+            "message": "Kategoriya tanlanmagan: sahifa katalog yo‘lida ko‘rinmaydi."
+          },
+          {
+            "code": "seo_title_missing",
+            "severity": "info",
+            "language": "uz",
+            "message": "SEO sarlavha (o‘zbekcha) yo‘q: sayt nomdan foydalanadi."
+          },
+          {
+            "code": "seo_description_missing",
+            "severity": "info",
+            "language": "uz",
+            "message": "SEO tavsif (o‘zbekcha) yo‘q: sayt uni tavsifdan yasaydi."
+          },
+          {
+            "code": "seo_title_missing",
+            "severity": "info",
+            "language": "ru",
+            "message": "SEO sarlavha (ruscha) yo‘q: sayt nomdan foydalanadi."
+          },
+          {
+            "code": "seo_description_missing",
+            "severity": "info",
+            "language": "ru",
+            "message": "SEO tavsif (ruscha) yo‘q: sayt uni tavsifdan yasaydi."
+          },
+          {
+            "code": "seo_title_missing",
+            "severity": "info",
+            "language": "en",
+            "message": "SEO sarlavha (inglizcha) yo‘q: sayt nomdan foydalanadi."
+          },
+          {
+            "code": "seo_description_missing",
+            "severity": "info",
+            "language": "en",
+            "message": "SEO tavsif (inglizcha) yo‘q: sayt uni tavsifdan yasaydi."
+          }
+        ]
+      },
       "created_at": "2025-03-11T10:00:00+05:00",
       "updated_at": "2025-03-11T10:00:00+05:00"
     }

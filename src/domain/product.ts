@@ -1,3 +1,5 @@
+import type { SeoStatus, SeoTexts } from "./seo";
+
 /**
  * Products. Stock and the Billz name come from Billz (the store's POS) and are
  * read-only here; texts, images, price, category, promo flag and visibility
@@ -57,6 +59,12 @@ export interface Product {
   /** First photo (`main_image_url`), rendered before `art` in lists and pickers. */
   mainImageUrl?: string;
   lastChange?: { by: string; at: string; note: string };
+  /** The website URL segment (`/mahsulotlar/{slug}`, B-W1): unique, never only digits. */
+  slug: string;
+  /** Page title / meta description per language; `""` = the website builds one (B-W1). */
+  seo: SeoTexts;
+  /** The server's «SEO holati» checklist (B-W1). */
+  seoStatus: SeoStatus;
 }
 
 export const LOW_STOCK_THRESHOLD = 3;

@@ -14,6 +14,67 @@
       "position": 0,
       "is_active": true,
       "product_count": 20,
+      "seo": {
+        "uz": {
+          "title": "",
+          "description": ""
+        },
+        "ru": {
+          "title": "",
+          "description": ""
+        },
+        "en": {
+          "title": "",
+          "description": ""
+        }
+      },
+      "seo_status": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "image_missing",
+            "severity": "warning",
+            "language": null,
+            "message": "Kategoriya rasmi yo‘q: ijtimoiy tarmoqlarda umumiy rasm chiqadi."
+          },
+          {
+            "code": "seo_title_missing",
+            "severity": "info",
+            "language": "uz",
+            "message": "SEO sarlavha (o‘zbekcha) yo‘q: sayt nomdan foydalanadi."
+          },
+          {
+            "code": "seo_description_missing",
+            "severity": "info",
+            "language": "uz",
+            "message": "SEO tavsif (o‘zbekcha) yo‘q: sayt uni tavsifdan yasaydi."
+          },
+          {
+            "code": "seo_title_missing",
+            "severity": "info",
+            "language": "ru",
+            "message": "SEO sarlavha (ruscha) yo‘q: sayt nomdan foydalanadi."
+          },
+          {
+            "code": "seo_description_missing",
+            "severity": "info",
+            "language": "ru",
+            "message": "SEO tavsif (ruscha) yo‘q: sayt uni tavsifdan yasaydi."
+          },
+          {
+            "code": "seo_title_missing",
+            "severity": "info",
+            "language": "en",
+            "message": "SEO sarlavha (inglizcha) yo‘q: sayt nomdan foydalanadi."
+          },
+          {
+            "code": "seo_description_missing",
+            "severity": "info",
+            "language": "en",
+            "message": "SEO tavsif (inglizcha) yo‘q: sayt uni tavsifdan yasaydi."
+          }
+        ]
+      },
       "created_at": "2026-10-25T23:02:37+05:00",
       "updated_at": "2026-10-25T23:02:37+05:00"
     },
@@ -27,6 +88,67 @@
       "position": 1,
       "is_active": true,
       "product_count": 55,
+      "seo": {
+        "uz": {
+          "title": "",
+          "description": ""
+        },
+        "ru": {
+          "title": "",
+          "description": ""
+        },
+        "en": {
+          "title": "",
+          "description": ""
+        }
+      },
+      "seo_status": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "image_missing",
+            "severity": "warning",
+            "language": null,
+            "message": "Kategoriya rasmi yo‘q: ijtimoiy tarmoqlarda umumiy rasm chiqadi."
+          },
+          {
+            "code": "seo_title_missing",
+            "severity": "info",
+            "language": "uz",
+            "message": "SEO sarlavha (o‘zbekcha) yo‘q: sayt nomdan foydalanadi."
+          },
+          {
+            "code": "seo_description_missing",
+            "severity": "info",
+            "language": "uz",
+            "message": "SEO tavsif (o‘zbekcha) yo‘q: sayt uni tavsifdan yasaydi."
+          },
+          {
+            "code": "seo_title_missing",
+            "severity": "info",
+            "language": "ru",
+            "message": "SEO sarlavha (ruscha) yo‘q: sayt nomdan foydalanadi."
+          },
+          {
+            "code": "seo_description_missing",
+            "severity": "info",
+            "language": "ru",
+            "message": "SEO tavsif (ruscha) yo‘q: sayt uni tavsifdan yasaydi."
+          },
+          {
+            "code": "seo_title_missing",
+            "severity": "info",
+            "language": "en",
+            "message": "SEO sarlavha (inglizcha) yo‘q: sayt nomdan foydalanadi."
+          },
+          {
+            "code": "seo_description_missing",
+            "severity": "info",
+            "language": "en",
+            "message": "SEO tavsif (inglizcha) yo‘q: sayt uni tavsifdan yasaydi."
+          }
+        ]
+      },
       "created_at": "2026-10-25T23:02:37+05:00",
       "updated_at": "2026-10-25T23:02:37+05:00"
     },
@@ -40,6 +162,67 @@
       "position": 2,
       "is_active": true,
       "product_count": 92,
+      "seo": {
+        "uz": {
+          "title": "",
+          "description": ""
+        },
+        "ru": {
+          "title": "",
+          "description": ""
+        },
+        "en": {
+          "title": "",
+          "description": ""
+        }
+      },
+      "seo_status": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "image_missing",
+            "severity": "warning",
+            "language": null,
+            "message": "Kategoriya rasmi yo‘q: ijtimoiy tarmoqlarda umumiy rasm chiqadi."
+          },
+          {
+            "code": "seo_title_missing",
+            "severity": "info",
+            "language": "uz",
+            "message": "SEO sarlavha (o‘zbekcha) yo‘q: sayt nomdan foydalanadi."
+          },
+          {
+            "code": "seo_description_missing",
+            "severity": "info",
+            "language": "uz",
+            "message": "SEO tavsif (o‘zbekcha) yo‘q: sayt uni tavsifdan yasaydi."
+          },
+          {
+            "code": "seo_title_missing",
+            "severity": "info",
+            "language": "ru",
+            "message": "SEO sarlavha (ruscha) yo‘q: sayt nomdan foydalanadi."
+          },
+          {
+            "code": "seo_description_missing",
+            "severity": "info",
+            "language": "ru",
+            "message": "SEO tavsif (ruscha) yo‘q: sayt uni tavsifdan yasaydi."
+          },
+          {
+            "code": "seo_title_missing",
+            "severity": "info",
+            "language": "en",
+            "message": "SEO sarlavha (inglizcha) yo‘q: sayt nomdan foydalanadi."
+          },
+          {
+            "code": "seo_description_missing",
+            "severity": "info",
+            "language": "en",
+            "message": "SEO tavsif (inglizcha) yo‘q: sayt uni tavsifdan yasaydi."
+          }
+        ]
+      },
       "created_at": "2026-10-25T23:02:37+05:00",
       "updated_at": "2026-10-25T23:02:37+05:00"
     },
@@ -53,6 +236,67 @@
       "position": 3,
       "is_active": true,
       "product_count": 41,
+      "seo": {
+        "uz": {
+          "title": "",
+          "description": ""
+        },
+        "ru": {
+          "title": "",
+          "description": ""
+        },
+        "en": {
+          "title": "",
+          "description": ""
+        }
+      },
+      "seo_status": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "image_missing",
+            "severity": "warning",
+            "language": null,
+            "message": "Kategoriya rasmi yo‘q: ijtimoiy tarmoqlarda umumiy rasm chiqadi."
+          },
+          {
+            "code": "seo_title_missing",
+            "severity": "info",
+            "language": "uz",
+            "message": "SEO sarlavha (o‘zbekcha) yo‘q: sayt nomdan foydalanadi."
+          },
+          {
+            "code": "seo_description_missing",
+            "severity": "info",
+            "language": "uz",
+            "message": "SEO tavsif (o‘zbekcha) yo‘q: sayt uni tavsifdan yasaydi."
+          },
+          {
+            "code": "seo_title_missing",
+            "severity": "info",
+            "language": "ru",
+            "message": "SEO sarlavha (ruscha) yo‘q: sayt nomdan foydalanadi."
+          },
+          {
+            "code": "seo_description_missing",
+            "severity": "info",
+            "language": "ru",
+            "message": "SEO tavsif (ruscha) yo‘q: sayt uni tavsifdan yasaydi."
+          },
+          {
+            "code": "seo_title_missing",
+            "severity": "info",
+            "language": "en",
+            "message": "SEO sarlavha (inglizcha) yo‘q: sayt nomdan foydalanadi."
+          },
+          {
+            "code": "seo_description_missing",
+            "severity": "info",
+            "language": "en",
+            "message": "SEO tavsif (inglizcha) yo‘q: sayt uni tavsifdan yasaydi."
+          }
+        ]
+      },
       "created_at": "2026-10-25T23:02:37+05:00",
       "updated_at": "2026-10-25T23:02:37+05:00"
     },
@@ -66,6 +310,67 @@
       "position": 4,
       "is_active": true,
       "product_count": 36,
+      "seo": {
+        "uz": {
+          "title": "",
+          "description": ""
+        },
+        "ru": {
+          "title": "",
+          "description": ""
+        },
+        "en": {
+          "title": "",
+          "description": ""
+        }
+      },
+      "seo_status": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "image_missing",
+            "severity": "warning",
+            "language": null,
+            "message": "Kategoriya rasmi yo‘q: ijtimoiy tarmoqlarda umumiy rasm chiqadi."
+          },
+          {
+            "code": "seo_title_missing",
+            "severity": "info",
+            "language": "uz",
+            "message": "SEO sarlavha (o‘zbekcha) yo‘q: sayt nomdan foydalanadi."
+          },
+          {
+            "code": "seo_description_missing",
+            "severity": "info",
+            "language": "uz",
+            "message": "SEO tavsif (o‘zbekcha) yo‘q: sayt uni tavsifdan yasaydi."
+          },
+          {
+            "code": "seo_title_missing",
+            "severity": "info",
+            "language": "ru",
+            "message": "SEO sarlavha (ruscha) yo‘q: sayt nomdan foydalanadi."
+          },
+          {
+            "code": "seo_description_missing",
+            "severity": "info",
+            "language": "ru",
+            "message": "SEO tavsif (ruscha) yo‘q: sayt uni tavsifdan yasaydi."
+          },
+          {
+            "code": "seo_title_missing",
+            "severity": "info",
+            "language": "en",
+            "message": "SEO sarlavha (inglizcha) yo‘q: sayt nomdan foydalanadi."
+          },
+          {
+            "code": "seo_description_missing",
+            "severity": "info",
+            "language": "en",
+            "message": "SEO tavsif (inglizcha) yo‘q: sayt uni tavsifdan yasaydi."
+          }
+        ]
+      },
       "created_at": "2026-10-25T23:02:37+05:00",
       "updated_at": "2026-10-25T23:02:37+05:00"
     }

@@ -17,7 +17,7 @@ type LocaleInput = Locale | Promise<Locale>;
 import { EmptyState } from "../components/empty-state";
 import { Container, Eyebrow, PageHeading } from "../components/layout-primitives";
 import { ShopBreadcrumbs } from "../components/shop-breadcrumbs";
-import { CardsSkeleton, ProseSkeleton } from "../components/skeletons";
+import { CardsSkeleton, SpecialistSkeleton } from "../components/skeletons";
 import { SpecialistCard, SpecialistPortrait } from "../components/specialist-card";
 import { getShopDictionary } from "../content";
 import { shopHref, shopPath } from "../routing/routes";
@@ -294,7 +294,7 @@ async function SpecialistBody({
 
 export function SpecialistPage({ locale, params }: { locale: LocaleInput; params: SlugParams }) {
   return (
-    <Suspense fallback={<ProseSkeleton />}>
+    <Suspense fallback={<SpecialistSkeleton />}>
       <SpecialistBody locale={locale} params={params} />
     </Suspense>
   );

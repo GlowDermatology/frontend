@@ -139,3 +139,53 @@ export function HomeSkeleton() {
     </div>
   );
 }
+
+/**
+ * A specialist page: breadcrumbs, then the portrait column (200px portrait,
+ * role, name, booking button) beside the about/services column (U5).
+ */
+export function SpecialistSkeleton() {
+  return (
+    <Container className="pb-[clamp(64px,8vw,120px)]">
+      <div aria-busy="true">
+        <div aria-hidden="true" className="flex gap-2 pt-6">
+          <Bar className="h-5 w-24" />
+          <Bar className="h-5 w-32" />
+        </div>
+        <div
+          aria-hidden="true"
+          className="grid gap-[clamp(32px,5vw,80px)] pt-10 nav:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]"
+        >
+          <div className="flex flex-col items-start gap-6">
+            <span className="block size-[200px] skeleton rounded-full" />
+            <div className="flex w-full flex-col gap-2">
+              <Bar className="h-3.5 w-28" />
+              <Bar className="h-10 w-3/4" />
+              <Bar className="h-5 w-40" />
+            </div>
+            <Bar className="h-13 w-48 rounded-md" />
+            <div className="flex w-full flex-col gap-2 border-t border-line pt-5">
+              <Bar className="h-3.5 w-24" />
+              <Bar className="h-5 w-1/2" />
+              <Bar className="h-5 w-2/3" />
+            </div>
+          </div>
+          <div className="flex flex-col gap-10">
+            <div className="flex flex-col gap-3">
+              <Bar className="h-8 w-40" />
+              {Array.from({ length: 5 }, (_, index) => (
+                <Bar key={index} className={cn("h-6", index === 4 ? "w-2/3" : "w-full")} />
+              ))}
+            </div>
+            <div className="flex flex-col gap-3">
+              <Bar className="h-8 w-48" />
+              {Array.from({ length: 4 }, (_, index) => (
+                <Bar key={index} className="h-12 w-full" />
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </Container>
+  );
+}

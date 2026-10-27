@@ -25,7 +25,10 @@ export function ShopChrome({ locale, children }: { locale: Locale; children: Rea
           {dict.skipLink}
         </a>
         <ShopHeader locale={locale} dict={dict} />
-        <main id={MAIN_ID} tabIndex={-1} className="flex-1 focus:outline-none">
+        {/* At least a viewport tall: the footer starts below the fold, so a
+            streamed body taller than its fallback never pushes visible
+            content (CLS, U5). */}
+        <main id={MAIN_ID} tabIndex={-1} className="min-h-svh flex-1 focus:outline-none">
           {children}
         </main>
         <ShopFooter locale={locale} dict={dict} />

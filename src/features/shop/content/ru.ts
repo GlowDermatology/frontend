@@ -188,7 +188,7 @@ export const ru: ShopDictionary = {
     updated: (date) => `Редакция от ${date}`,
     version: (version) => `Версия ${version}`,
     empty: "Текст ещё не опубликован.",
-    docsLabel: "Документы",
+    docsLabel: "Другие документы",
   },
   placeholder: {
     cartTitle: "Корзина",

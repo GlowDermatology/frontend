@@ -76,7 +76,7 @@ export function SpecialistCard({
     >
       <SpecialistPortrait specialist={specialist} size={88} sizes="88px" />
       <div className="flex flex-col gap-1.5">
-        <p className="m-0 text-overline text-gold-ink uppercase">{specialist.roleLabel}</p>
+        <p className="m-0 text-overline text-ink-muted uppercase">{specialist.roleLabel}</p>
         <Heading className="m-0 font-serif text-[28px] leading-8 font-semibold text-ink">
           <Link
             href={shopPath(locale, { kind: "specialist", slug: specialist.segment })}

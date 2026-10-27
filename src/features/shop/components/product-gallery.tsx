@@ -28,7 +28,12 @@ export function ProductGallery({ product, dict }: { product: ShopProduct; dict: 
   }
   return (
     <section aria-label={dict.product.galleryLabel} className="flex flex-col gap-3">
-      <ul className="m-0 flex snap-x snap-mandatory [scrollbar-width:none] list-none overflow-x-auto overscroll-x-contain rounded-lg p-0">
+      <ul
+        // Keyboard users scroll the photos with the arrow keys once focused.
+        tabIndex={0}
+        aria-label={dict.product.galleryLabel}
+        className="m-0 flex snap-x snap-mandatory [scrollbar-width:none] list-none overflow-x-auto overscroll-x-contain rounded-lg p-0"
+      >
         {photos.map((photo, index) => (
           <li
             key={photo.id}

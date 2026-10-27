@@ -184,7 +184,7 @@ export const en: ShopDictionary = {
     updated: (date) => `Last updated ${date}`,
     version: (version) => `Version ${version}`,
     empty: "This text has not been published yet.",
-    docsLabel: "Documents",
+    docsLabel: "Other documents",
   },
   placeholder: {
     cartTitle: "Cart",

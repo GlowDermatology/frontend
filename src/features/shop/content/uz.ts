@@ -192,7 +192,7 @@ export const uz = {
     updated: (date: string) => `Tahrir: ${date}`,
     version: (version: string) => `Versiya ${version}`,
     empty: "Matn hali e’lon qilinmagan.",
-    docsLabel: "Hujjatlar",
+    docsLabel: "Boshqa hujjatlar",
   },
   placeholder: {
     cartTitle: "Savat",

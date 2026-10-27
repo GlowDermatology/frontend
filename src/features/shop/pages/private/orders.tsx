@@ -26,6 +26,7 @@ import {
 import { EmptyState } from "../../components/empty-state";
 import { ordersCopy } from "../../copy/orders";
 import { OrderActions } from "../../orders/order-actions";
+import { deriveProgress, paymentLabel } from "../../orders/progress";
 import { PaymentReturn, PaymentSandbox } from "../../orders/payment-return";
 import { shopHref, shopPath } from "../../routing/routes";
 import { settle } from "../settle";
@@ -386,7 +387,7 @@ async function OrderBody({
       ) : null}
 
       <Panel>
-        <Progress steps={order.progress} label={t.progressLabel} />
+        <Progress steps={deriveProgress(order)} label={t.progressLabel} />
       </Panel>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -454,7 +455,7 @@ async function OrderBody({
               <div className="flex justify-between gap-3">
                 <dt className="text-ink-muted">{t.provider[order.payment.provider]}</dt>
                 <dd className="m-0 font-semibold">
-                  {order.paymentDetail.inProgressLabel ?? order.payment.statusLabel}
+                  {order.paymentDetail.inProgressLabel ?? paymentLabel(order, { unpaid: t.unpaid })}
                 </dd>
               </div>
               {order.paymentDetail.confirmedAt ? (

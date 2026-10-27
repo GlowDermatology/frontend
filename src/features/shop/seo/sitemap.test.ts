@@ -49,11 +49,8 @@ describe("sitemaps", () => {
 });
 
 describe("robots", () => {
-  it("disallows the admin, the BFF and private pages in every language", () => {
+  it("disallows only the admin and the BFF; private pages rely on noindex", () => {
     const rules = robots().rules as { disallow: string[] };
-    expect(rules.disallow).toEqual(
-      expect.arrayContaining(["/admin", "/api/", "/savat", "/kirish", "/ru/cart", "/en/sign-in"]),
-    );
-    expect(rules.disallow).not.toContain("/katalog");
+    expect(rules.disallow).toEqual(["/admin", "/api/"]);
   });
 });

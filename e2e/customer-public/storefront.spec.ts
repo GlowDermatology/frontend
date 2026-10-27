@@ -83,7 +83,8 @@ test("legacy numeric URLs and private pages", async ({ page, request }) => {
   await expect(page.locator('meta[name="robots"]').first()).toHaveAttribute("content", /noindex/);
   const robots = await (await request.get("/robots.txt")).text();
   expect(robots).toContain("Disallow: /admin");
-  expect(robots).toContain("Disallow: /savat");
+  // Private pages rely on noindex, not on robots.txt (they must stay fetchable).
+  expect(robots).not.toContain("Disallow: /savat");
   const sitemap = await (await request.get("/sitemap.xml")).text();
   expect(sitemap).toContain("/sitemaps/products-uz.xml");
 });

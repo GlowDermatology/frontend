@@ -152,9 +152,9 @@ export function InboxList({
                     ) : null}
                   </span>
                   {item.body ? (
-                    <span className="text-body-sm text-pretty text-ink-muted">{item.body}</span>
+                    <span className={cn("text-body-sm text-pretty", item.read ? "text-ink-muted" : "text-ink")}>{item.body}</span>
                   ) : null}
-                  <span className="text-caption text-ink-muted">
+                  <span className={cn("text-caption", item.read ? "text-ink-muted" : "text-ink")}>
                     {copy.kinds[item.kind]} · {formatShortDateTime(item.createdAt, locale)}
                   </span>
                 </span>

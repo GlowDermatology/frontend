@@ -128,7 +128,6 @@ export async function SignInPage({
       <div className="grid gap-8 nav:min-h-[640px] nav:grid-cols-[minmax(0,1fr)_minmax(0,520px)] nav:gap-12">
         <Aside locale={locale} />
         <section
-          aria-labelledby="page-title"
           className="mx-auto flex w-full max-w-[520px] flex-col justify-center rounded-lg border border-line bg-surface-raised p-[clamp(20px,4vw,44px)]"
         >
           <Suspense fallback={<FormSkeleton />}>

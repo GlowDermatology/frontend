@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { Button, buttonStyles } from "@/components/ui/button";
 import { Field, TextArea } from "@/components/ui/field";
@@ -93,7 +93,9 @@ function OptionCard({
       {icon}
       <span className="flex min-w-0 flex-col">
         <span className="text-label text-ink">{title}</span>
-        {hint ? <span className="text-body-sm text-ink-muted">{hint}</span> : null}
+        {hint ? (
+          <span className={cn("text-body-sm", checked ? "text-ink" : "text-ink-muted")}>{hint}</span>
+        ) : null}
       </span>
     </label>
   );
@@ -139,6 +141,7 @@ export function CheckoutView({
   const payKey = useIdempotencyKey();
   const { setCartQuantity } = useShopSession();
   const requestId = useRef(0);
+  const groupId = useId();
 
   const selection: CheckoutSelection = {
     fulfilment,
@@ -255,14 +258,21 @@ export function CheckoutView({
   return (
     <div className="grid gap-8 nav:grid-cols-[minmax(0,1fr)_380px] nav:items-start nav:gap-12">
       <div className="flex flex-col gap-8">
-        <section aria-labelledby="fulfilment-title" className="flex flex-col gap-4">
+        {/* Each radio group sits in its own form (U10): React resolves sibling
+            radios by name within the form, so a streamed copy of the markup
+            can never be taken for one of them before hydration. */}
+        <form
+          aria-labelledby="fulfilment-title"
+          onSubmit={(event) => event.preventDefault()}
+          className="flex flex-col gap-4"
+        >
           <h2 id="fulfilment-title" className="m-0 font-serif text-[26px] leading-8 font-semibold">
             {t.fulfilmentTitle}
           </h2>
           <div className="grid gap-3 sm:grid-cols-2">
             {fulfilmentMethods.includes("pickup") ? (
               <OptionCard
-                name="fulfilment"
+                name={`${groupId}-fulfilment`}
                 value="pickup"
                 checked={fulfilment === "pickup"}
                 onChange={() => setFulfilment("pickup")}
@@ -273,7 +283,7 @@ export function CheckoutView({
             ) : null}
             {fulfilmentMethods.includes("delivery") ? (
               <OptionCard
-                name="fulfilment"
+                name={`${groupId}-fulfilment`}
                 value="delivery"
                 checked={fulfilment === "delivery"}
                 onChange={() => setFulfilment("delivery")}
@@ -301,7 +311,7 @@ export function CheckoutView({
               {addresses.map((address) => (
                 <OptionCard
                   key={address.id}
-                  name="address"
+                  name={`${groupId}-address`}
                   value={String(address.id)}
                   checked={addressId === address.id}
                   onChange={() => setAddressId(address.id)}
@@ -315,9 +325,13 @@ export function CheckoutView({
               </Button>
             </fieldset>
           ) : null}
-        </section>
+        </form>
 
-        <section aria-labelledby="payment-title" className="flex flex-col gap-4">
+        <form
+          aria-labelledby="payment-title"
+          onSubmit={(event) => event.preventDefault()}
+          className="flex flex-col gap-4"
+        >
           <h2 id="payment-title" className="m-0 font-serif text-[26px] leading-8 font-semibold">
             {t.paymentTitle}
           </h2>
@@ -325,7 +339,7 @@ export function CheckoutView({
             {providers.map((value) => (
               <OptionCard
                 key={value}
-                name="provider"
+                name={`${groupId}-provider`}
                 value={value}
                 checked={provider === value}
                 onChange={() => setProvider(value)}
@@ -334,7 +348,7 @@ export function CheckoutView({
               />
             ))}
           </div>
-        </section>
+        </form>
 
         <section aria-labelledby="cashback-title" className="flex flex-col gap-3">
           <h2 id="cashback-title" className="m-0 font-serif text-[26px] leading-8 font-semibold">

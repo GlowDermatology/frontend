@@ -1,19 +1,20 @@
 import type { MetadataRoute } from "next";
 
 import { siteConfig } from "@/config/site";
-import { privatePathPrefixes } from "@/features/shop/routing/routes";
 
 /**
- * Crawl rules: the admin panel, the BFF route handlers and every private
- * storefront page (cart, checkout, account, orders, sign-in, booking… in all
- * three languages) are disallowed; those pages also send `noindex`.
+ * Crawl rules: only the admin panel and the BFF route handlers are
+ * disallowed. The private storefront pages (cart, checkout, account, orders,
+ * sign-in…) send `noindex` instead: a crawler must be allowed to fetch them
+ * to see it, and a disallowed URL linked from elsewhere could still be
+ * indexed without its content.
  */
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/admin", "/api/", ...privatePathPrefixes()],
+      disallow: ["/admin", "/api/"],
     },
     sitemap: `${siteConfig.url}/sitemap.xml`,
   };

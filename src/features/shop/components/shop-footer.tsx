@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { getSettings } from "@/data/shop/catalog";
 import { storefrontEnabled } from "@/data/shop/mode";
 import { formatPhone } from "@/lib/format";
+import { settle } from "../pages/settle";
 import { cn } from "@/lib/cn";
 import type { Locale } from "@/lib/i18n/locales";
 
@@ -17,7 +18,9 @@ const heading = "m-0 text-overline text-ink-muted uppercase";
 /** Contacts from `settings/public/` (cached), streamed into the static footer. */
 async function FooterContacts({ locale, dict }: { locale: Locale; dict: ShopDictionary }) {
   if (!(await storefrontEnabled())) return null;
-  const settings = await getSettings(locale);
+  // The footer is on every page: an unreachable API must not take the page down.
+  const settings = await settle(getSettings(locale), null, "footer settings");
+  if (!settings) return null;
   const phones = [
     { label: dict.footer.support, value: settings.supportPhone },
     { label: dict.footer.store, value: settings.storePhone },

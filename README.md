@@ -3,7 +3,7 @@
 The Glow Derma web frontend, built from the Claude Design board "Glow Derma". It contains:
 
 - the **public landing page** in Uzbek (`/`), Russian (`/ru`) and English (`/en`);
-- the **admin panel** (`/admin`): dashboard, orders, order detail, products, product editor, categories, banners, customer card, customer groups, cashback settings, notifications, appointments, settings and the audit log.
+- the **admin panel** (`/admin`): dashboard, orders, order detail, products, product editor, categories, banners, customer card, customer groups, cashback settings, notifications, appointments, specialists (list and page: profile, photo, offered services, weekly hours, date overrides, blocked periods), services, the clinic, staff (managers only), settings (store, contacts, legal texts with publishing) and the audit log.
 
 It runs on **mock data** behind a small data layer. That layer has the same shape as the planned Django REST Framework API, so connecting the backend replaces function bodies without touching the UI.
 
@@ -234,6 +234,22 @@ The seam is already in place: every public function in `src/data/*.ts` dispatche
 
 ## Verification
 
+### Gap-closure sync (backend `feat/m3-gaps` `4d4a5aa`)
+
+Types regenerated from `4d4a5aa`; new: settings contacts and legal texts with «E’lon qilish», «Xodimlar» (managers
+only), «Mutaxassislar» / «Xizmatlar» / «Klinika», category images, banner and campaign URL links, the paged and filtered
+notifications history with its export, customer devices and «Buyurtmalari (N)», the dashboard's missing cashback policy
+item, confirmations for order transitions, attendance and new cashback versions, drag-and-drop on categories and banners,
+and in-page search / status filters on both. Run in this environment against the dev API on `4d4a5aa` (fake
+integrations, freshly seeded) and in demo mode.
+
+| Check                                                           | Result                                                                                                                                                                                                                                                                      |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run check` (env unset, and api env incl. OAuth variables)  | lint 0 errors / 0 warnings; typecheck passes; Vitest 69 files, 648 tests pass; Prettier passes                                                                                                                                                                              |
+| `npm run build` (env unset and api env)                         | succeeds both ways, no warnings                                                                                                                                                                                                                                             |
+| `npm run e2e` (`next start`, api, fresh seed, `E2E_API_URL` on) | 43 passed (the 31 earlier specs plus settings publish / 409 / contacts, a specialist bookable through the customer slots, staff, history paging / export, category image, banner URL); nothing `e2e …` left; backend reseeded                                               |
+| axe-core (WCAG 2.0/2.1/2.2 A + AA, best practices)              | 0 violations and no horizontal overflow at 1440 and 390, demo and api, on Sozlamalar, Xodimlar (and its dialogs), Mutaxassislar, a specialist's page, Xizmatlar, Bildirishnomalar, Kategoriyalar (and the dialog), Bannerlar, the customer card, the dashboard and Qabullar |
+
 ### M3 sync fix pass (backend `d4db5cf`)
 
 `feat/m3-integration` was rebased after the M3 sync: `d4db5cf` has the same tree as `d9843de`, and the types header now
@@ -328,6 +344,8 @@ Carried over from earlier slices (not re-run in F2e): landing pixel comparisons 
 - An unknown id such as `/admin/orders/999` shows the "not found" view, but the HTTP status is 200. The body streams under Partial Prerendering. It will be 404 once data checks move before streaming or the route is made dynamic.
 - The admin booking dialogs (new visit, reschedule / move, cancel) are built in the design system without a board. The time list is the 5-minute grid inside the chosen specialist's working hours of the chosen day; starts that collide with a break or a held visit are marked "band" but stay selectable, since the backend decides. In demo mode a visit created in the dialog lives only in the page's state, so it cannot be moved or cancelled afterwards (the mock actions look visits up in the fixtures).
 - The header search still opens the filtered orders list (it is not a global search).
+- **Gap closure (feat/m3-gaps)**: the notifications history has no search (the API offers state and kind only); the category and banner lists are filtered in the page (the API filters them by `is_active` only and they are reordered as one set, so reordering pauses while a filter is on); segments, segment members and the audit log still have no free-text search (the API has none). In demo mode a specialist or service created on the list stays on that list only (nothing is kept, so its page cannot be opened), a published terms version is not kept after a reload, and a picked photo or category image is a local preview.
+
 - Disabled with an explanation: weekly appointment view, "AI tahlil" (phase 2).
 - Sections that are not in the design, built in the design system without a board: Guruhlar (`/admin/customers/groups`, members at `/admin/customers/groups/[id]`), Sozlamalar (store settings + account card) and Harakatlar jurnali (`/admin/audit-log`) (F2b); Kategoriyalar and Bannerlar (list ordered by position, create/edit dialogs, delete confirmation, up/down reordering, CSV/XLSX export) (F2a); the customers list (F2c) and To‘lovlar (F2d). No placeholder section is left.
 - Customers and cashback (F2c): the customers list (`/admin/customers`: search, status, group, ordering, 20/50 rows, export) is built in the design system without a board. The adjustment dialog checks the amount against the card's `available` before calling (the backend re-checks under its lock); the policy editor offers the next three month starts as the effective date, so `effective_from_in_past` only appears when a page is left open across a month boundary. In demo mode six generated customers without online orders are deleted (as in the seed), the mock policy save returns v4 with the backend's summary, period and warnings without persisting it, and the group dialog resolves phones against the fixtures.

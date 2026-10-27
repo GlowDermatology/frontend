@@ -53,6 +53,7 @@ describe("runShopAction", () => {
 describe("cookie readers", () => {
   it("read the customer csrf and the signed-in hint only", () => {
     expect(readShopCsrf("gd_csrf=admin; gd_cust_csrf=shop")).toBe("shop");
+    expect(readShopCsrf("__Host-gd_cust_csrf=tls; gd_csrf=admin")).toBe("tls");
     expect(hasSignedInHint("gd_cust_in=1")).toBe(true);
     expect(hasSignedInHint("gd_cust_in=0")).toBe(false);
     expect(hasSignedInHint(undefined)).toBe(false);

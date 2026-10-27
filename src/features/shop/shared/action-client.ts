@@ -26,7 +26,11 @@ export { useIdempotencyKey, type IdempotencyKey } from "@/lib/actions/idempotenc
 
 /** The readable csrf cookie (`""` outside a browser or before the proxy minted it). */
 export function readShopCsrf(cookieString: string | undefined = documentCookie()): string {
-  return readCookie(customerCookieNames(false).csrf, cookieString);
+  // `__Host-gd_cust_csrf` on HTTPS, `gd_cust_csrf` on plain-HTTP development.
+  return (
+    readCookie(customerCookieNames(true).csrf, cookieString) ||
+    readCookie(customerCookieNames(false).csrf, cookieString)
+  );
 }
 
 /** Whether the readable signed-in hint is set (presentation only; never trusted). */

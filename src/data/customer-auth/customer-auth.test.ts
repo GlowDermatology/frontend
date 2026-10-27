@@ -43,10 +43,13 @@ describe("customer cookie names", () => {
       signedIn: "gd_cust_in",
     });
     const secure = customerCookieNames(true);
-    expect(secure.access).toBe("__Secure-gd_cust_access");
-    expect(secure.deviceId).toBe("__Secure-gd_dev_id");
-    // Readable by scripts, so no prefix that implies HttpOnly semantics.
-    expect(secure.csrf).toBe("gd_cust_csrf");
+    expect(secure.access).toBe("__Host-gd_cust_access");
+    expect(secure.deviceId).toBe("__Host-gd_dev_id");
+    expect(secure.deviceKey).toBe("__Host-gd_dev_key");
+    expect(secure.refresh).toBe("__Host-gd_cust_refresh");
+    // __Host- binds the readable csrf token to this host too; the hint stays plain.
+    expect(secure.csrf).toBe("__Host-gd_cust_csrf");
+    expect(secure.signedIn).toBe("gd_cust_in");
   });
 });
 
@@ -62,7 +65,7 @@ describe("customer cookies", () => {
     });
     expect(cookies).not.toBeNull();
     const [access, refresh, hint] = cookies!;
-    expect(access!.name).toBe("__Secure-gd_cust_access");
+    expect(access!.name).toBe("__Host-gd_cust_access");
     expect(access!.attributes).toEqual({
       httpOnly: true,
       secure: true,

@@ -26,15 +26,18 @@
  * - `refreshBackoff` — short marker that stops the proxy from bouncing to
  *                the refresh route again right after a transient failure.
  *
- * With `secure` (HTTPS) the HttpOnly session cookies get the `__Secure-`
- * prefix, which browsers accept only over HTTPS with the Secure attribute.
+ * With `secure` (HTTPS) the session, device and csrf cookies get the
+ * `__Host-` prefix: browsers accept it only over HTTPS with `Secure`,
+ * `Path=/` and no `Domain`, so neither a sibling subdomain nor a plain-HTTP
+ * response can plant or overwrite them (cookie tossing). The readable hint
+ * and the backoff marker stay unprefixed (they carry no secret).
  */
 export function customerCookieNames(secure: boolean) {
-  const prefix = secure ? "__Secure-" : "";
+  const prefix = secure ? "__Host-" : "";
   return {
     access: `${prefix}gd_cust_access`,
     refresh: `${prefix}gd_cust_refresh`,
-    csrf: "gd_cust_csrf",
+    csrf: `${prefix}gd_cust_csrf`,
     deviceId: `${prefix}gd_dev_id`,
     deviceKey: `${prefix}gd_dev_key`,
     signedIn: "gd_cust_in",

@@ -18,9 +18,6 @@ export function ShopNotFound({ locale }: { locale: Locale }) {
   const t = errorCopy[locale];
   return (
     <Container className="py-[clamp(48px,8vw,120px)]">
-      {/* React hoists these into <head>: one localized title, one robots tag. */}
-      <title>{`${t.notFoundTitle} | Glow Derma`}</title>
-      <meta name="robots" content="noindex, follow" />
       <section
         aria-labelledby="not-found-title"
         className="relative mx-auto flex max-w-[720px] flex-col items-center gap-5 overflow-hidden rounded-lg bg-banner px-6 py-[clamp(56px,8vw,112px)] text-center"

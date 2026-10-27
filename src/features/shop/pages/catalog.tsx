@@ -45,7 +45,14 @@ export async function catalogMetadata(
   if (!(await storefrontEnabled())) return NOT_FOUND_METADATA;
   const dict = getShopDictionary(locale);
   const query = parseCatalogQuery(await searchParams);
-  const indexable = isIndexableCatalogView(query) && query.category === null;
+  // A page past the last one redirects (U4) and is never indexed.
+  const outOfRange =
+    query.page > 1 &&
+    (await listProducts(locale, query).then(
+      ({ page }) => query.page > page.pageCount,
+      () => false,
+    ));
+  const indexable = isIndexableCatalogView(query) && query.category === null && !outOfRange;
   const searching = isActiveSearch(query.q);
   const base = searching ? dict.meta.searchTitle(query.q) : dict.meta.catalogTitle;
   const title = query.page > 1 ? `${base} — ${dict.meta.pageSuffix(query.page)}` : base;

@@ -162,6 +162,18 @@ function malika(): Customer {
         createdAt: t("2025-03-12T10:20:00"),
       },
       {
+        // B-W1: a website browser is a device too (`platform: "web"`).
+        id: "8",
+        platform: "web",
+        model: "Chrome",
+        os: "Windows",
+        appVersion: "",
+        pushEnabled: false,
+        isActive: true,
+        lastActiveAt: t("2026-10-23T21:05:00"),
+        createdAt: t("2026-09-02T19:30:00"),
+      },
+      {
         id: "3",
         platform: "android",
         model: "Samsung Galaxy A54",

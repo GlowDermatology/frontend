@@ -2,7 +2,9 @@ import { z } from "zod";
 
 import { CATEGORY_SLUG_PATTERN, isReservedCategorySlug } from "@/domain/category";
 
-import { imageFileSchema } from "./products.schema";
+import { emptySeo } from "@/domain/seo";
+
+import { imageFileSchema, seoFormSchema } from "./products.schema";
 
 /**
  * Validation for the category dialogs (contract §2.4), shared by the form and
@@ -33,6 +35,8 @@ export const categoryFormSchema = z.object({
     en: optionalName,
   }),
   isActive: z.boolean(),
+  /** Page title / meta description per language (B-W1). */
+  seo: seoFormSchema,
 });
 
 export type CategoryFormValues = z.infer<typeof categoryFormSchema>;
@@ -66,4 +70,5 @@ export const EMPTY_CATEGORY: CategoryFormValues = {
   slug: "",
   name: { uz: "", ru: "", en: "" },
   isActive: true,
+  seo: emptySeo(),
 };

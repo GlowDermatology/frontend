@@ -6,6 +6,7 @@ import {
   type ProductImage,
   type ProductTexts,
 } from "@/domain/product";
+import { seoPatch } from "@/domain/seo";
 import { formatDateTimeShort, formatNumber } from "@/lib/format";
 
 import type { CatalogStats, ProductListQuery } from "../../products";
@@ -20,6 +21,7 @@ import type {
   ApiProductWrite,
 } from "../types";
 import { idString } from "./common";
+import { mapSeo, mapSeoStatus } from "./seo";
 
 /**
  * `Product` and `products/stats/` → the FE domain types (contract §5.2).
@@ -84,6 +86,9 @@ export function mapProduct(api: ApiProduct): Product {
     images: [...api.images]
       .sort((a, b) => a.position - b.position)
       .map((image) => mapProductImage(image)),
+    slug: api.slug ?? "",
+    seo: mapSeo(api.seo),
+    seoStatus: mapSeoStatus(api.seo_status),
   };
   if (api.main_image_url) product.mainImageUrl = api.main_image_url;
   if (api.last_change) {
@@ -158,14 +163,18 @@ export const PRODUCT_FIELD_REMAP = { billz_id: "billzId" } as const;
 
 /** Body of `POST products/`: the FE always creates hidden (the active rule needs images first). */
 export function productCreateBody(values: ProductFormValues): ApiProductWrite {
-  return {
+  const body: ApiProductWrite = {
     billz_id: values.billzId,
     texts: values.texts,
     price: values.price,
     category: values.category || null,
     promo: values.promo,
     status: "hidden",
+    seo: values.seo,
   };
+  // An empty slug lets the server derive it from the name (B-W1).
+  if (values.slug) body.slug = values.slug;
+  return body;
 }
 
 /** Body of `PATCH products/{id}/` (changed fields, `texts` as changed leaves). */
@@ -216,6 +225,10 @@ export function productPatchBody(
   }
   if (values.promo !== baseline.promo) body.promo = values.promo;
   if (values.status !== baseline.status) body.status = values.status;
+  // `""` keeps the stored slug (the server refuses an empty one).
+  if (values.slug && values.slug !== baseline.slug) body.slug = values.slug;
+  const seo = seoPatch(baseline.seo, values.seo);
+  if (seo) body.seo = seo;
   return body;
 }
 

@@ -14,8 +14,10 @@ import {
   TEXT_MAX,
 } from "@/domain/clinic";
 import type { ContentLanguage } from "@/domain/product";
+import { slugifyName, SPECIALIST_SLUG_MAX } from "@/domain/seo";
 
 import { LanguageTabs } from "../products/language-tabs";
+import { SlugField } from "../shared/seo-fields";
 
 const LANGUAGES: ReadonlyArray<ContentLanguage> = ["uz", "ru", "en"];
 
@@ -32,6 +34,7 @@ export const PROFILE_FIELDS = [
   "slotStepMin",
   "staffUserId",
   "isActive",
+  "slug",
   ...LANGUAGES.flatMap((l) => [`qualifications.${l}`, `bio.${l}`]),
 ];
 
@@ -47,6 +50,8 @@ interface ProfileFieldsProps {
   linkedStaff: StaffOption | null;
   /** Hint under the active switch. */
   activeHint: string;
+  /** The stored website slug; `null` while creating (derived from the name on save). */
+  savedSlug: string | null;
 }
 
 /**
@@ -64,6 +69,7 @@ export function SpecialistProfileFields({
   staffOptions,
   linkedStaff,
   activeHint,
+  savedSlug,
 }: ProfileFieldsProps) {
   const idBase = useId();
   const [language, setLanguage] = useState<ContentLanguage>("uz");
@@ -168,6 +174,17 @@ export function SpecialistProfileFields({
           )}
         </Field>
       </div>
+
+      <SlugField
+        kind="specialist"
+        name="slug"
+        value={values.slug}
+        onChange={(slug) => set("slug", slug)}
+        error={errors.slug}
+        max={SPECIALIST_SLUG_MAX}
+        suggestion={slugifyName(values.name, SPECIALIST_SLUG_MAX)}
+        saved={savedSlug || null}
+      />
 
       <div className="flex flex-col gap-2">
         <span className="text-label text-ink">Malaka va tavsif</span>

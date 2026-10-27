@@ -7,6 +7,7 @@ import type {
   ApiCashbackPolicy,
   ApiCustomerCard,
   ApiPaginatedCustomers,
+  ApiPaginatedCustomerSessions,
   ApiPaginatedStaff,
   ApiPolicyVersionCreate,
   ApiPolicyVersionCreated,
@@ -30,6 +31,36 @@ export function apiListCustomers(token: string, params: Record<string, QueryValu
 
 export function apiGetCustomer(token: string, customerId: string) {
   return cachedGet<ApiCustomerCard>(`${BASE}/customers/${id(customerId)}/`, undefined, token);
+}
+
+/**
+ * `GET customers/{id}/sessions/` (B-W1): the open sessions, most recently
+ * active first. Uncached: the card's «Faol seanslar» pages and re-reads it
+ * from a Server Action after a sign-out.
+ */
+export function apiListCustomerSessions(
+  token: string,
+  customerId: string,
+  params: { page?: number; page_size: number },
+) {
+  return apiFetch<ApiPaginatedCustomerSessions>(`${BASE}/customers/${id(customerId)}/sessions/`, {
+    token,
+    query: params,
+  });
+}
+
+/** `DELETE customers/{id}/sessions/{session_id}/` → 204 (B-W1); 404 when unknown or already ended. */
+export function apiRevokeCustomerSession(
+  token: string,
+  customerId: string,
+  sessionId: string,
+  idempotencyKey: string,
+) {
+  return apiFetch<undefined>(`${BASE}/customers/${id(customerId)}/sessions/${id(sessionId)}/`, {
+    method: "DELETE",
+    token,
+    idempotencyKey,
+  });
 }
 
 /** → 201 `{entry, balance, available}`; 400 `insufficient_balance` on `amount`. */

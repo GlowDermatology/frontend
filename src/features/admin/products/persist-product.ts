@@ -69,6 +69,8 @@ export function productBaseline(source: Product | ProductFormValues): ProductBas
     billzId: source.billzId,
     promo: source.promo,
     status: source.status,
+    slug: source.slug,
+    seo: structuredClone(source.seo),
   };
 }
 

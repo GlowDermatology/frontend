@@ -11,6 +11,7 @@ import type {
   WorkingDay,
 } from "@/domain/clinic";
 import { searchKey } from "@/lib/search";
+import { SPECIALIST_SLUG_MAX, slugifyName } from "@/domain/seo";
 
 import { paginate, type Page } from "../types";
 
@@ -111,6 +112,7 @@ const specialist = (
   services,
   workingHours: week(withBreak),
   upcomingAppointments: upcoming,
+  slug: slugifyName(name, SPECIALIST_SLUG_MAX),
   createdAt: SEEDED,
   updatedAt: SEEDED,
 });

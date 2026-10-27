@@ -7,6 +7,7 @@ import {
   type HoursOverride,
 } from "@/domain/clinic";
 import { addDays, toLocalIsoDate } from "@/lib/format";
+import { SPECIALIST_SLUG_MAX, slugifyName } from "@/domain/seo";
 
 import { blockEnd, blockStart } from "../clinic.schema";
 import type {
@@ -48,6 +49,12 @@ const byId = (id: string) => MOCK_SPECIALISTS.find((s) => s.id === id) ?? null;
 const now = () => referenceNow().toISOString();
 const today = () => toLocalIsoDate(referenceNow());
 
+/** The API's `unique` message for a specialist slug (contract §2.17). */
+export const SPECIALIST_SLUG_TAKEN_MESSAGE = "Bu manzil (slug) boshqa mutaxassisda bor.";
+
+const slugTaken = (slug: string, id: string | null) =>
+  slug !== "" && MOCK_SPECIALISTS.some((s) => s.slug === slug && s.id !== id);
+
 function profile(before: ClinicSpecialist, values: SpecialistFormValues): ClinicSpecialist {
   return {
     ...before,
@@ -61,6 +68,8 @@ function profile(before: ClinicSpecialist, values: SpecialistFormValues): Clinic
       ? { id: values.staffUserId, name: before.staffUser?.name ?? `Xodim #${values.staffUserId}` }
       : null,
     isActive: values.isActive,
+    slug:
+      values.slug || before.slug || slugifyName(values.name, SPECIALIST_SLUG_MAX) || "mutaxassis",
     updatedAt: now(),
   };
 }
@@ -85,9 +94,11 @@ export async function createSpecialist(
     services: [],
     workingHours: [],
     upcomingAppointments: 0,
+    slug: "",
     createdAt: now(),
     updatedAt: now(),
   };
+  if (slugTaken(values.slug, null)) return fields({ slug: SPECIALIST_SLUG_TAKEN_MESSAGE });
   return { ok: true, data: profile(blank, values) };
 }
 
@@ -99,6 +110,7 @@ export async function updateSpecialist(
   await delay(400);
   const before = byId(id);
   if (!before) return notFound;
+  if (slugTaken(values.slug, id)) return fields({ slug: SPECIALIST_SLUG_TAKEN_MESSAGE });
   if (before.isActive && !values.isActive && before.upcomingAppointments > 0 && !force) {
     return {
       ok: false,

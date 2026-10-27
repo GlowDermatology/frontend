@@ -3,6 +3,7 @@ import type {
   Customer,
   CustomerListQuery,
   CustomerPurchase,
+  CustomerSession,
   CustomerSort,
   CustomerTier,
 } from "@/domain/customer";
@@ -12,6 +13,7 @@ import type { QueryValue } from "../client";
 import type {
   ApiCustomerCard,
   ApiCustomerOrdering,
+  ApiCustomerSession,
   ApiCustomerTier,
   ApiLedgerEntry,
   ApiPurchase,
@@ -148,6 +150,18 @@ export function mapCustomerCard(api: ApiCustomerCard): Customer {
       lastActiveAt: row.last_active_at,
       createdAt: row.created_at,
     })),
+  };
+}
+
+/** `AdminCustomerSession` (§2.6, B-W1) → `CustomerSession`; an empty location reads "—". */
+export function mapCustomerSession(api: ApiCustomerSession): CustomerSession {
+  return {
+    id: api.id,
+    device: api.device,
+    platform: api.platform ?? null,
+    location: api.location || "—",
+    createdAt: api.created_at,
+    updatedAt: api.updated_at,
   };
 }
 

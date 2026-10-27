@@ -4,6 +4,7 @@ import {
   type Customer,
   type CustomerListItem,
   type CustomerListQuery,
+  type CustomerSession,
   type CustomerSort,
 } from "@/domain/customer";
 
@@ -11,6 +12,7 @@ import { paginate, type Page } from "../types";
 import { buildCustomer } from "./customers";
 import { CUSTOMERS } from "./people";
 import { MOCK_MEMBERS } from "./segments";
+import { mockCustomerSessions } from "./sessions";
 
 /** Mock implementation of `src/data/customers.ts`. */
 export async function getCustomer(id: string): Promise<Customer | null> {
@@ -88,4 +90,15 @@ export async function exportCustomers(
   query: Omit<CustomerListQuery, "page" | "pageSize">,
 ): Promise<ReadonlyArray<CustomerListItem>> {
   return filtered(query);
+}
+
+/** `customers/{id}/sessions/` (B-W1); `null` for an unknown customer (404). */
+export async function listCustomerSessions(
+  id: string,
+  page: number,
+  pageSize: number,
+): Promise<Page<CustomerSession> | null> {
+  const customer = buildCustomer(id);
+  if (!customer) return null;
+  return paginate(mockCustomerSessions(customer), page, pageSize);
 }

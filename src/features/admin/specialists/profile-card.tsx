@@ -40,6 +40,7 @@ function toValues(specialist: ClinicSpecialist): SpecialistFormValues {
     slotStepMin: step as SpecialistFormValues["slotStepMin"],
     staffUserId: specialist.staffUser?.id ?? "",
     isActive: specialist.isActive,
+    slug: specialist.slug,
   };
 }
 
@@ -149,6 +150,7 @@ export function ProfileCard({
               ? `Nofaol mutaxassis ilovadan yo‘qoladi. ${specialist.upcomingAppointments} ta kelgusi qabul o‘zgarmaydi.`
               : "Faol mutaxassis ilovada ko‘rinadi va unga yozilish mumkin."
           }
+          savedSlug={specialist.slug}
         />
         {formError && (
           <p

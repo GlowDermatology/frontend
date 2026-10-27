@@ -46,11 +46,14 @@ import {
   type ContentLanguage,
   type Product,
 } from "@/domain/product";
+import { emptySeo, PRODUCT_SLUG_MAX, slugifyName } from "@/domain/seo";
 import { cn } from "@/lib/cn";
 import { formatDateTimeShort, formatNumber } from "@/lib/format";
 
 import { runAction } from "../shared/action-client";
 import { useIdempotencyKey } from "../shared/idempotency";
+import { SeoEditor, SeoStatusPanel, SlugField } from "../shared/seo-fields";
+import { productFallback, type PageFallback } from "../shared/seo-preview";
 import { ImageManager } from "./image-manager";
 import { PRODUCT_STATUS_META } from "./labels";
 import { LanguageTabs } from "./language-tabs";
@@ -79,6 +82,8 @@ function toFormValues(product: Product | null): ProductFormValues {
       promo: false,
       status: "hidden",
       images: [],
+      slug: "",
+      seo: emptySeo(),
     };
   }
   // Copies: the form mutates its values in place, and they must not alias the
@@ -91,6 +96,8 @@ function toFormValues(product: Product | null): ProductFormValues {
     promo: product.promo,
     status: product.status,
     images: product.images,
+    slug: product.slug,
+    seo: product.seo,
   });
 }
 
@@ -141,6 +148,7 @@ export function ProductEditor({
   // a re-render, and React Hook Form's submit handler is re-entrant.
   const inFlight = useRef(false);
   const [lang, setLang] = useState<ContentLanguage>("uz");
+  const [seoLang, setSeoLang] = useState<ContentLanguage>("uz");
   const [leaveOpen, setLeaveOpen] = useState(false);
   /** A refusal that belongs to the whole form (Billz unreachable): shown under the header. */
   const [formError, setFormError] = useState<string | null>(null);
@@ -161,6 +169,9 @@ export function ProductEditor({
   const texts = useWatch({ control, name: "texts" });
   const billzId = useWatch({ control, name: "billzId" });
   const promo = useWatch({ control, name: "promo" });
+  const slug = useWatch({ control, name: "slug" });
+  const categorySlug = useWatch({ control, name: "category" });
+  const price = useWatch({ control, name: "price" });
 
   // A fresh `product` from the server (a route refresh after a save, a
   // client navigation back) becomes the baseline only while the form holds
@@ -193,7 +204,20 @@ export function ProductEditor({
     }
     const order: Array<Path<ProductFormValues>> = ["price", "category", "billzId"];
     const first = order.find((name) => fieldErrors[name as keyof ProductFormValues]);
-    if (first) setFocus(first);
+    if (first) {
+      setFocus(first);
+      return;
+    }
+    if (fieldErrors.slug) {
+      setFocus("slug");
+      return;
+    }
+    const seoLanguage = CONTENT_LANGUAGES.find((l) => fieldErrors.seo?.[l]);
+    if (seoLanguage) {
+      const leaf = fieldErrors.seo?.[seoLanguage]?.title ? "title" : "description";
+      flushSync(() => setSeoLang(seoLanguage));
+      document.querySelector<HTMLElement>(`[name="seo.${seoLanguage}.${leaf}"]`)?.focus();
+    }
   };
 
   const actions: PersistActions = {
@@ -235,6 +259,8 @@ export function ProductEditor({
       for (const [path, message] of entries) {
         setError(path as Path<ProductFormValues>, { message });
       }
+      // The slug (`unique`) sits below the images: take the admin to it.
+      if (result.fieldErrors?.slug) setFocus("slug");
       if (result.code === "provider_unavailable") {
         // Billz did not answer (503): nothing was written and every value is
         // still in the form; the message stays on it until the next save.
@@ -270,6 +296,30 @@ export function ProductEditor({
       ? "linked"
       : "changed";
   const textError = (field: keyof typeof EMPTY_TEXTS) => errors.texts?.[lang]?.[field]?.message;
+  const seoErrors = Object.fromEntries(
+    CONTENT_LANGUAGES.map((l) => [
+      l,
+      {
+        title: errors.seo?.[l]?.title?.message,
+        description: errors.seo?.[l]?.description?.message,
+      },
+    ]),
+  );
+  const slugSuggestion = slugifyName(texts.uz.name) || slugifyName(saved?.billzName ?? "") || "";
+  // What the website shows when an SEO field is empty (`features/shop/seo/describe.ts`).
+  const categoryName = categories.find((c) => c.slug === categorySlug)?.name;
+  const seoFallback = Object.fromEntries(
+    CONTENT_LANGUAGES.map((l) => [
+      l,
+      productFallback(l, {
+        name: texts[l].name.trim() || texts.uz.name.trim() || saved?.billzName || "",
+        volume: saved?.volume ?? "",
+        description: texts[l].description.trim() || texts.uz.description.trim(),
+        categoryName: categoryName ? categoryName[l] || categoryName.uz : null,
+        price,
+      }),
+    ]),
+  ) as Record<ContentLanguage, PageFallback>;
 
   return (
     <>
@@ -414,6 +464,52 @@ export function ProductEditor({
                   images.append(added);
                 }}
                 error={errors.images?.message ?? errors.images?.root?.message}
+              />
+            </Card>
+
+            <Card aria-labelledby={`${idBase}-seo`} className="flex flex-col gap-4">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <CardTitle id={`${idBase}-seo`} className="text-heading">
+                  SEO
+                </CardTitle>
+                <span className="text-caption font-normal text-ink-muted">
+                  Saytdagi sahifa manzili, sarlavhasi va qidiruv tavsifi.
+                </span>
+              </div>
+              <Controller
+                control={control}
+                name="slug"
+                render={({ field, fieldState }) => (
+                  <SlugField
+                    kind="product"
+                    name={field.name}
+                    inputRef={field.ref}
+                    value={field.value}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                    error={fieldState.error?.message}
+                    max={PRODUCT_SLUG_MAX}
+                    suggestion={slugSuggestion}
+                    saved={saved?.slug || null}
+                  />
+                )}
+              />
+              <Controller
+                control={control}
+                name="seo"
+                render={({ field }) => (
+                  <SeoEditor
+                    kind="product"
+                    idBase={idBase}
+                    value={field.value}
+                    onChange={field.onChange}
+                    language={seoLang}
+                    onLanguageChange={setSeoLang}
+                    errors={seoErrors}
+                    slug={slug.trim() || saved?.slug || slugSuggestion}
+                    fallback={seoFallback}
+                  />
+                )}
               />
             </Card>
           </div>
@@ -588,6 +684,14 @@ export function ProductEditor({
                   </span>
                 </p>
               )}
+            </Card>
+
+            <Card aria-labelledby={`${idBase}-seo-status`} className="flex flex-col gap-3">
+              <SeoStatusPanel
+                titleId={`${idBase}-seo-status`}
+                status={saved?.seoStatus ?? null}
+                note={isDirty ? "Saqlanganda qayta tekshiriladi." : undefined}
+              />
             </Card>
           </div>
         </div>

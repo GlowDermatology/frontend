@@ -172,6 +172,8 @@ const DESIGN_ORDERS: OrderSeed[] = [
     deliveryFee: 0,
     cashbackUsed: 0,
     shipment: { state: "not_required" },
+    // B-W1: placed on the website («Veb-sayt»).
+    channel: "web",
   },
   {
     id: 10246,

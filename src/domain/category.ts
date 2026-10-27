@@ -1,4 +1,5 @@
 import type { ContentLanguage } from "./product";
+import type { SeoStatus, SeoTexts } from "./seo";
 
 /**
  * Product categories (contract §2.4). Addressed by slug; ordered by
@@ -15,6 +16,10 @@ export interface Category {
   position: number;
   isActive: boolean;
   productCount: number;
+  /** Page title / meta description per language (B-W1). */
+  seo: SeoTexts;
+  /** The server's «SEO holati» checklist (B-W1). */
+  seoStatus: SeoStatus;
   createdAt: string;
   updatedAt: string;
 }

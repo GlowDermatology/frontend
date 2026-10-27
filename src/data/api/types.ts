@@ -124,6 +124,8 @@ export type ApiCustomerOrdering = NonNullable<
     import("./schema").operations["admin_customers_list"]["parameters"]["query"]
   >["ordering"]
 >;
+export type ApiCustomerSession = Schemas["AdminCustomerSession"];
+export type ApiPaginatedCustomerSessions = Schemas["PaginatedAdminCustomerSessionList"];
 export type ApiCashbackAdjustmentRequest = Schemas["CashbackAdjustmentRequest"];
 export type ApiCashbackAdjustmentResult = Schemas["CashbackAdjustmentResult"];
 export type ApiCashbackPolicy = Schemas["CashbackPolicy"];

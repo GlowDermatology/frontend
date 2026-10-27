@@ -136,7 +136,7 @@ export function SessionsSection({ customerId, initial, deleted }: SessionsSectio
           </p>
         </div>
       ) : (
-        <ScrollRegion label="Faol seanslar">
+        <ScrollRegion label="Faol seanslar jadvali">
           <table className="data-table min-w-[760px]" aria-busy={loading}>
             <caption className="sr-only">
               Faol seanslar, oxirgi faollik bo‘yicha (eng yangisi birinchi)

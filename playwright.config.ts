@@ -25,5 +25,18 @@ export default defineConfig({
     locale: "uz-UZ",
     timezoneId: "Asia/Tashkent",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    {
+      name: "chromium",
+      testIgnore: /customer-public\//,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      // The public storefront, anonymous (no admin session): browse, switch
+      // language, axe at 390 and 1440 px. Needs the frontend in api mode.
+      name: "customer-public",
+      testDir: "./e2e/customer-public",
+      use: { ...devices["Desktop Chrome"], storageState: { cookies: [], origins: [] } },
+    },
+  ],
 });

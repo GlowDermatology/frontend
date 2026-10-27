@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 
 import { Button, buttonStyles } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
@@ -13,6 +13,7 @@ import { useShopSession } from "../account/session-context";
 import { addToCart } from "../cart/cart-seam";
 import { ordersCopy } from "../copy/orders";
 import { shopHref, shopPath } from "../routing/routes";
+import { hasSignedInHint } from "../shared/action-client";
 
 export type AddToCartState = "available" | "sold_out" | "sales_off";
 
@@ -44,19 +45,6 @@ export function AddToCart({ locale, productId, productPath, state, labels }: Add
   const { setCartQuantity } = useShopSession();
   const copy = ordersCopy[locale].addToCart;
 
-  if (state !== "available") {
-    return (
-      <div className="flex flex-col gap-3">
-        <Button size="xl" disabled className="w-full sm:w-auto sm:min-w-[280px]">
-          {labels.soldOut}
-        </Button>
-        {state === "sales_off" ? (
-          <p className="m-0 max-w-[420px] text-body-sm text-ink-muted">{labels.salesOff}</p>
-        ) : null}
-      </div>
-    );
-  }
-
   const onClick = () => {
     setFeedback(null);
     startTransition(async () => {
@@ -76,9 +64,40 @@ export function AddToCart({ locale, productId, productPath, state, labels }: Add
         setFeedback({ kind: "error", message: outcome.message });
         return;
       }
-      router.push(shopHref(locale, { kind: "signIn" }, { next: productPath }));
+      // Signed out: sign in, then come back here and add it (`?add=` replays the intent).
+      const back = `${productPath}${productPath.includes("?") ? "&" : "?"}add=${productId}`;
+      router.push(shopHref(locale, { kind: "signIn" }, { next: back }));
     });
   };
+
+  const onClickRef = useRef(onClick);
+  useEffect(() => {
+    onClickRef.current = onClick;
+  });
+
+  // Back from sign-in with `?add={id}`: add the product the visitor asked for.
+  useEffect(() => {
+    if (state !== "available") return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("add") !== String(productId) || !hasSignedInHint()) return;
+    url.searchParams.delete("add");
+    window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+    const timer = window.setTimeout(() => onClickRef.current(), 0);
+    return () => window.clearTimeout(timer);
+  }, [state, productId]);
+
+  if (state !== "available") {
+    return (
+      <div className="flex flex-col gap-3">
+        <Button size="xl" disabled className="w-full sm:w-auto sm:min-w-[280px]">
+          {labels.soldOut}
+        </Button>
+        {state === "sales_off" ? (
+          <p className="m-0 max-w-[420px] text-body-sm text-ink-muted">{labels.salesOff}</p>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-3">

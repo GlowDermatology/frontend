@@ -10,6 +10,44 @@ const securityHeaders = [
 ];
 
 /**
+ * Content-Security-Policy of the storefront pages (everything but /admin).
+ * Partial Prerendering serves a static shell, so per-request nonces (and
+ * `'strict-dynamic'`) are not possible: scripts are limited to this origin
+ * plus the social sign-in SDKs, with `'unsafe-inline'` for Next's inline
+ * RSC payload; no `eval` outside development, no plugins, no framing, forms
+ * post only here. Images load through `/_next/image` (same origin).
+ */
+function storefrontCsp(dev: boolean): string {
+  const sdk = {
+    script: [
+      "https://accounts.google.com",
+      "https://connect.facebook.net",
+      "https://appleid.cdn-apple.com",
+    ],
+    frame: ["https://accounts.google.com", "https://*.facebook.com", "https://appleid.apple.com"],
+    connect: [
+      "https://accounts.google.com",
+      "https://*.facebook.com",
+      "https://graph.facebook.com",
+      "https://appleid.apple.com",
+    ],
+  };
+  return [
+    "default-src 'self'",
+    `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ""} ${sdk.script.join(" ")}`,
+    "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style",
+    "img-src 'self' data: blob: https://*.googleusercontent.com https://*.fbcdn.net https://*.facebook.com",
+    "font-src 'self' data:",
+    `connect-src 'self' ${sdk.connect.join(" ")}${dev ? " ws: wss:" : ""}`,
+    `frame-src ${sdk.frame.join(" ")}`,
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ].join("; ");
+}
+
+/**
  * `GLOWDERMA_MEDIA_HOSTS`: comma-separated `host[:port]` entries that
  * `next/image` may optimise (Django's `PUBLIC_MEDIA_BASE_URL`). Empty → none.
  */
@@ -101,6 +139,16 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },
+      {
+        // Storefront pages only: the admin panel keeps its own headers.
+        source: "/((?!admin(?:/|$)|_next/static|_next/image).*)",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value: storefrontCsp(process.env.NODE_ENV === "development"),
+          },
+        ],
+      },
       // Streamed (partially prerendered) responses must reach the browser
       // chunk by chunk; nginx honours this header and stops buffering.
       { source: "/:path*", headers: [{ key: "X-Accel-Buffering", value: "no" }] },

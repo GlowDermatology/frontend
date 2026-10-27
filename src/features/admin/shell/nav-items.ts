@@ -9,10 +9,14 @@ export type AdminSection =
   | "banners"
   | "orders"
   | "appointments"
+  | "specialists"
+  | "services"
   | "customers"
   | "cashback"
   | "notifications"
   | "payments"
+  | "audit-log"
+  | "staff"
   | "settings";
 
 export interface NavItem {
@@ -22,6 +26,8 @@ export interface NavItem {
   icon: IconName;
   /** Live count shown as a pill (work waiting for the admin). */
   badge?: "orders" | "appointments";
+  /** Shown only to managers (`Me.is_manager`, contract §2.16). */
+  managerOnly?: boolean;
 }
 
 export const NAV_ITEMS: ReadonlyArray<NavItem> = [
@@ -43,6 +49,13 @@ export const NAV_ITEMS: ReadonlyArray<NavItem> = [
     icon: "calendar",
     badge: "appointments",
   },
+  {
+    section: "specialists",
+    label: "Mutaxassislar",
+    href: "/admin/specialists",
+    icon: "user",
+  },
+  { section: "services", label: "Xizmatlar", href: "/admin/services", icon: "sparkle" },
   { section: "customers", label: "Mijozlar", href: "/admin/customers", icon: "users" },
   { section: "cashback", label: "Cashback sozlamalari", href: "/admin/cashback", icon: "percent" },
   {
@@ -52,5 +65,12 @@ export const NAV_ITEMS: ReadonlyArray<NavItem> = [
     icon: "bell",
   },
   { section: "payments", label: "To‘lovlar", href: "/admin/payments", icon: "card" },
+  {
+    section: "audit-log",
+    label: "Harakatlar jurnali",
+    href: "/admin/audit-log",
+    icon: "history",
+  },
+  { section: "staff", label: "Xodimlar", href: "/admin/staff", icon: "shield", managerOnly: true },
   { section: "settings", label: "Sozlamalar", href: "/admin/settings", icon: "sliders" },
 ];

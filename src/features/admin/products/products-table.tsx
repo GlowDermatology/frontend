@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import type { Route } from "next";
 
@@ -5,21 +6,38 @@ import { ProductArt } from "@/components/brand/product-art";
 import { ScrollRegion } from "@/components/ui/scroll-region";
 import { Badge } from "@/components/ui/badge";
 import { Icon } from "@/components/ui/icon";
+import { categoryLabel, type Category } from "@/domain/category";
 import { productDisplayName, stockLevel, type Product } from "@/domain/product";
 import { cn } from "@/lib/cn";
 import { formatNumber } from "@/lib/format";
 
-import { CATEGORY_LABEL, PRODUCT_STATUS_META } from "./labels";
+import { PRODUCT_STATUS_META } from "./labels";
 
 type NameSort = "default" | "name_asc" | "name_desc";
 
 interface ProductsTableProps {
   products: Product[];
+  categories: ReadonlyArray<Category>;
   sort: NameSort;
   sortHref: Route;
 }
 
+/** 44×44 box in every state, so rows never shift while a photo loads. */
 function Thumbnail({ product }: { product: Product }) {
+  const out = stockLevel(product.stock) === "out";
+  if (product.mainImageUrl) {
+    return (
+      <span className="relative flex size-11 overflow-hidden rounded-sm bg-surface">
+        <Image
+          src={product.mainImageUrl}
+          alt=""
+          fill
+          sizes="44px"
+          className={cn("object-cover", out && "opacity-45")}
+        />
+      </span>
+    );
+  }
   if (!product.art) {
     return (
       <span className="flex size-11 items-center justify-center rounded-sm border border-dashed border-line-strong text-ink-muted">
@@ -27,7 +45,6 @@ function Thumbnail({ product }: { product: Product }) {
       </span>
     );
   }
-  const out = stockLevel(product.stock) === "out";
   return (
     <span className="flex size-11 items-center justify-center rounded-sm bg-gold-soft">
       <ProductArt
@@ -54,7 +71,7 @@ function StockCell({ stock }: { stock: number }) {
   );
 }
 
-export function ProductsTable({ products, sort, sortHref }: ProductsTableProps) {
+export function ProductsTable({ products, categories, sort, sortHref }: ProductsTableProps) {
   const ascending = sort !== "name_desc";
   return (
     <ScrollRegion
@@ -135,7 +152,7 @@ export function ProductsTable({ products, sort, sortHref }: ProductsTableProps) 
                   </span>
                 </td>
                 <td className={cn(!product.category && "text-ink-muted!")}>
-                  {product.category ? CATEGORY_LABEL[product.category] : "Tanlanmagan"}
+                  {product.category ? categoryLabel(categories, product.category) : "Tanlanmagan"}
                 </td>
                 <td className="text-right font-bold tabular-nums">{formatNumber(product.price)}</td>
                 <td>

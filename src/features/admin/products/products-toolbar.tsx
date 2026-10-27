@@ -6,16 +6,23 @@ import { SearchInput } from "@/components/ui/field";
 import { Icon } from "@/components/ui/icon";
 import { SelectMenu, filterTriggerClass } from "@/components/ui/menu";
 import type { ProductListQuery } from "@/data/products";
-import { CATEGORY_IDS, type CategoryId, type ProductStatus } from "@/domain/product";
+import { categoryLabel, type Category } from "@/domain/category";
+import type { ProductStatus } from "@/domain/product";
 import { cn } from "@/lib/cn";
 
 import { useListNavigation } from "../shared/list-transition";
-import { CATEGORY_LABEL, PRODUCT_STATUS_META } from "./labels";
+import { PRODUCT_STATUS_META } from "./labels";
 import { hasActiveProductFilters, productListHref } from "./query";
 
 type All = "all";
 
-export function ProductsToolbar({ query }: { query: ProductListQuery }) {
+interface ProductsToolbarProps {
+  query: ProductListQuery;
+  /** Every category (active or not), ordered by position, for the filter. */
+  categories: ReadonlyArray<Category>;
+}
+
+export function ProductsToolbar({ query, categories }: ProductsToolbarProps) {
   const { navigate } = useListNavigation();
   const [search, setSearch] = useState(query.q ?? "");
   const lastSubmitted = useRef(query.q ?? "");
@@ -33,11 +40,11 @@ export function ProductsToolbar({ query }: { query: ProductListQuery }) {
   const update = (patch: Partial<ProductListQuery>) =>
     navigate(productListHref({ ...query, ...patch, page: 1 }));
 
-  const categoryLabel =
+  const categoryTrigger =
     query.category === "none"
       ? "Tanlanmagan"
       : query.category
-        ? CATEGORY_LABEL[query.category]
+        ? categoryLabel(categories, query.category)
         : "Hammasi";
 
   return (
@@ -49,14 +56,14 @@ export function ProductsToolbar({ query }: { query: ProductListQuery }) {
         onChange={(event) => setSearch(event.target.value)}
         wrapperClassName="max-w-[320px] flex-[1_1_240px] gap-2 bg-transparent px-3"
       />
-      <SelectMenu<CategoryId | "none" | All>
+      <SelectMenu<string>
         label="Kategoriya"
-        trigger={`Kategoriya: ${categoryLabel}`}
+        trigger={`Kategoriya: ${categoryTrigger}`}
         value={query.category ?? "all"}
         onValueChange={(value) => update({ category: value === "all" ? undefined : value })}
         options={[
           { value: "all", label: "Hammasi" },
-          ...CATEGORY_IDS.map((value) => ({ value, label: CATEGORY_LABEL[value] })),
+          ...categories.map((category) => ({ value: category.slug, label: category.name.uz })),
           { value: "none", label: "Tanlanmagan" },
         ]}
       />

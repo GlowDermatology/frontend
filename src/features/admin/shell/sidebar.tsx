@@ -1,22 +1,29 @@
 import Link from "next/link";
-import { Suspense } from "react";
+import { Suspense, type ReactNode } from "react";
 
-import { Avatar } from "@/components/ui/avatar";
 import { CountPill } from "@/components/ui/badge";
 import { Icon } from "@/components/ui/icon";
-import { getOrderStatusCounts } from "@/data/orders";
-import { getPendingAppointments } from "@/data/appointments";
+import { getMe } from "@/data/auth";
+import { getNavCounts } from "@/data/shell";
 import { cn } from "@/lib/cn";
 
+import { BillzStatus, BillzStatusFallback } from "./billz-status";
 import { NAV_ITEMS, type AdminSection, type NavItem } from "./nav-items";
-import { NotConnectedButton } from "./not-connected";
+import { SidebarUser, SidebarUserFallback } from "./sidebar-user";
 
-/** Count of work waiting for the admin; streamed so it never blocks the shell. */
+/**
+ * Count of work waiting for the admin (`nav-counts/`, one call per request);
+ * streamed inside `<Suspense>` so it never blocks the shell. The pill sits at
+ * the end of a fixed-height row whose label already takes the free width, so
+ * its arrival does not shift the layout.
+ */
 async function NavCount({ kind }: { kind: NonNullable<NavItem["badge"]> }) {
-  const count =
-    kind === "orders"
-      ? (await getOrderStatusCounts({ period: "all" })).processing
-      : (await getPendingAppointments()).count;
+  const counts = await getNavCounts();
+  const count = counts
+    ? kind === "orders"
+      ? counts.ordersProcessing
+      : counts.appointmentsPending
+    : 0;
   if (count === 0) return null;
   return (
     <>
@@ -26,6 +33,16 @@ async function NavCount({ kind }: { kind: NonNullable<NavItem["badge"]> }) {
       </span>
     </>
   );
+}
+
+/**
+ * A manager-only item (Xodimlar, contract §2.16): streamed after `auth/me/`
+ * answers, rendered only when the caller may manage staff.
+ */
+async function ManagerOnly({ children }: { children: ReactNode }) {
+  const me = await getMe();
+  if (!me || !(me.is_manager || me.is_superuser)) return null;
+  return <>{children}</>;
 }
 
 const itemClass =
@@ -43,7 +60,7 @@ export function SidebarContent({ section }: { section?: AdminSection }) {
         <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
           {NAV_ITEMS.map((item) => {
             const active = item.section === section;
-            return (
+            const entry = (
               <li key={item.section}>
                 <Link
                   href={item.href}
@@ -64,6 +81,13 @@ export function SidebarContent({ section }: { section?: AdminSection }) {
                 </Link>
               </li>
             );
+            return item.managerOnly ? (
+              <Suspense key={item.section} fallback={null}>
+                <ManagerOnly>{entry}</ManagerOnly>
+              </Suspense>
+            ) : (
+              entry
+            );
           })}
           <li>
             <span
@@ -81,28 +105,12 @@ export function SidebarContent({ section }: { section?: AdminSection }) {
       </nav>
 
       <div className="mt-auto flex flex-col gap-3">
-        <div className="flex flex-col gap-1.5 rounded-md bg-surface p-3">
-          <span className="flex items-center gap-2 text-body-sm font-semibold text-ink">
-            <span aria-hidden="true" className="size-2 rounded-full bg-success" />
-            Billz ulangan
-          </span>
-          <span className="text-caption font-normal text-ink-muted">
-            Sinxronlangan: 2 daqiqa oldin
-          </span>
-        </div>
-        <div className="flex items-center gap-2.5 px-1">
-          <Avatar name="Administrator" initials="AD" />
-          <span className="flex flex-1 flex-col">
-            <span className="text-body-sm font-bold text-ink">Administrator</span>
-            <span className="text-caption font-normal text-ink-muted">admin</span>
-          </span>
-          <NotConnectedButton
-            label="Chiqish"
-            description="Tizimga kirish va chiqish backend bilan birga ulanadi."
-          >
-            <Icon name="logout" size={20} />
-          </NotConnectedButton>
-        </div>
+        <Suspense fallback={<BillzStatusFallback />}>
+          <BillzStatus />
+        </Suspense>
+        <Suspense fallback={<SidebarUserFallback />}>
+          <SidebarUser />
+        </Suspense>
       </div>
     </div>
   );

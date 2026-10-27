@@ -1,0 +1,200 @@
+{
+  "active": {
+    "version": 3,
+    "state": "active",
+    "effective_from": "2026-10-01T00:00:00+05:00",
+    "effective_to": "2027-01-01T00:00:00+05:00",
+    "basis": "before_purchase",
+    "earn_on_cashback_paid": true,
+    "tiers": [
+      {
+        "id": 4,
+        "from": 0,
+        "to": 20000000,
+        "percent": "1.00"
+      },
+      {
+        "id": 5,
+        "from": 20000000,
+        "to": 30000000,
+        "percent": "2.00"
+      },
+      {
+        "id": 6,
+        "from": 30000000,
+        "to": 50000000,
+        "percent": "3.00"
+      }
+    ],
+    "author": {
+      "id": 1,
+      "display_name": "Administrator"
+    },
+    "created_at": "2026-09-20T10:00:00+05:00",
+    "superseded_by": null
+  },
+  "scheduled": {
+    "version": 4,
+    "state": "scheduled",
+    "effective_from": "2027-01-01T00:00:00+05:00",
+    "effective_to": null,
+    "basis": "before_purchase",
+    "earn_on_cashback_paid": true,
+    "tiers": [
+      {
+        "id": 7,
+        "from": 0,
+        "to": 20000000,
+        "percent": "1.00"
+      },
+      {
+        "id": 8,
+        "from": 20000000,
+        "to": 30000000,
+        "percent": "2.00"
+      },
+      {
+        "id": 9,
+        "from": 30000000,
+        "to": 50000000,
+        "percent": "3.00"
+      },
+      {
+        "id": 10,
+        "from": 50000000,
+        "to": 80000000,
+        "percent": "4.00"
+      }
+    ],
+    "author": {
+      "id": 1,
+      "display_name": "Administrator"
+    },
+    "created_at": "2026-10-26T11:02:21+05:00",
+    "superseded_by": null
+  },
+  "versions": [
+    {
+      "version": 4,
+      "state": "scheduled",
+      "effective_from": "2027-01-01T00:00:00+05:00",
+      "effective_to": null,
+      "basis": "before_purchase",
+      "earn_on_cashback_paid": true,
+      "tiers": [
+        {
+          "id": 7,
+          "from": 0,
+          "to": 20000000,
+          "percent": "1.00"
+        },
+        {
+          "id": 8,
+          "from": 20000000,
+          "to": 30000000,
+          "percent": "2.00"
+        },
+        {
+          "id": 9,
+          "from": 30000000,
+          "to": 50000000,
+          "percent": "3.00"
+        },
+        {
+          "id": 10,
+          "from": 50000000,
+          "to": 80000000,
+          "percent": "4.00"
+        }
+      ],
+      "author": {
+        "id": 1,
+        "display_name": "Administrator"
+      },
+      "created_at": "2026-10-26T11:02:21+05:00",
+      "superseded_by": null
+    },
+    {
+      "version": 3,
+      "state": "active",
+      "effective_from": "2026-10-01T00:00:00+05:00",
+      "effective_to": "2027-01-01T00:00:00+05:00",
+      "basis": "before_purchase",
+      "earn_on_cashback_paid": true,
+      "tiers": [
+        {
+          "id": 4,
+          "from": 0,
+          "to": 20000000,
+          "percent": "1.00"
+        },
+        {
+          "id": 5,
+          "from": 20000000,
+          "to": 30000000,
+          "percent": "2.00"
+        },
+        {
+          "id": 6,
+          "from": 30000000,
+          "to": 50000000,
+          "percent": "3.00"
+        }
+      ],
+      "author": {
+        "id": 1,
+        "display_name": "Administrator"
+      },
+      "created_at": "2026-09-20T10:00:00+05:00",
+      "superseded_by": null
+    },
+    {
+      "version": 2,
+      "state": "expired",
+      "effective_from": "2026-08-15T00:00:00+05:00",
+      "effective_to": "2026-10-01T00:00:00+05:00",
+      "basis": "before_purchase",
+      "earn_on_cashback_paid": false,
+      "tiers": [
+        {
+          "id": 2,
+          "from": 0,
+          "to": 20000000,
+          "percent": "1.00"
+        },
+        {
+          "id": 3,
+          "from": 20000000,
+          "to": 30000000,
+          "percent": "2.00"
+        }
+      ],
+      "author": {
+        "id": 1,
+        "display_name": "Administrator"
+      },
+      "created_at": "2026-08-01T10:00:00+05:00",
+      "superseded_by": null
+    },
+    {
+      "version": 1,
+      "state": "expired",
+      "effective_from": "2026-06-01T00:00:00+05:00",
+      "effective_to": "2026-08-15T00:00:00+05:00",
+      "basis": "before_purchase",
+      "earn_on_cashback_paid": false,
+      "tiers": [
+        {
+          "id": 1,
+          "from": 0,
+          "to": 20000000,
+          "percent": "1.00"
+        }
+      ],
+      "author": null,
+      "created_at": "2026-05-20T10:00:00+05:00",
+      "superseded_by": null
+    }
+  ],
+  "next_effective_from": "2026-11-01T00:00:00+05:00"
+}

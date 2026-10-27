@@ -1,0 +1,15 @@
+# Build context for the Docker image: sources and lockfile only.
+.git
+.github
+.next
+node_modules
+coverage
+out
+build
+*.tsbuildinfo
+.env*
+!.env.example
+npm-debug.log*
+.DS_Store
+Dockerfile
+.dockerignore

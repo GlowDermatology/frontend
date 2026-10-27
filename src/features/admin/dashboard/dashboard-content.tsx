@@ -1,43 +1,95 @@
-import { DASHBOARD_RANGES } from "@/domain/dashboard";
-import { referenceNow } from "@/data/config";
+import { Icon } from "@/components/ui/icon";
+import { requireStaff } from "@/data/auth";
 import { getDashboard } from "@/data/dashboard";
+import { requestNow } from "@/data/now";
 import { getRecentOrders } from "@/data/orders";
-import { formatDayMonthWeekday, formatNumber } from "@/lib/format";
+import {
+  validateCustomRange,
+  type CustomRangeErrors,
+  type DashboardQuery,
+} from "@/domain/dashboard";
+import { formatDayMonthWeekday, formatNumber, toLocalIsoDate } from "@/lib/format";
 
 import { PageHeader } from "../shared/page-header";
-import { firstParam, oneOf, type SearchParams } from "../shared/url-state";
+import type { SearchParams } from "../shared/url-state";
 import { AttentionList } from "./attention-list";
+import { parseDashboardQuery } from "./query";
 import { DashboardCharts } from "./charts";
 import { RangeControl } from "./range-control";
 import { RecentOrders } from "./recent-orders";
 import { StatCard } from "./stat-card";
 
 export async function DashboardContent({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const range = oneOf(firstParam(await searchParams, "range"), DASHBOARD_RANGES) ?? "today";
-  const [data, recent] = await Promise.all([getDashboard(range), getRecentOrders(6)]);
-  const now = referenceNow();
-  const orders = data.series.reduce((sum, p) => sum + p.orders, 0);
-  const revenue = data.series.reduce((sum, p) => sum + p.revenue, 0);
+  await requireStaff();
+  const parsed = parseDashboardQuery(await searchParams);
+  const now = await requestNow();
+  const today = toLocalIsoDate(now);
+
+  // A custom range is checked with the backend's rules first; the API stays
+  // the authority (its 400 comes back as `errors`). An invalid range shows
+  // today's numbers with the picker open on the errors.
+  let rangeErrors: CustomRangeErrors = {};
+  let query: DashboardQuery = { range: "today" };
+  if (parsed.range !== "custom") query = parsed;
+  else {
+    rangeErrors = validateCustomRange(parsed.from, parsed.to, today);
+    if (!rangeErrors.from && !rangeErrors.to) {
+      query = { range: "custom", from: parsed.from!, to: parsed.to! };
+    }
+  }
+  const [result, recent] = await Promise.all([getDashboard(query), getRecentOrders(6)]);
+  let data;
+  if (result.ok) data = result.data;
+  else {
+    rangeErrors = result.errors;
+    query = { range: "today" };
+    const fallback = await getDashboard(query);
+    if (!fallback.ok) throw new Error("dashboard: today refused by the API");
+    data = fallback.data;
+  }
+  const invalidRange = Boolean(rangeErrors.from || rangeErrors.to);
+  const shown: DashboardQuery =
+    invalidRange && parsed.range === "custom" && parsed.from && parsed.to
+      ? { range: "custom", from: parsed.from, to: parsed.to }
+      : query;
 
   return (
     <>
       <PageHeader
         eyebrow={formatDayMonthWeekday(now)}
         title="Dashboard"
-        actions={<RangeControl value={range} />}
+        actions={
+          <RangeControl
+            key={`${shown.range}:${"from" in shown ? `${shown.from}:${shown.to}` : ""}`}
+            value={shown}
+            today={today}
+            errors={invalidRange ? rangeErrors : undefined}
+          />
+        }
       />
+
+      {invalidRange && (
+        <p
+          role="alert"
+          className="m-0 flex items-start gap-2 rounded-md bg-warning-soft px-4 py-3 text-body-sm text-ink"
+        >
+          <Icon name="alert-circle" size={18} className="mt-px shrink-0 text-warning" />
+          Sana oralig‘i noto‘g‘ri ({rangeErrors.from ?? rangeErrors.to}). Bugungi ko‘rsatkichlar
+          ko‘rsatilmoqda.
+        </p>
+      )}
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(190px,100%),1fr))] gap-4">
         <StatCard
           icon="receipt"
           label="Buyurtmalar"
-          value={formatNumber(orders)}
+          value={formatNumber(data.stats.orders)}
           note={data.stats.ordersNote}
         />
         <StatCard
           icon="coins"
           label="Tushum"
-          value={formatNumber(revenue)}
+          value={formatNumber(data.stats.revenue)}
           note="so‘m · to‘langan buyurtmalar"
         />
         <StatCard
@@ -57,7 +109,7 @@ export async function DashboardContent({ searchParams }: { searchParams: Promise
           alert
           label="Tugagan mahsulotlar"
           value={formatNumber(data.stats.outOfStock)}
-          href="/admin/products?stock=out"
+          href="/admin/products?out=1"
           note={
             <span className="flex items-center gap-1 font-bold text-ink">
               Ro‘yxatni ko‘rish

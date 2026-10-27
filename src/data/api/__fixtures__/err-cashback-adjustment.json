@@ -1,0 +1,12 @@
+{
+  "code": "validation_error",
+  "message": "Sababni kiriting.",
+  "errors": [
+    {
+      "field": "reason",
+      "code": "min_length",
+      "message": "Kamida 3 ta belgi kiriting."
+    }
+  ],
+  "request_id": "9b145b01-5045-4156-ba1b-e2e526f93fe5"
+}

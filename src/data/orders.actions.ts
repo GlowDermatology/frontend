@@ -1,123 +1,175 @@
-/**
- * Order mutations used by the admin UI.
- *
- * Demo mode: they compute the next state locally and resolve after a short
- * delay; nothing is persisted (the shell shows a "Demo" marker). With the
- * API, replace each body with a Server Action that calls
- * `POST /api/v1/admin/orders/{id}/<action>/` and returns the updated order —
- * the signatures stay the same.
- */
-import { canCancel, manualTransitions, type Order, type OrderStatus } from "@/domain/order";
+"use server";
 
-import { referenceNow } from "./config";
+import { z } from "zod";
+
+import { ORDER_STATUSES, type Order, type OrderStatus } from "@/domain/order";
+
+import {
+  apiMutation,
+  fieldErrorsFrom,
+  guardAction,
+  idempotencyKeySchema,
+  sessionToken,
+} from "./action-guard";
+import {
+  apiCancelOrder,
+  apiGetOrderFresh,
+  apiRetryShipment,
+  apiTransitionOrder,
+} from "./api/orders";
+import { toActionResult } from "./api/mappers/errors";
+import { mapOrder, type MapOrderOptions } from "./api/mappers/orders";
+import { optimizableMediaUrl } from "./api/media";
+import * as mock from "./mock/orders.actions";
+import * as mockQueries from "./mock/orders.queries";
+import { dataSource } from "./source";
 import type { ActionResult } from "./types";
 
-const delay = (ms = 450) => new Promise((resolve) => setTimeout(resolve, ms));
+/**
+ * Order mutations (spec "Frontend wiring › Server Actions", contract §2.2).
+ * Signature convention: ids + the change + the client's idempotency key +
+ * the `gd_csrf` double-submit token. Every action re-verifies the session,
+ * re-validates its input with zod and dispatches on `dataSource()`: the mock
+ * bodies live in `./mock/orders.actions.ts`; the api branch posts
+ * `orders/{id}/cancel|transition|retry-shipment/` with the dialog's
+ * `Idempotency-Key` (required) and maps the `Order` it answers. Refusals
+ * come back with the backend's code and message: 409 `not_cancellable`
+ * (incl. the BTS refusal text), `invalid_transition`, `conflict` (busy
+ * order, BTS message in flight, purchase conflict), 503
+ * `provider_unavailable` (safe to retry with the same key); a `reason`
+ * error stays on the dialog's field.
+ */
 
-const STATUS_TITLE: Record<OrderStatus, string> = {
-  awaiting_payment: "To‘lov kutilmoqda",
-  processing: "Jarayonda",
-  handed_to_courier: "Kuryerga topshirildi",
-  delivered: "Yetkazildi",
-  cancelled: "Bekor qilindi",
-};
+const orderIdSchema = z.int().positive();
 
-export async function cancelOrder(order: Order, reason: string): Promise<ActionResult<Order>> {
-  await delay();
-  const trimmed = reason.trim();
-  if (trimmed.length < 3) {
-    return {
-      ok: false,
-      error: "Sababni kiriting.",
-      fieldErrors: { reason: "Kamida 3 ta belgi kiriting." },
-    };
+const MAP_OPTIONS: MapOrderOptions = { imageUrl: optimizableMediaUrl };
+
+const cancelSchema = z.object({
+  orderId: orderIdSchema,
+  reason: z
+    .string()
+    .trim()
+    .min(3, "Kamida 3 ta belgi kiriting.")
+    .max(500, "500 belgidan oshmasin."),
+  key: idempotencyKeySchema,
+});
+
+const transitionSchema = z.object({
+  orderId: orderIdSchema,
+  status: z.enum(ORDER_STATUSES),
+  key: idempotencyKeySchema,
+});
+
+const retrySchema = z.object({ orderId: orderIdSchema, key: idempotencyKeySchema });
+
+export async function cancelOrder(
+  orderId: number,
+  reason: string,
+  key: string,
+  csrf: string,
+): Promise<ActionResult<Order>> {
+  const guard = await guardAction(csrf);
+  if (!guard.ok) return guard;
+  const parsed = cancelSchema.safeParse({ orderId, reason, key });
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, "Sababni kiriting.");
+  const input = parsed.data;
+  if ((await dataSource()) === "api") {
+    return apiMutation("cancelOrder", async () => {
+      try {
+        const { data } = await apiCancelOrder(
+          sessionToken(guard.session),
+          input.orderId,
+          { reason: input.reason },
+          input.key,
+        );
+        return { ok: true, data: mapOrder(data, MAP_OPTIONS) };
+      } catch (error) {
+        return toActionResult(error);
+      }
+    });
   }
-  if (!canCancel(order)) {
-    return { ok: false, error: "Bu buyurtmani bekor qilib bo‘lmaydi." };
-  }
-  const paid = order.payment.status === "paid";
-  const reversals = order.cashback
-    .filter((e) => e.kind !== "reversal")
-    .map((e) => ({ kind: "reversal" as const, amount: -e.amount, label: "Qarama-qarshi yozuv" }));
-  return {
-    ok: true,
-    data: {
-      ...order,
-      status: "cancelled",
-      payment: { ...order.payment, status: paid ? "refunded" : order.payment.status },
-      cancellation: { reason: "admin", note: trimmed },
-      cashback: [...order.cashback, ...reversals],
-      history: [
-        {
-          at: referenceNow().toISOString(),
-          title: STATUS_TITLE.cancelled,
-          source: "admin",
-          status: "cancelled",
-          note: paid
-            ? `Administrator · to‘lov qaytarish so‘rovi yuborildi, cashback yozuvlari qaytarildi · ${trimmed}`
-            : `Administrator · ${trimmed}`,
-        },
-        ...order.history,
-      ],
-    },
-  };
+  return mock.cancelOrder(input.orderId, input.reason);
 }
 
 export async function changeOrderStatus(
-  order: Order,
+  orderId: number,
   status: OrderStatus,
+  key: string,
+  csrf: string,
 ): Promise<ActionResult<Order>> {
-  await delay();
-  if (!manualTransitions(order).includes(status)) {
-    return { ok: false, error: "Bu holatga o‘tib bo‘lmaydi." };
+  const guard = await guardAction(csrf);
+  if (!guard.ok) return guard;
+  const parsed = transitionSchema.safeParse({ orderId, status, key });
+  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  const input = parsed.data;
+  if ((await dataSource()) === "api") {
+    return apiMutation("changeOrderStatus", async () => {
+      try {
+        const { data } = await apiTransitionOrder(
+          sessionToken(guard.session),
+          input.orderId,
+          { status: input.status },
+          input.key,
+        );
+        return { ok: true, data: mapOrder(data, MAP_OPTIONS) };
+      } catch (error) {
+        return toActionResult(error);
+      }
+    });
   }
-  return {
-    ok: true,
-    data: {
-      ...order,
-      status,
-      history: [
-        {
-          at: referenceNow().toISOString(),
-          title: STATUS_TITLE[status],
-          source: "admin",
-          status,
-          note: "Administrator · holat qo‘lda o‘zgartirildi · mijozga push yuborildi",
-        },
-        ...order.history,
-      ],
-    },
-  };
+  return mock.changeOrderStatus(input.orderId, input.status);
 }
 
-/** Retry the BTS hand-off after an automatic attempt failed. */
-export async function retryShipment(order: Order): Promise<ActionResult<Order>> {
-  await delay(700);
-  if (order.shipment.state !== "failed") {
-    return { ok: false, error: "BTS buyurtmasi allaqachon yaratilgan." };
+/**
+ * Retry the BTS hand-off after an automatic attempt failed. The API answers
+ * 202 with `shipment.pending = true`; the view then polls `loadOrder` until
+ * the outcome (`created`, or `failed` again) arrives.
+ */
+export async function retryShipment(
+  orderId: number,
+  key: string,
+  csrf: string,
+): Promise<ActionResult<Order>> {
+  const guard = await guardAction(csrf);
+  if (!guard.ok) return guard;
+  const parsed = retrySchema.safeParse({ orderId, key });
+  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  const input = parsed.data;
+  if ((await dataSource()) === "api") {
+    return apiMutation("retryShipment", async () => {
+      try {
+        const { data } = await apiRetryShipment(
+          sessionToken(guard.session),
+          input.orderId,
+          input.key,
+        );
+        return { ok: true, data: mapOrder(data, MAP_OPTIONS) };
+      } catch (error) {
+        return toActionResult(error);
+      }
+    });
   }
-  const trackingNumber = String(48_214_000 + (order.id % 1000));
-  const at = referenceNow().toISOString();
-  return {
-    ok: true,
-    data: {
-      ...order,
-      shipment: {
-        state: "created",
-        trackingNumber,
-        tariff: order.deliveryFee,
-        updatedAt: at,
-        via: "webhook",
-      },
-      history: [
-        {
-          at,
-          title: "BTS buyurtmasi yaratildi",
-          source: "admin",
-          note: `Qo‘lda yuborildi · yetkazish raqami ${trackingNumber}`,
-        },
-        ...order.history,
-      ],
-    },
-  };
+  return mock.retryShipment(input.orderId);
+}
+
+/**
+ * A fresh read of one order for the BTS-retry poll (no key, no refresh: it
+ * changes nothing). Guarded like the mutations, since a Server Action is a
+ * public endpoint.
+ */
+export async function loadOrder(orderId: number, csrf: string): Promise<ActionResult<Order>> {
+  const guard = await guardAction(csrf);
+  if (!guard.ok) return guard;
+  const parsed = orderIdSchema.safeParse(orderId);
+  if (!parsed.success) return { ok: false, error: "Topilmadi.", code: "not_found" };
+  if ((await dataSource()) === "api") {
+    try {
+      const { data } = await apiGetOrderFresh(sessionToken(guard.session), parsed.data);
+      return { ok: true, data: mapOrder(data, MAP_OPTIONS) };
+    } catch (error) {
+      return toActionResult(error);
+    }
+  }
+  const order = await mockQueries.getOrder(parsed.data);
+  return order ? { ok: true, data: order } : { ok: false, error: "Topilmadi.", code: "not_found" };
 }

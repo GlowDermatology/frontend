@@ -1,0 +1,11 @@
+{
+  "total": 248,
+  "active": 234,
+  "hidden": 14,
+  "new_from_billz": 4,
+  "out_of_stock": 7,
+  "billz": {
+    "connected": true,
+    "last_sync_at": "2026-10-24T12:03:00+05:00"
+  }
+}

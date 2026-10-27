@@ -1,9 +1,10 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 
 import { Icon } from "@/components/ui/icon";
-import { IS_DEMO } from "@/data/config";
 
+import { ContentErrorBoundary } from "./content-error";
+import { DemoBadge } from "./demo-badge";
 import { GlobalSearch } from "./global-search";
 import { MobileNav } from "./mobile-nav";
 import type { AdminSection } from "./nav-items";
@@ -18,6 +19,8 @@ interface AdminShellProps {
 /**
  * Sidebar + top bar + page content. Rendered by each page with its section so
  * the active item is part of the static HTML (no client-side path lookup).
+ * The page content sits inside `ContentErrorBoundary`, so a failing board
+ * shows an error card with retry while the navigation stays usable.
  */
 export function AdminShell({ section, children }: AdminShellProps) {
   return (
@@ -39,25 +42,15 @@ export function AdminShell({ section, children }: AdminShellProps) {
           </MobileNav>
           <GlobalSearch />
           <span className="flex-1" />
-          {IS_DEMO && (
-            <span
-              title="Ma’lumotlar namuna uchun; o‘zgarishlar sahifa yangilanganda tiklanadi."
-              className="inline-flex h-8 items-center gap-1.5 rounded-full border border-dashed border-line-strong px-3 text-caption text-ink-muted"
-            >
-              <Icon name="info" size={14} />
-              Demo ma’lumotlar
-            </span>
-          )}
+          <Suspense fallback={null}>
+            <DemoBadge />
+          </Suspense>
           <Link
             href="/admin/notifications"
             aria-label="Bildirishnomalar"
             className="relative flex size-11 items-center justify-center rounded-md border border-line bg-surface-raised text-ink transition-colors duration-150 hover:bg-surface"
           >
             <Icon name="bell" size={20} />
-            <span
-              aria-hidden="true"
-              className="absolute top-2.5 right-2.5 size-2 rounded-full bg-danger"
-            />
           </Link>
         </header>
 
@@ -66,7 +59,7 @@ export function AdminShell({ section, children }: AdminShellProps) {
           tabIndex={-1}
           className="flex w-full max-w-[1280px] flex-1 flex-col gap-6 p-4 focus:outline-none sm:p-6"
         >
-          {children}
+          <ContentErrorBoundary>{children}</ContentErrorBoundary>
         </main>
       </div>
     </div>

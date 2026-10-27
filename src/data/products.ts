@@ -1,18 +1,28 @@
 import "server-only";
 
-import {
-  productDisplayName as displayName,
-  stockLevel,
-  type CategoryId,
-  type Product,
-  type ProductStatus,
-} from "@/domain/product";
+import { cache } from "react";
 
-import { PRODUCTS } from "./mock/catalog";
-import { paginate, type Page } from "./types";
+import type { CategoryId, Product, ProductStatus } from "@/domain/product";
+
+import { apiGetProduct, apiListProducts, apiProductStats } from "./api/catalog";
+import { isApiError } from "./api/errors";
+import { mapCatalogStats, mapPage, mapProduct, productListParams } from "./api/mappers";
+import { requireApiToken } from "./auth";
+import * as mock from "./mock/products.queries";
+import { requestNow } from "./now";
+import { dataSource } from "./source";
+import type { Page } from "./types";
+
+/**
+ * Products read seam. Dispatches on `dataSource()`: mock bodies live in
+ * `./mock/products.queries.ts`; the api branch calls `GET products/`,
+ * `GET products/{id}/` and `GET products/stats/` (contract §2.3) through
+ * `src/data/api/catalog.ts` and maps the answers with `src/data/api/mappers`.
+ */
 
 export interface ProductListQuery {
   q?: string;
+  /** Category slug, or `none` for products without a category. */
   category?: CategoryId | "none";
   status?: ProductStatus;
   promo?: "yes" | "no";
@@ -24,53 +34,96 @@ export interface ProductListQuery {
   pageSize: number;
 }
 
-function matches(product: Product, query: ProductListQuery): boolean {
-  const term = query.q?.trim().toLowerCase();
-  if (term) {
-    const haystack = [displayName(product), product.billzName, product.billzId, product.id]
-      .join(" ")
-      .toLowerCase();
-    if (!haystack.includes(term)) return false;
-  }
-  if (query.category === "none" && product.category !== null) return false;
-  if (query.category && query.category !== "none" && product.category !== query.category)
-    return false;
-  if (query.status && product.status !== query.status) return false;
-  if (query.promo === "yes" && !product.promo) return false;
-  if (query.promo === "no" && product.promo) return false;
-  if (query.outOfStock && stockLevel(product.stock) !== "out") return false;
-  if (query.onlyNew && !product.isNewFromBillz) return false;
-  return true;
+export interface CatalogStats {
+  total: number;
+  active: number;
+  hidden: number;
+  newFromBillz: number;
+  outOfStock: number;
+  /** Billz adapter configured and the last import did not fail. */
+  billzConnected: boolean;
+  /** `billz.last_sync_at`; `null` = never synced. */
+  lastSyncAt: string | null;
+  /** Relative to the server's `now` (contract §5.2): "2 daqiqa oldin". */
+  lastSyncLabel: string;
 }
 
 /**
- * `GET /api/v1/admin/products/?search=&category=&status=&promo=&out_of_stock=&page=`
+ * `GET /api/v1/admin/products/?search=&category=&status=&promo=&out_of_stock=&is_new=&ordering=&page=&page_size=`
  * Default order keeps the catalog order; sorting by name is opt-in.
  */
 export async function listProducts(query: ProductListQuery): Promise<Page<Product>> {
-  const filtered = PRODUCTS.filter((p) => matches(p, query));
-  const byName = (a: Product, b: Product) => displayName(a).localeCompare(displayName(b), "uz");
-  const sorted =
-    query.sort === "default"
-      ? filtered
-      : [...filtered].sort((a, b) => (query.sort === "name_asc" ? byName(a, b) : byName(b, a)));
-  return paginate(sorted, query.page, query.pageSize);
+  if ((await dataSource()) === "api") {
+    const token = await requireApiToken();
+    try {
+      const { data } = await apiListProducts(token, productListParams(query));
+      return mapPage(data, mapProduct);
+    } catch (error) {
+      // The board drops unknown slugs first (`withKnownCategory`); a category
+      // deleted in between still answers 400 on `category`: list unfiltered.
+      if (query.category && query.category !== "none" && isUnknownCategory(error)) {
+        const { data } = await apiListProducts(
+          token,
+          productListParams({ ...query, category: undefined }),
+        );
+        return mapPage(data, mapProduct);
+      }
+      throw error;
+    }
+  }
+  return mock.listProducts(query);
 }
 
-export async function getProduct(id: string): Promise<Product | null> {
-  return PRODUCTS.find((p) => p.id === id) ?? null;
+function isUnknownCategory(error: unknown): boolean {
+  return (
+    isApiError(error) &&
+    error.status === 400 &&
+    error.body.errors.some((item) => item.field === "category")
+  );
 }
 
-export async function getCatalogStats(): Promise<{
-  total: number;
-  newFromBillz: number;
-  outOfStock: number;
-  lastSyncLabel: string;
-}> {
-  return {
-    total: PRODUCTS.length,
-    newFromBillz: PRODUCTS.filter((p) => p.isNewFromBillz).length,
-    outOfStock: PRODUCTS.filter((p) => stockLevel(p.stock) === "out").length,
-    lastSyncLabel: "2 daqiqa oldin",
-  };
+/**
+ * `GET /api/v1/admin/products/{id}/` — `null` for an unknown id (404).
+ * Deduplicated per render with React `cache()`, so `generateMetadata` and the
+ * page body share one request.
+ */
+export const getProduct = cache(async (id: string): Promise<Product | null> => {
+  if ((await dataSource()) === "api") {
+    if (!/^\d{1,18}$/.test(id)) return null;
+    const token = await requireApiToken();
+    try {
+      return mapProduct((await apiGetProduct(token, id)).data);
+    } catch (error) {
+      if (isApiError(error) && error.status === 404) return null;
+      throw error;
+    }
+  }
+  return mock.getProduct(id);
+});
+
+/** Catalog counters and the Billz status (`GET products/stats/`) for the header, sidebar and dashboard. */
+export const getCatalogStats = cache(async (): Promise<CatalogStats> => {
+  if ((await dataSource()) === "api") {
+    const token = await requireApiToken();
+    const [{ data }, now] = await Promise.all([apiProductStats(token), requestNow()]);
+    return mapCatalogStats(data, now);
+  }
+  return mock.getCatalogStats();
+});
+
+/**
+ * Active products matching a search term, for pickers (banner links). One
+ * page of the regular list (`status=active&search=`), up to 8 rows.
+ */
+export async function searchActiveProducts(q: string): Promise<Product[]> {
+  const page = await listProducts({
+    q: q.trim() || undefined,
+    status: "active",
+    outOfStock: false,
+    onlyNew: false,
+    sort: "default",
+    page: 1,
+    pageSize: 8,
+  });
+  return page.items;
 }

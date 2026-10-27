@@ -24,6 +24,9 @@ function ShipmentCell({ order }: { order: OrderSummary }) {
     case "created":
       return <span className="tabular-nums">{order.shipment.trackingNumber}</span>;
     case "failed":
+      if (order.shipment.pending) {
+        return <span className="font-bold text-ink-muted">Yuborilmoqda…</span>;
+      }
       return (
         <span className="inline-flex items-center gap-1.5 font-bold">
           <Icon name="alert-triangle" size={16} className="text-danger" />
@@ -33,6 +36,9 @@ function ShipmentCell({ order }: { order: OrderSummary }) {
     case "not_required":
       return <span className="text-ink-muted">Kerak emas</span>;
     case "not_created":
+      if (order.shipment.pending) {
+        return <span className="font-bold text-ink-muted">Yuborilmoqda…</span>;
+      }
       return (
         <span className="text-ink-muted" aria-label="Yo‘q">
           —

@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import type { Route } from "next";
 
@@ -9,11 +10,15 @@ import { Card, CardTitle, DetailRow } from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
 import {
   itemsSubtotal,
+  manualRefundNote,
   promoSubtotal,
+  refundStateLine,
+  shipmentPending,
   type EventSource,
   type Order,
   type OrderCashbackEntry,
   type OrderEvent,
+  type OrderItem,
   type OrderStatus,
 } from "@/domain/order";
 import { cn } from "@/lib/cn";
@@ -26,7 +31,12 @@ import {
   formatSom,
 } from "@/lib/format";
 
-import { ORDER_STATUS_META, PaymentStatusBadge, PROVIDER_LABEL } from "../shared/status";
+import {
+  ORDER_STATUS_META,
+  PaymentStatusBadge,
+  PROVIDER_LABEL,
+  REFUND_TONE,
+} from "../shared/status";
 
 const rowClass = "leading-5";
 
@@ -64,16 +74,7 @@ export function OrderItemsCard({ order }: { order: Order }) {
               <tr key={item.productId}>
                 <td>
                   <span className="flex items-center gap-3">
-                    <span className="flex size-10 shrink-0 items-center justify-center rounded-sm bg-gold-soft">
-                      {item.art && (
-                        <ProductArt
-                          kind={item.art.kind}
-                          tone={item.art.tone}
-                          detail="mini"
-                          width={24}
-                        />
-                      )}
-                    </span>
+                    <ItemThumbnail item={item} />
                     <span className="flex flex-col gap-1">
                       <span className="font-semibold">{item.name}</span>
                       {item.promo && (
@@ -114,6 +115,29 @@ export function OrderItemsCard({ order }: { order: Order }) {
         </dl>
       </div>
     </section>
+  );
+}
+
+/** 40×40 in every state: the checkout photo (API), the fixture art, or an empty frame. */
+function ItemThumbnail({ item }: { item: OrderItem }) {
+  if (item.imageUrl) {
+    return (
+      <span className="relative flex size-10 shrink-0 overflow-hidden rounded-sm bg-surface">
+        <Image src={item.imageUrl} alt="" fill sizes="40px" className="object-cover" />
+      </span>
+    );
+  }
+  if (item.art) {
+    return (
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-sm bg-gold-soft">
+        <ProductArt kind={item.art.kind} tone={item.art.tone} detail="mini" width={24} />
+      </span>
+    );
+  }
+  return (
+    <span className="flex size-10 shrink-0 items-center justify-center rounded-sm border border-dashed border-line-strong text-ink-muted">
+      <Icon name="image" size={16} />
+    </span>
   );
 }
 
@@ -167,7 +191,7 @@ export function OrderHistoryCard({
           const last = index === events.length - 1;
           return (
             <li
-              key={`${event.at}-${event.title}`}
+              key={event.id ?? `${event.at}-${event.title}-${index}`}
               className="grid grid-cols-[84px_20px_1fr] gap-3 sm:grid-cols-[112px_20px_1fr]"
             >
               <time
@@ -251,6 +275,9 @@ export function OrderCustomerCard({ order }: { order: Order }) {
 
 export function OrderPaymentCard({ order }: { order: Order }) {
   const { payment } = order;
+  const newest = order.refunds[0];
+  // Why the newest refund is paid out by hand (§5.1 note; Payme's line says it already).
+  const reasonNote = newest ? manualRefundNote(newest) : null;
   return (
     <Card aria-labelledby="order-payment-title" className="flex flex-col gap-2.5">
       <div className="flex items-center justify-between gap-3">
@@ -277,12 +304,48 @@ export function OrderPaymentCard({ order }: { order: Order }) {
           </DetailRow>
         )}
       </dl>
+      {newest && (
+        <>
+          <span aria-hidden="true" className="h-px bg-line" />
+          <p className="m-0 flex items-center justify-between gap-3 text-body-sm leading-5 font-bold text-ink">
+            <span>{refundStateLine(newest)}</span>
+            <Badge tone={REFUND_TONE[newest.state]}>Qaytarish</Badge>
+          </p>
+          {reasonNote && (
+            <p className="m-0 text-[12px] leading-[18px] text-ink-muted">{reasonNote}</p>
+          )}
+          <ul aria-label="Qaytarishlar" className="m-0 flex list-none flex-col gap-1.5 p-0">
+            {order.refunds.map((refund) => (
+              <li
+                key={refund.id}
+                className="flex flex-wrap items-baseline justify-between gap-x-3 text-[12px] leading-[18px] text-ink-muted"
+              >
+                <span className="tabular-nums">
+                  <time dateTime={refund.requestedAt}>
+                    {formatDateTimeShort(refund.requestedAt)}
+                  </time>{" "}
+                  · {refundStateLine(refund)}
+                </span>
+                <span className="font-bold text-ink tabular-nums">{formatSom(refund.amount)}</span>
+              </li>
+            ))}
+          </ul>
+          <Link
+            href={`/admin/payments?q=${order.id}` as Route}
+            className="flex min-h-11 items-center gap-1 self-start text-body-sm font-bold text-ink no-underline hover:underline hover:decoration-gold"
+          >
+            To‘lovlar bo‘limida ochish
+            <Icon name="chevron-right" size={16} />
+          </Link>
+        </>
+      )}
     </Card>
   );
 }
 
 function shipmentBadge(order: Order): { label: string; tone: Tone } {
   const { shipment } = order;
+  if (shipmentPending(shipment)) return { label: "Yuborilmoqda…", tone: "warning" };
   if (shipment.state === "failed") return { label: "Yuborilmadi", tone: "danger" };
   if (shipment.state !== "created") return { label: "Yaratilmagan", tone: "muted" };
   if (order.status === "cancelled") return { label: "Bekor qilish so‘raldi", tone: "danger" };
@@ -311,7 +374,8 @@ export function OrderShipmentCard({ order }: { order: Order }) {
           </DetailRow>
           <DetailRow label="Oxirgi yangilanish" className={rowClass}>
             <span className="tabular-nums">
-              {formatDateTimeShort(shipment.updatedAt)} · {shipment.via}
+              {formatDateTimeShort(shipment.updatedAt)} ·{" "}
+              {shipment.via === "webhook" ? "Webhook" : "Polling"}
             </span>
           </DetailRow>
         </dl>
@@ -322,18 +386,28 @@ export function OrderShipmentCard({ order }: { order: Order }) {
             <DetailRow label="Oxirgi urinish" className={rowClass}>
               <span className="tabular-nums">{formatDateTimeShort(shipment.lastAttemptAt)}</span>
             </DetailRow>
+            {shipment.attempts !== undefined && (
+              <DetailRow label="Urinishlar" className={rowClass}>
+                <span className="tabular-nums">{shipment.attempts}</span>
+              </DetailRow>
+            )}
           </dl>
-          <p className="m-0 text-[12px] leading-[18px] text-ink-muted">
-            Avtomatik yuborish muvaffaqiyatsiz tugadi. «BTS ga yuborish» tugmasi bilan qayta urinib
-            ko‘ring.
+          <p className="m-0 text-[12px] leading-[18px] text-ink-muted" aria-live="polite">
+            {shipment.pending
+              ? "BTS so‘rovi yuborilmoqda. Natija kelishi bilan sahifa yangilanadi."
+              : order.availableActions.retryShipment
+                ? "Avtomatik yuborish muvaffaqiyatsiz tugadi. «BTS ga yuborish» tugmasi bilan qayta urinib ko‘ring."
+                : "Avtomatik yuborish muvaffaqiyatsiz tugadi."}
           </p>
         </>
       )}
       {shipment.state === "not_created" && (
-        <p className="m-0 text-[12px] leading-[18px] text-ink-muted">
-          {order.status === "cancelled"
-            ? "Buyurtma BTS ga yuborilmagan."
-            : "To‘lov tasdiqlangach BTS buyurtmasi avtomatik yaratiladi."}
+        <p className="m-0 text-[12px] leading-[18px] text-ink-muted" aria-live="polite">
+          {shipment.pending
+            ? "BTS so‘rovi yuborilmoqda."
+            : order.status === "cancelled"
+              ? "Buyurtma BTS ga yuborilmagan."
+              : "To‘lov tasdiqlangach BTS buyurtmasi avtomatik yaratiladi."}
         </p>
       )}
     </Card>
@@ -358,6 +432,13 @@ export function OrderCashbackCard({ order }: { order: Order }) {
       reversible > 1
         ? "Bekor qilinsa, ikkala yozuv ham qarama-qarshi yozuv bilan qaytariladi."
         : "Bekor qilinsa, yozuv qarama-qarshi yozuv bilan qaytariladi.",
+    );
+  }
+
+  const hold = order.cashbackHold;
+  if (hold?.state === "active") {
+    notes.push(
+      `${formatSom(hold.amount)} cashback band qilingan (${formatDateTimeShort(hold.expiresAt)} gacha).`,
     );
   }
 

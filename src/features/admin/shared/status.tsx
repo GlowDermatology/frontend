@@ -1,5 +1,12 @@
 import { Badge, type Tone } from "@/components/ui/badge";
-import type { FulfilmentMethod, OrderStatus, PaymentProvider, PaymentStatus } from "@/domain/order";
+import {
+  REFUND_STATE_LABEL,
+  type FulfilmentMethod,
+  type OrderStatus,
+  type PaymentProvider,
+  type PaymentStatus,
+  type RefundState,
+} from "@/domain/order";
 
 export const ORDER_STATUS_META: Record<OrderStatus, { label: string; tone: Tone }> = {
   awaiting_payment: { label: "To‘lov kutilmoqda", tone: "warning" },
@@ -31,4 +38,18 @@ export function OrderStatusBadge({ status }: { status: OrderStatus }) {
 export function PaymentStatusBadge({ status }: { status: PaymentStatus }) {
   const meta = PAYMENT_STATUS_META[status];
   return <Badge tone={meta.tone}>{meta.label}</Badge>;
+}
+
+/** Refund states (contract §5.1 labels): settled green, waiting amber, needing a person red. */
+export const REFUND_TONE: Record<RefundState, Tone> = {
+  requested: "warning",
+  submitting: "warning",
+  succeeded: "success",
+  failed: "danger",
+  manual_required: "warning",
+  unknown: "danger",
+};
+
+export function RefundStateBadge({ state }: { state: RefundState }) {
+  return <Badge tone={REFUND_TONE[state]}>{REFUND_STATE_LABEL[state]}</Badge>;
 }

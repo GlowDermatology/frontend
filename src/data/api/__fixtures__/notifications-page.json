@@ -1,0 +1,132 @@
+{
+  "count": 4,
+  "page": 1,
+  "page_size": 20,
+  "page_count": 1,
+  "results": [
+    {
+      "id": 4,
+      "kind": "general",
+      "title": "Yangi dermatolog qabuli ochildi",
+      "body": "Yangi dermatolog qabuliga yozilish ochildi. Ilova orqali qulay vaqtni band qiling.",
+      "image_url": null,
+      "link": {
+        "kind": "none",
+        "product_id": null,
+        "label": null
+      },
+      "audience": {
+        "type": "segment",
+        "segment_id": 1,
+        "segment_name": "Doimiy mijozlar",
+        "phone": null
+      },
+      "recipient_count": 612,
+      "state": "scheduled",
+      "scheduled_at": "2026-10-26T10:00:00+05:00",
+      "created_at": "2026-10-24T11:30:00+05:00",
+      "sent_at": null,
+      "cancelled_at": null,
+      "sent": null,
+      "failed": null,
+      "delivered": null,
+      "author": {
+        "id": 1,
+        "display_name": "Administrator"
+      }
+    },
+    {
+      "id": 3,
+      "kind": "promo",
+      "title": "Kuzgi namlik to‘plami",
+      "body": "Tanlangan namlantiruvchi kremlarga 20% chegirma — 30-noyabrgacha.",
+      "image_url": null,
+      "link": {
+        "kind": "product",
+        "product_id": 4,
+        "label": "Seramidli namlantiruvchi krem"
+      },
+      "audience": {
+        "type": "all",
+        "segment_id": null,
+        "segment_name": null,
+        "phone": null
+      },
+      "recipient_count": 4751,
+      "state": "sent",
+      "scheduled_at": "2026-10-24T12:00:00+05:00",
+      "created_at": "2026-10-24T09:40:00+05:00",
+      "sent_at": "2026-10-24T12:02:00+05:00",
+      "cancelled_at": null,
+      "sent": 4751,
+      "failed": 0,
+      "delivered": 4388,
+      "author": {
+        "id": 1,
+        "display_name": "Administrator"
+      }
+    },
+    {
+      "id": 2,
+      "kind": "general",
+      "title": "Yangi mahsulotlar keldi",
+      "body": "Serumlar va tonerlar bo‘limida yangi mahsulotlar. Ilovada ko‘ring.",
+      "image_url": null,
+      "link": {
+        "kind": "none",
+        "product_id": null,
+        "label": null
+      },
+      "audience": {
+        "type": "all",
+        "segment_id": null,
+        "segment_name": null,
+        "phone": null
+      },
+      "recipient_count": 4740,
+      "state": "sent",
+      "scheduled_at": "2026-10-21T10:00:00+05:00",
+      "created_at": "2026-10-20T15:00:00+05:00",
+      "sent_at": "2026-10-21T10:02:00+05:00",
+      "cancelled_at": null,
+      "sent": 4740,
+      "failed": 0,
+      "delivered": 4205,
+      "author": {
+        "id": 1,
+        "display_name": "Administrator"
+      }
+    },
+    {
+      "id": 1,
+      "kind": "promo",
+      "title": "Quyoshdan himoya: 15% chegirma",
+      "body": "Barcha SPF kremlarga 15% chegirma — 25-oktabrgacha. Terini kuz quyoshidan ham himoyalang.",
+      "image_url": null,
+      "link": {
+        "kind": "none",
+        "product_id": null,
+        "label": null
+      },
+      "audience": {
+        "type": "segment",
+        "segment_id": 2,
+        "segment_name": "10 mln+ xarid",
+        "phone": null
+      },
+      "recipient_count": 318,
+      "state": "sent",
+      "scheduled_at": null,
+      "created_at": "2026-10-18T16:30:00+05:00",
+      "sent_at": "2026-10-18T16:31:00+05:00",
+      "cancelled_at": null,
+      "sent": 318,
+      "failed": 0,
+      "delivered": 301,
+      "author": {
+        "id": 1,
+        "display_name": "Administrator"
+      }
+    }
+  ]
+}

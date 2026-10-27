@@ -1,9 +1,12 @@
 import { calculateCashback } from "@/domain/cashback";
 import {
   itemsSubtotal,
+  MANUAL_REFUND_NOTE,
+  orderActions,
   promoSubtotal,
   type CancellationReason,
   type FulfilmentMethod,
+  type ManualRefundReason,
   type Order,
   type OrderEvent,
   type OrderItem,
@@ -11,9 +14,11 @@ import {
   type OrderSummary,
   type PaymentProvider,
   type PaymentStatus,
+  type Refund,
+  type RefundState,
   type Shipment,
 } from "@/domain/order";
-import { formatNumber } from "@/lib/format";
+import { formatNumber, formatSom } from "@/lib/format";
 
 import { ACTIVE_POLICY } from "./cashback";
 import { PRODUCTS, productByBillzId } from "./catalog";
@@ -21,7 +26,7 @@ import { CUSTOMERS, CUSTOMER_IDS, customerRef } from "./people";
 import { createRandom, type Random } from "./random";
 
 /** Facts an order is built from; history and cashback entries are derived. */
-interface OrderSeed {
+export interface OrderSeed {
   id: number;
   customerId: string;
   at: string;
@@ -426,7 +431,124 @@ function totalOf(seed: OrderSeed): number {
   return itemsSubtotal(toItems(seed)) + seed.deliveryFee - seed.cashbackUsed;
 }
 
-export const ORDER_SEEDS: ReadonlyArray<OrderSeed> = generateSeeds();
+/**
+ * Refunds still open or failed, for the payments screen and the order
+ * detail. Four older admin-cancelled orders whose refund did not settle
+ * (Click `failed`, Click `unknown`, Payme `manual_required`, and a Click
+ * refund created `manual_required` because the payment has no Click payment
+ * id — contract §2.2, M2) keep their payment `paid` until the refund
+ * succeeds; one older expired reservation was paid late (a Click capture
+ * after the expiry, customer contract §2.13.0) and is refunded by hand while
+ * Click is in test mode. Together they carry the three `manual_reason`s
+ * (§4: `payme`, `no_paydoc`, `fake_mode`).
+ */
+interface OpenRefund {
+  state: RefundState;
+  /** `manual_required` refunds: why (the `refund_requested` event's `manual_reason`). */
+  reason?: ManualRefundReason;
+  /** The payment was captured after the reservation expired; the order stays cancelled. */
+  lateCapture?: boolean;
+}
+
+const OPEN_REFUNDS = new Map<number, OpenRefund>();
+
+function withOpenRefunds(seeds: OrderSeed[]): OrderSeed[] {
+  const cancelledByAdmin = seeds.filter(
+    (s) =>
+      s.id < 10_240 &&
+      s.status === "cancelled" &&
+      s.payment === "refunded" &&
+      s.cancellation?.reason === "admin",
+  );
+  const expired = seeds.filter(
+    (s) =>
+      s.id < 10_240 &&
+      s.status === "cancelled" &&
+      s.payment === "failed" &&
+      s.cancellation?.reason === "reservation_expired",
+  );
+  const plan: Array<[PaymentProvider, OpenRefund]> = [
+    ["click", { state: "failed" }],
+    ["click", { state: "unknown" }],
+    ["payme", { state: "manual_required", reason: "payme" }],
+    ["click", { state: "manual_required", reason: "no_paydoc" }],
+    ["click", { state: "manual_required", reason: "fake_mode", lateCapture: true }],
+  ];
+  for (const [provider, refund] of plan) {
+    const pool = refund.lateCapture ? expired : cancelledByAdmin;
+    const seed = pool.find((s) => s.provider === provider && !OPEN_REFUNDS.has(s.id));
+    if (!seed) continue;
+    OPEN_REFUNDS.set(seed.id, refund);
+    seed.payment = "paid";
+  }
+  return seeds;
+}
+
+/** Whether the order's payment was captured after its reservation expired (always refunded). */
+export function isLateCapture(seed: Pick<OrderSeed, "id">): boolean {
+  return OPEN_REFUNDS.get(seed.id)?.lateCapture === true;
+}
+
+export const ORDER_SEEDS: ReadonlyArray<OrderSeed> = withOpenRefunds(generateSeeds());
+
+/** Payment id of an order's payment: №10248 → 301, as in the contract's example. */
+export const paymentIdOf = (orderId: number) => orderId - 9_947;
+/** Refund id of an order's (first) refund. */
+const refundIdOf = (orderId: number) => orderId - 10_000;
+
+/** When the order was cancelled (matches the history row below). */
+function cancelledAt(seed: OrderSeed): string {
+  return plusMinutes(seed.at, seed.cancellation?.reason === "reservation_expired" ? 15 : 60);
+}
+
+/**
+ * The order's refunds, newest first: a settled one for `refunded`, or the
+ * open demo refund. Like the API's `Refund.manual_reason` (M3), every Payme
+ * refund says `payme` (a cabinet refund, also once settled) and a manual
+ * Click refund says why.
+ */
+export function refundsOf(seed: OrderSeed): Refund[] {
+  const open = OPEN_REFUNDS.get(seed.id);
+  if (seed.payment !== "refunded" && !open) return [];
+  const requestedAt = open?.lateCapture ? confirmedAtOf(seed)! : cancelledAt(seed);
+  const state: RefundState = open?.state ?? "succeeded";
+  const updatedAt = plusMinutes(requestedAt, state === "manual_required" ? 0 : 4);
+  const manualReason = open?.reason ?? (seed.provider === "payme" ? "payme" : undefined);
+  return [
+    {
+      id: refundIdOf(seed.id),
+      state,
+      provider: seed.provider,
+      amount: totalOf(seed),
+      requestedAt,
+      updatedAt,
+      completedAt: state === "succeeded" ? updatedAt : undefined,
+      ...(manualReason ? { manualReason } : {}),
+    },
+  ];
+}
+
+/** Provider transaction id of a paid order (№10248 keeps the contract's value). */
+export function transactionIdOf(seed: OrderSeed): string | undefined {
+  const paid = seed.payment === "paid" || seed.payment === "refunded";
+  if (!paid) return undefined;
+  if (seed.id === 10248) return "CLK-7741920385";
+  return `${seed.provider === "click" ? "CLK" : "PME"}-${String(7_741_000_000 + seed.id * 37).slice(0, 10)}`;
+}
+
+/**
+ * Payment confirmation time for a paid order: 3 minutes after checkout, or
+ * 20 minutes for a capture that arrived after the 15-minute reservation.
+ */
+export function confirmedAtOf(seed: OrderSeed): string | undefined {
+  const paid = seed.payment === "paid" || seed.payment === "refunded";
+  if (!paid) return undefined;
+  return plusMinutes(seed.at, isLateCapture(seed) ? 20 : 3);
+}
+
+export function orderTotalOf(seed: OrderSeed): number {
+  return totalOf(seed);
+}
 
 export const ORDER_SUMMARIES: ReadonlyArray<OrderSummary> = ORDER_SEEDS.map((seed) => ({
   id: seed.id,
@@ -450,8 +572,12 @@ export function buildOrderDetail(seed: OrderSeed): Order {
   const items = toItems(seed);
   const subtotal = itemsSubtotal(items);
   const promo = promoSubtotal(items);
-  const paid = seed.payment === "paid" || seed.payment === "refunded";
-  const confirmedAt = paid ? plusMinutes(seed.at, 3) : undefined;
+  const openRefund = OPEN_REFUNDS.get(seed.id);
+  const lateCapture = openRefund?.lateCapture === true;
+  // A late capture never confirms the order: no "Jarayonda" row, no cashback.
+  const paid = (seed.payment === "paid" || seed.payment === "refunded") && !lateCapture;
+  const confirmedAt = confirmedAtOf(seed);
+  const refunds = refundsOf(seed);
   const credit = calculateCashback(
     {
       amount: subtotal,
@@ -530,7 +656,7 @@ export function buildOrderDetail(seed: OrderSeed): Order {
   if (seed.status === "cancelled") {
     const expired = seed.cancellation?.reason === "reservation_expired";
     history.push({
-      at: plusMinutes(seed.at, expired ? 15 : 60),
+      at: cancelledAt(seed),
       title: "Bekor qilindi",
       source: expired ? "system" : "admin",
       status: "cancelled",
@@ -538,6 +664,35 @@ export function buildOrderDetail(seed: OrderSeed): Order {
         ? "Band muddati tugadi · mahsulotlar bo‘shatildi"
         : "Administrator · to‘lov qaytarish so‘rovi yuborildi, cashback yozuvlari qaytarildi",
     });
+    const refund = refunds[0];
+    if (refund && lateCapture) {
+      // Not folded: no `cancelled` event names this refund (§4).
+      history.push({
+        at: refund.requestedAt,
+        title: "To‘lov qaytarish so‘raldi",
+        source: "system",
+        note: `${PROVIDER_NAME[seed.provider]} · ${formatSom(refund.amount)}${
+          openRefund?.reason ? ` · ${MANUAL_REFUND_NOTE[openRefund.reason]}` : ""
+        }`,
+      });
+    } else if (refund && refund.state === "succeeded") {
+      history.push({
+        at: refund.updatedAt,
+        title: "To‘lov qaytarildi",
+        source: "system",
+        note: `${PROVIDER_NAME[seed.provider]} · ${formatSom(refund.amount)}`,
+      });
+    } else if (refund && (refund.state === "failed" || refund.state === "unknown")) {
+      history.push({
+        at: refund.updatedAt,
+        title: "To‘lov qaytarilmadi",
+        source: "system",
+        note:
+          refund.state === "unknown"
+            ? `${PROVIDER_NAME[seed.provider]} · holat noma’lum, tekshirish kerak`
+            : `${PROVIDER_NAME[seed.provider]} · xato, administrator tekshiruvi kerak`,
+      });
+    }
   }
 
   const cashback: Order["cashback"] = [];
@@ -551,7 +706,7 @@ export function buildOrderDetail(seed: OrderSeed): Order {
       label: `1% × ${formatNumber(creditBase)}`,
     });
   }
-  if (seed.payment === "refunded") {
+  if (seed.payment === "refunded" || (openRefund && !lateCapture)) {
     for (const entry of [...cashback]) {
       cashback.push({ kind: "reversal", amount: -entry.amount, label: "Qarama-qarshi yozuv" });
     }
@@ -566,12 +721,9 @@ export function buildOrderDetail(seed: OrderSeed): Order {
     payment: {
       status: seed.payment,
       provider: seed.provider,
-      transactionId: paid
-        ? seed.id === 10248
-          ? "CLK-7741920385"
-          : `${seed.provider === "click" ? "CLK" : "PME"}-${String(7_741_000_000 + seed.id * 37).slice(0, 10)}`
-        : undefined,
+      transactionId: transactionIdOf(seed),
       confirmedAt,
+      amount: totalOf(seed),
     },
     fulfilment: seed.fulfilment,
     shipment: seed.shipment,
@@ -581,8 +733,10 @@ export function buildOrderDetail(seed: OrderSeed): Order {
     items,
     deliveryFee: seed.deliveryFee,
     cashbackUsed: seed.cashbackUsed,
+    refunds,
     history: history.reverse(),
     cashback,
+    availableActions: orderActions(seed),
   };
 }
 

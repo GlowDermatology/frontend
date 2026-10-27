@@ -23,6 +23,7 @@ export const POLICY_VERSIONS: ReadonlyArray<PolicyVersion> = [
     author: "Administrator",
     period: "1-okt 2026 dan",
     active: true,
+    state: "active",
   },
   {
     version: 2,
@@ -30,6 +31,7 @@ export const POLICY_VERSIONS: ReadonlyArray<PolicyVersion> = [
     author: "Administrator",
     period: "15-avg – 30-sen 2026",
     active: false,
+    state: "expired",
   },
   {
     version: 1,
@@ -37,6 +39,7 @@ export const POLICY_VERSIONS: ReadonlyArray<PolicyVersion> = [
     author: "Tizim",
     period: "1-iyun – 14-avg 2026",
     active: false,
+    state: "expired",
   },
 ];
 

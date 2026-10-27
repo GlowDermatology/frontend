@@ -1,18 +1,18 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
-import { SectionPlaceholder } from "@/features/admin/shared/section-placeholder";
+import { PaymentsContent } from "@/features/admin/payments/payments-content";
+import { PageSkeleton } from "@/features/admin/shared/skeleton";
 import { AdminShell } from "@/features/admin/shell/admin-shell";
 
 export const metadata: Metadata = { title: "To‘lovlar" };
 
-export default function Page() {
+export default function PaymentsPage({ searchParams }: PageProps<"/admin/payments">) {
   return (
     <AdminShell section="payments">
-      <SectionPlaceholder
-        title="To‘lovlar"
-        icon="card"
-        purpose="Click va Payme tranzaksiyalari, qaytarishlar va to‘lov xatolari shu yerda ko‘rinadi."
-      />
+      <Suspense fallback={<PageSkeleton />}>
+        <PaymentsContent searchParams={searchParams} />
+      </Suspense>
     </AdminShell>
   );
 }

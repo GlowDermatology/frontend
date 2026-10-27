@@ -28,8 +28,25 @@ interface SelectMenuProps<T extends string> {
 export const filterTriggerClass =
   "inline-flex h-11 shrink-0 items-center gap-2 rounded-md border border-line-strong bg-transparent px-3.5 text-label whitespace-nowrap text-ink transition-colors duration-150 hover:bg-surface-raised data-[state=open]:bg-surface-raised";
 
+/**
+ * Never taller than the viewport leaves (Radix exposes the room left on the
+ * chosen side): a long option list scrolls instead of running off-screen.
+ */
 const contentClass =
-  "z-50 min-w-[220px] overflow-hidden rounded-md border border-line bg-surface-raised p-1.5 text-ink shadow-lg data-[state=closed]:animate-pop-out data-[state=open]:animate-pop-in";
+  "z-50 max-h-[min(60vh,var(--radix-dropdown-menu-content-available-height))] min-w-[220px] overflow-x-hidden overflow-y-auto overscroll-contain rounded-md border border-line bg-surface-raised p-1.5 text-ink shadow-lg data-[state=closed]:animate-pop-out data-[state=open]:animate-pop-in";
+
+/**
+ * Menus open inside the page's `<main>` landmark (they are positioned
+ * `fixed`, so the container only decides where they sit in the
+ * accessibility tree): a portal straight into `<body>` leaves the open menu
+ * outside every landmark (axe `region`). Falls back to `<body>` outside the
+ * admin shell and during the server render (Radix mounts portals on the
+ * client only).
+ */
+function portalContainer(): HTMLElement | undefined {
+  if (typeof document === "undefined") return undefined;
+  return document.getElementById("admin-main") ?? undefined;
+}
 
 const itemClass =
   "relative flex h-10 cursor-pointer items-center gap-2.5 rounded-sm pr-9 pl-3 text-label outline-none select-none data-[disabled]:cursor-not-allowed data-[disabled]:text-ink-muted data-[highlighted]:bg-gold-soft";
@@ -53,10 +70,11 @@ export function SelectMenu<T extends string>({
         {trigger}
         <Icon name="chevron-down" size={16} />
       </DropdownMenu.Trigger>
-      <DropdownMenu.Portal>
+      <DropdownMenu.Portal container={portalContainer()}>
         <DropdownMenu.Content
           align={align}
           sideOffset={6}
+          collisionPadding={8}
           aria-label={label}
           className={contentClass}
         >
@@ -115,10 +133,11 @@ export function ActionMenu({
       <DropdownMenu.Trigger className={triggerClassName} disabled={disabled}>
         {trigger}
       </DropdownMenu.Trigger>
-      <DropdownMenu.Portal>
+      <DropdownMenu.Portal container={portalContainer()}>
         <DropdownMenu.Content
           align={align}
           sideOffset={6}
+          collisionPadding={8}
           aria-label={label}
           className={contentClass}
         >

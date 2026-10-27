@@ -1,0 +1,24 @@
+{
+  "entry": {
+    "id": 1519,
+    "at": "2026-10-26T11:01:54+05:00",
+    "kind": "adjustment",
+    "amount": 1000,
+    "balance_after": 31000,
+    "source_type": "admin",
+    "source_ref": null,
+    "order_id": null,
+    "base": null,
+    "percent": null,
+    "promo_excluded": false,
+    "policy_version": null,
+    "reverses_id": null,
+    "reason": "F2c fixture: qo‘shish",
+    "actor": {
+      "id": 1,
+      "display_name": "Administrator"
+    }
+  },
+  "balance": 31000,
+  "available": 31000
+}

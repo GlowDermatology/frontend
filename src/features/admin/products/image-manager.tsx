@@ -1,19 +1,30 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 
 import { ProductArt } from "@/components/brand/product-art";
 import { Icon } from "@/components/ui/icon";
 import { ActionMenu } from "@/components/ui/menu";
 import type { ProductImage } from "@/domain/product";
-import { IMAGE_TYPES, MAX_IMAGE_BYTES, MAX_IMAGES } from "@/data/products.schema";
+import {
+  IMAGE_TOO_LARGE_MESSAGE,
+  IMAGE_TYPE_MESSAGE,
+  IMAGE_TYPES,
+  MAX_IMAGE_BYTES,
+  MAX_IMAGES,
+} from "@/data/products.schema";
 import { cn } from "@/lib/cn";
 
 interface ImageManagerProps {
   images: ReadonlyArray<ProductImage>;
   onMove: (from: number, to: number) => void;
   onRemove: (index: number) => void;
-  onAdd: (images: ProductImage[]) => void;
+  /**
+   * New tiles with their files, keyed by the temporary `upload-…` id. The
+   * editor keeps the files until it uploads them on save.
+   */
+  onAdd: (images: ProductImage[], files: ReadonlyMap<string, File>) => void;
   error?: string;
 }
 
@@ -24,7 +35,8 @@ const tileButton =
  * Product images: the first one is the main image. Order changes by dragging
  * a tile (mouse) or from each tile's "tartib" menu (keyboard, touch and a
  * single-pointer alternative to dragging, WCAG 2.5.7). Uploads are previewed
- * locally with object URLs until the form is saved.
+ * locally with object URLs; the files themselves go to the server when the
+ * form is saved (`uploadProductImage`, one call per file).
  */
 export function ImageManager({ images, onMove, onRemove, onAdd, error }: ImageManagerProps) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -68,26 +80,31 @@ export function ImageManager({ images, onMove, onRemove, onAdd, error }: ImageMa
     event.target.value = "";
     const errors: string[] = [];
     const added: ProductImage[] = [];
+    const addedFiles = new Map<string, File>();
     for (const file of files) {
       if (images.length + added.length >= MAX_IMAGES) {
         errors.push(`Ko‘pi bilan ${MAX_IMAGES} ta rasm qo‘shish mumkin.`);
         break;
       }
       if (!(IMAGE_TYPES as ReadonlyArray<string>).includes(file.type)) {
-        errors.push(`«${file.name}»: faqat JPG, PNG yoki WebP.`);
+        errors.push(`«${file.name}»: ${IMAGE_TYPE_MESSAGE}`);
         continue;
       }
+      // 5 MiB, checked here so an oversized file never makes the round trip
+      // (the Server Action body limit is 6 MB).
       if (file.size > MAX_IMAGE_BYTES) {
-        errors.push(`«${file.name}» 5 MB dan katta.`);
+        errors.push(`«${file.name}»: ${IMAGE_TOO_LARGE_MESSAGE}`);
         continue;
       }
       const src = URL.createObjectURL(file);
       createdUrls.current.add(src);
-      added.push({ id: `upload-${crypto.randomUUID()}`, label: file.name, src });
+      const id = `upload-${crypto.randomUUID()}`;
+      added.push({ id, label: file.name, src });
+      addedFiles.set(id, file);
     }
     setUploadErrors(errors);
     if (added.length > 0) {
-      onAdd(added);
+      onAdd(added, addedFiles);
       setAnnouncement(`${added.length} ta rasm qo‘shildi. Saqlash tugmasini bosing.`);
     }
   };
@@ -139,10 +156,18 @@ export function ImageManager({ images, onMove, onRemove, onAdd, error }: ImageMa
                   "outline-2 outline-offset-2 outline-gold-ink outline-dashed",
               )}
             >
-              {image.src ? (
+              {image.src?.startsWith("blob:") ? (
                 // Local preview of an unsaved upload (object URL); next/image cannot optimise blobs.
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={image.src} alt={image.label} className="size-full object-cover" />
+              ) : image.src ? (
+                <Image
+                  src={image.src}
+                  alt={image.label}
+                  fill
+                  sizes="(min-width: 640px) 160px, 45vw"
+                  className="object-cover"
+                />
               ) : image.art ? (
                 <ProductArt
                   kind={image.art.kind}

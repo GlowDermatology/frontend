@@ -1,0 +1,46 @@
+{
+  "reservation_minutes": 15,
+  "support_phone": "+998712000000",
+  "store_phone": "+998712000001",
+  "cosmetologist_phone": "+998712000002",
+  "telegram_url": "https://t.me/glowderma",
+  "instagram_url": "https://instagram.com/glowderma",
+  "website_url": "https://glowderma.uz",
+  "pickup_address": {
+    "uz": "Toshkent, Chilonzor tumani, Bunyodkor shoh ko‘chasi, 12",
+    "ru": "",
+    "en": ""
+  },
+  "terms": {
+    "uz": "Glow Derma ilovasidan foydalanish shartlari.\n\nNamuna matn (demo): haqiqiy matnni Sozlamalar bo‘limida kiriting.",
+    "ru": "Условия использования приложения Glow Derma.\n\nДемонстрационный текст: настоящий текст вводится в разделе «Настройки».",
+    "en": "Glow Derma app terms of use.\n\nDemo text: enter the real text under Settings."
+  },
+  "privacy_policy": {
+    "uz": "Maxfiylik siyosati: shaxsiy ma’lumotlaringiz O‘zbekiston hududida saqlanadi.\n\nNamuna matn (demo): haqiqiy matnni Sozlamalar bo‘limida kiriting.",
+    "ru": "Политика конфиденциальности: ваши персональные данные хранятся в Узбекистане.\n\nДемонстрационный текст: настоящий текст вводится в разделе «Настройки».",
+    "en": "Privacy policy: your personal data is stored in Uzbekistan.\n\nDemo text: enter the real text under Settings."
+  },
+  "booking_policy": {
+    "uz": "Qabulni boshlanishidan oldin istalgan vaqtda bepul bekor qilishingiz mumkin.",
+    "ru": "Запись можно бесплатно отменить в любое время до её начала.",
+    "en": "You can cancel a booking free of charge at any time before it starts."
+  },
+  "terms_version": "20241220-1",
+  "terms_updated_at": "2024-12-20T10:00:00+05:00",
+  "terms_unpublished_changes": false,
+  "integrations": {
+    "mode": "fake",
+    "providers": {
+      "oauth": "fake",
+      "billz": "fake",
+      "fcm": "fake",
+      "click": "fake",
+      "payme": "fake",
+      "bts": "fake",
+      "eskiz": "fake"
+    }
+  },
+  "updated_at": "2024-12-20T10:00:00+05:00",
+  "updated_by": null
+}

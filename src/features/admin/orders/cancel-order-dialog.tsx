@@ -10,10 +10,14 @@ import { AlertDialog, AlertDialogCancel } from "@/components/ui/dialog";
 import { Field, TextArea } from "@/components/ui/field";
 import { Icon } from "@/components/ui/icon";
 import { cancelOrder } from "@/data/orders.actions";
+import type { ActionFailure } from "@/data/types";
 import type { Order } from "@/domain/order";
 import { formatSom } from "@/lib/format";
 
+import { runAction } from "../shared/action-client";
+import { useIdempotencyKey } from "../shared/idempotency";
 import { PROVIDER_LABEL } from "../shared/status";
+import { isStaleRefusal } from "./refusals";
 
 const schema = z.object({
   reason: z
@@ -56,6 +60,12 @@ interface CancelOrderDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCancelled: (order: Order) => void;
+  /**
+   * A refusal from the server (409 `not_cancellable` incl. the BTS text, the
+   * busy-order `conflict`, 503 `provider_unavailable`, …): the view shows the
+   * backend's message as a toast and closes the dialog when the order changed.
+   */
+  onRefused: (result: ActionFailure) => void;
   onCloseAutoFocus?: (event: Event) => void;
 }
 
@@ -64,11 +74,14 @@ export function CancelOrderDialog({
   open,
   onOpenChange,
   onCancelled,
+  onRefused,
   onCloseAutoFocus,
 }: CancelOrderDialogProps) {
   // See ProductEditor: React Hook Form must re-run `register` after `reset()`.
   "use no memo";
   const [formError, setFormError] = useState<string | null>(null);
+  // One key per dialog instance: reused on retries and re-opens, renewed on success.
+  const idempotency = useIdempotencyKey();
   const {
     register,
     handleSubmit,
@@ -79,12 +92,21 @@ export function CancelOrderDialog({
 
   const onSubmit = handleSubmit(async ({ reason }) => {
     setFormError(null);
-    const result = await cancelOrder(order, reason);
+    const result = idempotency.settle(
+      await runAction((csrf) => cancelOrder(order.id, reason, idempotency.key, csrf)),
+    );
     if (!result.ok) {
       if (result.fieldErrors?.reason) {
         setError("reason", { message: result.fieldErrors.reason }, { shouldFocus: true });
+      } else if (isStaleRefusal(result)) {
+        // The order cannot be cancelled any more: the view closes the dialog.
+        reset();
+        setFormError(null);
+        onRefused(result);
       } else {
+        // Transient: kept next to the button too, for a retry with the same key.
         setFormError(result.error);
+        onRefused(result);
       }
       return;
     }

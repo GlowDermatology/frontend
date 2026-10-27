@@ -1,0 +1,12 @@
+{
+  "code": "validation_error",
+  "message": "Balans manfiy bo‘lib qoladi.",
+  "errors": [
+    {
+      "field": "amount",
+      "code": "insufficient_balance",
+      "message": "Balansdan ko‘p ayirib bo‘lmaydi."
+    }
+  ],
+  "request_id": "d01976bb-fd5f-4799-9077-184793612248"
+}

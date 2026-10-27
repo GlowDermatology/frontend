@@ -3,24 +3,108 @@ import type { ContentLanguage } from "./product";
 
 export type NotificationKind = "promo" | "general";
 
-/** `queued` = accepted and being sent in batches; counts arrive later. */
-export type NotificationState = "scheduled" | "queued" | "sent";
+/**
+ * `queued` = accepted and being sent in batches; counts arrive later.
+ * `cancelled` (M3) = a scheduled campaign staff cancelled before its send.
+ */
+export type NotificationState = "scheduled" | "queued" | "sent" | "cancelled";
 
 export interface NotificationRecord {
   id: string;
+  /** `scheduledAt ?? createdAt` (contract §5.5): the time shown in the history. */
   at: string;
   kind: NotificationKind;
   title: string;
   audienceLabel: string;
+  /** FCM accepted / failed counts; `null` until the send ran. */
   sent: number | null;
+  failed?: number | null;
+  /** App acknowledgements; `null` until M2. */
   delivered: number | null;
   state: NotificationState;
+  scheduledAt?: string | null;
+  sentAt?: string | null;
+  /**
+   * When staff cancelled the scheduled campaign (M3); `null` otherwise.
+   * Absent on a record of a backend before M3, which cannot cancel.
+   */
+  cancelledAt?: string | null;
+  /** Staff display name; absent for the system. */
+  author?: string;
+  /** The product a tap opens ("Seramidli namlantiruvchi krem"); absent = the app's home. */
+  linkLabel?: string;
+  /** The `https` page a tap opens (gap ADM-10.1, link kind `url`). */
+  linkUrl?: string;
 }
 
+/** The history's filters and page (URL state of `/admin/notifications`, contract §2.8). */
+export const NOTIFICATION_STATES: ReadonlyArray<NotificationState> = [
+  "scheduled",
+  "queued",
+  "sent",
+  "cancelled",
+];
+export const NOTIFICATION_KINDS: ReadonlyArray<NotificationKind> = ["promo", "general"];
+export const NOTIFICATION_PAGE_SIZES = [20, 50] as const;
+export type NotificationPageSize = (typeof NOTIFICATION_PAGE_SIZES)[number];
+
+export interface NotificationHistoryQuery {
+  state?: NotificationState;
+  kind?: NotificationKind;
+  page: number;
+  pageSize: NotificationPageSize;
+}
+
+export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
+  promo: "Aksiya",
+  general: "Umumiy",
+};
+
+export const NOTIFICATION_STATE_LABEL: Record<NotificationState, string> = {
+  scheduled: "Rejalashtirilgan",
+  queued: "Navbatda",
+  sent: "Yuborildi",
+  cancelled: "Bekor qilindi",
+};
+
+export type TemplateStatus = Exclude<OrderStatus, "awaiting_payment">;
+
 export interface StatusTemplate {
-  status: Exclude<OrderStatus, "awaiting_payment">;
+  status: TemplateStatus;
+  /** The Uzbek text (shown on the card). */
   text: string;
   translations: Record<ContentLanguage, boolean>;
+  /** Every language's text, for the editor (`""` = not filled). */
+  texts?: Record<ContentLanguage, string>;
+  updatedAt?: string;
+  updatedBy?: string | null;
+}
+
+/** The only placeholder an order-status template may use (contract §2.8). */
+export const TEMPLATE_PLACEHOLDER = "{raqam}";
+export const TEMPLATE_UZ_MIN = 5;
+export const TEMPLATE_MAX = 180;
+
+/** Placeholders other than `{raqam}` in a template text, e.g. `["{ism}"]`. */
+export function unknownPlaceholders(text: string): string[] {
+  return [...text.matchAll(/\{[^{}]*\}/g)]
+    .map((match) => match[0])
+    .filter((token) => token !== TEMPLATE_PLACEHOLDER);
+}
+
+/** Push image rules (contract §2.8 "product-image rules", §1.6 field codes). */
+export const NOTIFICATION_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+export const NOTIFICATION_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+export const IMAGE_TOO_LARGE_MESSAGE = "Rasm 5 MB dan oshmasin.";
+export const IMAGE_TYPE_MESSAGE = "Faqat JPEG, PNG yoki WebP rasm.";
+
+/** The image problem of a picked file, or `null` when it can be sent. */
+export function notificationImageProblem(file: { type: string; size: number }): string | null {
+  if (!(NOTIFICATION_IMAGE_TYPES as ReadonlyArray<string>).includes(file.type)) {
+    return IMAGE_TYPE_MESSAGE;
+  }
+  if (file.size > NOTIFICATION_IMAGE_MAX_BYTES) return IMAGE_TOO_LARGE_MESSAGE;
+  return null;
 }
 
 /** Customer segment that can receive a push (size = devices with push on). */
@@ -31,7 +115,9 @@ export interface AudienceSegment {
 }
 
 export type NotificationLink =
-  { kind: "none" } | { kind: "product"; productId: string; label: string };
+  | { kind: "none" }
+  | { kind: "product"; productId: string; label: string }
+  | { kind: "url"; url: string };
 
 export type NotificationAudience =
   { type: "all" } | { type: "group"; segmentId: string } | { type: "one"; phone: string };

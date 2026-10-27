@@ -1,0 +1,79 @@
+{
+  "count": 576,
+  "page": 1,
+  "page_size": 20,
+  "page_count": 29,
+  "results": [
+    {
+      "id": 574,
+      "at": "2026-10-26T03:49:53+05:00",
+      "actor": {
+        "id": 1,
+        "display_name": "Administrator"
+      },
+      "action": "settings.updated",
+      "object_type": "settings",
+      "object_id": "1",
+      "data": {
+        "pickup_address": {
+          "en": "",
+          "ru": "",
+          "uz": "Toshkent, Chilonzor tumani, Bunyodkor shoh ko‘chasi, 12"
+        }
+      },
+      "ip": "127.0.0.1",
+      "request_id": "5eae2eef-ab13-4c4b-94c6-fbd7498e4393"
+    },
+    {
+      "id": 568,
+      "at": "2026-10-26T03:48:06+05:00",
+      "actor": {
+        "id": 1,
+        "display_name": "Administrator"
+      },
+      "action": "segment.created",
+      "object_type": "segment",
+      "object_id": "3",
+      "data": {
+        "name": "Probe F2b",
+        "min_online_orders": 2,
+        "min_lifetime_amount": 5000000
+      },
+      "ip": "127.0.0.1",
+      "request_id": "46bef799-10bc-4008-a33c-2382aede4e2d"
+    },
+    {
+      "id": 557,
+      "at": "2026-10-26T03:22:08+05:00",
+      "actor": {
+        "id": 1,
+        "display_name": "Administrator"
+      },
+      "action": "export.downloaded",
+      "object_type": "banners",
+      "object_id": "",
+      "data": {
+        "format": "csv",
+        "filters": {},
+        "resource": "banners",
+        "row_count": 2
+      },
+      "ip": "127.0.0.1",
+      "request_id": "ba9a091b-6c05-4479-bcf3-df85a542a1f4"
+    },
+    {
+      "id": 21,
+      "at": "2026-10-25T21:38:24+05:00",
+      "actor": null,
+      "action": "auth.login_failed",
+      "object_type": "staff",
+      "object_id": "",
+      "data": {
+        "email": "admin@glowderma.uz",
+        "method": "password"
+      },
+      "ip": "127.0.0.1",
+      "request_id": "7c3ab822-757e-4ffa-bc03-3ee0b94591f2"
+    }
+  ]
+}

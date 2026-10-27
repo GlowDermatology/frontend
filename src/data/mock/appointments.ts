@@ -1,4 +1,4 @@
-import type { Appointment, Specialist } from "@/domain/appointment";
+import type { Appointment, BookingMeta, BookingService, Specialist } from "@/domain/appointment";
 import { addDays } from "@/lib/format";
 
 import { CUSTOMERS, CUSTOMER_IDS, customerRef } from "./people";
@@ -34,26 +34,36 @@ export const DESIGN_DAY = "2026-10-26";
 const at = (day: string, time: string) => `${day}T${time}:00+05:00`;
 
 interface Service {
+  /** The backend seed's service id (Konsultatsiya 1, Qayta ko‘rik 2, cosmetology 3–5). */
+  id: string;
   name: string;
   short: string;
   durationMin: number;
 }
 
 const CONSULTATION: Service = {
+  id: "1",
   name: "Dermatolog konsultatsiyasi",
   short: "Konsultatsiya",
   durationMin: 30,
 };
-const FOLLOW_UP: Service = { name: "Qayta ko‘rik", short: "Qayta ko‘rik", durationMin: 20 };
+const FOLLOW_UP: Service = {
+  id: "2",
+  name: "Qayta ko‘rik",
+  short: "Qayta ko‘rik",
+  durationMin: 20,
+};
 const COSMETOLOGY: ReadonlyArray<Service & { price: number }> = [
   {
+    id: "3",
     name: "Yuzni chuqur tozalash",
     short: "Yuzni chuqur tozalash",
     durationMin: 75,
     price: 320_000,
   },
-  { name: "Kimyoviy pilling", short: "Kimyoviy pilling", durationMin: 60, price: 380_000 },
+  { id: "4", name: "Kimyoviy pilling", short: "Kimyoviy pilling", durationMin: 60, price: 380_000 },
   {
+    id: "5",
     name: "Namlantiruvchi parvarish",
     short: "Namlantiruvchi parvarish",
     durationMin: 60,
@@ -81,6 +91,7 @@ function make(
     id,
     specialistId,
     customer: { id: customer.id, name: customer.name, phone: customer.phone },
+    serviceId: service.id,
     service: service.name,
     serviceShort: service.short,
     durationMin: service.durationMin,
@@ -226,3 +237,40 @@ export const APPOINTMENTS: ReadonlyArray<MockAppointment> = [
   ...DESIGN_APPOINTMENTS,
   ...surroundingDays(),
 ];
+
+const booking = (service: Service, price: number): BookingService => ({
+  id: service.id,
+  name: service.name,
+  shortName: service.short,
+  durationMin: service.durationMin,
+  price,
+});
+
+/**
+ * What the admin booking dialog offers (contract §2.9 `appointments/meta/`),
+ * mirroring the backend seed: each specialist's services with the price a
+ * booking with that specialist snapshots.
+ */
+export const BOOKING_META: BookingMeta = {
+  specialists: [
+    {
+      id: "s-1",
+      name: "Nodira Rahimova",
+      role: "Dermatolog",
+      services: [booking(CONSULTATION, 150_000), booking(FOLLOW_UP, 100_000)],
+    },
+    {
+      id: "s-2",
+      name: "Jasur Aliyev",
+      role: "Dermatolog",
+      services: [booking(CONSULTATION, 120_000), booking(FOLLOW_UP, 90_000)],
+    },
+    {
+      id: "s-3",
+      name: "Dilnoza Yusupova",
+      role: "Kosmetolog",
+      services: COSMETOLOGY.map((service) => booking(service, service.price)),
+    },
+  ],
+  slotStepMin: 5,
+};

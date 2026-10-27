@@ -1,0 +1,151 @@
+{
+  "date": "2026-10-26",
+  "specialists": [
+    {
+      "id": 1,
+      "name": "Nodira Rahimova",
+      "role": "dermatologist",
+      "is_active": true,
+      "working_hours": { "start": "09:00", "end": "18:00" },
+      "blocks": [{ "start": "16:00", "end": "16:30", "kind": "busy", "label": "Band qilingan" }]
+    },
+    {
+      "id": 2,
+      "name": "Jasur Aliyev",
+      "role": "dermatologist",
+      "is_active": true,
+      "working_hours": { "start": "09:00", "end": "18:00" },
+      "blocks": [{ "start": "13:00", "end": "14:00", "kind": "off", "label": null }]
+    },
+    {
+      "id": 3,
+      "name": "Dilnoza Yusupova",
+      "role": "cosmetologist",
+      "is_active": true,
+      "working_hours": { "start": "09:00", "end": "18:00" },
+      "blocks": []
+    }
+  ],
+  "appointments": [
+    {
+      "id": 1,
+      "specialist_id": 1,
+      "customer": { "id": 8, "name": "Kamola Nazarova", "phone": "+998909741823" },
+      "service_id": 1,
+      "service_name": "Dermatolog konsultatsiyasi",
+      "service_short_name": "Konsultatsiya",
+      "duration_min": 30,
+      "start": "2026-10-26T09:00:00+05:00",
+      "end": "2026-10-26T09:30:00+05:00",
+      "price": 150000,
+      "status": "requested",
+      "requested_at": "2026-10-24T08:41:00+05:00",
+      "requested_via": "app"
+    },
+    {
+      "id": 4,
+      "specialist_id": 2,
+      "customer": { "id": 4, "name": "Bekzod Rasulov", "phone": "+998904186602" },
+      "service_id": 1,
+      "service_name": "Dermatolog konsultatsiyasi",
+      "service_short_name": "Konsultatsiya",
+      "duration_min": 30,
+      "start": "2026-10-26T09:30:00+05:00",
+      "end": "2026-10-26T10:00:00+05:00",
+      "price": 120000,
+      "status": "requested",
+      "requested_at": "2026-10-24T07:58:00+05:00",
+      "requested_via": "app"
+    },
+    {
+      "id": 6,
+      "specialist_id": 3,
+      "customer": { "id": 3, "name": "Gulnora Ismoilova", "phone": "+998917072030" },
+      "service_id": 3,
+      "service_name": "Yuzni chuqur tozalash",
+      "service_short_name": "Yuzni chuqur tozalash",
+      "duration_min": 75,
+      "start": "2026-10-26T10:00:00+05:00",
+      "end": "2026-10-26T11:15:00+05:00",
+      "price": 320000,
+      "status": "confirmed",
+      "requested_at": "2026-10-19T16:22:00+05:00",
+      "requested_via": "app"
+    },
+    {
+      "id": 2,
+      "specialist_id": 1,
+      "customer": { "id": 2, "name": "Aziza Tursunova", "phone": "+998935551209" },
+      "service_id": 2,
+      "service_name": "Qayta ko‘rik",
+      "service_short_name": "Qayta ko‘rik",
+      "duration_min": 20,
+      "start": "2026-10-26T11:00:00+05:00",
+      "end": "2026-10-26T11:20:00+05:00",
+      "price": 100000,
+      "status": "confirmed",
+      "requested_at": "2026-10-21T19:12:00+05:00",
+      "requested_via": "app"
+    },
+    {
+      "id": 7,
+      "specialist_id": 3,
+      "customer": { "id": 10, "name": "Sevara Xolmatova", "phone": "+998971553912" },
+      "service_id": 4,
+      "service_name": "Kimyoviy pilling",
+      "service_short_name": "Kimyoviy pilling",
+      "duration_min": 60,
+      "start": "2026-10-26T12:00:00+05:00",
+      "end": "2026-10-26T13:00:00+05:00",
+      "price": 380000,
+      "status": "requested",
+      "requested_at": "2026-10-23T21:03:00+05:00",
+      "requested_via": "app"
+    },
+    {
+      "id": 3,
+      "specialist_id": 1,
+      "customer": { "id": 11, "name": "Sardor Umarov", "phone": "+998993007215" },
+      "service_id": 1,
+      "service_name": "Dermatolog konsultatsiyasi",
+      "service_short_name": "Konsultatsiya",
+      "duration_min": 30,
+      "start": "2026-10-26T14:00:00+05:00",
+      "end": "2026-10-26T14:30:00+05:00",
+      "price": 150000,
+      "status": "confirmed",
+      "requested_at": "2026-10-22T10:05:00+05:00",
+      "requested_via": "admin"
+    },
+    {
+      "id": 5,
+      "specialist_id": 2,
+      "customer": { "id": 6, "name": "Nilufar Saidova", "phone": "+998942203175" },
+      "service_id": 2,
+      "service_name": "Qayta ko‘rik",
+      "service_short_name": "Qayta ko‘rik",
+      "duration_min": 20,
+      "start": "2026-10-26T15:00:00+05:00",
+      "end": "2026-10-26T15:20:00+05:00",
+      "price": 90000,
+      "status": "confirmed",
+      "requested_at": "2026-10-20T12:40:00+05:00",
+      "requested_via": "app"
+    },
+    {
+      "id": 8,
+      "specialist_id": 3,
+      "customer": { "id": 12, "name": "Nozima Qodirova", "phone": "+998938124460" },
+      "service_id": 5,
+      "service_name": "Namlantiruvchi parvarish",
+      "service_short_name": "Namlantiruvchi parvarish",
+      "duration_min": 60,
+      "start": "2026-10-26T15:30:00+05:00",
+      "end": "2026-10-26T16:30:00+05:00",
+      "price": 260000,
+      "status": "confirmed",
+      "requested_at": "2026-10-22T09:47:00+05:00",
+      "requested_via": "app"
+    }
+  ]
+}

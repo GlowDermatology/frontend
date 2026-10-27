@@ -1,18 +1,10 @@
 import Link from "next/link";
-import type { Route } from "next";
 
-import { Icon, type IconName } from "@/components/ui/icon";
+import { Icon } from "@/components/ui/icon";
 import type { DashboardData } from "@/domain/dashboard";
 import { cn } from "@/lib/cn";
-import { formatWeekdayShortDateTime } from "@/lib/format";
 
-interface AttentionItem {
-  href: Route;
-  icon: IconName;
-  title: string;
-  body: string;
-  tone: "danger" | "warning" | "neutral";
-}
+import { attentionItems } from "./attention-items";
 
 const SURFACE = {
   danger: "bg-danger-soft",
@@ -22,36 +14,7 @@ const SURFACE = {
 const ICON = { danger: "text-danger", warning: "text-warning", neutral: "text-gold-ink" } as const;
 
 export function AttentionList({ attention }: { attention: DashboardData["attention"] }) {
-  const items: AttentionItem[] = [];
-  if (attention.btsFailed > 0) {
-    items.push({
-      href: "/admin/orders?status=processing",
-      icon: "truck",
-      title: `${attention.btsFailed} ta buyurtma BTS ga yuborilmadi`,
-      body: "Avtomatik urinish muvaffaqiyatsiz. Qo‘lda yuboring.",
-      tone: "danger",
-    });
-  }
-  if (attention.pendingAppointments > 0) {
-    items.push({
-      href: "/admin/appointments",
-      icon: "calendar",
-      title: `${attention.pendingAppointments} ta qabul tasdiq kutmoqda`,
-      body: attention.nextAppointmentAt
-        ? `Eng yaqini: ${formatWeekdayShortDateTime(attention.nextAppointmentAt)}`
-        : "Ko‘rib chiqing",
-      tone: "warning",
-    });
-  }
-  if (attention.newFromBillz > 0) {
-    items.push({
-      href: "/admin/products?new=1",
-      icon: "refresh",
-      title: `Billz’dan ${attention.newFromBillz} ta yangi mahsulot`,
-      body: "Tavsif va rasmlarni to‘ldirib, faollashtiring.",
-      tone: "neutral",
-    });
-  }
+  const items = attentionItems(attention);
 
   return (
     <section
@@ -64,29 +27,43 @@ export function AttentionList({ attention }: { attention: DashboardData["attenti
       {items.length === 0 ? (
         <p className="m-0 text-body-sm text-ink-muted">Hozircha hammasi joyida.</p>
       ) : (
-        items.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={cn(
-              "flex items-start gap-3 rounded-md p-3 text-ink no-underline transition-[filter] duration-150 hover:brightness-[0.98]",
-              SURFACE[item.tone],
-            )}
-          >
-            <Icon name={item.icon} size={20} className={cn("mt-px shrink-0", ICON[item.tone])} />
-            <span className="flex flex-1 flex-col gap-0.5">
-              <span className="text-[14px] leading-5 font-bold">{item.title}</span>
-              <span
-                className={cn(
-                  "text-caption font-normal",
-                  item.tone === "neutral" && "text-ink-muted",
+        items.map((item) => {
+          const className = cn(
+            "flex items-start gap-3 rounded-md p-3 text-ink no-underline",
+            SURFACE[item.tone],
+          );
+          const content = (
+            <>
+              <Icon name={item.icon} size={20} className={cn("mt-px shrink-0", ICON[item.tone])} />
+              <span className="flex flex-1 flex-col gap-0.5">
+                <span className="text-[14px] leading-5 font-bold">{item.title}</span>
+                {item.body && (
+                  <span
+                    className={cn(
+                      "text-caption font-normal",
+                      item.tone === "neutral" && "text-ink-muted",
+                    )}
+                  >
+                    {item.body}
+                  </span>
                 )}
-              >
-                {item.body}
               </span>
-            </span>
-          </Link>
-        ))
+            </>
+          );
+          return item.href ? (
+            <Link
+              key={item.key}
+              href={item.href}
+              className={cn(className, "transition-[filter] duration-150 hover:brightness-[0.98]")}
+            >
+              {content}
+            </Link>
+          ) : (
+            <p key={item.key} className={cn(className, "m-0")}>
+              {content}
+            </p>
+          );
+        })
       )}
     </section>
   );

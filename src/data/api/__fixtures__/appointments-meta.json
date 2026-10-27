@@ -1,0 +1,75 @@
+{
+  "specialists": [
+    {
+      "id": 1,
+      "name": "Nodira Rahimova",
+      "role": "dermatologist",
+      "services": [
+        {
+          "id": 1,
+          "name": "Dermatolog konsultatsiyasi",
+          "short_name": "Konsultatsiya",
+          "duration_min": 30,
+          "price": 150000
+        },
+        {
+          "id": 2,
+          "name": "Qayta ko‘rik",
+          "short_name": "Qayta ko‘rik",
+          "duration_min": 20,
+          "price": 100000
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Jasur Aliyev",
+      "role": "dermatologist",
+      "services": [
+        {
+          "id": 1,
+          "name": "Dermatolog konsultatsiyasi",
+          "short_name": "Konsultatsiya",
+          "duration_min": 30,
+          "price": 120000
+        },
+        {
+          "id": 2,
+          "name": "Qayta ko‘rik",
+          "short_name": "Qayta ko‘rik",
+          "duration_min": 20,
+          "price": 90000
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Dilnoza Yusupova",
+      "role": "cosmetologist",
+      "services": [
+        {
+          "id": 3,
+          "name": "Yuzni chuqur tozalash",
+          "short_name": "Yuzni chuqur tozalash",
+          "duration_min": 75,
+          "price": 320000
+        },
+        {
+          "id": 4,
+          "name": "Kimyoviy pilling",
+          "short_name": "Kimyoviy pilling",
+          "duration_min": 60,
+          "price": 380000
+        },
+        {
+          "id": 5,
+          "name": "Namlantiruvchi parvarish",
+          "short_name": "Namlantiruvchi parvarish",
+          "duration_min": 60,
+          "price": 260000
+        }
+      ]
+    }
+  ],
+  "slot_step_min": 5
+}

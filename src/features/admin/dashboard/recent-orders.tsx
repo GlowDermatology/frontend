@@ -26,7 +26,7 @@ export function RecentOrders({ orders, now }: { orders: OrderSummary[]; now: Dat
           <Icon name="chevron-right" size={16} />
         </Link>
       </div>
-      <ScrollRegion label="So‘nggi buyurtmalar">
+      <ScrollRegion label="So‘nggi buyurtmalar jadvali">
         <table className="data-table">
           <thead>
             <tr>

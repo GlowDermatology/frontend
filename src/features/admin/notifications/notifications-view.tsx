@@ -1,7 +1,9 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useId, useRef, useState, type ChangeEvent } from "react";
+import type { Route } from "next";
+import Link from "next/link";
+import { useEffect, useId, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { Controller, useForm, useWatch, type Path } from "react-hook-form";
 import { z } from "zod";
 
@@ -13,34 +15,57 @@ import { Card, CardTitle } from "@/components/ui/card";
 import { AlertDialog, AlertDialogCancel } from "@/components/ui/dialog";
 import { Field, TextArea, TextInput, labelClass } from "@/components/ui/field";
 import { Icon } from "@/components/ui/icon";
-import { SelectMenu, filterTriggerClass } from "@/components/ui/menu";
+import { Combobox } from "@/components/ui/combobox";
+import { SelectMenu } from "@/components/ui/menu";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { useToast } from "@/components/ui/toast";
-import { referenceNow } from "@/data/config";
-import { sendNotification } from "@/data/notifications.actions";
+import { cancelNotification, sendNotification } from "@/data/notifications.actions";
 import {
   BODY_MAX,
+  NOTIFICATION_IMAGE_TYPES,
   TITLE_MAX,
+  notificationImageProblem,
   type AudienceSegment,
+  NOTIFICATION_KIND_LABEL,
+  NOTIFICATION_PAGE_SIZES,
+  NOTIFICATION_STATE_LABEL,
+  NOTIFICATION_STATES,
   type NotificationDraft,
+  type NotificationHistoryQuery,
   type NotificationKind,
   type NotificationLink,
   type NotificationRecord,
   type NotificationState,
 } from "@/domain/notification";
+import type { Page } from "@/data/types";
 import { cn } from "@/lib/cn";
+import { isHttpsUrl, LINK_URL_MAX, LINK_URL_MESSAGE } from "@/lib/link-url";
 import { formatDateTimeShort, formatNumber, formatPhone } from "@/lib/format";
+import { maskPhone } from "@/lib/phone";
 
-const KIND_LABEL: Record<NotificationKind, string> = { promo: "Aksiya", general: "Umumiy" };
+import { runAction } from "../shared/action-client";
+import { ExportMenu } from "../shared/export-menu";
+import { ListTransition, useListNavigation } from "../shared/list-transition";
+import { Pagination, rangeLabel } from "../shared/pagination";
+import { partitionFieldErrors } from "../shared/field-errors";
+import { useIdempotencyKey } from "../shared/idempotency";
+import {
+  applyCancelOutcome,
+  cancelKeyFor,
+  cancelOutcome,
+  canCancelCampaign,
+  settleCancelKey,
+} from "./cancel-campaign";
+import { hasNotificationFilters, notificationListHref } from "./query";
+
+const KIND_LABEL: Record<NotificationKind, string> = NOTIFICATION_KIND_LABEL;
 
 const STATE_BADGE: Record<NotificationState, { label: string; tone: Tone }> = {
-  scheduled: { label: "Rejalashtirilgan", tone: "gold" },
-  queued: { label: "Navbatda", tone: "warning" },
-  sent: { label: "Yuborildi", tone: "success" },
+  scheduled: { label: NOTIFICATION_STATE_LABEL.scheduled, tone: "gold" },
+  queued: { label: NOTIFICATION_STATE_LABEL.queued, tone: "warning" },
+  sent: { label: NOTIFICATION_STATE_LABEL.sent, tone: "success" },
+  cancelled: { label: NOTIFICATION_STATE_LABEL.cancelled, tone: "neutral" },
 };
-
-const IMAGE_TYPES = ["image/jpeg", "image/png"];
-const IMAGE_MAX_BYTES = 2 * 1024 * 1024;
 
 /** "2026-10-26T10:00" (datetime-local, Tashkent) ↔ ISO with +05:00. */
 const toLocalInput = (iso: string) => {
@@ -51,55 +76,82 @@ const fromLocalInput = (value: string) => `${value}:00+05:00`;
 
 const phoneDigits = (value: string) => value.replace(/\D/g, "");
 
-const schema = z
-  .object({
-    kind: z.enum(["promo", "general"]),
-    title: z
-      .string()
-      .trim()
-      .min(3, "Sarlavhani kiriting (kamida 3 belgi).")
-      .max(TITLE_MAX, `${TITLE_MAX} belgidan oshmasin.`),
-    body: z
-      .string()
-      .trim()
-      .min(5, "Xabar matnini kiriting.")
-      .max(BODY_MAX, `${BODY_MAX} belgidan oshmasin.`),
-    link: z.string(),
-    audience: z.enum(["all", "group", "one"]),
-    segmentId: z.string(),
-    phone: z.string(),
-    when: z.enum(["now", "later"]),
-    scheduledAt: z.string(),
-  })
-  .superRefine((values, ctx) => {
-    if (values.audience === "one" && !/^998\d{9}$/.test(phoneDigits(values.phone))) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["phone"],
-        message: "Telefon raqamni +998 XX XXX XX XX ko‘rinishida kiriting.",
-      });
-    }
-    if (
-      values.when === "later" &&
-      (!values.scheduledAt || new Date(fromLocalInput(values.scheduledAt)) <= referenceNow())
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["scheduledAt"],
-        message: "Kelajakdagi vaqtni tanlang.",
-      });
-    }
-  });
+/** `now` is the server's render time: the schedule must be in its future. */
+const buildSchema = (now: string) =>
+  z
+    .object({
+      kind: z.enum(["promo", "general"]),
+      title: z
+        .string()
+        .trim()
+        .min(3, "Sarlavhani kiriting (kamida 3 belgi).")
+        .max(TITLE_MAX, `${TITLE_MAX} belgidan oshmasin.`),
+      body: z
+        .string()
+        .trim()
+        .min(5, "Xabar matnini kiriting.")
+        .max(BODY_MAX, `${BODY_MAX} belgidan oshmasin.`),
+      link: z.string(),
+      linkUrl: z.string().trim().max(LINK_URL_MAX, `${LINK_URL_MAX} belgidan oshmasin.`),
+      audience: z.enum(["all", "group", "one"]),
+      segmentId: z.string(),
+      phone: z.string(),
+      when: z.enum(["now", "later"]),
+      scheduledAt: z.string(),
+    })
+    .superRefine((values, ctx) => {
+      if (values.link === "url") {
+        if (!values.linkUrl) {
+          ctx.addIssue({ code: "custom", path: ["linkUrl"], message: "Havolani kiriting." });
+        } else if (!isHttpsUrl(values.linkUrl)) {
+          ctx.addIssue({ code: "custom", path: ["linkUrl"], message: LINK_URL_MESSAGE });
+        }
+      }
+      if (values.audience === "one" && !/^998\d{9}$/.test(phoneDigits(values.phone))) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["phone"],
+          message: "Telefon raqamni +998 XX XXX XX XX ko‘rinishida kiriting.",
+        });
+      }
+      if (
+        values.when === "later" &&
+        (!values.scheduledAt || new Date(fromLocalInput(values.scheduledAt)) <= new Date(now))
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["scheduledAt"],
+          message: "Kelajakdagi vaqtni tanlang.",
+        });
+      }
+    });
 
-type Values = z.infer<typeof schema>;
+type Values = z.infer<ReturnType<typeof buildSchema>>;
 
 const linkKey = (link: NotificationLink) =>
-  link.kind === "none" ? "none" : `product:${link.productId}`;
+  link.kind === "none" ? "none" : link.kind === "url" ? "url" : `product:${link.productId}`;
 const linkLabel = (link: NotificationLink) =>
-  link.kind === "none" ? "Bosilganda: ilova ochiladi" : "Bosilganda: mahsulot";
+  link.kind === "none"
+    ? "Bosilganda: ilova ochiladi"
+    : link.kind === "url"
+      ? "Bosilganda: havola (URL)"
+      : "Bosilganda: mahsulot";
+
+/** Whether a new campaign belongs on the history page the URL shows (page 1, matching filters). */
+function showsNewRecord(query: NotificationHistoryQuery, record: NotificationRecord): boolean {
+  return (
+    query.page === 1 &&
+    (!query.state || query.state === record.state) &&
+    (!query.kind || query.kind === record.kind)
+  );
+}
 
 interface NotificationsViewProps {
-  history: ReadonlyArray<NotificationRecord>;
+  /** The history page the URL names (gap X-NOTIF-HISTORY). */
+  history: Page<NotificationRecord>;
+  query: NotificationHistoryQuery;
+  /** The composer's `?customer=` prefill, kept by the history links. */
+  customerParam?: string;
   segments: ReadonlyArray<AudienceSegment>;
   totalDevices: number;
   linkOptions: ReadonlyArray<NotificationLink>;
@@ -107,32 +159,96 @@ interface NotificationsViewProps {
   draft: NotificationDraft | null;
   /** Pre-selected single recipient (from a customer card). */
   recipient: { name: string; phone: string } | null;
+  /** Server render time (ISO); the earliest allowed schedule. */
+  now: string;
 }
 
 export function NotificationsView({
-  history: initialHistory,
+  history: historyPage,
+  query,
+  customerParam,
   segments,
   totalDevices,
   linkOptions,
   defaultSchedule,
   draft,
   recipient,
+  now,
 }: NotificationsViewProps) {
   // React Hook Form must re-run `register` after `reset()` (see ProductEditor).
   "use no memo";
   const toast = useToast();
   const idBase = useId();
-  const [history, setHistory] = useState(initialHistory);
+  // A newer server history (the refresh after an api-mode send or a refused
+  // cancel, a navigation back to the kept-mounted route) replaces the local
+  // one; a send prepends
+  // its answer locally so mock mode, which persists nothing, shows it too.
+  const [historySource, setHistorySource] = useState(historyPage);
+  const [history, setHistory] = useState<ReadonlyArray<NotificationRecord>>(historyPage.items);
+  if (historyPage !== historySource) {
+    setHistorySource(historyPage);
+    setHistory(historyPage.items);
+  }
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [image, setImage] = useState<{ name: string; src: string } | null>(null);
+  // The picked file travels with the FormData; the object URL is only the preview.
+  const [image, setImage] = useState<{ name: string; src: string; file: File } | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  // One key per compose form: reused on retries, renewed after each sent message.
+  const idempotency = useIdempotencyKey();
+  const [schema] = useState(() => buildSchema(now));
+
+  // "Bekor qilish" of a scheduled campaign (M3): one key per campaign, kept
+  // across re-opens and retries until a success or a 422 reuse.
+  const [cancelTarget, setCancelTarget] = useState<NotificationRecord | null>(null);
+  // The campaign the dialog describes: kept after it closes, so the text does
+  // not empty out during the exit animation.
+  const [cancelShown, setCancelShown] = useState<NotificationRecord | null>(null);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  const cancelInFlight = useRef(false);
+  const cancelKeys = useRef(new Map<string, string>());
+  /**
+   * The campaign whose button opened the dialog: focus returns to it when the
+   * dialog is dismissed, else (after an answer) to the history table.
+   */
+  const cancelFocus = useRef<string | null>(null);
+  const historyRegion = useRef<HTMLDivElement>(null);
+
+  const confirmCancel = async () => {
+    const target = cancelTarget;
+    if (!target || cancelInFlight.current) return;
+    cancelInFlight.current = true;
+    setCancelling(true);
+    setCancelError(null);
+    const key = cancelKeyFor(cancelKeys.current, target.id);
+    const result = await runAction((csrf) => cancelNotification(target.id, key, csrf));
+    cancelInFlight.current = false;
+    setCancelling(false);
+    settleCancelKey(cancelKeys.current, target.id, result);
+    // A 409 / 404 was re-read by the Server Action in api mode (never in demo
+    // mode, where a re-render would only discard the page's own history).
+    applyCancelOutcome(cancelOutcome(result), target, {
+      showError: setCancelError,
+      close: () => {
+        // The row's button is gone (cancelled) or about to go with the re-read
+        // (sent, or no longer there): focus the history table, not the button.
+        cancelFocus.current = null;
+        setCancelTarget(null);
+      },
+      replaceRecord: (record) =>
+        setHistory((current) => current.map((r) => (r.id === record.id ? record : r))),
+      dropRecord: (id) => setHistory((current) => current.filter((r) => r.id !== id)),
+      toast,
+    });
+  };
 
   const defaults: Values = {
     kind: draft?.kind ?? "promo",
     title: draft?.title ?? "",
     body: draft?.body ?? "",
     link: linkKey(draft?.link ?? { kind: "none" }),
+    linkUrl: draft?.link.kind === "url" ? draft.link.url : "",
     audience: recipient ? "one" : "all",
     segmentId: segments[0]?.id ?? "",
     phone: recipient ? formatPhone(recipient.phone) : "",
@@ -146,11 +262,12 @@ export function NotificationsView({
     handleSubmit,
     reset,
     setError,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<Values>({ resolver: zodResolver(schema), defaultValues: defaults });
-  const [title, body, audience, segmentId, when, scheduledAt, link] = useWatch({
+  const [title, body, audience, segmentId, when, scheduledAt, link, linkUrl] = useWatch({
     control,
-    name: ["title", "body", "audience", "segmentId", "when", "scheduledAt", "link"],
+    name: ["title", "body", "audience", "segmentId", "when", "scheduledAt", "link", "linkUrl"],
   });
 
   useEffect(
@@ -161,35 +278,53 @@ export function NotificationsView({
   );
 
   const segment = segments.find((s) => s.id === segmentId) ?? segments[0];
-  const selectedLink = linkOptions.find((l) => linkKey(l) === link) ?? { kind: "none" as const };
+  const selectedLink: NotificationLink =
+    link === "url"
+      ? { kind: "url", url: linkUrl }
+      : (linkOptions.find((l) => linkKey(l) === link) ?? { kind: "none" as const });
   const recipients =
     audience === "all" ? totalDevices : audience === "group" ? (segment?.size ?? 0) : 1;
 
-  const audienceLabel = (values: Values) =>
-    values.audience === "all"
-      ? `Barcha · ${formatNumber(totalDevices)}`
-      : values.audience === "group" && segment
-        ? `${segment.name} · ${formatNumber(segment.size)}`
-        : `Bitta mijoz · ${formatPhone(`+${phoneDigits(values.phone)}`)}`;
-
   const submit = async (values: Values) => {
     const scheduled = values.when === "later" ? fromLocalInput(values.scheduledAt) : null;
-    const result = await sendNotification({
-      kind: values.kind,
-      title: values.title,
-      body: values.body,
-      link: selectedLink,
-      audienceLabel: audienceLabel(values),
-      scheduledAt: scheduled,
-    });
+    const formData = new FormData();
+    formData.set("kind", values.kind);
+    formData.set("title", values.title);
+    formData.set("body", values.body);
+    formData.set("link", linkKey(selectedLink));
+    formData.set("linkUrl", selectedLink.kind === "url" ? values.linkUrl.trim() : "");
+    formData.set("audience", values.audience);
+    formData.set("segmentId", values.audience === "group" ? values.segmentId : "");
+    formData.set("phone", values.audience === "one" ? `+${phoneDigits(values.phone)}` : "");
+    formData.set("scheduledAt", scheduled ?? "");
+    if (image) formData.set("image", image.file, image.name);
+    const result = idempotency.settle(
+      await runAction((csrf) => sendNotification(formData, idempotency.key, csrf)),
+    );
     setConfirmOpen(false);
     if (!result.ok) {
-      for (const [path, message] of Object.entries(result.fieldErrors ?? {})) {
+      // A message for a field this form does not show (e.g. a key the remap
+      // does not know) still reaches the admin as a toast.
+      const { fieldErrors, formError } = partitionFieldErrors(result, [
+        "kind",
+        "title",
+        "body",
+        "link",
+        ...(values.link === "url" ? ["linkUrl"] : []),
+        "audience",
+        "scheduledAt",
+        ...(values.audience === "group" ? ["segmentId"] : []),
+        ...(values.audience === "one" ? ["phone"] : []),
+      ]);
+      for (const [path, message] of Object.entries(fieldErrors)) {
         setError(path as Path<Values>, { message });
       }
+      if (formError) toast({ tone: "info", title: "Yuborilmadi", description: formError });
       return;
     }
-    setHistory((current) => [result.data, ...current]);
+    if (showsNewRecord(query, result.data)) {
+      setHistory((current) => [result.data, ...current].slice(0, query.pageSize));
+    }
     reset({ ...defaults, title: "", body: "", audience: "all", phone: "" });
     if (image) setImage(null);
     toast(
@@ -198,7 +333,12 @@ export function NotificationsView({
             title: `Xabar ${formatDateTimeShort(scheduled)} ga rejalashtirildi`,
             description: "Tarixda ko‘rinadi",
           }
-        : { title: "Xabar yuborilmoqda", description: "Navbatga qo‘yildi, qismlab yuboriladi" },
+        : result.data.state === "sent"
+          ? {
+              title: "Xabar yuborildi",
+              description: `${formatNumber(result.data.sent ?? 0)} ta qurilmaga yetkazishga topshirildi`,
+            }
+          : { title: "Xabar yuborilmoqda", description: "Navbatga qo‘yildi, qismlab yuboriladi" },
     );
   };
 
@@ -212,10 +352,11 @@ export function NotificationsView({
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    if (!IMAGE_TYPES.includes(file.type)) return setImageError("Faqat JPG yoki PNG.");
-    if (file.size > IMAGE_MAX_BYTES) return setImageError("Rasm 2 MB dan katta.");
+    // Checked before upload with the contract's messages; the server re-checks.
+    const problem = notificationImageProblem(file);
+    if (problem) return setImageError(problem);
     setImageError(null);
-    setImage({ name: file.name, src: URL.createObjectURL(file) });
+    setImage({ name: file.name, src: URL.createObjectURL(file), file });
   };
 
   const audienceCards = [
@@ -269,6 +410,7 @@ export function NotificationsView({
                   />
                 )}
               />
+              {errors.kind && <InlineError>{errors.kind.message}</InlineError>}
             </div>
 
             <Field
@@ -320,7 +462,7 @@ export function NotificationsView({
                     <span className="flex flex-col">
                       <span className="text-[14px] leading-5 font-bold">Rasm (ixtiyoriy)</span>
                       <span className="text-caption font-normal text-ink-muted">
-                        JPG yoki PNG, 2:1
+                        JPEG, PNG yoki WebP · 5 MB gacha, 2:1
                       </span>
                     </span>
                   </button>
@@ -328,7 +470,7 @@ export function NotificationsView({
                 <input
                   ref={fileRef}
                   type="file"
-                  accept={IMAGE_TYPES.join(",")}
+                  accept={NOTIFICATION_IMAGE_TYPES.join(",")}
                   className="sr-only"
                   tabIndex={-1}
                   aria-hidden="true"
@@ -339,15 +481,15 @@ export function NotificationsView({
                 control={control}
                 name="link"
                 render={({ field }) => (
-                  <SelectMenu<string>
+                  <Combobox<string>
                     label="Bosilganda ochiladigan sahifa"
+                    placeholder="Mahsulot nomi bo‘yicha qidirish"
                     align="end"
                     value={field.value}
                     onValueChange={field.onChange}
-                    triggerClassName={cn(
-                      filterTriggerClass,
-                      "h-auto min-h-16 flex-[1_1_200px] gap-3 border-[1.5px] px-3.5 py-2.5 text-left whitespace-normal",
-                    )}
+                    invalid={Boolean(errors.link)}
+                    describedBy={errors.link ? `${idBase}-link-error` : undefined}
+                    triggerClassName="h-auto min-h-16 flex-[1_1_200px] gap-3 border-[1.5px] px-3.5 py-2.5 text-left whitespace-normal"
                     trigger={
                       <>
                         <Icon name="link" size={22} className="shrink-0 text-gold-ink" />
@@ -355,32 +497,57 @@ export function NotificationsView({
                           <span className="text-[14px] leading-5 font-bold">
                             {linkLabel(selectedLink)}
                           </span>
-                          <span className="text-caption font-normal text-ink-muted">
-                            {selectedLink.kind === "product" ? selectedLink.label : "Bosh sahifa"}
+                          <span className="text-caption font-normal break-all text-ink-muted">
+                            {selectedLink.kind === "product"
+                              ? selectedLink.label
+                              : selectedLink.kind === "url"
+                                ? selectedLink.url || "Manzilni kiriting"
+                                : "Bosh sahifa"}
                           </span>
                         </span>
                       </>
                     }
-                    options={linkOptions.map((option) => ({
-                      value: linkKey(option),
-                      label:
+                    options={[
+                      ...linkOptions.slice(0, 1),
+                      { kind: "url" as const, url: "" },
+                      ...linkOptions.slice(1),
+                    ].map((option) => {
+                      const text =
                         option.kind === "none"
                           ? "Ilovaning bosh sahifasi"
-                          : `Mahsulot: ${option.label}`,
-                    }))}
+                          : option.kind === "url"
+                            ? "Havola (URL)"
+                            : `Mahsulot: ${option.label}`;
+                      return { value: linkKey(option), label: text, text };
+                    })}
                   />
                 )}
               />
             </div>
-            {imageError && (
-              <p
-                role="alert"
-                className="m-0 flex items-start gap-1.5 text-body-sm font-semibold text-ink"
-              >
-                <Icon name="alert-circle" size={16} className="mt-px shrink-0 text-danger" />
-                {imageError}
-              </p>
+            {errors.link && (
+              <InlineError id={`${idBase}-link-error`}>{errors.link.message}</InlineError>
             )}
+            {link === "url" && (
+              <Field
+                label="Havola (URL)"
+                error={errors.linkUrl?.message}
+                hint="Bildirishnoma bosilganda ilovada ochiladi. Faqat https:// bilan boshlanadigan to‘liq manzil."
+              >
+                {(c) => (
+                  <TextInput
+                    {...c}
+                    {...register("linkUrl")}
+                    type="url"
+                    inputMode="url"
+                    autoComplete="off"
+                    spellCheck={false}
+                    maxLength={LINK_URL_MAX}
+                    placeholder="https://glowderma.uz/aksiya"
+                  />
+                )}
+              </Field>
+            )}
+            {imageError && <InlineError>{imageError}</InlineError>}
 
             <div className="flex flex-col gap-2">
               <span id={`${idBase}-audience`} className={labelClass}>
@@ -408,33 +575,51 @@ export function NotificationsView({
                   </label>
                 ))}
               </div>
+              {errors.audience && <InlineError>{errors.audience.message}</InlineError>}
             </div>
 
-            {audience === "group" && segments.length > 0 && (
-              <Controller
-                control={control}
-                name="segmentId"
-                render={({ field }) => (
-                  <SelectMenu<string>
-                    label="Guruh"
-                    value={field.value}
-                    onValueChange={field.onChange}
-                    triggerClassName="self-start"
-                    trigger={`Guruh: ${segment?.name ?? ""}`}
-                    options={segments.map((s) => ({
-                      value: s.id,
-                      label: `${s.name} · ${formatNumber(s.size)}`,
-                    }))}
+            {audience === "group" && (
+              <div className="flex flex-wrap items-center gap-3">
+                {segments.length > 0 && (
+                  <Controller
+                    control={control}
+                    name="segmentId"
+                    render={({ field }) => (
+                      <SelectMenu<string>
+                        label="Guruh"
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        trigger={`Guruh: ${segment?.name ?? ""}`}
+                        options={segments.map((s) => ({
+                          value: s.id,
+                          label: `${s.name} · ${formatNumber(s.size)}`,
+                        }))}
+                      />
+                    )}
                   />
                 )}
-              />
+                <Link
+                  href="/admin/customers/groups"
+                  className="text-body-sm font-semibold text-ink underline decoration-gold underline-offset-4"
+                >
+                  {segments.length > 0 ? "Guruhlarni boshqarish" : "Guruh yaratish"}
+                </Link>
+                {errors.segmentId && (
+                  <p className="m-0 flex basis-full items-start gap-1.5 text-body-sm font-semibold text-ink">
+                    <Icon name="alert-circle" size={16} className="mt-px shrink-0 text-danger" />
+                    {errors.segmentId.message}
+                  </p>
+                )}
+              </div>
             )}
             {audience === "one" && (
               <Field label="Mijoz telefoni" error={errors.phone?.message} className="max-w-[320px]">
                 {(c) => (
                   <TextInput
                     {...c}
-                    {...register("phone")}
+                    {...register("phone", {
+                      onChange: (event) => setValue("phone", maskPhone(event.target.value)),
+                    })}
                     type="tel"
                     inputMode="tel"
                     autoComplete="off"
@@ -469,7 +654,7 @@ export function NotificationsView({
                   <input
                     type="datetime-local"
                     {...register("scheduledAt")}
-                    min={toLocalInput(referenceNow().toISOString())}
+                    min={toLocalInput(now)}
                     aria-invalid={errors.scheduledAt ? true : undefined}
                     aria-describedby={errors.scheduledAt ? `${idBase}-when-error` : undefined}
                     className="bg-transparent text-[14px] font-semibold tabular-nums focus-visible:outline-none"
@@ -554,72 +739,206 @@ export function NotificationsView({
         </section>
       </div>
 
-      <section
-        aria-labelledby={`${idBase}-history`}
-        className="overflow-hidden rounded-lg bg-surface-raised shadow-sm"
+      <ListTransition className="group">
+        <section
+          id="history"
+          aria-labelledby={`${idBase}-history`}
+          className="overflow-hidden rounded-lg bg-surface-raised shadow-sm"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-4">
+            <div className="flex flex-col gap-1">
+              <CardTitle id={`${idBase}-history`} className="text-heading">
+                Tarix
+              </CardTitle>
+              <span className="text-caption font-normal text-ink-muted">
+                Buyurtma holati xabarlari avtomatik yuboriladi va bu yerda ko‘rsatilmaydi
+              </span>
+            </div>
+            <ExportMenu
+              href={notificationListHref(
+                { state: query.state, kind: query.kind },
+                "/admin/notifications/export",
+              )}
+            />
+          </div>
+          <HistoryToolbar query={query} customerParam={customerParam} />
+          <ScrollRegion ref={historyRegion} label="Yuborilgan xabarlar">
+            <table className="data-table min-w-[960px]">
+              <thead>
+                <tr>
+                  <th scope="col">SANA</th>
+                  <th scope="col">TURI</th>
+                  <th scope="col">SARLAVHA</th>
+                  <th scope="col">KIMGA</th>
+                  <th scope="col" className="text-right!">
+                    YUBORILDI
+                  </th>
+                  <th scope="col" className="text-right!">
+                    YETKAZILDI
+                  </th>
+                  <th scope="col">HOLAT</th>
+                  <th scope="col">
+                    <span className="sr-only">Amallar</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((record) => {
+                  const badge = STATE_BADGE[record.state];
+                  return (
+                    <tr key={record.id}>
+                      <td className="text-ink-muted! tabular-nums">
+                        <time dateTime={record.at}>{formatDateTimeShort(record.at)}</time>
+                      </td>
+                      <td>{KIND_LABEL[record.kind]}</td>
+                      <td>
+                        <span className="flex flex-col">
+                          <span className="font-semibold">{record.title}</span>
+                          {(record.linkLabel || record.linkUrl || record.author) && (
+                            <span className="text-[12px] break-all text-ink-muted">
+                              {[
+                                record.linkLabel && `→ ${record.linkLabel}`,
+                                record.linkUrl && `→ ${record.linkUrl}`,
+                                record.author,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </span>
+                          )}
+                        </span>
+                      </td>
+                      <td className="tabular-nums">{record.audienceLabel}</td>
+                      <td
+                        className={cn(
+                          "text-right tabular-nums",
+                          record.sent === null && "text-ink-muted!",
+                        )}
+                      >
+                        {record.sent === null ? "—" : formatNumber(record.sent)}
+                        {record.failed ? (
+                          <span className="block text-[12px] text-danger-strong">
+                            {formatNumber(record.failed)} ta xato
+                          </span>
+                        ) : null}
+                      </td>
+                      <td
+                        className={cn(
+                          "text-right tabular-nums",
+                          record.delivered === null && "text-ink-muted!",
+                        )}
+                      >
+                        {record.delivered === null ? "—" : formatNumber(record.delivered)}
+                      </td>
+                      <td>
+                        <Badge tone={badge.tone}>{badge.label}</Badge>
+                        {record.state === "cancelled" && record.cancelledAt && (
+                          <time
+                            dateTime={record.cancelledAt}
+                            className="mt-1 block text-[12px] text-ink-muted tabular-nums"
+                          >
+                            {formatDateTimeShort(record.cancelledAt)}
+                          </time>
+                        )}
+                      </td>
+                      <td className="text-right">
+                        {canCancelCampaign(record) && (
+                          <Button
+                            id={`cancel-campaign-${record.id}`}
+                            variant="outline"
+                            size="sm"
+                            aria-label={`Bekor qilish: «${record.title}»`}
+                            onClick={() => {
+                              setCancelError(null);
+                              setCancelShown(record);
+                              setCancelTarget(record);
+                            }}
+                          >
+                            Bekor qilish
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {history.length === 0 && (
+              <div className="flex flex-col items-center gap-2 px-6 py-12 text-center">
+                <Icon name="bell" size={28} className="text-ink-muted" />
+                <p className="m-0 text-subheading text-ink">Xabar topilmadi</p>
+                <p className="m-0 text-body-sm text-ink-muted">
+                  {hasNotificationFilters(query)
+                    ? "Filtrlarni o‘zgartirib ko‘ring."
+                    : "Yuborilgan va rejalashtirilgan xabarlar shu yerda ko‘rinadi."}
+                </p>
+              </div>
+            )}
+          </ScrollRegion>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3">
+            <span className="text-body-sm text-ink-muted tabular-nums">
+              {rangeLabel(historyPage.page, historyPage.pageSize, historyPage.total)}
+            </span>
+            <Pagination
+              page={historyPage.page}
+              pageCount={historyPage.pageCount}
+              hrefFor={(p): Route =>
+                `${notificationListHref({ ...query, page: p, customer: customerParam })}#history` as Route
+              }
+            />
+            <HistoryPageSizeMenu query={query} customerParam={customerParam} />
+          </div>
+        </section>
+      </ListTransition>
+
+      <AlertDialog
+        open={cancelTarget !== null}
+        onOpenChange={(open) => {
+          if (open || cancelInFlight.current) return;
+          cancelFocus.current = cancelTarget?.id ?? null;
+          setCancelTarget(null);
+          setCancelError(null);
+        }}
+        onCloseAutoFocus={(event) => {
+          // After a success the row has no button any more: focus the history table.
+          event.preventDefault();
+          const id = cancelFocus.current;
+          cancelFocus.current = null;
+          const button = id ? document.getElementById(`cancel-campaign-${id}`) : null;
+          (button ?? historyRegion.current)?.focus();
+        }}
+        title="Rejalashtirilgan xabar bekor qilinsinmi?"
+        description={
+          <p className="m-0 text-[14px] leading-5 text-ink">
+            «{cancelShown?.title}»
+            {cancelShown?.scheduledAt ? ` ${formatDateTimeShort(cancelShown.scheduledAt)} da` : ""}{" "}
+            yuborilmaydi. Bekor qilingan xabarni qayta yoqib bo‘lmaydi: kerak bo‘lsa, yangisini
+            rejalashtiring.
+          </p>
+        }
       >
-        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-          <CardTitle id={`${idBase}-history`} className="text-heading">
-            Tarix
-          </CardTitle>
-          <span className="text-caption font-normal text-ink-muted">
-            Buyurtma holati xabarlari avtomatik yuboriladi va bu yerda ko‘rsatilmaydi
-          </span>
+        {cancelError && (
+          <p
+            role="alert"
+            className="m-0 flex items-start gap-1.5 text-body-sm leading-5 font-semibold text-ink"
+          >
+            <Icon name="alert-circle" size={16} className="mt-0.5 shrink-0 text-danger" />
+            {cancelError}
+          </p>
+        )}
+        <div className="mt-1.5 flex flex-wrap justify-end gap-2">
+          <AlertDialogCancel disabled={cancelling} className={buttonStyles({ variant: "outline" })}>
+            Orqaga
+          </AlertDialogCancel>
+          <Button
+            variant="destructive"
+            onClick={confirmCancel}
+            disabled={cancelling}
+            aria-busy={cancelling}
+          >
+            {cancelling ? "Bekor qilinmoqda…" : "Bekor qilish"}
+          </Button>
         </div>
-        <ScrollRegion label="Yuborilgan xabarlar">
-          <table className="data-table min-w-[860px]">
-            <thead>
-              <tr>
-                <th scope="col">SANA</th>
-                <th scope="col">TURI</th>
-                <th scope="col">SARLAVHA</th>
-                <th scope="col">KIMGA</th>
-                <th scope="col" className="text-right!">
-                  YUBORILDI
-                </th>
-                <th scope="col" className="text-right!">
-                  YETKAZILDI
-                </th>
-                <th scope="col">HOLAT</th>
-              </tr>
-            </thead>
-            <tbody>
-              {history.map((record) => {
-                const badge = STATE_BADGE[record.state];
-                return (
-                  <tr key={record.id}>
-                    <td className="text-ink-muted! tabular-nums">
-                      <time dateTime={record.at}>{formatDateTimeShort(record.at)}</time>
-                    </td>
-                    <td>{KIND_LABEL[record.kind]}</td>
-                    <td className="font-semibold">{record.title}</td>
-                    <td className="tabular-nums">{record.audienceLabel}</td>
-                    <td
-                      className={cn(
-                        "text-right tabular-nums",
-                        record.sent === null && "text-ink-muted!",
-                      )}
-                    >
-                      {record.sent === null ? "—" : formatNumber(record.sent)}
-                    </td>
-                    <td
-                      className={cn(
-                        "text-right tabular-nums",
-                        record.delivered === null && "text-ink-muted!",
-                      )}
-                    >
-                      {record.delivered === null ? "—" : formatNumber(record.delivered)}
-                    </td>
-                    <td>
-                      <Badge tone={badge.tone}>{badge.label}</Badge>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </ScrollRegion>
-      </section>
+      </AlertDialog>
 
       <AlertDialog
         open={confirmOpen}
@@ -650,5 +969,106 @@ export function NotificationsView({
         </div>
       </AlertDialog>
     </>
+  );
+}
+
+/** A form-level message under a control that has no `Field` of its own. */
+function InlineError({ id, children }: { id?: string; children: ReactNode }) {
+  return (
+    <p
+      id={id}
+      role="alert"
+      className="m-0 flex items-start gap-1.5 text-body-sm font-semibold text-ink"
+    >
+      <Icon name="alert-circle" size={16} className="mt-px shrink-0 text-danger" />
+      {children}
+    </p>
+  );
+}
+
+/** The history's state and kind filters (contract §2.8; the API has no search). */
+function HistoryToolbar({
+  query,
+  customerParam,
+}: {
+  query: NotificationHistoryQuery;
+  customerParam?: string;
+}) {
+  const { navigate } = useListNavigation();
+  const update = (patch: Partial<NotificationHistoryQuery>) =>
+    navigate(notificationListHref({ ...query, ...patch, page: 1, customer: customerParam }));
+  return (
+    <div className="flex flex-wrap items-center gap-2.5 px-5 py-3">
+      <SelectMenu<NotificationState | "all">
+        label="Holat"
+        trigger={`Holat: ${query.state ? NOTIFICATION_STATE_LABEL[query.state] : "Hammasi"}`}
+        value={query.state ?? "all"}
+        onValueChange={(value) => update({ state: value === "all" ? undefined : value })}
+        options={[
+          { value: "all", label: "Hammasi" },
+          ...NOTIFICATION_STATES.map((state) => ({
+            value: state,
+            label: NOTIFICATION_STATE_LABEL[state],
+          })),
+        ]}
+      />
+      <SelectMenu<NotificationKind | "all">
+        label="Turi"
+        trigger={`Turi: ${query.kind ? NOTIFICATION_KIND_LABEL[query.kind] : "Hammasi"}`}
+        value={query.kind ?? "all"}
+        onValueChange={(value) => update({ kind: value === "all" ? undefined : value })}
+        options={[
+          { value: "all", label: "Hammasi" },
+          { value: "promo", label: NOTIFICATION_KIND_LABEL.promo },
+          { value: "general", label: NOTIFICATION_KIND_LABEL.general },
+        ]}
+      />
+      {hasNotificationFilters(query) && (
+        <button
+          type="button"
+          onClick={() =>
+            navigate(notificationListHref({ pageSize: query.pageSize, customer: customerParam }))
+          }
+          className="inline-flex h-11 items-center gap-2 rounded-md px-3.5 text-label font-bold whitespace-nowrap text-ink transition-colors duration-150 hover:bg-gold-soft"
+        >
+          <Icon name="close" size={18} />
+          Filtrlarni tozalash
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Rows per page of the history (contract §1.5: 20 or 50). */
+function HistoryPageSizeMenu({
+  query,
+  customerParam,
+}: {
+  query: NotificationHistoryQuery;
+  customerParam?: string;
+}) {
+  const { navigate } = useListNavigation();
+  return (
+    <SelectMenu<string>
+      label="Sahifadagi qatorlar"
+      align="end"
+      trigger={`${query.pageSize} ta qator`}
+      triggerClassName="h-9 gap-1.5 px-3 text-[13px] leading-[18px] font-semibold"
+      value={String(query.pageSize)}
+      onValueChange={(value) =>
+        navigate(
+          notificationListHref({
+            ...query,
+            pageSize: Number(value) as NotificationHistoryQuery["pageSize"],
+            page: 1,
+            customer: customerParam,
+          }),
+        )
+      }
+      options={NOTIFICATION_PAGE_SIZES.map((size) => ({
+        value: String(size),
+        label: `${size} ta qator`,
+      }))}
+    />
   );
 }

@@ -1,9 +1,10 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import type { Route } from "next";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { flushSync } from "react-dom";
 import {
   Controller,
@@ -30,10 +31,15 @@ import { Icon } from "@/components/ui/icon";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/toast";
-import { saveProduct } from "@/data/products.actions";
-import { productFormSchema, type ProductFormValues } from "@/data/products.schema";
 import {
-  CATEGORY_IDS,
+  deleteProductImage,
+  reorderProductImages,
+  saveProduct,
+  uploadProductImage,
+} from "@/data/products.actions";
+import { productFormSchema, type ProductFormValues } from "@/data/products.schema";
+import type { Category } from "@/domain/category";
+import {
   CONTENT_LANGUAGES,
   isTextComplete,
   productDisplayName,
@@ -43,9 +49,17 @@ import {
 import { cn } from "@/lib/cn";
 import { formatDateTimeShort, formatNumber } from "@/lib/format";
 
+import { runAction } from "../shared/action-client";
+import { useIdempotencyKey } from "../shared/idempotency";
 import { ImageManager } from "./image-manager";
-import { CATEGORY_LABEL, PRODUCT_STATUS_META } from "./labels";
+import { PRODUCT_STATUS_META } from "./labels";
 import { LanguageTabs } from "./language-tabs";
+import {
+  clearPendingImages,
+  createPendingImages,
+  persistProduct,
+  type PersistActions,
+} from "./persist-product";
 
 const LANGUAGE_NAME: Record<ContentLanguage, string> = {
   uz: "O‘zbekcha",
@@ -90,20 +104,46 @@ function missingTextsNote(missing: ContentLanguage[]): string {
 interface ProductEditorProps {
   /** `null` creates a new product. */
   product: Product | null;
+  /** Categories for the picker (`getCategories()`), ordered by position. */
+  categories: ReadonlyArray<Category>;
   /** "2 daqiqa oldin" — when stock was last read from Billz. */
   lastSyncLabel: string;
+  /**
+   * After creating a product, go to its edit route (api mode: the id is
+   * routable). In demo mode the draft id is not, so the editor stays in place.
+   */
+  redirectOnCreate?: boolean;
 }
 
-export function ProductEditor({ product, lastSyncLabel }: ProductEditorProps) {
+export function ProductEditor({
+  product,
+  categories,
+  lastSyncLabel,
+  redirectOnCreate,
+}: ProductEditorProps) {
   // React Hook Form re-registers fields during render after `reset()`; the
   // compiler's memoisation of `register(...)` calls would skip that.
   "use no memo";
   const router = useRouter();
   const toast = useToast();
   const idBase = useId();
+  // The editor's baseline: what it loaded or last saved. A PATCH carries only
+  // what differs from it, so another admin's change to a field this admin
+  // did not touch is never written back.
   const [saved, setSaved] = useState<Product | null>(product);
+  // The id to patch: set as soon as a create succeeds, even if a later step
+  // of the orchestration failed, so a retry never creates a duplicate.
+  const [targetId, setTargetId] = useState<string | null>(product?.id ?? null);
+  // A stable mutable holder (not React state: nothing renders from it).
+  const [pending] = useState(createPendingImages);
+  const idempotency = useIdempotencyKey();
+  // Synchronous re-entry guard: `isSubmitting` disables the button only after
+  // a re-render, and React Hook Form's submit handler is re-entrant.
+  const inFlight = useRef(false);
   const [lang, setLang] = useState<ContentLanguage>("uz");
   const [leaveOpen, setLeaveOpen] = useState(false);
+  /** A refusal that belongs to the whole form (Billz unreachable): shown under the header. */
+  const [formError, setFormError] = useState<string | null>(null);
 
   const {
     control,
@@ -122,11 +162,23 @@ export function ProductEditor({ product, lastSyncLabel }: ProductEditorProps) {
   const billzId = useWatch({ control, name: "billzId" });
   const promo = useWatch({ control, name: "promo" });
 
-  // New baseline after a successful save. React Hook Form recommends resetting
+  // A fresh `product` from the server (a route refresh after a save, a
+  // client navigation back) becomes the baseline only while the form holds
+  // no unsaved edits; otherwise the admin's edits and their baseline stay.
+  const [seenProduct, setSeenProduct] = useState(product);
+  if (product !== seenProduct) {
+    setSeenProduct(product);
+    if (product && !isDirty && !isSubmitting) setSaved(product);
+  }
+
+  // Reset the form to a new baseline. React Hook Form recommends resetting
   // after the submit cycle has finished rather than inside the submit handler.
+  const formBaseline = useRef(saved);
   useEffect(() => {
-    if (saved !== product && saved) reset(toFormValues(saved));
-  }, [saved, product, reset]);
+    if (!saved || saved === formBaseline.current) return;
+    formBaseline.current = saved;
+    reset(toFormValues(saved));
+  }, [saved, reset]);
 
   const focusFirstError = (fieldErrors: FieldErrors<ProductFormValues>) => {
     const languageWithError = CONTENT_LANGUAGES.find((l) => fieldErrors.texts?.[l]);
@@ -144,21 +196,65 @@ export function ProductEditor({ product, lastSyncLabel }: ProductEditorProps) {
     if (first) setFocus(first);
   };
 
-  const onSubmit = handleSubmit(async (values) => {
-    const result = await saveProduct(saved, values);
+  const actions: PersistActions = {
+    save: async (id, values, baseline) =>
+      idempotency.settle(
+        await runAction((csrf) => saveProduct(id, values, baseline, idempotency.key, csrf)),
+      ),
+    upload: (id, file) => {
+      const formData = new FormData();
+      formData.set("file", file, file.name);
+      return runAction((csrf) => uploadProductImage(id, formData, csrf));
+    },
+    remove: (id, imageId) => runAction((csrf) => deleteProductImage(id, imageId, csrf)),
+    reorder: (id, imageIds) => runAction((csrf) => reorderProductImages(id, imageIds, csrf)),
+  };
+
+  const submit = async (values: ProductFormValues) => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    try {
+      await save(values);
+    } finally {
+      inFlight.current = false;
+    }
+  };
+
+  const save = async (values: ProductFormValues) => {
+    setFormError(null);
+    const { result, createdId } = await persistProduct({
+      saved,
+      targetId,
+      values,
+      pending,
+      actions,
+    });
+    if (createdId) setTargetId(createdId);
     if (!result.ok) {
       const entries = Object.entries(result.fieldErrors ?? {});
       for (const [path, message] of entries) {
         setError(path as Path<ProductFormValues>, { message });
       }
-      if (entries.length === 0) {
+      if (result.code === "provider_unavailable") {
+        // Billz did not answer (503): nothing was written and every value is
+        // still in the form; the message stays on it until the next save.
+        setFormError(result.error);
+      } else if (entries.length === 0) {
         toast({ tone: "info", title: "Saqlanmadi", description: result.error });
       }
       return;
     }
+    clearPendingImages(pending);
     setSaved(result.data);
     toast({ title: "Mahsulot saqlandi", description: "O‘zgarishlar amallar jurnaliga yozildi" });
-  }, focusFirstError);
+    const newId = createdId ?? (saved === null ? result.data.id : null);
+    if (newId && redirectOnCreate) router.replace(`/admin/products/${newId}` as Route);
+  };
+
+  // Built inside the event handler (not during render) so the ref reads in
+  // `submit` are event-time accesses.
+  const onSubmit = (event: FormEvent<HTMLFormElement>) =>
+    handleSubmit(submit, focusFirstError)(event);
 
   const complete = Object.fromEntries(
     CONTENT_LANGUAGES.map((l) => [l, isTextComplete(texts[l])]),
@@ -202,6 +298,15 @@ export function ProductEditor({ product, lastSyncLabel }: ProductEditorProps) {
             </Button>
           </div>
         </div>
+        {formError && (
+          <p
+            role="alert"
+            className="m-0 flex items-start gap-2.5 rounded-md bg-danger-soft px-3.5 py-3 text-body-sm font-semibold text-ink"
+          >
+            <Icon name="alert-triangle" size={18} className="shrink-0 text-danger" />
+            {formError}
+          </p>
+        )}
 
         <div className="flex flex-wrap items-start gap-4">
           <div className="flex min-w-0 flex-[2_1_560px] flex-col gap-4">
@@ -296,8 +401,18 @@ export function ProductEditor({ product, lastSyncLabel }: ProductEditorProps) {
               <ImageManager
                 images={images.fields}
                 onMove={images.move}
-                onRemove={images.remove}
-                onAdd={(added) => images.append(added)}
+                onRemove={(index) => {
+                  const id = images.fields[index]?.id;
+                  if (id) {
+                    pending.files.delete(id);
+                    pending.uploaded.delete(id);
+                  }
+                  images.remove(index);
+                }}
+                onAdd={(added, files) => {
+                  for (const [id, file] of files) pending.files.set(id, file);
+                  images.append(added);
+                }}
                 error={errors.images?.message ?? errors.images?.root?.message}
               />
             </Card>
@@ -336,9 +451,10 @@ export function ProductEditor({ product, lastSyncLabel }: ProductEditorProps) {
                 {(c) => (
                   <Select {...c} {...register("category")}>
                     <option value="">Tanlanmagan</option>
-                    {CATEGORY_IDS.map((id) => (
-                      <option key={id} value={id}>
-                        {CATEGORY_LABEL[id]}
+                    {categories.map((category) => (
+                      <option key={category.slug} value={category.slug}>
+                        {category.name.uz}
+                        {category.isActive ? "" : " (faol emas)"}
                       </option>
                     ))}
                   </Select>

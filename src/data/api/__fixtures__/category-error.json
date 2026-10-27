@@ -1,0 +1,9 @@
+{
+  "code": "validation_error",
+  "message": "Maydonlarni tekshiring.",
+  "errors": [
+    { "field": "slug", "code": "invalid", "message": "Bu slug band." },
+    { "field": "name.uz", "code": "min_length", "message": "Kamida 2 ta belgi kiriting." }
+  ],
+  "request_id": "177045ef-4760-4a09-ad3c-28d5f805781e"
+}

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 
 import { cn } from "@/lib/cn";
 
@@ -7,6 +7,8 @@ interface ScrollRegionProps {
   label: string;
   children: ReactNode;
   className?: string;
+  /** The focusable region, e.g. to return focus to it after a dialog. */
+  ref?: Ref<HTMLDivElement>;
 }
 
 /**
@@ -14,9 +16,10 @@ interface ScrollRegionProps {
  * keyboard users can scroll it (WCAG 2.1.1), and positioned so visually hidden
  * text inside cells cannot widen the page.
  */
-export function ScrollRegion({ label, children, className }: ScrollRegionProps) {
+export function ScrollRegion({ label, children, className, ref }: ScrollRegionProps) {
   return (
     <div
+      ref={ref}
       role="region"
       aria-label={label}
       tabIndex={0}

@@ -32,6 +32,7 @@ import { pollShipment } from "./shipment-poll";
 const CHANNEL_LABEL: Record<Order["channel"], string> = {
   ios: "Mobil ilova (iOS)",
   android: "Mobil ilova (Android)",
+  web: "Veb-sayt",
 };
 
 function transitionHint(order: Order, status: OrderStatus): string {

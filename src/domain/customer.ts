@@ -20,11 +20,12 @@ export interface CustomerPurchase {
 }
 
 /** The app installation's platform (contract §2.6, `OrderChannel`). */
-export type DevicePlatform = "ios" | "android";
+export type DevicePlatform = "ios" | "android" | "web";
 
 export const DEVICE_PLATFORM_LABEL: Record<DevicePlatform, string> = {
   ios: "iOS",
   android: "Android",
+  web: "Veb-sayt",
 };
 
 export interface CustomerDevice {

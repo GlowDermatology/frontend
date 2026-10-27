@@ -17,7 +17,7 @@ import type {
   ApiPurchase,
 } from "../types";
 import { DELETED_CUSTOMER_NAME } from "./appointments";
-import { idString, nullToUndefined } from "./common";
+import { idString, nullToUndefined, customerContact } from "./common";
 
 /**
  * Customers (contract §2.6) → the FE domain types, per the §5.3 display
@@ -106,7 +106,7 @@ export function mapCustomerCard(api: ApiCustomerCard): Customer {
   return {
     id: idString(api.id),
     name: api.name || DELETED_CUSTOMER_NAME,
-    phone: api.phone,
+    phone: customerContact(api.phone, api.email),
     status: api.status,
     registeredAt: api.registered_at,
     deletedAt: nullToUndefined(api.deleted_at),

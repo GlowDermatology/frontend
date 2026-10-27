@@ -2,7 +2,7 @@ import type { Segment, SegmentMember } from "@/domain/segment";
 
 import type { SegmentFormValues } from "../../segments.schema";
 import type { ApiCustomerListItem, ApiSegment, ApiSegmentPatch, ApiSegmentWrite } from "../types";
-import { idString } from "./common";
+import { idString, customerContact } from "./common";
 import { DELETED_CUSTOMER_NAME } from "./appointments";
 
 /** `Segment` (contract §2.8) → the FE domain type. */
@@ -27,7 +27,7 @@ export function mapSegmentMember(api: ApiCustomerListItem): SegmentMember {
   return {
     id: idString(api.id),
     name: api.name || DELETED_CUSTOMER_NAME,
-    phone: api.phone,
+    phone: customerContact(api.phone, api.email),
     status: api.status,
     registeredAt: api.registered_at,
     lifetimeTotal: api.lifetime_total,

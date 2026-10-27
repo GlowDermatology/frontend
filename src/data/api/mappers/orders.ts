@@ -26,7 +26,7 @@ import type {
   ApiRefund,
   ApiShipment,
 } from "../types";
-import { idString } from "./common";
+import { idString, customerContact } from "./common";
 
 /**
  * Orders: API → domain (contract §2.2, §4, §5.1) and the list URL → API
@@ -37,8 +37,17 @@ import { idString } from "./common";
 /** §7.16: a deleted customer's `name` is `""`. */
 export const DELETED_CUSTOMER_NAME = "O‘chirilgan mijoz";
 
-export function mapCustomerRef(ref: { id: number; name: string; phone: string }): CustomerRef {
-  return { id: idString(ref.id), name: ref.name || DELETED_CUSTOMER_NAME, phone: ref.phone };
+export function mapCustomerRef(ref: {
+  id: number;
+  name: string;
+  phone: string | null;
+  email?: string | null;
+}): CustomerRef {
+  return {
+    id: idString(ref.id),
+    name: ref.name || DELETED_CUSTOMER_NAME,
+    phone: customerContact(ref.phone, ref.email),
+  };
 }
 
 /* --- query parameters --- */

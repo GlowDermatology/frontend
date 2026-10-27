@@ -20,7 +20,8 @@ export type OrderStatus = (typeof ORDER_STATUSES)[number];
 export type PaymentStatus = "pending" | "paid" | "failed" | "refunded";
 export type PaymentProvider = "click" | "payme";
 export type FulfilmentMethod = "delivery" | "pickup";
-export type OrderChannel = "ios" | "android";
+/** `web` = the customer website (backend B-W1). */
+export type OrderChannel = "ios" | "android" | "web";
 export type EventSource = "system" | "bts" | "admin";
 
 export type CancellationReason = "reservation_expired" | "admin" | "customer_request";

@@ -307,6 +307,19 @@ describe("createRefreshCoordinator (single flight, rotation-safe)", () => {
     expect(call).toHaveBeenCalledTimes(4);
   });
 
+  it("keys the memo by the device id too (a replay from another device goes to the API)", async () => {
+    const call = vi.fn(async () => rotation("new-1"));
+    const coordinator = createRefreshCoordinator({ now: () => NOW });
+    await coordinator.refresh("old", call, "web_device_a");
+    await coordinator.refresh("old", call, "web_device_a");
+    expect(call).toHaveBeenCalledTimes(1);
+    await coordinator.refresh("old", call, "web_device_b");
+    expect(call).toHaveBeenCalledTimes(2);
+    coordinator.forget("old");
+    await coordinator.refresh("old", call, "web_device_a");
+    expect(call).toHaveBeenCalledTimes(3);
+  });
+
   it("hashes tokens (never keys the memo by the raw token)", () => {
     expect(tokenHash("secret")).not.toContain("secret");
     expect(tokenHash("secret")).toBe(tokenHash("secret"));

@@ -107,9 +107,12 @@ export interface RefreshCoordinator {
   /**
    * Rotates `token` once: callers that arrive while a rotation of the same
    * token runs share it (the first caller's `call` is used), and callers
-   * within `memoMs` after a success get its tokens.
+   * within `memoMs` after a success get its tokens. `device` (this browser's
+   * device id) is part of the key: a stolen refresh token replayed from
+   * another device id never receives the tokens the real browser obtained —
+   * it goes to the API, which checks the device itself.
    */
-  refresh(token: string, call: RefreshCall): Promise<CustomerRefreshOutcome>;
+  refresh(token: string, call: RefreshCall, device?: string): Promise<CustomerRefreshOutcome>;
   /** Forgets everything (tests, and after a logout of that token). */
   forget(token?: string): void;
 }
@@ -145,8 +148,8 @@ export function createRefreshCoordinator(
   }
 
   return {
-    refresh(token, call) {
-      const key = tokenHash(token);
+    refresh(token, call, device = "") {
+      const key = `${tokenHash(token)}:${tokenHash(device)}`;
       const memo = recent.get(key);
       if (memo) {
         const tokens = memo.outcome.kind === "ok" ? memo.outcome.tokens : null;
@@ -173,8 +176,8 @@ export function createRefreshCoordinator(
         inFlight.clear();
         return;
       }
-      const key = tokenHash(token);
-      recent.delete(key);
+      const prefix = `${tokenHash(token)}:`;
+      for (const key of [...recent.keys()]) if (key.startsWith(prefix)) recent.delete(key);
     },
   };
 }

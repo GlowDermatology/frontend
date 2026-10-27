@@ -1,16 +1,19 @@
 import "server-only";
 
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { apiCustomerLogout } from "@/data/api/customer/auth";
 import { isApiError } from "@/data/api/errors";
 import { setCookie } from "@/data/auth/cookies";
 import { customerCookieNames } from "@/data/customer-auth/cookie-names";
 import {
   clearCustomerSession,
   deviceKeyCookie,
+  isValidDeviceId,
   sessionCookies,
 } from "@/data/customer-auth/cookies";
+import { forgetCustomerRefresh } from "@/data/customer-auth/refresh-service";
 import { SHOP_REFRESH_PATH } from "@/data/customer-auth/proxy-decision";
 import { readCustomerSession } from "@/data/customer-auth/session";
 import type { ActionFailure } from "@/data/types";
@@ -178,4 +181,33 @@ export async function hasCustomerCookies(): Promise<boolean> {
   const jar = await cookies();
   const names = customerCookieNames(serverEnv.cookieSecure());
   return jar.has(names.refresh) || jar.has(names.access);
+}
+
+/**
+ * Signing in over an existing session (`?switch=1`, or signing in again):
+ * the old refresh token is logged out server-side first (`auth/logout/`,
+ * scope `current`), so it can never be replayed, and this browser's session
+ * cookies are cleared. Best effort: a dead or unreachable session changes
+ * nothing for the sign-in that follows.
+ */
+export async function endPreviousSession(locale: Locale): Promise<void> {
+  const jar = await cookies();
+  const names = customerCookieNames(serverEnv.cookieSecure());
+  const refresh = jar.get(names.refresh)?.value;
+  if (!refresh) return;
+  const deviceId = jar.get(names.deviceId)?.value;
+  try {
+    await apiCustomerLogout({
+      refresh,
+      scope: "current",
+      accessToken: jar.get(names.access)?.value,
+      device: isValidDeviceId(deviceId) ? { id: deviceId } : undefined,
+      locale,
+      requestHeaders: await headers(),
+    });
+  } catch (error) {
+    if (!isApiError(error)) console.error("[shop] logout before sign-in failed", error);
+  }
+  forgetCustomerRefresh(refresh);
+  clearCustomerSession(jar, serverEnv.cookieSecure());
 }

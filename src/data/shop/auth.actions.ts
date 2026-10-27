@@ -28,7 +28,7 @@ import { identifierBody, parseIdentifier, type Identifier } from "@/features/sho
 import { serverEnv } from "@/lib/env.server";
 import { isLocale, type Locale } from "@/lib/i18n/locales";
 
-import { shopMessage, storeSignIn, toShopFailure } from "./private";
+import { endPreviousSession, shopMessage, storeSignIn, toShopFailure } from "./private";
 
 /**
  * Sign-in, registration, password reset and social sign-in of the
@@ -206,6 +206,7 @@ export async function registerAccount(input: {
   const locale = localeOf(input.locale);
   const refused = await guardCustomerCsrf(input.csrf);
   if (refused) return refused;
+  await endPreviousSession(locale);
   try {
     const { data } = await apiSetPassword(locale, {
       verification_token: String(input.verificationToken ?? ""),
@@ -238,6 +239,7 @@ export async function signIn(input: {
   if (refused) return refused;
   const identifier = identifierOf(input.identifier, locale);
   if (!isIdentifier(identifier)) return identifier;
+  await endPreviousSession(locale);
   try {
     const { data } = await apiLogin(locale, {
       ...identifierBody(identifier),
@@ -262,6 +264,7 @@ export async function resetPassword(input: {
   const locale = localeOf(input.locale);
   const refused = await guardCustomerCsrf(input.csrf);
   if (refused) return refused;
+  await endPreviousSession(locale);
   try {
     const { data } = await apiResetPassword(locale, {
       verification_token: String(input.verificationToken ?? ""),
@@ -312,6 +315,7 @@ export async function socialSignIn(input: {
   if (!SOCIAL.includes(input.provider) || typeof input.token !== "string" || !input.token) {
     return { ok: false, error: shopMessage(locale, "invalid"), code: "validation_error" };
   }
+  await endPreviousSession(locale);
   try {
     const { data } = await apiSocialSignIn(locale, {
       provider: input.provider,
@@ -346,6 +350,7 @@ export async function completeSocialSignIn(input: {
   const locale = localeOf(input.locale);
   const refused = await guardCustomerCsrf(input.csrf);
   if (refused) return refused;
+  await endPreviousSession(locale);
   try {
     const { data } = await apiSocialComplete(locale, {
       social_ticket: String(input.ticket ?? ""),

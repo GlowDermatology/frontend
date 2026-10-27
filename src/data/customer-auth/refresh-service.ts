@@ -21,15 +21,19 @@ export function refreshCustomerSession(input: {
   locale: Locale;
   requestHeaders: Pick<Headers, "get">;
 }): Promise<CustomerRefreshOutcome> {
-  return coordinator.refresh(input.refresh, async (token) => {
-    try {
-      const response = await apiCustomerRefresh({ ...input, refresh: token });
-      return { status: response.status, body: response.data };
-    } catch (error) {
-      if (!isApiError(error)) throw error;
-      return { status: error.status, body: error.body, retryAfter: error.retryAfter };
-    }
-  });
+  return coordinator.refresh(
+    input.refresh,
+    async (token) => {
+      try {
+        const response = await apiCustomerRefresh({ ...input, refresh: token });
+        return { status: response.status, body: response.data };
+      } catch (error) {
+        if (!isApiError(error)) throw error;
+        return { status: error.status, body: error.body, retryAfter: error.retryAfter };
+      }
+    },
+    input.device?.id ?? "",
+  );
 }
 
 /** Drops a remembered rotation of `refresh` (after a logout with it). */

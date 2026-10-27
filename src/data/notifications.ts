@@ -3,6 +3,7 @@ import "server-only";
 import type {
   AudienceSegment,
   NotificationDraft,
+  NotificationHistoryQuery,
   NotificationLink,
   NotificationRecord,
   StatusTemplate,
@@ -13,25 +14,27 @@ import {
   defaultSchedule,
   mapNotificationMeta,
   mapNotificationRecord,
+  notificationListParams,
 } from "./api/mappers/notifications";
+import { mapPage } from "./api/mappers/page";
 import { requireApiToken } from "./auth";
 import * as mock from "./mock/notifications.queries";
 import { requestNow } from "./now";
 import { dataSource } from "./source";
+import type { Page } from "./types";
 
 /**
  * Notifications read seam (contract §2.8, §5.5). Dispatches on
  * `dataSource()`: the mock body lives in `./mock/notifications.queries.ts`;
  * the api branch reads `notifications/meta/` (devices, segments, link
- * options, the four status templates) and the first page of
- * `notifications/` (ordered by the backend, newest schedule first).
+ * options, the four status templates) and the history page the URL names
+ * (`notifications/?state=&kind=&page=&page_size=`, ordered by the backend,
+ * newest schedule first; gap X-NOTIF-HISTORY).
  */
 
 export interface NotificationsOverview {
-  /** The first page of the history (20 rows). */
-  history: ReadonlyArray<NotificationRecord>;
-  /** All campaigns; more than `history.length` means older ones are not shown. */
-  historyTotal: number;
+  /** The requested page of the history. */
+  history: Page<NotificationRecord>;
   templates: ReadonlyArray<StatusTemplate>;
   segments: ReadonlyArray<AudienceSegment>;
   totalDevices: number;
@@ -41,21 +44,20 @@ export interface NotificationsOverview {
   draft: NotificationDraft | null;
 }
 
-export const HISTORY_PAGE_SIZE = 20;
-
-/** `GET /api/v1/admin/notifications/meta/` + `GET /api/v1/admin/notifications/?page_size=20`. */
-export async function getNotificationsOverview(): Promise<NotificationsOverview> {
+/** `GET /api/v1/admin/notifications/meta/` + `GET /api/v1/admin/notifications/?…` (the history page). */
+export async function getNotificationsOverview(
+  query: NotificationHistoryQuery = { page: 1, pageSize: 20 },
+): Promise<NotificationsOverview> {
   if ((await dataSource()) === "api") {
     const token = await requireApiToken();
     const [meta, page, now] = await Promise.all([
       apiNotificationMeta(token),
-      apiListNotifications(token, { page_size: HISTORY_PAGE_SIZE }),
+      apiListNotifications(token, notificationListParams(query)),
       requestNow(),
     ]);
     const mapped = mapNotificationMeta(meta.data);
     return {
-      history: page.data.results.map(mapNotificationRecord),
-      historyTotal: page.data.count,
+      history: mapPage(page.data, mapNotificationRecord),
       templates: mapped.templates,
       segments: mapped.segments,
       totalDevices: mapped.totalDevices,
@@ -65,5 +67,5 @@ export async function getNotificationsOverview(): Promise<NotificationsOverview>
       draft: null,
     };
   }
-  return mock.getNotificationsOverview();
+  return mock.getNotificationsOverview(query);
 }

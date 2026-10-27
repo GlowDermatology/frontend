@@ -33,7 +33,39 @@ export interface NotificationRecord {
   author?: string;
   /** The product a tap opens ("Seramidli namlantiruvchi krem"); absent = the app's home. */
   linkLabel?: string;
+  /** The `https` page a tap opens (gap ADM-10.1, link kind `url`). */
+  linkUrl?: string;
 }
+
+/** The history's filters and page (URL state of `/admin/notifications`, contract §2.8). */
+export const NOTIFICATION_STATES: ReadonlyArray<NotificationState> = [
+  "scheduled",
+  "queued",
+  "sent",
+  "cancelled",
+];
+export const NOTIFICATION_KINDS: ReadonlyArray<NotificationKind> = ["promo", "general"];
+export const NOTIFICATION_PAGE_SIZES = [20, 50] as const;
+export type NotificationPageSize = (typeof NOTIFICATION_PAGE_SIZES)[number];
+
+export interface NotificationHistoryQuery {
+  state?: NotificationState;
+  kind?: NotificationKind;
+  page: number;
+  pageSize: NotificationPageSize;
+}
+
+export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
+  promo: "Aksiya",
+  general: "Umumiy",
+};
+
+export const NOTIFICATION_STATE_LABEL: Record<NotificationState, string> = {
+  scheduled: "Rejalashtirilgan",
+  queued: "Navbatda",
+  sent: "Yuborildi",
+  cancelled: "Bekor qilindi",
+};
 
 export type TemplateStatus = Exclude<OrderStatus, "awaiting_payment">;
 
@@ -83,7 +115,9 @@ export interface AudienceSegment {
 }
 
 export type NotificationLink =
-  { kind: "none" } | { kind: "product"; productId: string; label: string };
+  | { kind: "none" }
+  | { kind: "product"; productId: string; label: string }
+  | { kind: "url"; url: string };
 
 export type NotificationAudience =
   { type: "all" } | { type: "group"; segmentId: string } | { type: "one"; phone: string };

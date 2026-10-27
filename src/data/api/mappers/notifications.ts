@@ -1,5 +1,6 @@
 import type {
   AudienceSegment,
+  NotificationHistoryQuery,
   NotificationLink,
   NotificationRecord,
   StatusTemplate,
@@ -49,7 +50,21 @@ export function mapNotificationRecord(api: ApiNotificationRecord): NotificationR
   };
   if (author) record.author = author;
   if (api.link.kind === "product" && api.link.label) record.linkLabel = api.link.label;
+  if (api.link.kind === "url" && api.link.url) record.linkUrl = api.link.url;
   return record;
+}
+
+/** The history's URL query → `GET notifications/` parameters (contract §2.8; no search). */
+export function notificationListParams(
+  query: Omit<NotificationHistoryQuery, "page" | "pageSize"> &
+    Partial<Pick<NotificationHistoryQuery, "page" | "pageSize">>,
+): Record<string, string | number | undefined> {
+  return {
+    state: query.state,
+    kind: query.kind,
+    page: query.page,
+    page_size: query.pageSize,
+  };
 }
 
 export function mapStatusTemplate(api: ApiStatusTemplate): StatusTemplate {
@@ -108,6 +123,7 @@ export function notificationFormData(input: NotificationInput): FormData {
   if (input.image) form.set("image", input.image, input.image.name);
   form.set("link.kind", input.link.kind);
   if (input.link.kind === "product") form.set("link.product_id", input.link.productId);
+  if (input.link.kind === "url") form.set("link.url", input.link.url);
   if (input.audience === "group") {
     form.set("audience.type", "segment");
     form.set("audience.segment_id", input.segmentId);
@@ -126,6 +142,7 @@ export const NOTIFICATION_FIELD_REMAP: FieldRemap = {
   "audience.phone": "phone",
   "audience.segment_id": "segmentId",
   "audience.type": "audience",
+  "link.url": "linkUrl",
   "link.*": "link",
   scheduled_at: "scheduledAt",
   image: TOP_LEVEL_ERROR,

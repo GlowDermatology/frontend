@@ -380,6 +380,47 @@ describe("notifications in api mode", () => {
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
+  it("sends a URL destination as link.url and maps its errors on linkUrl (gap ADM-10.1)", async () => {
+    expect(
+      await sendNotification(form({ link: "url", linkUrl: "http://x.uz" }), KEY, CSRF),
+    ).toMatchObject({
+      ok: false,
+      fieldErrors: { linkUrl: "Havolani https:// bilan to‘liq kiriting." },
+    });
+    expect(apiFetch).not.toHaveBeenCalled();
+    const record = {
+      ...notificationsPageFixture.results[0],
+      link: { kind: "url", product_id: null, label: null, url: "https://glowderma.uz/aksiya" },
+    };
+    apiFetch.mockResolvedValueOnce(respond(201, record));
+    expect(
+      await sendNotification(
+        form({
+          link: "url",
+          linkUrl: " https://glowderma.uz/aksiya ",
+          scheduledAt: "2099-10-27T10:00:00+05:00",
+        }),
+        KEY,
+        CSRF,
+      ),
+    ).toMatchObject({ ok: true, data: { linkUrl: "https://glowderma.uz/aksiya" } });
+    const body = apiFetch.mock.calls[0]![1].formData as FormData;
+    expect(body.get("link.kind")).toBe("url");
+    expect(body.get("link.url")).toBe("https://glowderma.uz/aksiya");
+    expect(body.has("link.product_id")).toBe(false);
+    apiFetch.mockRejectedValueOnce(
+      apiError(400, {
+        code: "validation_error",
+        message: "Maydonlarni tekshiring.",
+        errors: [{ field: "link.url", code: "max_length", message: "500 belgidan oshmasin." }],
+        request_id: "r",
+      }),
+    );
+    expect(
+      await sendNotification(form({ link: "url", linkUrl: "https://x.uz/a" }), KEY, CSRF),
+    ).toMatchObject({ fieldErrors: { linkUrl: "500 belgidan oshmasin." } });
+  });
+
   it("puts an unknown customer phone on the phone field", async () => {
     apiFetch.mockRejectedValueOnce(apiError(400, phoneErrorFixture));
     expect(

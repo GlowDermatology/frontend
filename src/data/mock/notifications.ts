@@ -5,6 +5,7 @@ import type {
   NotificationRecord,
   StatusTemplate,
 } from "@/domain/notification";
+import { formatNumber } from "@/lib/format";
 
 const t = (iso: string) => `${iso}+05:00`;
 
@@ -20,7 +21,7 @@ export const SEGMENTS: ReadonlyArray<AudienceSegment> = [
 /** Default schedule slot offered when "Rejalashtirish" is chosen. */
 export const DEFAULT_SCHEDULE = t("2026-10-26T10:00:00");
 
-export const NOTIFICATION_HISTORY: ReadonlyArray<NotificationRecord> = [
+const DESIGN_HISTORY: ReadonlyArray<NotificationRecord> = [
   {
     id: "n-4",
     at: t("2026-10-26T10:00:00"),
@@ -82,6 +83,46 @@ export const NOTIFICATION_HISTORY: ReadonlyArray<NotificationRecord> = [
     cancelledAt: null,
     author: "Administrator",
   },
+];
+
+/**
+ * Older campaigns before the design's four, one a week back to spring, so
+ * the history pages (20 rows) and its filters have something to show in the
+ * demo. Every one went out to everybody; promo and general alternate.
+ */
+const OLDER_TITLES: ReadonlyArray<[string, NotificationRecord["kind"]]> = [
+  ["Haftalik tavsiyalar: teri parvarishi", "general"],
+  ["Serumlarga 10% chegirma", "promo"],
+  ["Dermatolog maslahati: kuzgi parvarish", "general"],
+  ["Ikkinchi mahsulotga 20% chegirma", "promo"],
+  ["Yangi toner va essensiyalar", "general"],
+  ["Hafta oxiri aksiyasi", "promo"],
+];
+
+const OLDER_HISTORY: ReadonlyArray<NotificationRecord> = Array.from({ length: 22 }, (_, i) => {
+  const day = new Date(Date.UTC(2026, 9, 11) - i * 7 * 86_400_000).toISOString().slice(0, 10);
+  const [title, kind] = OLDER_TITLES[i % OLDER_TITLES.length]!;
+  const sent = 4700 - i * 37;
+  return {
+    id: `n-old-${i + 1}`,
+    at: t(`${day}T11:00:00`),
+    kind,
+    title,
+    audienceLabel: `Barcha · ${formatNumber(sent)}`,
+    sent,
+    failed: 0,
+    delivered: Math.round(sent * 0.9),
+    state: "sent",
+    scheduledAt: t(`${day}T11:00:00`),
+    sentAt: t(`${day}T11:02:00`),
+    cancelledAt: null,
+    author: "Administrator",
+  };
+});
+
+export const NOTIFICATION_HISTORY: ReadonlyArray<NotificationRecord> = [
+  ...DESIGN_HISTORY,
+  ...OLDER_HISTORY,
 ];
 
 export const STATUS_TEMPLATES: ReadonlyArray<StatusTemplate> = [

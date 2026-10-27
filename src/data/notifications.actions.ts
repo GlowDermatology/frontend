@@ -16,6 +16,7 @@ import {
   type StatusTemplate,
   type TemplateStatus,
 } from "@/domain/notification";
+import { isHttpsUrl, LINK_URL_MAX, LINK_URL_MESSAGE } from "@/lib/link-url";
 
 import {
   apiMutation,
@@ -39,7 +40,8 @@ import type { ActionResult } from "./types";
 
 /**
  * Push notification mutations (contract §2.8, §7.12). The view posts a
- * `FormData` with `kind`, `title`, `body`, `link` (`none` | `product:<id>`),
+ * `FormData` with `kind`, `title`, `body`, `link` (`none` | `product:<id>` |
+ * `url`, gap ADM-10.1, with the address in `linkUrl`),
  * `audience` (`all` | `group` | `one`), `segmentId`, `phone` (`+998…`),
  * `scheduledAt` (ISO with offset, empty = send now) and an optional `image`
  * file. The mock body lives in `./mock/notifications.actions.ts`; the api
@@ -63,7 +65,7 @@ export interface NotificationInput {
   kind: "promo" | "general";
   title: string;
   body: string;
-  link: { kind: "none" } | { kind: "product"; productId: string };
+  link: { kind: "none" } | { kind: "product"; productId: string } | { kind: "url"; url: string };
   audience: "all" | "group" | "one";
   segmentId: string;
   phone: string;
@@ -88,7 +90,8 @@ function buildSchema(now: Date) {
         .trim()
         .min(5, "Xabar matnini kiriting.")
         .max(BODY_MAX, `${BODY_MAX} belgidan oshmasin.`),
-      link: z.string().regex(/^(none|product:[A-Za-z0-9_-]{1,64})$/, "Havolani tanlang."),
+      link: z.string().regex(/^(none|url|product:[A-Za-z0-9_-]{1,64})$/, "Havolani tanlang."),
+      linkUrl: z.string().trim().max(LINK_URL_MAX, `${LINK_URL_MAX} belgidan oshmasin.`),
       audience: z.enum(["all", "group", "one"]),
       segmentId: z.string().trim().max(64),
       phone: z.string().trim(),
@@ -103,6 +106,13 @@ function buildSchema(now: Date) {
       key: idempotencyKeySchema,
     })
     .superRefine((values, ctx) => {
+      if (values.link === "url") {
+        if (!values.linkUrl) {
+          ctx.addIssue({ code: "custom", path: ["linkUrl"], message: "Havolani kiriting." });
+        } else if (!isHttpsUrl(values.linkUrl)) {
+          ctx.addIssue({ code: "custom", path: ["linkUrl"], message: LINK_URL_MESSAGE });
+        }
+      }
       if (values.audience === "group" && !values.segmentId) {
         ctx.addIssue({ code: "custom", path: ["segmentId"], message: "Guruhni tanlang." });
       }
@@ -141,6 +151,7 @@ export async function sendNotification(
     title: text(formData.get("title")),
     body: text(formData.get("body")),
     link: text(formData.get("link")) || "none",
+    linkUrl: text(formData.get("linkUrl")),
     audience: text(formData.get("audience")),
     segmentId: text(formData.get("segmentId")),
     phone: text(formData.get("phone")).replace(/[\s()-]/g, ""),
@@ -165,7 +176,11 @@ export async function sendNotification(
     title: data.title,
     body: data.body,
     link:
-      data.link === "none" ? { kind: "none" } : { kind: "product", productId: data.link.slice(8) },
+      data.link === "none"
+        ? { kind: "none" }
+        : data.link === "url"
+          ? { kind: "url", url: data.linkUrl }
+          : { kind: "product", productId: data.link.slice(8) },
     audience: data.audience,
     segmentId: data.segmentId,
     phone: data.phone,

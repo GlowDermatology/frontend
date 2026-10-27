@@ -63,6 +63,7 @@ export async function sendNotification(
       cancelledAt: null,
       author: "Administrator",
       ...(input.link.kind === "product" ? { linkLabel: linkLabel(input.link.productId) } : {}),
+      ...(input.link.kind === "url" ? { linkUrl: input.link.url } : {}),
     },
   };
 }

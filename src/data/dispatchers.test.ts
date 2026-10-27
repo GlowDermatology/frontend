@@ -356,13 +356,14 @@ describe("dispatchers in api mode", () => {
     expect(today).toMatch(/^\d{4}-\d{2}-\d{2}$/);
 
     const overview = await d.notifications.getNotificationsOverview();
-    expect(overview.history.map((r) => r.id)).toEqual(["4", "3", "2", "1"]);
-    expect(overview).toMatchObject({ historyTotal: 4, totalDevices: 360, draft: null });
+    expect(overview.history.items.map((r) => r.id)).toEqual(["4", "3", "2", "1"]);
+    expect(overview.history).toMatchObject({ total: 4, page: 1, pageSize: 20, pageCount: 1 });
+    expect(overview).toMatchObject({ totalDevices: 360, draft: null });
     expect(overview.templates).toHaveLength(4);
     expect(overview.defaultSchedule).toMatch(/^\d{4}-\d{2}-\d{2}T10:00:00\+05:00$/);
     expect(cachedGet).toHaveBeenCalledWith(
       "/api/v1/admin/notifications/",
-      { page_size: 20 },
+      { state: undefined, kind: undefined, page: 1, page_size: 20 },
       "staff-token",
     );
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import type { Route } from "next";
 import Link from "next/link";
 import { useEffect, useId, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { Controller, useForm, useWatch, type Path } from "react-hook-form";
@@ -25,17 +26,27 @@ import {
   TITLE_MAX,
   notificationImageProblem,
   type AudienceSegment,
+  NOTIFICATION_KIND_LABEL,
+  NOTIFICATION_PAGE_SIZES,
+  NOTIFICATION_STATE_LABEL,
+  NOTIFICATION_STATES,
   type NotificationDraft,
+  type NotificationHistoryQuery,
   type NotificationKind,
   type NotificationLink,
   type NotificationRecord,
   type NotificationState,
 } from "@/domain/notification";
+import type { Page } from "@/data/types";
 import { cn } from "@/lib/cn";
+import { isHttpsUrl, LINK_URL_MAX, LINK_URL_MESSAGE } from "@/lib/link-url";
 import { formatDateTimeShort, formatNumber, formatPhone } from "@/lib/format";
 import { maskPhone } from "@/lib/phone";
 
 import { runAction } from "../shared/action-client";
+import { ExportMenu } from "../shared/export-menu";
+import { ListTransition, useListNavigation } from "../shared/list-transition";
+import { Pagination, rangeLabel } from "../shared/pagination";
 import { partitionFieldErrors } from "../shared/field-errors";
 import { useIdempotencyKey } from "../shared/idempotency";
 import {
@@ -45,14 +56,15 @@ import {
   canCancelCampaign,
   settleCancelKey,
 } from "./cancel-campaign";
+import { hasNotificationFilters, notificationListHref } from "./query";
 
-const KIND_LABEL: Record<NotificationKind, string> = { promo: "Aksiya", general: "Umumiy" };
+const KIND_LABEL: Record<NotificationKind, string> = NOTIFICATION_KIND_LABEL;
 
 const STATE_BADGE: Record<NotificationState, { label: string; tone: Tone }> = {
-  scheduled: { label: "Rejalashtirilgan", tone: "gold" },
-  queued: { label: "Navbatda", tone: "warning" },
-  sent: { label: "Yuborildi", tone: "success" },
-  cancelled: { label: "Bekor qilindi", tone: "neutral" },
+  scheduled: { label: NOTIFICATION_STATE_LABEL.scheduled, tone: "gold" },
+  queued: { label: NOTIFICATION_STATE_LABEL.queued, tone: "warning" },
+  sent: { label: NOTIFICATION_STATE_LABEL.sent, tone: "success" },
+  cancelled: { label: NOTIFICATION_STATE_LABEL.cancelled, tone: "neutral" },
 };
 
 /** "2026-10-26T10:00" (datetime-local, Tashkent) ↔ ISO with +05:00. */
@@ -80,6 +92,7 @@ const buildSchema = (now: string) =>
         .min(5, "Xabar matnini kiriting.")
         .max(BODY_MAX, `${BODY_MAX} belgidan oshmasin.`),
       link: z.string(),
+      linkUrl: z.string().trim().max(LINK_URL_MAX, `${LINK_URL_MAX} belgidan oshmasin.`),
       audience: z.enum(["all", "group", "one"]),
       segmentId: z.string(),
       phone: z.string(),
@@ -87,6 +100,13 @@ const buildSchema = (now: string) =>
       scheduledAt: z.string(),
     })
     .superRefine((values, ctx) => {
+      if (values.link === "url") {
+        if (!values.linkUrl) {
+          ctx.addIssue({ code: "custom", path: ["linkUrl"], message: "Havolani kiriting." });
+        } else if (!isHttpsUrl(values.linkUrl)) {
+          ctx.addIssue({ code: "custom", path: ["linkUrl"], message: LINK_URL_MESSAGE });
+        }
+      }
       if (values.audience === "one" && !/^998\d{9}$/.test(phoneDigits(values.phone))) {
         ctx.addIssue({
           code: "custom",
@@ -109,14 +129,29 @@ const buildSchema = (now: string) =>
 type Values = z.infer<ReturnType<typeof buildSchema>>;
 
 const linkKey = (link: NotificationLink) =>
-  link.kind === "none" ? "none" : `product:${link.productId}`;
+  link.kind === "none" ? "none" : link.kind === "url" ? "url" : `product:${link.productId}`;
 const linkLabel = (link: NotificationLink) =>
-  link.kind === "none" ? "Bosilganda: ilova ochiladi" : "Bosilganda: mahsulot";
+  link.kind === "none"
+    ? "Bosilganda: ilova ochiladi"
+    : link.kind === "url"
+      ? "Bosilganda: havola (URL)"
+      : "Bosilganda: mahsulot";
+
+/** Whether a new campaign belongs on the history page the URL shows (page 1, matching filters). */
+function showsNewRecord(query: NotificationHistoryQuery, record: NotificationRecord): boolean {
+  return (
+    query.page === 1 &&
+    (!query.state || query.state === record.state) &&
+    (!query.kind || query.kind === record.kind)
+  );
+}
 
 interface NotificationsViewProps {
-  history: ReadonlyArray<NotificationRecord>;
-  /** All campaigns on the server; the history shows the first page. */
-  historyTotal: number;
+  /** The history page the URL names (gap X-NOTIF-HISTORY). */
+  history: Page<NotificationRecord>;
+  query: NotificationHistoryQuery;
+  /** The composer's `?customer=` prefill, kept by the history links. */
+  customerParam?: string;
   segments: ReadonlyArray<AudienceSegment>;
   totalDevices: number;
   linkOptions: ReadonlyArray<NotificationLink>;
@@ -129,8 +164,9 @@ interface NotificationsViewProps {
 }
 
 export function NotificationsView({
-  history: initialHistory,
-  historyTotal,
+  history: historyPage,
+  query,
+  customerParam,
   segments,
   totalDevices,
   linkOptions,
@@ -147,11 +183,11 @@ export function NotificationsView({
   // cancel, a navigation back to the kept-mounted route) replaces the local
   // one; a send prepends
   // its answer locally so mock mode, which persists nothing, shows it too.
-  const [historySource, setHistorySource] = useState(initialHistory);
-  const [history, setHistory] = useState(initialHistory);
-  if (initialHistory !== historySource) {
-    setHistorySource(initialHistory);
-    setHistory(initialHistory);
+  const [historySource, setHistorySource] = useState(historyPage);
+  const [history, setHistory] = useState<ReadonlyArray<NotificationRecord>>(historyPage.items);
+  if (historyPage !== historySource) {
+    setHistorySource(historyPage);
+    setHistory(historyPage.items);
   }
   const [confirmOpen, setConfirmOpen] = useState(false);
   // The picked file travels with the FormData; the object URL is only the preview.
@@ -212,6 +248,7 @@ export function NotificationsView({
     title: draft?.title ?? "",
     body: draft?.body ?? "",
     link: linkKey(draft?.link ?? { kind: "none" }),
+    linkUrl: draft?.link.kind === "url" ? draft.link.url : "",
     audience: recipient ? "one" : "all",
     segmentId: segments[0]?.id ?? "",
     phone: recipient ? formatPhone(recipient.phone) : "",
@@ -228,9 +265,9 @@ export function NotificationsView({
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<Values>({ resolver: zodResolver(schema), defaultValues: defaults });
-  const [title, body, audience, segmentId, when, scheduledAt, link] = useWatch({
+  const [title, body, audience, segmentId, when, scheduledAt, link, linkUrl] = useWatch({
     control,
-    name: ["title", "body", "audience", "segmentId", "when", "scheduledAt", "link"],
+    name: ["title", "body", "audience", "segmentId", "when", "scheduledAt", "link", "linkUrl"],
   });
 
   useEffect(
@@ -241,7 +278,10 @@ export function NotificationsView({
   );
 
   const segment = segments.find((s) => s.id === segmentId) ?? segments[0];
-  const selectedLink = linkOptions.find((l) => linkKey(l) === link) ?? { kind: "none" as const };
+  const selectedLink: NotificationLink =
+    link === "url"
+      ? { kind: "url", url: linkUrl }
+      : (linkOptions.find((l) => linkKey(l) === link) ?? { kind: "none" as const });
   const recipients =
     audience === "all" ? totalDevices : audience === "group" ? (segment?.size ?? 0) : 1;
 
@@ -252,6 +292,7 @@ export function NotificationsView({
     formData.set("title", values.title);
     formData.set("body", values.body);
     formData.set("link", linkKey(selectedLink));
+    formData.set("linkUrl", selectedLink.kind === "url" ? values.linkUrl.trim() : "");
     formData.set("audience", values.audience);
     formData.set("segmentId", values.audience === "group" ? values.segmentId : "");
     formData.set("phone", values.audience === "one" ? `+${phoneDigits(values.phone)}` : "");
@@ -269,6 +310,7 @@ export function NotificationsView({
         "title",
         "body",
         "link",
+        ...(values.link === "url" ? ["linkUrl"] : []),
         "audience",
         "scheduledAt",
         ...(values.audience === "group" ? ["segmentId"] : []),
@@ -280,7 +322,9 @@ export function NotificationsView({
       if (formError) toast({ tone: "info", title: "Yuborilmadi", description: formError });
       return;
     }
-    setHistory((current) => [result.data, ...current]);
+    if (showsNewRecord(query, result.data)) {
+      setHistory((current) => [result.data, ...current].slice(0, query.pageSize));
+    }
     reset({ ...defaults, title: "", body: "", audience: "all", phone: "" });
     if (image) setImage(null);
     toast(
@@ -453,17 +497,27 @@ export function NotificationsView({
                           <span className="text-[14px] leading-5 font-bold">
                             {linkLabel(selectedLink)}
                           </span>
-                          <span className="text-caption font-normal text-ink-muted">
-                            {selectedLink.kind === "product" ? selectedLink.label : "Bosh sahifa"}
+                          <span className="text-caption font-normal break-all text-ink-muted">
+                            {selectedLink.kind === "product"
+                              ? selectedLink.label
+                              : selectedLink.kind === "url"
+                                ? selectedLink.url || "Manzilni kiriting"
+                                : "Bosh sahifa"}
                           </span>
                         </span>
                       </>
                     }
-                    options={linkOptions.map((option) => {
+                    options={[
+                      ...linkOptions.slice(0, 1),
+                      { kind: "url" as const, url: "" },
+                      ...linkOptions.slice(1),
+                    ].map((option) => {
                       const text =
                         option.kind === "none"
                           ? "Ilovaning bosh sahifasi"
-                          : `Mahsulot: ${option.label}`;
+                          : option.kind === "url"
+                            ? "Havola (URL)"
+                            : `Mahsulot: ${option.label}`;
                       return { value: linkKey(option), label: text, text };
                     })}
                   />
@@ -472,6 +526,26 @@ export function NotificationsView({
             </div>
             {errors.link && (
               <InlineError id={`${idBase}-link-error`}>{errors.link.message}</InlineError>
+            )}
+            {link === "url" && (
+              <Field
+                label="Havola (URL)"
+                error={errors.linkUrl?.message}
+                hint="Bildirishnoma bosilganda ilovada ochiladi. Faqat https:// bilan boshlanadigan to‘liq manzil."
+              >
+                {(c) => (
+                  <TextInput
+                    {...c}
+                    {...register("linkUrl")}
+                    type="url"
+                    inputMode="url"
+                    autoComplete="off"
+                    spellCheck={false}
+                    maxLength={LINK_URL_MAX}
+                    placeholder="https://glowderma.uz/aksiya"
+                  />
+                )}
+              </Field>
             )}
             {imageError && <InlineError>{imageError}</InlineError>}
 
@@ -665,119 +739,156 @@ export function NotificationsView({
         </section>
       </div>
 
-      <section
-        aria-labelledby={`${idBase}-history`}
-        className="overflow-hidden rounded-lg bg-surface-raised shadow-sm"
-      >
-        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-          <CardTitle id={`${idBase}-history`} className="text-heading">
-            Tarix
-          </CardTitle>
-          <span className="text-caption font-normal text-ink-muted">
-            {historyTotal > history.length
-              ? `Oxirgi ${formatNumber(history.length)} ta xabar (jami ${formatNumber(historyTotal)}). `
-              : ""}
-            Buyurtma holati xabarlari avtomatik yuboriladi va bu yerda ko‘rsatilmaydi
-          </span>
-        </div>
-        <ScrollRegion ref={historyRegion} label="Yuborilgan xabarlar">
-          <table className="data-table min-w-[960px]">
-            <thead>
-              <tr>
-                <th scope="col">SANA</th>
-                <th scope="col">TURI</th>
-                <th scope="col">SARLAVHA</th>
-                <th scope="col">KIMGA</th>
-                <th scope="col" className="text-right!">
-                  YUBORILDI
-                </th>
-                <th scope="col" className="text-right!">
-                  YETKAZILDI
-                </th>
-                <th scope="col">HOLAT</th>
-                <th scope="col">
-                  <span className="sr-only">Amallar</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {history.map((record) => {
-                const badge = STATE_BADGE[record.state];
-                return (
-                  <tr key={record.id}>
-                    <td className="text-ink-muted! tabular-nums">
-                      <time dateTime={record.at}>{formatDateTimeShort(record.at)}</time>
-                    </td>
-                    <td>{KIND_LABEL[record.kind]}</td>
-                    <td>
-                      <span className="flex flex-col">
-                        <span className="font-semibold">{record.title}</span>
-                        {(record.linkLabel || record.author) && (
-                          <span className="text-[12px] text-ink-muted">
-                            {[record.linkLabel && `→ ${record.linkLabel}`, record.author]
-                              .filter(Boolean)
-                              .join(" · ")}
-                          </span>
-                        )}
-                      </span>
-                    </td>
-                    <td className="tabular-nums">{record.audienceLabel}</td>
-                    <td
-                      className={cn(
-                        "text-right tabular-nums",
-                        record.sent === null && "text-ink-muted!",
-                      )}
-                    >
-                      {record.sent === null ? "—" : formatNumber(record.sent)}
-                      {record.failed ? (
-                        <span className="block text-[12px] text-danger-strong">
-                          {formatNumber(record.failed)} ta xato
+      <ListTransition className="group">
+        <section
+          id="history"
+          aria-labelledby={`${idBase}-history`}
+          className="overflow-hidden rounded-lg bg-surface-raised shadow-sm"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3 px-5 pt-4">
+            <div className="flex flex-col gap-1">
+              <CardTitle id={`${idBase}-history`} className="text-heading">
+                Tarix
+              </CardTitle>
+              <span className="text-caption font-normal text-ink-muted">
+                Buyurtma holati xabarlari avtomatik yuboriladi va bu yerda ko‘rsatilmaydi
+              </span>
+            </div>
+            <ExportMenu
+              href={notificationListHref(
+                { state: query.state, kind: query.kind },
+                "/admin/notifications/export",
+              )}
+            />
+          </div>
+          <HistoryToolbar query={query} customerParam={customerParam} />
+          <ScrollRegion ref={historyRegion} label="Yuborilgan xabarlar">
+            <table className="data-table min-w-[960px]">
+              <thead>
+                <tr>
+                  <th scope="col">SANA</th>
+                  <th scope="col">TURI</th>
+                  <th scope="col">SARLAVHA</th>
+                  <th scope="col">KIMGA</th>
+                  <th scope="col" className="text-right!">
+                    YUBORILDI
+                  </th>
+                  <th scope="col" className="text-right!">
+                    YETKAZILDI
+                  </th>
+                  <th scope="col">HOLAT</th>
+                  <th scope="col">
+                    <span className="sr-only">Amallar</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((record) => {
+                  const badge = STATE_BADGE[record.state];
+                  return (
+                    <tr key={record.id}>
+                      <td className="text-ink-muted! tabular-nums">
+                        <time dateTime={record.at}>{formatDateTimeShort(record.at)}</time>
+                      </td>
+                      <td>{KIND_LABEL[record.kind]}</td>
+                      <td>
+                        <span className="flex flex-col">
+                          <span className="font-semibold">{record.title}</span>
+                          {(record.linkLabel || record.linkUrl || record.author) && (
+                            <span className="text-[12px] break-all text-ink-muted">
+                              {[
+                                record.linkLabel && `→ ${record.linkLabel}`,
+                                record.linkUrl && `→ ${record.linkUrl}`,
+                                record.author,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </span>
+                          )}
                         </span>
-                      ) : null}
-                    </td>
-                    <td
-                      className={cn(
-                        "text-right tabular-nums",
-                        record.delivered === null && "text-ink-muted!",
-                      )}
-                    >
-                      {record.delivered === null ? "—" : formatNumber(record.delivered)}
-                    </td>
-                    <td>
-                      <Badge tone={badge.tone}>{badge.label}</Badge>
-                      {record.state === "cancelled" && record.cancelledAt && (
-                        <time
-                          dateTime={record.cancelledAt}
-                          className="mt-1 block text-[12px] text-ink-muted tabular-nums"
-                        >
-                          {formatDateTimeShort(record.cancelledAt)}
-                        </time>
-                      )}
-                    </td>
-                    <td className="text-right">
-                      {canCancelCampaign(record) && (
-                        <Button
-                          id={`cancel-campaign-${record.id}`}
-                          variant="outline"
-                          size="sm"
-                          aria-label={`Bekor qilish: «${record.title}»`}
-                          onClick={() => {
-                            setCancelError(null);
-                            setCancelShown(record);
-                            setCancelTarget(record);
-                          }}
-                        >
-                          Bekor qilish
-                        </Button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </ScrollRegion>
-      </section>
+                      </td>
+                      <td className="tabular-nums">{record.audienceLabel}</td>
+                      <td
+                        className={cn(
+                          "text-right tabular-nums",
+                          record.sent === null && "text-ink-muted!",
+                        )}
+                      >
+                        {record.sent === null ? "—" : formatNumber(record.sent)}
+                        {record.failed ? (
+                          <span className="block text-[12px] text-danger-strong">
+                            {formatNumber(record.failed)} ta xato
+                          </span>
+                        ) : null}
+                      </td>
+                      <td
+                        className={cn(
+                          "text-right tabular-nums",
+                          record.delivered === null && "text-ink-muted!",
+                        )}
+                      >
+                        {record.delivered === null ? "—" : formatNumber(record.delivered)}
+                      </td>
+                      <td>
+                        <Badge tone={badge.tone}>{badge.label}</Badge>
+                        {record.state === "cancelled" && record.cancelledAt && (
+                          <time
+                            dateTime={record.cancelledAt}
+                            className="mt-1 block text-[12px] text-ink-muted tabular-nums"
+                          >
+                            {formatDateTimeShort(record.cancelledAt)}
+                          </time>
+                        )}
+                      </td>
+                      <td className="text-right">
+                        {canCancelCampaign(record) && (
+                          <Button
+                            id={`cancel-campaign-${record.id}`}
+                            variant="outline"
+                            size="sm"
+                            aria-label={`Bekor qilish: «${record.title}»`}
+                            onClick={() => {
+                              setCancelError(null);
+                              setCancelShown(record);
+                              setCancelTarget(record);
+                            }}
+                          >
+                            Bekor qilish
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {history.length === 0 && (
+              <div className="flex flex-col items-center gap-2 px-6 py-12 text-center">
+                <Icon name="bell" size={28} className="text-ink-muted" />
+                <p className="m-0 text-subheading text-ink">Xabar topilmadi</p>
+                <p className="m-0 text-body-sm text-ink-muted">
+                  {hasNotificationFilters(query)
+                    ? "Filtrlarni o‘zgartirib ko‘ring."
+                    : "Yuborilgan va rejalashtirilgan xabarlar shu yerda ko‘rinadi."}
+                </p>
+              </div>
+            )}
+          </ScrollRegion>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3">
+            <span className="text-body-sm text-ink-muted tabular-nums">
+              {rangeLabel(historyPage.page, historyPage.pageSize, historyPage.total)}
+            </span>
+            <Pagination
+              page={historyPage.page}
+              pageCount={historyPage.pageCount}
+              hrefFor={(p): Route =>
+                `${notificationListHref({ ...query, page: p, customer: customerParam })}#history` as Route
+              }
+            />
+            <HistoryPageSizeMenu query={query} customerParam={customerParam} />
+          </div>
+        </section>
+      </ListTransition>
 
       <AlertDialog
         open={cancelTarget !== null}
@@ -872,5 +983,92 @@ function InlineError({ id, children }: { id?: string; children: ReactNode }) {
       <Icon name="alert-circle" size={16} className="mt-px shrink-0 text-danger" />
       {children}
     </p>
+  );
+}
+
+/** The history's state and kind filters (contract §2.8; the API has no search). */
+function HistoryToolbar({
+  query,
+  customerParam,
+}: {
+  query: NotificationHistoryQuery;
+  customerParam?: string;
+}) {
+  const { navigate } = useListNavigation();
+  const update = (patch: Partial<NotificationHistoryQuery>) =>
+    navigate(notificationListHref({ ...query, ...patch, page: 1, customer: customerParam }));
+  return (
+    <div className="flex flex-wrap items-center gap-2.5 px-5 py-3">
+      <SelectMenu<NotificationState | "all">
+        label="Holat"
+        trigger={`Holat: ${query.state ? NOTIFICATION_STATE_LABEL[query.state] : "Hammasi"}`}
+        value={query.state ?? "all"}
+        onValueChange={(value) => update({ state: value === "all" ? undefined : value })}
+        options={[
+          { value: "all", label: "Hammasi" },
+          ...NOTIFICATION_STATES.map((state) => ({
+            value: state,
+            label: NOTIFICATION_STATE_LABEL[state],
+          })),
+        ]}
+      />
+      <SelectMenu<NotificationKind | "all">
+        label="Turi"
+        trigger={`Turi: ${query.kind ? NOTIFICATION_KIND_LABEL[query.kind] : "Hammasi"}`}
+        value={query.kind ?? "all"}
+        onValueChange={(value) => update({ kind: value === "all" ? undefined : value })}
+        options={[
+          { value: "all", label: "Hammasi" },
+          { value: "promo", label: NOTIFICATION_KIND_LABEL.promo },
+          { value: "general", label: NOTIFICATION_KIND_LABEL.general },
+        ]}
+      />
+      {hasNotificationFilters(query) && (
+        <button
+          type="button"
+          onClick={() =>
+            navigate(notificationListHref({ pageSize: query.pageSize, customer: customerParam }))
+          }
+          className="inline-flex h-11 items-center gap-2 rounded-md px-3.5 text-label font-bold whitespace-nowrap text-ink transition-colors duration-150 hover:bg-gold-soft"
+        >
+          <Icon name="close" size={18} />
+          Filtrlarni tozalash
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Rows per page of the history (contract §1.5: 20 or 50). */
+function HistoryPageSizeMenu({
+  query,
+  customerParam,
+}: {
+  query: NotificationHistoryQuery;
+  customerParam?: string;
+}) {
+  const { navigate } = useListNavigation();
+  return (
+    <SelectMenu<string>
+      label="Sahifadagi qatorlar"
+      align="end"
+      trigger={`${query.pageSize} ta qator`}
+      triggerClassName="h-9 gap-1.5 px-3 text-[13px] leading-[18px] font-semibold"
+      value={String(query.pageSize)}
+      onValueChange={(value) =>
+        navigate(
+          notificationListHref({
+            ...query,
+            pageSize: Number(value) as NotificationHistoryQuery["pageSize"],
+            page: 1,
+            customer: customerParam,
+          }),
+        )
+      }
+      options={NOTIFICATION_PAGE_SIZES.map((size) => ({
+        value: String(size),
+        label: `${size} ta qator`,
+      }))}
+    />
   );
 }

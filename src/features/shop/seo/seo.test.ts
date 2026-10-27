@@ -106,6 +106,18 @@ describe("metadata", () => {
     );
   });
 
+  it("marks a product page og:type product without tripping Next's type list", () => {
+    const metadata = buildShopMetadata({
+      locale: "uz",
+      route: { kind: "product", slug: "serum" },
+      title: "Serum",
+      description: "x",
+      ogType: "product",
+    });
+    expect(metadata.openGraph).not.toHaveProperty("type");
+    expect(metadata.other).toEqual({ "og:type": "product" });
+  });
+
   it("does not repeat the brand in titles that already have it", () => {
     expect(pageTitle("Glow Derma — do‘kon")).toBe("Glow Derma — do‘kon");
     expect(pageTitle("Katalog")).toBe("Katalog | Glow Derma");

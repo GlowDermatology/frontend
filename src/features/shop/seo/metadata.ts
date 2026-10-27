@@ -85,9 +85,9 @@ export function buildShopMetadata(input: ShopMetadataInput): Metadata {
       ? { index: false, follow: true, googleBot: { index: false, follow: true } }
       : { index: true, follow: true, "max-image-preview": "large" },
     openGraph: {
-      // Next types only the article/profile/… unions; "product" passes through
-      // as og:type with the basic fields.
-      type: (input.ogType ?? "website") as "website",
+      // Next validates og:type against its own list, which has no "product":
+      // a product page leaves it out here and sends it through `other`.
+      ...(input.ogType === "product" ? {} : { type: input.ogType ?? "website" }),
       siteName: siteConfig.name,
       title,
       description,
@@ -105,5 +105,7 @@ export function buildShopMetadata(input: ShopMetadataInput): Metadata {
       images: images?.map((image) => image.url),
     },
     formatDetection: { telephone: false },
+    // `<meta name="og:type">`: Open Graph parsers read `name` as well as `property`.
+    ...(input.ogType === "product" ? { other: { "og:type": "product" } } : {}),
   };
 }

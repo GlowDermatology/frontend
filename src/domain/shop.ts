@@ -30,6 +30,8 @@ export interface ShopProductCard {
   brand: string | null;
   /** The store's stock-keeping code, when the API sends one. */
   sku: string | null;
+  /** Language the texts are in (`uz` when a ru/en page fell back); `null` from an older API. */
+  contentLanguage: ContentLanguage | null;
   /** The price before a promotion (always above `price`), when the API sends one. */
   oldPrice: number | null;
   updatedAt: string | null;
@@ -47,6 +49,9 @@ export interface ShopProduct extends ShopProductCard {
   seoDescription: string | null;
 }
 
+/** The language an entity's texts came in (customer API `content_language`). */
+export type ContentLanguage = "uz" | "ru" | "en";
+
 export interface ShopCategory {
   slug: string;
   name: string;
@@ -56,6 +61,8 @@ export interface ShopCategory {
   description: string | null;
   seoTitle: string | null;
   seoDescription: string | null;
+  /** Language of the name and texts (`uz` when a ru/en page fell back); `null` from an older API. */
+  contentLanguage: ContentLanguage | null;
   updatedAt: string | null;
 }
 
@@ -106,6 +113,8 @@ export interface ShopSpecialist {
   experienceYears: number | null;
   location: ShopLocation;
   services: ReadonlyArray<ShopSpecialistService>;
+  /** Language of `bio`/`qualifications` (`uz` on a fallback); `null` from an older API. */
+  contentLanguage: ContentLanguage | null;
   updatedAt: string | null;
 }
 

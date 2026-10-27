@@ -28,14 +28,19 @@ function own(
   locale: Locale,
   uz: UzTexts | undefined,
   key: keyof NonNullable<UzTexts>,
+  contentLanguage: Locale | null = null,
 ): string {
   if (!value) return "";
-  if (locale !== "uz" && uz && squash(uz[key]) === squash(value)) return "";
+  if (locale === "uz") return value;
+  // The API says which language the texts came in (`content_language`).
+  if (contentLanguage !== null && contentLanguage !== locale) return "";
+  // An older API, or one text left untranslated: compare with the Uzbek one.
+  if (uz && squash(uz[key]) === squash(value)) return "";
   return value;
 }
 
 export function productTitle(product: ShopProduct, locale: Locale = "uz", uz?: UzTexts): string {
-  const seoTitle = own(product.seoTitle, locale, uz, "seoTitle");
+  const seoTitle = own(product.seoTitle, locale, uz, "seoTitle", product.contentLanguage);
   if (seoTitle) return seoTitle;
   const volume = localizeVolume(product.volume, locale);
   return volume ? `${product.name}, ${volume}` : product.name;
@@ -47,9 +52,15 @@ export function productDescription(
   dict: ShopDictionary,
   uz?: UzTexts,
 ): string {
-  const seoDescription = own(product.seoDescription, locale, uz, "seoDescription");
+  const seoDescription = own(
+    product.seoDescription,
+    locale,
+    uz,
+    "seoDescription",
+    product.contentLanguage,
+  );
   if (seoDescription) return clampDescription(seoDescription);
-  const description = own(product.description, locale, uz, "description");
+  const description = own(product.description, locale, uz, "description", product.contentLanguage);
   if (description.replace(/\s+/g, "").length >= 50) {
     return clampDescription(description);
   }
@@ -67,7 +78,20 @@ export function categoryTitle(category: ShopCategory, dict: ShopDictionary): str
   return category.seoTitle ?? dict.meta.categoryTitle(category.name);
 }
 
-export function categoryDescription(category: ShopCategory, dict: ShopDictionary): string {
+/** Whether an entity's texts are in the page's language (unknown counts as yes). */
+export function inPageLanguage(contentLanguage: Locale | null, locale: Locale): boolean {
+  return locale === "uz" || contentLanguage === null || contentLanguage === locale;
+}
+
+export function categoryDescription(
+  category: ShopCategory,
+  dict: ShopDictionary,
+  locale: Locale = "uz",
+): string {
+  // An Uzbek fallback on a ru/en page gives way to the generated sentence (U6).
+  if (!inPageLanguage(category.contentLanguage, locale)) {
+    return clampDescription(dict.meta.categoryDescription(category.name, category.productCount));
+  }
   if (category.seoDescription) return clampDescription(category.seoDescription);
   if (category.description && category.description.length >= 50) {
     return clampDescription(category.description);

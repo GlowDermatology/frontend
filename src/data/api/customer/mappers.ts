@@ -1,4 +1,5 @@
 import type {
+  ContentLanguage,
   ShopBanner,
   ShopBannerLink,
   ShopCategory,
@@ -72,6 +73,11 @@ export function optimizable(value: unknown, mediaHosts: ReadonlyArray<string>): 
   return url && isAllowedMediaUrl(url, mediaHosts) ? url : null;
 }
 
+/** `content_language` (feat/customer-web); anything else, or missing, is `null`. */
+export function contentLanguageOf(value: unknown): ContentLanguage | null {
+  return value === "uz" || value === "ru" || value === "en" ? value : null;
+}
+
 export function mapProductCard(
   api: ApiCustomerProductCard,
   mediaHosts: ReadonlyArray<string>,
@@ -91,6 +97,7 @@ export function mapProductCard(
     inStock: api.stock_status === "in_stock" && available > 0,
     brand: optionalText(api.brand),
     sku: optionalText(api.sku),
+    contentLanguage: contentLanguageOf(api.content_language),
     oldPrice:
       typeof api.old_price === "number" && api.old_price > api.price
         ? Math.trunc(api.old_price)
@@ -147,6 +154,7 @@ export function mapCategory(
     description: optionalText(api.description),
     seoTitle: optionalText(api.seo_title),
     seoDescription: optionalText(api.seo_description),
+    contentLanguage: contentLanguageOf(api.content_language),
     updatedAt: isoOrNull(api.updated_at),
   };
 }
@@ -213,6 +221,7 @@ export function mapSpecialist(
       durationMin: service.duration_min,
       price: service.price,
     })),
+    contentLanguage: contentLanguageOf(api.content_language),
     updatedAt: isoOrNull(api.updated_at),
   };
 }

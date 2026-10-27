@@ -81,6 +81,7 @@ describe("buildCustomerHeaders", () => {
 
 const card: ApiCustomerProductCard = {
   id: 1,
+  content_language: "uz",
   name: " Gialuron kislotali serum ",
   volume: "30 ml",
   price: 185000,
@@ -118,6 +119,7 @@ describe("mapProductCard", () => {
       brand: null,
       sku: null,
       oldPrice: null,
+      contentLanguage: "uz",
       updatedAt: null,
     });
   });
@@ -188,7 +190,16 @@ describe("mapProduct", () => {
 describe("mapCategory / mapBanner", () => {
   it("maps a category with its optional fields", () => {
     expect(
-      mapCategory({ slug: "serums", name: "Serumlar", image_url: null, product_count: 20 }, HOSTS),
+      mapCategory(
+        {
+          slug: "serums",
+          name: "Serumlar",
+          image_url: null,
+          product_count: 20,
+          content_language: "uz",
+        },
+        HOSTS,
+      ),
     ).toMatchObject({
       slug: "serums",
       name: "Serumlar",
@@ -234,6 +245,7 @@ describe("mapCategory / mapBanner", () => {
 describe("mapSpecialist / mapService / mapSettings", () => {
   const specialist: ApiSpecialist = {
     id: 1,
+    content_language: "uz",
     name: "Nodira Rahimova",
     role: "dermatologist",
     role_label: "Dermatolog",

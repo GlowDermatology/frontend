@@ -3,8 +3,8 @@
  * GENERATED FILE — do not edit by hand. Regenerate with `npm run gen:api`.
  *
  * Source: openapi/schema.yaml of the backend repository
- * Commit: 219498329cc2f58e4be26b657f8bc6786db88d6d
- * Generated: 2026-10-27T21:46:42.119Z (openapi-typescript)
+ * Commit: 0db5aaa818d1f0529cd9710cfe939b8e0bf5a287
+ * Generated: 2026-10-27T23:31:29.409Z (openapi-typescript)
  */
 
 export interface paths {
@@ -1661,23 +1661,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/dev/payments/{order_id}/simulate/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** @description Local/test settings only: a signed provider callback sequence through the real webhook views. */
-        post: operations["dev_payments_simulate"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/health/": {
         parameters: {
             query?: never;
@@ -3236,6 +3219,14 @@ export interface components {
             volume: string;
         };
         CustomerCategory: {
+            /**
+             * @description Language of `name`: the requested language, or `uz` when it fell back to Uzbek.
+             *
+             *     * `uz` - uz
+             *     * `ru` - ru
+             *     * `en` - en
+             */
+            content_language: components["schemas"]["ContentLanguageEnum"];
             /** Format: uri */
             image_url: string | null;
             name: string;
@@ -3321,7 +3312,7 @@ export interface components {
              */
             created_at: string;
             id: number;
-            /** @description `false` after a logout, a sign-in elsewhere or the deletion. */
+            /** @description `false` once no session is left on it (a logout, a session signed out, a password reset or change elsewhere) or after the deletion (B-W1: several devices may be active). */
             is_active: boolean;
             /** Format: date-time */
             last_active_at: string;
@@ -3491,10 +3482,11 @@ export interface components {
             step: components["schemas"]["ProgressStepEnum"];
         };
         /**
-         * @description ``CustomerRef = {"id", "name", "phone"}`` (contract §2.0); ``name`` is ``""`` once the customer is
-         *     deleted (scrubbed).
+         * @description ``CustomerRef = {"id", "name", "phone", "email"}`` (contract §2.0); ``name`` is ``""`` once the
+         *     customer is deleted (scrubbed).
          */
         CustomerRef: {
+            email: string | null;
             id: number;
             name: string;
             phone: string | null;
@@ -4403,12 +4395,6 @@ export interface components {
          * @enum {string}
          */
         OtpPurposeEnum: "register" | "login_new_device" | "reset_password" | "link_social" | "verify_email" | "attach_phone";
-        /**
-         * @description * `success` - success
-         *     * `fail` - fail
-         * @enum {string}
-         */
-        OutcomeEnum: "success" | "fail";
         PaginatedAdminCustomerSessionList: {
             count: number;
             page: number;
@@ -4877,6 +4863,14 @@ export interface components {
         ProductCard: {
             available: number;
             category: components["schemas"]["ProductCategory"] | null;
+            /**
+             * @description Language of `name` (and, where set, the other texts): the requested language, or `uz` when the name fell back to Uzbek or to the Billz name.
+             *
+             *     * `uz` - uz
+             *     * `ru` - ru
+             *     * `en` - en
+             */
+            content_language: components["schemas"]["ContentLanguageEnum"];
             id: number;
             in_cart_quantity: number;
             /** Format: uri */
@@ -4912,6 +4906,14 @@ export interface components {
         ProductDetail: {
             available: number;
             category: components["schemas"]["ProductCategory"] | null;
+            /**
+             * @description Language of `name` (and, where set, the other texts): the requested language, or `uz` when the name fell back to Uzbek or to the Billz name.
+             *
+             *     * `uz` - uz
+             *     * `ru` - ru
+             *     * `en` - en
+             */
+            content_language: components["schemas"]["ContentLanguageEnum"];
             description: string;
             id: number;
             images: components["schemas"]["CustomerProductImage"][];
@@ -5494,19 +5496,6 @@ export interface components {
          * @enum {string}
          */
         ShipmentViaEnum: "webhook" | "polling";
-        SimulateRequest: {
-            outcome: components["schemas"]["OutcomeEnum"];
-            provider?: (components["schemas"]["PaymentProviderEnum"] | components["schemas"]["NullEnum"]) | null;
-        };
-        SimulateResult: {
-            order_id: number;
-            provider: components["schemas"]["PaymentProviderEnum"];
-            steps: components["schemas"]["SimulateStep"][];
-        };
-        SimulateStep: {
-            call: string;
-            response: unknown;
-        };
         Slot: {
             /** @description "HH:MM" Tashkent. */
             end: string;
@@ -5552,6 +5541,8 @@ export interface components {
         SocialTokenTypeEnum: "id_token" | "access_token";
         Specialist: {
             readonly bio: string;
+            /** @description Language of `bio` (else of `qualifications`): the requested language, or `uz` when it fell back to Uzbek. `name` is the same in every language. */
+            readonly content_language: components["schemas"]["ContentLanguageEnum"];
             experience_years: number | null;
             id: number;
             location: components["schemas"]["Location"];
@@ -16088,102 +16079,6 @@ export interface operations {
                 };
             };
             404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
-                };
-            };
-            426: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
-                };
-            };
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
-                };
-            };
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
-                };
-            };
-        };
-    };
-    dev_payments_simulate: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
-                "X-GD-App-Version"?: string;
-                /** @description Firebase installation id of this app install (an identifier, not a secret). */
-                "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
-                "X-GD-Platform": "android" | "ios" | "web";
-            };
-            path: {
-                order_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SimulateRequest"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SimulateResult"];
-                };
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
-                };
-            };
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
-                };
-            };
-            422: {
                 headers: {
                     [name: string]: unknown;
                 };

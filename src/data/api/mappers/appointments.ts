@@ -63,7 +63,7 @@ export function mapDayAppointment(api: ApiAppointmentItem): DayAppointment {
     customer: {
       id: idString(api.customer.id),
       name: api.customer.name || DELETED_CUSTOMER_NAME,
-      phone: customerContact(api.customer.phone),
+      phone: customerContact(api.customer.phone, api.customer.email),
     },
     serviceId: idString(api.service_id),
     service: api.service_name,

@@ -161,7 +161,7 @@ export async function categoryMetadata(
     locale,
     route: { kind: "category", slug },
     title: query.page > 1 ? `${base} — ${dict.meta.pageSuffix(query.page)}` : base,
-    description: categoryDescription(category, dict),
+    description: categoryDescription(category, dict, locale),
     query: indexable && query.page > 1 ? { page: query.page } : undefined,
     noindex: !indexable,
     images: [

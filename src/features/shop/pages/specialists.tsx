@@ -22,6 +22,7 @@ import { SpecialistCard, SpecialistPortrait } from "../components/specialist-car
 import { getShopDictionary } from "../content";
 import { shopHref, shopPath } from "../routing/routes";
 import { JsonLd } from "../seo/json-ld-script";
+import { inPageLanguage } from "../seo/describe";
 import { breadcrumbLd, itemListLd, specialistLd } from "../seo/json-ld";
 import { absoluteUrl, buildShopMetadata } from "../seo/metadata";
 
@@ -121,8 +122,9 @@ export async function specialistMetadata(
     locale,
     route: { kind: "specialist", slug: specialist.segment },
     title: dict.meta.specialistTitle(specialist.name, specialist.roleLabel),
+    // An Uzbek bio on a ru/en page gives way to the generated sentence (U6).
     description:
-      specialist.bio ||
+      (inPageLanguage(specialist.contentLanguage, locale) && specialist.bio) ||
       dict.meta.specialistDescription(specialist.name, specialist.roleLabel, services),
     // Its own branded card first (name and role), then the portrait (U14).
     images: [

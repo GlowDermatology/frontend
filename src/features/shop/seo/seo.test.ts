@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { ShopProduct, ShopSettings, ShopSpecialist } from "@/domain/shop";
 
 import { getShopDictionary } from "../content";
-import { categoryDescription, productDescription, productTitle } from "./describe";
+import { categoryDescription, inPageLanguage, productDescription, productTitle } from "./describe";
 import {
   breadcrumbLd,
   clinicLd,
@@ -34,6 +34,7 @@ const product: ShopProduct = {
   brand: null,
   sku: null,
   oldPrice: null,
+  contentLanguage: null,
   updatedAt: null,
   description: "",
   ingredients: "",
@@ -171,12 +172,33 @@ describe("entity descriptions", () => {
     expect(productTitle(product, "ru")).toBe("Gialuron kislotali serum, 30 мл");
   });
 
+  it("uses content_language: a ru page whose texts fell back to uz gets the generated sentence", () => {
+    const ru = getShopDictionary("ru");
+    const description =
+      "Yengil serum teringizni chuqur namlaydi va tiniqlashtiradi, har kuni ertalab.";
+    const fellBack = {
+      ...product,
+      description,
+      seoDescription: "Uz SEO",
+      contentLanguage: "uz" as const,
+    };
+    expect(productDescription(fellBack, "ru", ru)).toContain("30 мл");
+    const translated = "Лёгкая сыворотка глубоко увлажняет кожу и выравнивает её тон каждый день.";
+    expect(
+      productDescription({ ...product, description: translated, contentLanguage: "ru" }, "ru", ru),
+    ).toBe(translated);
+    expect(inPageLanguage("uz", "en")).toBe(false);
+    expect(inPageLanguage(null, "en")).toBe(true);
+    expect(inPageLanguage("uz", "uz")).toBe(true);
+  });
+
   it("describes a category by its name and count when staff left it empty", () => {
     expect(
       categoryDescription(
         {
           slug: "serums",
           name: "Serumlar",
+          contentLanguage: null,
           image: null,
           imageUrl: null,
           productCount: 20,
@@ -314,6 +336,7 @@ describe("JSON-LD", () => {
       id: 1,
       segment: "1",
       hasSlug: false,
+      contentLanguage: null,
       name: "Nodira Rahimova",
       role: "dermatologist",
       roleLabel: "Dermatolog",

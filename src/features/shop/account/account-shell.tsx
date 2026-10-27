@@ -204,6 +204,16 @@ function Bar({ className }: { className?: string }) {
   return <span aria-hidden="true" className={cn("block skeleton rounded-sm", className)} />;
 }
 
+/** Loading state of a private page's content column. */
+export function BodySkeleton() {
+  return (
+    <div aria-busy="true" className="flex flex-col gap-4">
+      <Bar className="h-40 w-full rounded-lg" />
+      <Bar className="h-64 w-full rounded-lg" />
+    </div>
+  );
+}
+
 /** Loading state of a private page body (same footprint as the shell). */
 export function AccountSkeleton() {
   return (

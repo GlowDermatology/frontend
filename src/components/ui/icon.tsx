@@ -227,6 +227,7 @@ const ICONS = {
       <circle cx="18.5" cy="12" r="1.2" fill="currentColor" />
     </>
   ),
+  minus: <path d="M5 12h14" />,
   monitor: (
     <>
       <rect x="3" y="4.5" width="18" height="12" rx="2" />

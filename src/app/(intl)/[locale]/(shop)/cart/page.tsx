@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 
-import { PlaceholderPage, placeholderMetadata } from "@/features/shop/pages/placeholder";
+import { CartPage, cartMetadata } from "@/features/shop/pages/private/cart";
 import { intlLocaleFrom } from "@/features/shop/routing/intl-locale";
 
-/** W3a placeholder (noindex); W3b replaces it with the real screen. */
-export async function generateMetadata({ params }: PageProps<"/[locale]/cart">): Promise<Metadata> {
-  return placeholderMetadata(await intlLocaleFrom(params), "cart");
+export function generateMetadata({ params }: PageProps<"/[locale]/cart">): Promise<Metadata> {
+  return cartMetadata(intlLocaleFrom(params));
 }
 
-export default async function Page({ params }: PageProps<"/[locale]/cart">) {
-  return <PlaceholderPage locale={await intlLocaleFrom(params)} kind="cart" />;
+export default function Page({ params }: PageProps<"/[locale]/cart">) {
+  return <CartPage locale={intlLocaleFrom(params)} />;
 }

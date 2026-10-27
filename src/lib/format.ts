@@ -292,3 +292,63 @@ export function pluralRu(count: number, forms: readonly [string, string, string]
   if (last >= 2 && last <= 4) return forms[1];
   return forms[2];
 }
+
+/** "23-oktabr 2026, 14:02" · "23 октября 2026, 14:02" · "23 October 2026, 14:02" (Tashkent). */
+export function formatDateTime(input: DateInput, locale: SiteLocale): string {
+  return `${formatLongDate(input, locale)}, ${formatTime(input)}`;
+}
+
+const MONTHS_RU_SHORT = [
+  "янв",
+  "фев",
+  "мар",
+  "апр",
+  "мая",
+  "июн",
+  "июл",
+  "авг",
+  "сен",
+  "окт",
+  "ноя",
+  "дек",
+] as const;
+const MONTHS_EN_SHORT = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const;
+
+/** "23-okt, 14:02" · "23 окт, 14:02" · "23 Oct, 14:02" (Tashkent). */
+export function formatShortDateTime(input: DateInput, locale: SiteLocale): string {
+  const p = tashkentParts(input);
+  if (locale === "uz") return formatDateTimeShort(input);
+  const month = (locale === "ru" ? MONTHS_RU_SHORT : MONTHS_EN_SHORT)[p.month];
+  return `${p.day}${NBSP}${month}, ${formatTime(input)}`;
+}
+
+const WEEKDAYS_RU_SHORT = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"] as const;
+const WEEKDAYS_EN_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+
+/** Short weekday of a Tashkent date: "Du" · "Пн" · "Mon". */
+export function formatWeekdayShort(input: DateInput, locale: SiteLocale): string {
+  const p = tashkentParts(input);
+  return (
+    locale === "uz" ? WEEKDAYS_SHORT : locale === "ru" ? WEEKDAYS_RU_SHORT : WEEKDAYS_EN_SHORT
+  )[p.weekday]!;
+}
+
+/** Day and short month of a Tashkent date: "26-okt" · "26 окт" · "26 Oct". */
+export function formatDayMonthShortLocale(input: DateInput, locale: SiteLocale): string {
+  const p = tashkentParts(input);
+  if (locale === "uz") return formatDayMonthShort(input);
+  return `${p.day}${NBSP}${(locale === "ru" ? MONTHS_RU_SHORT : MONTHS_EN_SHORT)[p.month]}`;
+}

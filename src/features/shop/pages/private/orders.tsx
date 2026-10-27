@@ -163,7 +163,7 @@ async function OrdersBody({
                   <span className="text-price text-ink tabular-nums">
                     {copy.money(order.total)}
                   </span>
-                  <span className="inline-flex items-center gap-1 text-label text-gold-ink">
+                  <span className="inline-flex items-center gap-1 text-label text-ink">
                     {copy.orders.open}
                     <Icon
                       name="chevron-right"
@@ -423,9 +423,7 @@ async function OrderBody({
               {order.cashbackUsed > 0 ? (
                 <div className="flex justify-between gap-3">
                   <dt className="text-ink-muted">{t.cashback}</dt>
-                  <dd className="m-0 text-gold-ink tabular-nums">
-                    −{copy.money(order.cashbackUsed)}
-                  </dd>
+                  <dd className="m-0 text-ink tabular-nums">−{copy.money(order.cashbackUsed)}</dd>
                 </div>
               ) : null}
               <div className="flex items-baseline justify-between gap-3 pt-2">
@@ -462,7 +460,7 @@ async function OrderBody({
               {order.cashback.earned > 0 ? (
                 <div className="flex justify-between gap-3">
                   <dt className="text-ink-muted">{t.cashback}</dt>
-                  <dd className="m-0 text-gold-ink tabular-nums">
+                  <dd className="m-0 text-ink tabular-nums">
                     +{copy.money(order.cashback.earned)}
                   </dd>
                 </div>
@@ -498,7 +496,7 @@ async function OrderBody({
                       href={order.shipment.trackingUrl}
                       rel="noopener"
                       target="_blank"
-                      className="font-semibold text-gold-ink underline"
+                      className="font-semibold text-ink underline"
                     >
                       {t.trackOnline}
                     </a>
@@ -519,14 +517,15 @@ async function OrderBody({
 }
 
 async function OrderShell({
-  locale,
+  locale: localeInput,
   params,
   searchParams,
 }: {
-  locale: Locale;
+  locale: LocaleInput;
   params: Promise<{ id: string }>;
   searchParams: SearchParams;
 }) {
+  const locale = await localeInput;
   const { id } = await params;
   const copy = ordersCopy[locale];
   const number = Number(id);
@@ -554,8 +553,8 @@ async function OrderShell({
   );
 }
 
-export async function OrderPage({
-  locale: localeInput,
+export function OrderPage({
+  locale,
   params,
   searchParams,
 }: {
@@ -563,7 +562,7 @@ export async function OrderPage({
   params: Promise<{ id: string }>;
   searchParams: SearchParams;
 }) {
-  const locale = await localeInput;
+  // The order id is request data: nothing here may wait outside Suspense.
   return (
     <Suspense fallback={<AccountSkeleton />}>
       <OrderShell locale={locale} params={params} searchParams={searchParams} />

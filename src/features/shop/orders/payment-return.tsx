@@ -145,7 +145,7 @@ export function PaymentSandbox({
   return (
     <section className="flex flex-col gap-3 rounded-lg border-[1.5px] border-dashed border-gold-ink bg-gold-soft/50 p-5">
       <h2 className="m-0 text-subheading text-ink">{copy.sandboxTitle}</h2>
-      <p className="m-0 text-body-sm text-ink-muted">{copy.sandboxBody}</p>
+      <p className="m-0 text-body-sm text-ink">{copy.sandboxBody}</p>
       <div className="flex flex-wrap gap-2">
         <Button
           onClick={() => void simulate("success")}

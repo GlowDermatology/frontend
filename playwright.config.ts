@@ -28,7 +28,7 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      testIgnore: /customer-public\//,
+      testIgnore: /customer(-public)?\//,
       use: { ...devices["Desktop Chrome"] },
     },
     {
@@ -37,6 +37,25 @@ export default defineConfig({
       name: "customer-public",
       testDir: "./e2e/customer-public",
       use: { ...devices["Desktop Chrome"], storageState: { cookies: [], origins: [] } },
+    },
+    {
+      // Signs a fresh customer up by phone (fake SMS code 123456) and keeps
+      // its cookies for the "customer" project.
+      name: "customer-setup",
+      testDir: "./e2e/customer",
+      testMatch: /customer\.setup\.ts/,
+      use: { ...devices["Desktop Chrome"], storageState: { cookies: [], origins: [] } },
+    },
+    {
+      // The signed-in storefront: sign-up by e-mail and phone, cart → checkout
+      // → phone gate → sandbox payment → order, booking, QR, «Faol seanslar»,
+      // axe. Needs the frontend in api mode with GLOWDERMA_PAYMENT_SANDBOX=true
+      // and a local backend with FAKE_PAYMENTS_ENABLED=true (e2e/README.md).
+      name: "customer",
+      testDir: "./e2e/customer",
+      testIgnore: /customer\.setup\.ts/,
+      dependencies: ["customer-setup"],
+      use: { ...devices["Desktop Chrome"], storageState: "e2e/.auth/customer.json" },
     },
   ],
 });

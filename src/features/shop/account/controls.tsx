@@ -208,7 +208,7 @@ export function CodeField({
             type="button"
             onClick={onResend}
             disabled={resendPending}
-            className="self-start text-label text-gold-ink underline decoration-gold underline-offset-4 hover:text-ink disabled:opacity-60"
+            className="self-start text-label text-ink underline decoration-gold underline-offset-4 hover:text-ink disabled:opacity-60"
           >
             {copy.resend}
           </button>

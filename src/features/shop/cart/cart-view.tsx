@@ -265,7 +265,7 @@ export function CartView({ locale, initial, canCheckout, supportPhone }: CartVie
           {cart.cashbackAvailable > 0 ? (
             <div className="flex items-baseline justify-between gap-3">
               <dt className="text-ink-muted">{copy.cashbackAvailable}</dt>
-              <dd className="m-0 font-semibold text-gold-ink tabular-nums">
+              <dd className="m-0 font-semibold text-ink tabular-nums">
                 {money(cart.cashbackAvailable)}
               </dd>
             </div>
@@ -305,7 +305,7 @@ export function CartView({ locale, initial, canCheckout, supportPhone }: CartVie
         {supportPhone && cart.lines.some((line) => line.maxReached) ? (
           <a
             href={`tel:${supportPhone}`}
-            className="text-center text-label text-gold-ink underline decoration-gold underline-offset-4"
+            className="text-center text-label text-ink underline decoration-gold underline-offset-4"
           >
             {copy.support}
           </a>

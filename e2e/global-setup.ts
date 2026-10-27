@@ -12,7 +12,8 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
       : process.argv[only]!.includes("=")
         ? process.argv[only]!.split("=")[1]
         : process.argv[only + 1];
-  if (project === "customer-public") return;
+  // Neither do the customer projects (they sign customers up themselves).
+  if (project?.startsWith("customer")) return;
   const { baseURL, ignoreHTTPSErrors } = config.projects[0]!.use;
   const browser = await chromium.launch();
   const page = await browser.newPage({ baseURL, ignoreHTTPSErrors });

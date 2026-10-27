@@ -793,7 +793,7 @@ function ConsentBanner({
       className="flex flex-col gap-3 rounded-lg border-[1.5px] border-gold-ink bg-gold-soft p-5"
     >
       <h2 className="m-0 text-subheading">{copy.title}</h2>
-      <p className="m-0 text-body text-ink-muted">{copy.body}</p>
+      <p className="m-0 text-body text-ink">{copy.body}</p>
       <div className="flex flex-wrap gap-2">
         <a
           href={termsHref}

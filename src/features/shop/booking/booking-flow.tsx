@@ -475,7 +475,7 @@ export function BookingFlow({
           {consent ? (
             <div role="alert" className="flex flex-col gap-3 rounded-md bg-gold-soft p-4">
               <p className="m-0 text-label">{common.consent.title}</p>
-              <p className="m-0 text-body-sm text-ink-muted">{common.consent.body}</p>
+              <p className="m-0 text-body-sm text-ink">{common.consent.body}</p>
               <div className="flex flex-wrap gap-2">
                 <a
                   href={termsHref}

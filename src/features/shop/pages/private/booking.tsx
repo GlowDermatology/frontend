@@ -114,7 +114,7 @@ export async function BookingPage({
       >
         <Link
           href={shopPath(locale, { kind: "bookingPolicy" })}
-          className="self-start text-label text-gold-ink underline decoration-gold underline-offset-4"
+          className="self-start text-label text-ink underline decoration-gold underline-offset-4"
         >
           {copy.policy}
         </Link>
@@ -253,7 +253,7 @@ async function AppointmentsBody({
                           {" "}
                           <a
                             href={`tel:${item.location.phone}`}
-                            className="font-semibold text-gold-ink underline"
+                            className="font-semibold text-ink underline"
                           >
                             {t.call}
                           </a>

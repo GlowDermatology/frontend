@@ -410,7 +410,7 @@ export function CheckoutView({
           {quote && quote.cashbackToUse > 0 ? (
             <div className="flex justify-between gap-3">
               <dt className="text-ink-muted">{t.cashback}</dt>
-              <dd className="m-0 text-gold-ink tabular-nums">−{money(quote.cashbackToUse)}</dd>
+              <dd className="m-0 text-ink tabular-nums">−{money(quote.cashbackToUse)}</dd>
             </div>
           ) : null}
           <div className="flex items-baseline justify-between gap-3 border-t border-line pt-4">
@@ -442,7 +442,7 @@ export function CheckoutView({
         {consentNeeded ? (
           <div role="alert" className="flex flex-col gap-3 rounded-md bg-gold-soft p-4">
             <p className="m-0 text-label">{common.consent.title}</p>
-            <p className="m-0 text-body-sm text-ink-muted">{common.consent.body}</p>
+            <p className="m-0 text-body-sm text-ink">{common.consent.body}</p>
             <div className="flex flex-wrap gap-2">
               <a
                 href={termsHref}
@@ -475,7 +475,7 @@ export function CheckoutView({
         </Button>
         <Link
           href={shopPath(locale, { kind: "cart" })}
-          className="text-center text-label text-gold-ink underline decoration-gold underline-offset-4"
+          className="text-center text-label text-ink underline decoration-gold underline-offset-4"
         >
           {t.backToCart}
         </Link>

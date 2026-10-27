@@ -38,7 +38,7 @@ export function ReauthStep({
   const [code, setCode] = useState("");
   const [byCode, setByCode] = useState(!hasPassword);
   const switchLink =
-    "self-start text-body-sm font-semibold text-gold-ink underline decoration-gold underline-offset-4 hover:text-ink";
+    "self-start text-body-sm font-semibold text-ink underline decoration-gold underline-offset-4 hover:text-ink";
 
   if (!byCode) {
     return (

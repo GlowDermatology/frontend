@@ -100,7 +100,7 @@ function TermsConsent({
   error?: string;
 }) {
   const copy = authCopy[locale].terms;
-  const link = "font-semibold text-gold-ink underline decoration-gold underline-offset-4";
+  const link = "font-semibold text-ink underline decoration-gold underline-offset-4";
   return (
     <div className="flex flex-col gap-1.5">
       <label className="flex cursor-pointer items-start gap-3 text-body-sm text-ink">
@@ -738,7 +738,7 @@ export function AuthPanel({
           <button
             type="button"
             onClick={() => switchMode("reset")}
-            className="self-center text-label text-gold-ink underline decoration-gold underline-offset-4 hover:text-ink"
+            className="self-center text-label text-ink underline decoration-gold underline-offset-4 hover:text-ink"
           >
             {copy.signIn.forgot}
           </button>
@@ -746,7 +746,7 @@ export function AuthPanel({
           <button
             type="button"
             onClick={() => switchMode("signin")}
-            className="self-center text-label text-gold-ink underline decoration-gold underline-offset-4 hover:text-ink"
+            className="self-center text-label text-ink underline decoration-gold underline-offset-4 hover:text-ink"
           >
             {copy.reset.back}
           </button>

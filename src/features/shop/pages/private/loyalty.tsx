@@ -140,7 +140,7 @@ async function CashbackBody({
                     <span className="font-serif text-[28px] leading-8 font-semibold">
                       {percentLabel(band.percent, locale)}%
                     </span>
-                    <span className="text-body-sm text-ink-muted">
+                    <span className="text-body-sm text-ink">
                       {t.tierRow(money(band.from), band.to === null ? null : money(band.to))}
                     </span>
                   </li>

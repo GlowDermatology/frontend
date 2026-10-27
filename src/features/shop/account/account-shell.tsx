@@ -240,7 +240,7 @@ export function AccountSkeleton() {
 /** A text link styled as the storefront's quiet gold-underline link. */
 export function QuietLink({ href, children }: { href: Route; children: ReactNode }) {
   return (
-    <Link href={href} className={cn("text-label font-semibold text-gold-ink", textLink)}>
+    <Link href={href} className={cn("text-label font-semibold text-ink", textLink)}>
       {children}
     </Link>
   );

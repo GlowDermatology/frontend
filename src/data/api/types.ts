@@ -179,3 +179,36 @@ export type ApiResolveRefund = Omit<Schemas["ResolveRefundRequest"], "state" | "
 export type ApiDashboard = Schemas["Dashboard"];
 export type ApiDashboardBucket = Schemas["DashboardBucket"];
 export type ApiDashboardRange = Schemas["DashboardRangeEnum"];
+
+/* --- Specialists, services, schedules, the clinic (contract §2.17, gap FND-1) --- */
+
+export type ApiClinicSpecialist = Schemas["ClinicSpecialist"];
+export type ApiPaginatedSpecialists = Schemas["PaginatedClinicSpecialistList"];
+export type ApiSpecialistWrite = Schemas["ClinicSpecialistWriteRequest"];
+type I18nPartial = Partial<Record<"uz" | "ru" | "en", string>>;
+/** `PATCH specialists/{id}/`: every field optional (the generated type marks the defaulted booleans required). */
+export type ApiSpecialistPatch = Omit<
+  Partial<Schemas["PatchedClinicSpecialistPatchRequest"]>,
+  "qualifications" | "bio"
+> & { qualifications?: I18nPartial; bio?: I18nPartial };
+export type ApiOfferedServicesWrite = Schemas["OfferedServicesRequest"];
+export type ApiWorkingWeekWrite = Schemas["WorkingWeekRequest"];
+export type ApiHoursOverride = Schemas["HoursOverride"];
+export type ApiPaginatedOverrides = Schemas["PaginatedHoursOverrideList"];
+export type ApiOverrideWrite = Schemas["HoursOverrideCreateRequest"];
+export type ApiBlockedPeriod = Schemas["BlockedPeriod"];
+export type ApiPaginatedBlocks = Schemas["PaginatedBlockedPeriodList"];
+export type ApiBlockWrite = Schemas["BlockedPeriodCreateRequest"];
+export type ApiClinicService = Schemas["ClinicService"];
+export type ApiPaginatedServices = Schemas["PaginatedClinicServiceList"];
+export type ApiServiceWrite = Schemas["ClinicServiceWriteRequest"];
+export type ApiServicePatch = Omit<
+  Partial<Schemas["PatchedClinicServiceWriteRequest"]>,
+  "name" | "short_name" | "description"
+> & { name?: I18nPartial; short_name?: I18nPartial; description?: I18nPartial };
+export type ApiClinicLocation = Schemas["ClinicLocation"];
+export type ApiLocationPatch = Omit<
+  Partial<Schemas["PatchedClinicLocationPatchRequest"]>,
+  "name" | "address"
+> & { name?: I18nPartial; address?: I18nPartial };
+export type ApiConflicts = { results: ApiAppointmentItem[] };

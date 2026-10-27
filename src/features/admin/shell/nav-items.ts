@@ -9,6 +9,8 @@ export type AdminSection =
   | "banners"
   | "orders"
   | "appointments"
+  | "specialists"
+  | "services"
   | "customers"
   | "cashback"
   | "notifications"
@@ -47,6 +49,13 @@ export const NAV_ITEMS: ReadonlyArray<NavItem> = [
     icon: "calendar",
     badge: "appointments",
   },
+  {
+    section: "specialists",
+    label: "Mutaxassislar",
+    href: "/admin/specialists",
+    icon: "user",
+  },
+  { section: "services", label: "Xizmatlar", href: "/admin/services", icon: "sparkle" },
   { section: "customers", label: "Mijozlar", href: "/admin/customers", icon: "users" },
   { section: "cashback", label: "Cashback sozlamalari", href: "/admin/cashback", icon: "percent" },
   {

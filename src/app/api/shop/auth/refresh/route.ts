@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 
 import { setCookie } from "@/data/auth/cookies";
-import { escapeHtml, htmlPage, seeOther } from "@/data/auth/html-page";
+import { escapeHtml, htmlPage, sameOriginBounce, seeOther } from "@/data/auth/html-page";
 import { isAccessLive } from "@/data/auth/jwt";
 import { isSameOriginRequest } from "@/data/auth/same-origin";
 import { customerCookieNames } from "@/data/customer-auth/cookie-names";
@@ -28,8 +28,16 @@ import { parseAllowedOrigins } from "@/lib/origins";
  * - ended     → cookies cleared, 303 to the sign-in page with `next`;
  * - transient → with a live access cookie 303 `next` plus a 30 s backoff,
  *               without one a 503 retry page;
- * - cross-site GET → 303 `next` without touching the session (a link from
- *               elsewhere must not be able to rotate tokens).
+ * - cross-site request → a tiny same-origin page that reloads this URL
+ *               (`sameOriginBounce`): a link from elsewhere must not rotate
+ *               tokens, and a 303 straight back to `next` would loop — a
+ *               visitor returning from Click/Payme with a lapsed access cookie
+ *               is bounced here by the proxy again (ERR_TOO_MANY_REDIRECTS).
+ *               The reload is same-origin, so it then refreshes normally.
+ *
+ * `POST` does the same (a Server Action render that redirects here is
+ * replayed with its method; answering 405 broke it): the 303 turns it into a
+ * GET of `next`.
  */
 
 const RETRY_COPY = {
@@ -50,6 +58,10 @@ const RETRY_COPY = {
   ],
 } as const;
 
+export function POST(request: NextRequest) {
+  return GET(request);
+}
+
 export async function GET(request: NextRequest) {
   const url = request.nextUrl;
   const rawNext = url.searchParams.get("next");
@@ -64,7 +76,7 @@ export async function GET(request: NextRequest) {
     requestHost: request.headers.get("x-forwarded-host") ?? request.headers.get("host"),
     allowedOrigins: parseAllowedOrigins(process.env.GLOWDERMA_ALLOWED_ORIGINS),
   });
-  if (!sameOrigin) return seeOther(next);
+  if (!sameOrigin) return sameOriginBounce(url.pathname + url.search, "Glow Derma");
 
   const secure = serverEnv.cookieSecure();
   const names = customerCookieNames(secure);

@@ -1,8 +1,12 @@
-import { PlaceholderPage, placeholderMetadata } from "@/features/shop/pages/placeholder";
+import type { Metadata } from "next";
 
-/** W3a placeholder (noindex); W3b replaces it with the real screen. */
-export const metadata = placeholderMetadata("uz", "signIn");
+import { SignInPage, signInMetadata } from "@/features/shop/pages/private/sign-in";
 
-export default function Page() {
-  return <PlaceholderPage locale="uz" kind="signIn" />;
+/** Sign in, sign up and password reset (private: noindex, never cached). */
+export function generateMetadata(): Promise<Metadata> {
+  return signInMetadata("uz");
+}
+
+export default function Page({ searchParams }: PageProps<"/kirish">) {
+  return <SignInPage locale="uz" searchParams={searchParams} />;
 }

@@ -87,7 +87,16 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     // Uzbek is the default language and lives at `/`.
-    return [{ source: "/uz", destination: "/", permanent: true }];
+    return [
+      { source: "/uz", destination: "/", permanent: true },
+      // The payment return URL (backend PAYMENT_WEB_RETURN_URL) keeps the Uzbek
+      // word for every language: `/ru/buyurtmalar/{id}?paid=1` → `/ru/orders/{id}?paid=1`.
+      {
+        source: "/:locale(ru|en)/buyurtmalar/:id",
+        destination: "/:locale/orders/:id",
+        permanent: false,
+      },
+    ];
   },
   async headers() {
     return [

@@ -4,19 +4,37 @@ import { cookieNames } from "@/data/auth/cookie-names";
 import { csrfCookie, setCookie } from "@/data/auth/cookies";
 import { mintCsrf } from "@/data/auth/csrf";
 import { NEXT_PATH_HEADER, decideProxy } from "@/data/auth/proxy-decision";
+import { customerCookieNames } from "@/data/customer-auth/cookie-names";
+import {
+  customerCsrfCookie,
+  deviceIdCookie,
+  isValidDeviceId,
+  mintDeviceId,
+} from "@/data/customer-auth/cookies";
+import { lookupSlug } from "@/data/customer-auth/legacy-redirect";
+import { decideShopProxy } from "@/data/customer-auth/proxy-decision";
+import { shopPath } from "@/features/shop/routing/routes";
 
 /**
- * Admin proxy (spec "Frontend wiring › Auth › src/proxy.ts"). GET/HEAD only:
- * in api mode a missing or near-expiry access cookie is sent to the refresh
- * route (307, `next` = path + query) unless the backoff marker is set; the
- * refresh cookie never reaches the proxy (`Path=/admin/auth`), so it cannot
- * refresh itself. In both modes it mints the readable `gd_csrf` cookie when
- * missing and stamps `x-gd-next` for `requireStaff()`. Server Actions
- * (POST) pass through: every action verifies the session itself.
+ * One proxy, two audiences.
  *
- * The env is read directly (not through `serverEnv`): the decision must stay
- * free of the `server-only` marker and of lazy throws, and the two rules are
- * tiny. `GLOWDERMA_COOKIE_SECURE` mirrors `serverEnv.cookieSecure()`.
+ * **Admin** (`/admin/**`, unchanged; spec "Frontend wiring › Auth ›
+ * src/proxy.ts"). GET/HEAD only: in api mode a missing or near-expiry access
+ * cookie is sent to the refresh route (307, `next` = path + query) unless the
+ * backoff marker is set; the refresh cookie never reaches the proxy
+ * (`Path=/admin/auth`), so it cannot refresh itself. In both modes it mints
+ * the readable `gd_csrf` cookie when missing and stamps `x-gd-next` for
+ * `requireStaff()`. Server Actions (POST) pass through: every action
+ * verifies the session itself.
+ *
+ * **Storefront** (everything else that is a page; `decideShopProxy`):
+ * legacy numeric id URLs get a 301 to the slug (api mode), private pages get
+ * the device id and csrf cookies and a bounce to the customer refresh route
+ * when their access cookie lapsed. Public pages pass through untouched for
+ * anonymous visitors.
+ *
+ * The env is read directly (not through `serverEnv`): the decisions must
+ * stay free of the `server-only` marker and of lazy throws.
  */
 
 function cookieSecure(): boolean {
@@ -25,8 +43,11 @@ function cookieSecure(): boolean {
   return value === "true" || value === "1";
 }
 
-export function proxy(request: NextRequest) {
-  const secure = cookieSecure();
+function mode(): "api" | "mock" {
+  return process.env.GLOWDERMA_DATA_SOURCE === "api" ? "api" : "mock";
+}
+
+function adminProxy(request: NextRequest, secure: boolean): NextResponse {
   const names = cookieNames(secure);
   const { pathname, search } = request.nextUrl;
 
@@ -34,7 +55,7 @@ export function proxy(request: NextRequest) {
     method: request.method,
     pathname,
     search,
-    mode: process.env.GLOWDERMA_DATA_SOURCE === "api" ? "api" : "mock",
+    mode: mode(),
     accessToken: request.cookies.get(names.access)?.value,
     hasBackoff: request.cookies.has(names.refreshBackoff),
     hasCsrf: request.cookies.has(names.csrf),
@@ -64,4 +85,64 @@ export function proxy(request: NextRequest) {
   return response;
 }
 
-export const config = { matcher: ["/admin/:path*"] };
+async function shopProxy(request: NextRequest, secure: boolean): Promise<NextResponse> {
+  const names = customerCookieNames(secure);
+  const { pathname, search } = request.nextUrl;
+  const decision = decideShopProxy({
+    method: request.method,
+    pathname,
+    search,
+    mode: mode(),
+    accessToken: request.cookies.get(names.access)?.value,
+    hasRefresh: request.cookies.has(names.refresh),
+    hasBackoff: request.cookies.has(names.refreshBackoff),
+    hasCsrf: request.cookies.has(names.csrf),
+    hasDeviceId: isValidDeviceId(request.cookies.get(names.deviceId)?.value),
+    nowMs: Date.now(),
+  });
+
+  if (decision.kind === "legacy-id") {
+    const slug = await lookupSlug(decision.entity, decision.id, decision.locale);
+    if (slug) {
+      const target = new URL(
+        shopPath(decision.locale, { kind: decision.entity, slug }) + search,
+        request.nextUrl,
+      );
+      const response = NextResponse.redirect(target, 301);
+      response.headers.set("Cache-Control", "public, max-age=3600");
+      return response;
+    }
+    return NextResponse.next();
+  }
+
+  let response: NextResponse;
+  if (decision.kind === "refresh") {
+    response = NextResponse.redirect(new URL(decision.location, request.nextUrl), 307);
+    response.headers.set("Cache-Control", "no-store");
+  } else {
+    response = NextResponse.next();
+  }
+  if (decision.mintDeviceId) {
+    setCookie(response.cookies, deviceIdCookie({ secure, value: mintDeviceId() }));
+  }
+  if (decision.mintCsrf) {
+    setCookie(response.cookies, customerCsrfCookie({ secure, value: mintCsrf() }));
+  }
+  return response;
+}
+
+export async function proxy(request: NextRequest) {
+  const secure = cookieSecure();
+  const { pathname } = request.nextUrl;
+  if (pathname === "/admin" || pathname.startsWith("/admin/")) return adminProxy(request, secure);
+  return shopProxy(request, secure);
+}
+
+export const config = {
+  matcher: [
+    "/admin/:path*",
+    // Storefront pages: not Next internals, route handlers, metadata files or
+    // anything with a file extension.
+    "/((?!_next/|api/|og/|sitemaps/|healthz|admin|.*\\.[A-Za-z0-9]+$).*)",
+  ],
+};

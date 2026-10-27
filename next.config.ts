@@ -26,6 +26,16 @@ function mediaRemotePatterns(value: string | undefined) {
     });
 }
 
+/**
+ * Next's default HTML-limited bots (metadata blocks the render instead of
+ * streaming into <body>) plus the link-preview crawlers common in
+ * Uzbekistan (Telegram) and the search engines that render JavaScript only
+ * partially (Yandex, Bing, Baidu), so every crawler gets <title>, canonical,
+ * hreflang and Open Graph in the <head> of the first response.
+ */
+const HTML_LIMITED_BOTS =
+  /[\w-]+-Google|Google-[\w-]+|Chrome-Lighthouse|Slurp|DuckDuckBot|baiduspider|yandex|sogou|bitlybot|tumblr|vkShare|quora link preview|redditbot|ia_archiver|Bingbot|BingPreview|applebot|facebookexternalhit|facebookcatalog|Twitterbot|LinkedInBot|Slackbot|Discordbot|WhatsApp|SkypeUriPreview|Yeti|googleweblight|TelegramBot|Viber|Pinterest|SemrushBot|AhrefsBot|PetalBot|Mail\.RU_Bot/i;
+
 const nextConfig: NextConfig = {
   // Self-contained server (`.next/standalone/server.js`) for the Docker image.
   // It embeds this config as evaluated by `next build`, so every
@@ -37,6 +47,15 @@ const nextConfig: NextConfig = {
   deploymentId: process.env.GLOWDERMA_BUILD_SHA || undefined,
   cacheComponents: true,
   partialPrefetching: true,
+  // Storefront `"use cache"` lifetimes (src/data/shop/catalog.ts); staff
+  // changes reach the pages earlier through tags (POST /api/revalidate).
+  cacheLife: {
+    // Products, categories, banners: prices and stock move during the day.
+    catalog: { stale: 60, revalidate: 300, expire: 86_400 },
+    // Specialists, services, settings and legal texts.
+    content: { stale: 300, revalidate: 3_600, expire: 604_800 },
+  },
+  htmlLimitedBots: HTML_LIMITED_BOTS,
   reactCompiler: true,
   typedRoutes: true,
   poweredByHeader: false,

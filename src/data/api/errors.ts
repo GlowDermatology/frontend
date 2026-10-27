@@ -28,11 +28,17 @@ export class ApiError extends Error {
   readonly body: ErrorEnvelope;
   /** Seconds from `Retry-After`, when the API sent it (429, 409 request_in_progress). */
   readonly retryAfter: number | undefined;
+  /**
+   * The customer envelope's code-specific `details` object (customer
+   * contract §1.6: `OUT_OF_STOCK` lines, `price_changed` totals, …); `null`
+   * when the API sent `null`, `undefined` for the admin envelope.
+   */
+  readonly details: unknown;
 
   constructor(
     status: number,
     body: ErrorEnvelope,
-    options: { retryAfter?: number; cause?: unknown } = {},
+    options: { retryAfter?: number; cause?: unknown; details?: unknown } = {},
   ) {
     super(
       `${status} ${body.code}: ${body.message}`,
@@ -42,6 +48,7 @@ export class ApiError extends Error {
     this.status = status;
     this.body = body;
     this.retryAfter = options.retryAfter;
+    this.details = options.details;
   }
 
   get code(): string {
@@ -55,6 +62,7 @@ export class ApiError extends Error {
       errors: [],
       request_id: response.headers.get("x-request-id") ?? "",
     };
+    let details: unknown;
     try {
       const parsed = (await response.json()) as Partial<ErrorEnvelope> | null;
       if (parsed && typeof parsed.code === "string") {
@@ -64,12 +72,14 @@ export class ApiError extends Error {
           errors: Array.isArray(parsed.errors) ? parsed.errors.filter(isErrorItem) : [],
           request_id: typeof parsed.request_id === "string" ? parsed.request_id : body.request_id,
         };
+        if ("details" in parsed) details = (parsed as { details?: unknown }).details;
       }
     } catch {
       // Non-JSON error body: keep the synthetic envelope.
     }
     return new ApiError(response.status, body, {
       retryAfter: parseRetryAfter(response.headers.get("retry-after")),
+      details,
     });
   }
 }

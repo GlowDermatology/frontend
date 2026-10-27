@@ -5,6 +5,7 @@ import type { CashbackAdjustmentInput } from "../customers.actions";
 import type { ActionResult } from "../types";
 import { delay } from "./delay";
 import { getCustomer } from "./customers.queries";
+import { mockCustomerSessions } from "./sessions";
 
 /**
  * Mock implementation of `src/data/customers.actions.ts`: the customer is
@@ -42,4 +43,19 @@ export async function adjustCashback(
       },
     },
   };
+}
+
+/**
+ * Whether `sessionId` is one of the customer's open sessions in the
+ * fixture (`null`: no such customer). Nothing is persisted: the card drops
+ * the row itself, a reload shows it again.
+ */
+export async function hasCustomerSession(
+  customerId: string,
+  sessionId: string,
+): Promise<boolean | null> {
+  await delay(300);
+  const customer = await getCustomer(customerId);
+  if (!customer) return null;
+  return mockCustomerSessions(customer).some((session) => session.id === sessionId);
 }

@@ -22,6 +22,10 @@ export interface ActionFailure {
   error: string;
   fieldErrors?: Record<string, string>;
   code?: ActionErrorCode;
+  /** The customer API's code-specific `details` object (customer contract §1.6), when it sent one. */
+  details?: unknown;
+  /** Seconds from `Retry-After` (OTP resend windows, throttles), when the API sent it. */
+  retryAfter?: number;
 }
 
 /**

@@ -1,0 +1,243 @@
+import type { CopySet, Widen } from "./widen";
+
+/**
+ * Copy shared by the private pages: the account navigation, the phone gate
+ * (hybrid identity: a phone is asked at the first order, booking or QR), the
+ * re-authentication step, the code field, the terms consent and pagination.
+ */
+const uz = {
+  eyebrow: "Shaxsiy kabinet",
+  nav: {
+    label: "Shaxsiy kabinet bo‘limlari",
+    orders: "Buyurtmalar",
+    appointments: "Qabullarim",
+    cashback: "Cashback",
+    qr: "QR kod",
+    inbox: "Xabarlar",
+    account: "Profil",
+    sessions: "Faol seanslar",
+  },
+  header: {
+    menuLabel: "Hisob menyusi",
+    greeting: (name: string) => `Salom, ${name}`,
+    signedIn: "Hisobingiz",
+    signIn: "Kirish",
+    inbox: "Xabarlar",
+    inboxUnread: (count: number) => `Xabarlar, ${count} ta o‘qilmagan`,
+    cartWith: (count: number) => `Savat, ${count} ta mahsulot`,
+    signOut: "Chiqish",
+  },
+  errors: {
+    csrf: "Sahifani yangilab, qayta urinib ko‘ring.",
+    network: "Server bilan bog‘lanib bo‘lmadi. Qayta urinib ko‘ring.",
+  },
+  code: {
+    label: "Tasdiqlash kodi",
+    sentSms: (mask: string) => `Kod ${mask} raqamiga SMS orqali yuborildi.`,
+    sentEmail: (mask: string) =>
+      `Kod ${mask} manziliga yuborildi. «Spam» papkasini ham tekshiring.`,
+    resend: "Kodni qayta yuborish",
+    resendIn: (seconds: number) => `Yangi kodni ${seconds} soniyadan so‘ng so‘rash mumkin`,
+    invalidFormat: "6 xonali kodni kiriting.",
+  },
+  phoneGate: {
+    title: "Telefon raqamingizni tasdiqlang",
+    body: "Buyurtma, qabul va do‘kondagi QR uchun telefon raqami kerak. Unga bir martalik SMS kod yuboramiz.",
+    phoneLabel: "Telefon raqami",
+    sendCode: "Kod yuborish",
+    confirm: "Tasdiqlash",
+    changePhone: "Boshqa raqam",
+    passwordLabel: "Hisob paroli",
+    passwordHint: "Xavfsizlik uchun hisobingiz parolini ham kiriting.",
+    signInWithIt: "Shu raqam bilan kirish",
+    cancel: "Bekor qilish",
+    attached: "Telefon raqami tasdiqlandi",
+  },
+  reauth: {
+    title: "Shaxsingizni tasdiqlang",
+    passwordLabel: "Joriy parol",
+    codeIntro: "Hisobingizga bog‘langan raqam yoki emailga tasdiqlash kodi yuboramiz.",
+    sendCode: "Kod yuborish",
+    verify: "Tasdiqlash",
+    verified: "Tasdiqlandi",
+    signInAgain: "Xavfsizlik uchun hisobga qaytadan kiring.",
+  },
+  consent: {
+    title: "Foydalanish shartlari yangilandi",
+    body: "Davom etish uchun foydalanish shartlari va maxfiylik siyosatining yangi tahririni qabul qiling.",
+    read: "Shartlarni o‘qish",
+    accept: "Qabul qilaman",
+    accepted: "Shartlar qabul qilindi",
+  },
+  pagination: {
+    label: "Sahifalar",
+    previous: "Oldingi",
+    next: "Keyingi",
+    pageOf: (page: number, total: number) => `${total} sahifadan ${page}-si`,
+  },
+  dialog: {
+    cancel: "Bekor qilish",
+    close: "Yopish",
+    save: "Saqlash",
+  },
+  loading: "Yuklanmoqda…",
+};
+
+type Copy = Widen<typeof uz>;
+
+const ru: Copy = {
+  eyebrow: "Личный кабинет",
+  nav: {
+    label: "Разделы личного кабинета",
+    orders: "Заказы",
+    appointments: "Мои записи",
+    cashback: "Кешбэк",
+    qr: "QR-код",
+    inbox: "Сообщения",
+    account: "Профиль",
+    sessions: "Активные сеансы",
+  },
+  header: {
+    menuLabel: "Меню аккаунта",
+    greeting: (name) => `Здравствуйте, ${name}`,
+    signedIn: "Ваш аккаунт",
+    signIn: "Войти",
+    inbox: "Сообщения",
+    inboxUnread: (count) => `Сообщения, непрочитанных: ${count}`,
+    cartWith: (count) => `Корзина, товаров: ${count}`,
+    signOut: "Выйти",
+  },
+  errors: {
+    csrf: "Обновите страницу и попробуйте ещё раз.",
+    network: "Не удалось связаться с сервером. Попробуйте ещё раз.",
+  },
+  code: {
+    label: "Код подтверждения",
+    sentSms: (mask) => `Код отправлен по SMS на номер ${mask}.`,
+    sentEmail: (mask) => `Код отправлен на ${mask}. Проверьте и папку «Спам».`,
+    resend: "Отправить код ещё раз",
+    resendIn: (seconds) => `Новый код можно запросить через ${seconds} с`,
+    invalidFormat: "Введите 6-значный код.",
+  },
+  phoneGate: {
+    title: "Подтвердите номер телефона",
+    body: "Для заказа, записи и QR-кода в магазине нужен номер телефона. Мы отправим на него одноразовый SMS-код.",
+    phoneLabel: "Номер телефона",
+    sendCode: "Отправить код",
+    confirm: "Подтвердить",
+    changePhone: "Другой номер",
+    passwordLabel: "Пароль аккаунта",
+    passwordHint: "Для безопасности введите и пароль аккаунта.",
+    signInWithIt: "Войти с этим номером",
+    cancel: "Отмена",
+    attached: "Номер телефона подтверждён",
+  },
+  reauth: {
+    title: "Подтвердите, что это вы",
+    passwordLabel: "Текущий пароль",
+    codeIntro: "Мы отправим код подтверждения на номер или email вашего аккаунта.",
+    sendCode: "Отправить код",
+    verify: "Подтвердить",
+    verified: "Подтверждено",
+    signInAgain: "Для безопасности войдите в аккаунт заново.",
+  },
+  consent: {
+    title: "Условия использования обновлены",
+    body: "Чтобы продолжить, примите новую редакцию условий использования и политики конфиденциальности.",
+    read: "Прочитать условия",
+    accept: "Принимаю",
+    accepted: "Условия приняты",
+  },
+  pagination: {
+    label: "Страницы",
+    previous: "Назад",
+    next: "Вперёд",
+    pageOf: (page, total) => `Страница ${page} из ${total}`,
+  },
+  dialog: {
+    cancel: "Отмена",
+    close: "Закрыть",
+    save: "Сохранить",
+  },
+  loading: "Загрузка…",
+};
+
+const en: Copy = {
+  eyebrow: "Your account",
+  nav: {
+    label: "Account sections",
+    orders: "Orders",
+    appointments: "Appointments",
+    cashback: "Cashback",
+    qr: "QR code",
+    inbox: "Messages",
+    account: "Profile",
+    sessions: "Active sessions",
+  },
+  header: {
+    menuLabel: "Account menu",
+    greeting: (name) => `Hello, ${name}`,
+    signedIn: "Your account",
+    signIn: "Sign in",
+    inbox: "Messages",
+    inboxUnread: (count) => `Messages, ${count} unread`,
+    cartWith: (count) => `Bag, ${count} ${count === 1 ? "item" : "items"}`,
+    signOut: "Sign out",
+  },
+  errors: {
+    csrf: "Please reload the page and try again.",
+    network: "Could not reach the server. Please try again.",
+  },
+  code: {
+    label: "Verification code",
+    sentSms: (mask) => `We texted a code to ${mask}.`,
+    sentEmail: (mask) => `We sent a code to ${mask}. Check your spam folder too.`,
+    resend: "Send the code again",
+    resendIn: (seconds) => `You can ask for a new code in ${seconds} s`,
+    invalidFormat: "Enter the 6-digit code.",
+  },
+  phoneGate: {
+    title: "Confirm your phone number",
+    body: "Orders, appointments and the in-store QR need a phone number. We will text it a one-time code.",
+    phoneLabel: "Phone number",
+    sendCode: "Send code",
+    confirm: "Confirm",
+    changePhone: "Use another number",
+    passwordLabel: "Account password",
+    passwordHint: "For your security, enter your account password as well.",
+    signInWithIt: "Sign in with this number",
+    cancel: "Cancel",
+    attached: "Phone number confirmed",
+  },
+  reauth: {
+    title: "Confirm it is you",
+    passwordLabel: "Current password",
+    codeIntro: "We will send a code to the phone or e-mail of your account.",
+    sendCode: "Send code",
+    verify: "Confirm",
+    verified: "Confirmed",
+    signInAgain: "For your security, please sign in again.",
+  },
+  consent: {
+    title: "Our terms have been updated",
+    body: "To continue, please accept the new version of the terms of use and the privacy policy.",
+    read: "Read the terms",
+    accept: "I accept",
+    accepted: "Terms accepted",
+  },
+  pagination: {
+    label: "Pages",
+    previous: "Previous",
+    next: "Next",
+    pageOf: (page, total) => `Page ${page} of ${total}`,
+  },
+  dialog: {
+    cancel: "Cancel",
+    close: "Close",
+    save: "Save",
+  },
+  loading: "Loading…",
+};
+
+export const commonCopy = { uz, ru, en } satisfies CopySet<typeof uz>;
+export type CommonCopy = Copy;

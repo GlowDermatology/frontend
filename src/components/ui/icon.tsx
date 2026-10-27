@@ -201,6 +201,44 @@ const ICONS = {
     </>
   ),
   upload: <path d="M12 16V5M7 9.5l5-5 5 5M5 20h14" />,
+  /* Storefront account additions (W3b), drawn in the same 1.75 stroke style. */
+  eye: (
+    <>
+      <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" />
+      <circle cx="12" cy="12" r="3" />
+    </>
+  ),
+  "eye-off": (
+    <>
+      <path d="M9.9 5.8A9.6 9.6 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a17 17 0 0 1-2.6 3.4M6.2 7.1C3.8 8.8 2.5 12 2.5 12S6 18.5 12 18.5c1.7 0 3.2-.5 4.5-1.3" />
+      <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2M4 4l16 16" />
+    </>
+  ),
+  mail: (
+    <>
+      <rect x="3" y="5.5" width="18" height="13" rx="2.5" />
+      <path d="M3.5 7l8.5 6 8.5-6" />
+    </>
+  ),
+  more: (
+    <>
+      <circle cx="5.5" cy="12" r="1.2" fill="currentColor" />
+      <circle cx="12" cy="12" r="1.2" fill="currentColor" />
+      <circle cx="18.5" cy="12" r="1.2" fill="currentColor" />
+    </>
+  ),
+  monitor: (
+    <>
+      <rect x="3" y="4.5" width="18" height="12" rx="2" />
+      <path d="M9 20h6M12 16.5V20" />
+    </>
+  ),
+  smartphone: (
+    <>
+      <rect x="6.5" y="2.5" width="11" height="19" rx="2.5" />
+      <path d="M11 18.5h2" />
+    </>
+  ),
   user: (
     <>
       <circle cx="12" cy="8.5" r="3.8" />

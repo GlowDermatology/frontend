@@ -7,7 +7,7 @@ import type { Locale } from "@/lib/i18n/locales";
 
 import type { ShopDictionary } from "../content";
 import { shopPath } from "../routing/routes";
-import { AccountLink, CartLink, ShopMenu } from "./header-islands";
+import { AccountLink, CartLink, InboxLink, ShopMenu } from "./header-islands";
 import { LanguageSwitcher, LanguageSwitcherFallback } from "./language-switcher";
 import { gutter, textLink } from "./layout-primitives";
 
@@ -68,10 +68,8 @@ export function ShopHeader({ locale, dict }: { locale: Locale; dict: ShopDiction
           >
             <Icon name="search" size={22} />
           </Link>
-          <AccountLink
-            locale={locale}
-            labels={{ account: dict.header.account, signIn: dict.header.signIn }}
-          />
+          <InboxLink locale={locale} />
+          <AccountLink locale={locale} />
           <CartLink locale={locale} label={dict.header.cart} />
           <ShopMenu
             links={links}

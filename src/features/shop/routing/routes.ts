@@ -26,9 +26,9 @@ export type PublicRoute =
   | { kind: "bookingPolicy" };
 
 /**
- * Private pages (noindex, never cached, session cookies). W3a ships
- * placeholders for `cart`, `signIn` and `booking` (the targets of the
- * add-to-cart, account and "book" seams); W3b adds the rest.
+ * Private pages (noindex, never cached, session cookies): the customer's
+ * cart, checkout, orders, cashback and QR, booking, inbox, account and its
+ * «Faol seanslar» list, and the sign-in page.
  */
 export type PrivateRoute =
   | { kind: "cart" }
@@ -40,7 +40,9 @@ export type PrivateRoute =
   | { kind: "booking" }
   | { kind: "appointments" }
   | { kind: "cashback" }
-  | { kind: "inbox" };
+  | { kind: "qr" }
+  | { kind: "inbox" }
+  | { kind: "sessions" };
 
 export type ShopRoute = PublicRoute | PrivateRoute;
 export type ShopRouteKind = ShopRoute["kind"];
@@ -68,7 +70,9 @@ const SEGMENTS: Record<"uz" | "intl", Record<StaticKind, string>> = {
     booking: "qabulga-yozilish",
     appointments: "qabullarim",
     cashback: "cashback",
+    qr: "qr-kod",
     inbox: "xabarlar",
+    sessions: "faol-seanslar",
   },
   intl: {
     catalog: "catalog",
@@ -89,7 +93,9 @@ const SEGMENTS: Record<"uz" | "intl", Record<StaticKind, string>> = {
     booking: "book",
     appointments: "appointments",
     cashback: "cashback",
+    qr: "qr",
     inbox: "inbox",
+    sessions: "sessions",
   },
 };
 
@@ -112,7 +118,9 @@ export const PRIVATE_KINDS: ReadonlySet<ShopRouteKind> = new Set<ShopRouteKind>(
   "booking",
   "appointments",
   "cashback",
+  "qr",
   "inbox",
+  "sessions",
 ]);
 
 export function isPrivateRoute(route: ShopRoute): route is PrivateRoute {

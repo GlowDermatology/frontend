@@ -85,3 +85,15 @@ export async function guardCustomerAction(
     nowMs: Date.now(),
   });
 }
+
+/**
+ * The prologue of the sign-in Server Actions (send a code, register, sign
+ * in, reset): no session exists yet, so only the double-submit csrf token is
+ * checked (a login-CSRF defence; Next's Origin check covers the rest).
+ */
+export async function guardCustomerCsrf(csrf: unknown): Promise<ActionFailure | null> {
+  if (typeof csrf !== "string" || csrf.length === 0) return CUSTOMER_CSRF_FAILURE;
+  const jar = await cookies();
+  const names = customerCookieNames(serverEnv.cookieSecure());
+  return csrfMatches(jar.get(names.csrf)?.value, csrf) ? null : CUSTOMER_CSRF_FAILURE;
+}

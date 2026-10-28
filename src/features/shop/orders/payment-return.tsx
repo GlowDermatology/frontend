@@ -70,8 +70,9 @@ export function PaymentReturn({
       aria-live="polite"
       className="relative flex flex-col items-center gap-4 overflow-hidden rounded-lg border border-line bg-surface-raised px-6 py-[clamp(36px,5vw,56px)] text-center"
     >
-      {/* The rings sit behind the icon, centred on it. */}
-      <div className="relative flex items-center justify-center py-6">
+      {/* The rings sit behind the icon, centred on it; the box is as tall as
+          the outer ring (r 150 of 400 → 180 px) so it never crosses the title. */}
+      <div className="relative -my-2 flex h-[180px] items-center justify-center">
         <Rings
           viewBox={400}
           rings={[

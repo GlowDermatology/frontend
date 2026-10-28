@@ -227,7 +227,7 @@ The `E2E_*` variables of the Playwright suite are listed in `e2e/README.md`.
 `GLOWDERMA_DATA_SOURCE` unset or `mock`:
 
 - `/`, `/ru` and `/en` serve the static **marketing landing**.
-- The shop routes do not render a storefront. Unknown slugs and `/mahsulotlar/*` answer HTTP 404. The other shop pages (catalog, cart, account and so on) stream the localized «Sahifa topilmadi» page with `noindex`.
+- The shop routes do not render a storefront: the shop pages (catalog, products, cart, account and so on) stream the localized «Sahifa topilmadi» page with `noindex` behind the static header, and paths outside the route table answer HTTP 404.
 - No customer cookie is set and no request leaves the server.
 - `/admin` runs on the in-memory demo dataset, including products with slugs, SEO texts and a «SEO holati» checklist computed by the same rules as the backend's `catalog/seo.py`, and a customer with demo «Faol seanslar».
 - Mutations compute the next state without saving it, so a reload restores the dataset. Every admin page shows the "Demo ma’lumotlar" marker.

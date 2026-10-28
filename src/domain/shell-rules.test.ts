@@ -225,6 +225,9 @@ describe("audit labels", () => {
     expect(groupOf("outbox.resolved")).toEqual(["Tizim"]);
     expect(groupOf("billz.import_started")).toEqual(["Katalog"]);
     expect(groupOf("loyalty.reconciliation_mismatch")).toEqual(["Cashback"]);
+    // B-W1: staff sign a customer's session out from the card.
+    expect(groupOf("customer.session_revoked")).toEqual(["Mijozlar"]);
+    expect(auditActionLabel("customer.session_revoked")).toBe("Mijoz seansi tugatildi");
   });
 
   it("prints the payload as indented JSON text", () => {

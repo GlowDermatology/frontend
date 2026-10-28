@@ -152,13 +152,20 @@ describe("appointments", () => {
         ...(item as ApiDaySchedule["appointments"][number]),
         status: "cancelled",
         requested_via: "admin",
-        customer: { id: 8, name: "", phone: "+998909741823" },
+        customer: { id: 8, name: "", phone: "+998909741823", email: null },
       }),
     ).toMatchObject({
       status: "cancelled",
       requestedVia: "administrator",
       customer: { name: "O‘chirilgan mijoz" },
     });
+    // An e-mail-only customer (B-W2) shows the address where the phone would be.
+    expect(
+      mapDayAppointment({
+        ...(item as ApiDaySchedule["appointments"][number]),
+        customer: { id: 9, name: "Aziza", phone: null, email: "aziza@example.com" },
+      }).customer.phone,
+    ).toBe("aziza@example.com");
   });
 
   it("maps the pending summary and the booking meta (services per specialist with prices)", () => {

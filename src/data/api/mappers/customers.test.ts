@@ -151,7 +151,7 @@ describe("mapCustomerCard (Malika, customer 5)", () => {
   });
 
   it("renders a deleted customer as deleted, with no address or device", () => {
-    const card = mapCustomerCard(deletedFixture as ApiCustomerCard);
+    const card = mapCustomerCard({ ...deletedFixture, email: null } as ApiCustomerCard);
     expect(card).toMatchObject({
       name: "O‘chirilgan mijoz",
       status: "deleted",

@@ -96,6 +96,8 @@ export interface ClinicSpecialist {
   workingHours: WorkingDay[];
   /** `requested` / `confirmed` appointments starting now or later. */
   upcomingAppointments: number;
+  /** The website URL segment (`/mutaxassislar/{slug}`, B-W1). */
+  slug: string;
   createdAt: string;
   updatedAt: string;
 }

@@ -3,7 +3,7 @@ import { canDeleteCategory, type Category } from "@/domain/category";
 import type { CategoryEditValues, CategoryFormValues } from "../categories.schema";
 import { referenceNow } from "../config";
 import type { ActionResult } from "../types";
-import { CATEGORIES } from "./categories";
+import { CATEGORIES, withCategorySeoStatus } from "./categories";
 import { delay } from "./delay";
 
 /**
@@ -34,16 +34,17 @@ export async function createCategory(
   const now = referenceNow().toISOString();
   return {
     ok: true,
-    data: {
+    data: withCategorySeoStatus({
       slug: values.slug,
       name: values.name,
       imageUrl: image ? "" : null,
       position: CATEGORIES.length,
       isActive: values.isActive,
       productCount: 0,
+      seo: values.seo,
       createdAt: now,
       updatedAt: now,
-    },
+    }),
   };
 }
 
@@ -55,15 +56,17 @@ export async function updateCategory(
   await delay(400);
   const before = bySlug(slug);
   if (!before) return { ok: false, error: "Kategoriya topilmadi.", code: "not_found" };
+  const imageUrl = media.image ? "" : media.remove ? null : before.imageUrl;
   return {
     ok: true,
-    data: {
+    data: withCategorySeoStatus({
       ...before,
       name: values.name,
-      imageUrl: media.image ? "" : media.remove ? null : before.imageUrl,
+      imageUrl,
       isActive: values.isActive,
+      seo: values.seo,
       updatedAt: referenceNow().toISOString(),
-    },
+    }),
   };
 }
 

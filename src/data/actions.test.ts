@@ -5,6 +5,7 @@ import { ledgerBalance } from "@/domain/cashback";
 import { canCancel, manualTransitions } from "@/domain/order";
 import { CLICK_STILL_PAID_MESSAGE } from "@/domain/payment";
 import { BILLZ_UNAVAILABLE_MESSAGE } from "@/domain/product";
+import { emptySeo, slugifyName } from "@/domain/seo";
 
 import type { StaffSession, VerifyStaffOptions } from "./auth";
 
@@ -172,14 +173,14 @@ describe("session and csrf gate", () => {
       () => searchProducts("serum", missing),
       () =>
         createCategory(
-          { slug: "a1", name: { uz: "Ab", ru: "", en: "" }, isActive: true },
+          { slug: "a1", name: { uz: "Ab", ru: "", en: "" }, isActive: true, seo: emptySeo() },
           KEY,
           missing,
         ),
       () =>
         updateCategory(
           "serums",
-          { name: { uz: "Ab", ru: "", en: "" }, isActive: true },
+          { name: { uz: "Ab", ru: "", en: "" }, isActive: true, seo: emptySeo() },
           KEY,
           missing,
         ),
@@ -234,6 +235,8 @@ describe("api mode (catalog actions wired)", () => {
     promo: false,
     status: "hidden",
     images: [],
+    slug: "gialuron-kislotali-serum",
+    seo: emptySeo(),
   };
 
   beforeEach(() => {
@@ -480,7 +483,7 @@ describe("api mode (catalog actions wired)", () => {
     apiFetch.mockRejectedValueOnce(new ApiError(400, categoryErrorFixture));
     expect(
       await createCategory(
-        { slug: "no-ne", name: { uz: "Ab", ru: "", en: "" }, isActive: true },
+        { slug: "no-ne", name: { uz: "Ab", ru: "", en: "" }, isActive: true, seo: emptySeo() },
         KEY,
         CSRF,
       ),
@@ -493,7 +496,7 @@ describe("api mode (catalog actions wired)", () => {
     // The reserved slugs are refused before the round trip.
     expect(
       await createCategory(
-        { slug: "none", name: { uz: "Ab", ru: "", en: "" }, isActive: true },
+        { slug: "none", name: { uz: "Ab", ru: "", en: "" }, isActive: true, seo: emptySeo() },
         KEY,
         CSRF,
       ),
@@ -525,14 +528,19 @@ describe("api mode (catalog actions wired)", () => {
     };
     apiFetch.mockResolvedValueOnce(respond(200, { ...category, is_active: false }));
     expect(
-      await updateCategory("masks", { name: category.name, isActive: false }, KEY, CSRF),
+      await updateCategory(
+        "masks",
+        { name: category.name, isActive: false, seo: emptySeo() },
+        KEY,
+        CSRF,
+      ),
     ).toMatchObject({ ok: true, data: { slug: "masks", isActive: false } });
     expect(apiFetch).toHaveBeenLastCalledWith(
       "/api/v1/admin/categories/masks/",
       expect.objectContaining({
         method: "PATCH",
         idempotencyKey: KEY,
-        body: { name: category.name, is_active: false },
+        body: { name: category.name, is_active: false, seo: emptySeo() },
       }),
     );
     // Gap ADM-5.1: a picked image goes as multipart with the dotted names; a
@@ -544,7 +552,7 @@ describe("api mode (catalog actions wired)", () => {
     apiFetch.mockResolvedValueOnce(respond(201, { ...category, image_url: imageUrl }));
     expect(
       await createCategory(
-        { slug: "masks", name: category.name, isActive: true },
+        { slug: "masks", name: category.name, isActive: true, seo: emptySeo() },
         KEY,
         CSRF,
         withImage,
@@ -560,18 +568,30 @@ describe("api mode (catalog actions wired)", () => {
       "name.ru": "",
       "name.en": "",
       is_active: "true",
+      "seo.uz.title": "",
+      "seo.uz.description": "",
+      "seo.ru.title": "",
+      "seo.ru.description": "",
+      "seo.en.title": "",
+      "seo.en.description": "",
     });
     expect(created.formData.get("image")).toBeInstanceOf(File);
     const removal = new FormData();
     removal.set("remove_image", "true");
     apiFetch.mockResolvedValueOnce(respond(200, { ...category, image_url: null }));
     expect(
-      await updateCategory("masks", { name: category.name, isActive: true }, KEY, CSRF, removal),
+      await updateCategory(
+        "masks",
+        { name: category.name, isActive: true, seo: emptySeo() },
+        KEY,
+        CSRF,
+        removal,
+      ),
     ).toMatchObject({ ok: true, data: { imageUrl: null } });
     expect(apiFetch).toHaveBeenLastCalledWith(
       "/api/v1/admin/categories/masks/",
       expect.objectContaining({
-        body: { name: category.name, is_active: true, remove_image: true },
+        body: { name: category.name, is_active: true, seo: emptySeo(), remove_image: true },
       }),
     );
     // A wrong type is refused before the round trip, on the picker's field.
@@ -579,7 +599,13 @@ describe("api mode (catalog actions wired)", () => {
     gif.set("image", new File(["x"], "c.gif", { type: "image/gif" }));
     const calls = apiFetch.mock.calls.length;
     expect(
-      await updateCategory("masks", { name: category.name, isActive: true }, KEY, CSRF, gif),
+      await updateCategory(
+        "masks",
+        { name: category.name, isActive: true, seo: emptySeo() },
+        KEY,
+        CSRF,
+        gif,
+      ),
     ).toMatchObject({ ok: false, fieldErrors: { image: "Faqat JPEG, PNG yoki WebP rasm." } });
     expect(apiFetch).toHaveBeenCalledTimes(calls);
 
@@ -823,6 +849,8 @@ describe("products", () => {
     promo: product.promo,
     status: "active",
     images: structuredClone(product.images),
+    slug: product.slug,
+    seo: structuredClone(product.seo),
   };
 
   it("saveProduct re-validates with productFormSchema and maps field errors", async () => {
@@ -857,7 +885,7 @@ describe("products", () => {
   it("saveProduct creates a hidden draft and later activates it by id", async () => {
     const created = await saveProduct(
       null,
-      { ...values, billzId: "123456789", status: "hidden", images: [] },
+      { ...values, billzId: "123456789", status: "hidden", images: [], slug: "" },
       null,
       KEY,
       CSRF,
@@ -866,10 +894,18 @@ describe("products", () => {
     if (!created.ok) return;
     expect(created.data.id).toBe("draft-123456789");
     expect(created.data.lastChange?.note).toBe("mahsulot yaratildi");
+    // No slug sent: derived from the Uzbek name, like the server's.
+    expect(created.data.slug).toBe(slugifyName(values.texts.uz.name));
 
     const activated = await saveProduct(
       created.data.id,
-      { ...values, billzId: "123456789", status: "active", images: [{ id: "img-1", label: "a" }] },
+      {
+        ...values,
+        billzId: "123456789",
+        status: "active",
+        images: [{ id: "img-1", label: "a" }],
+        slug: "",
+      },
       null,
       KEY,
       CSRF,
@@ -881,6 +917,50 @@ describe("products", () => {
     expect(await saveProduct("missing", values, null, KEY, CSRF)).toMatchObject({
       code: "not_found",
     });
+  });
+
+  it("saveProduct checks the slug and returns the recomputed «SEO holati» (B-W1)", async () => {
+    const other = PRODUCTS.find((p) => p.id !== product.id)!;
+    expect(
+      await saveProduct(product.id, { ...values, slug: other.slug }, null, KEY, CSRF),
+    ).toMatchObject({
+      ok: false,
+      fieldErrors: { slug: "Bu manzil (slug) boshqa mahsulotda bor." },
+    });
+    expect(
+      await saveProduct(product.id, { ...values, slug: "12345" }, null, KEY, CSRF),
+    ).toMatchObject({
+      ok: false,
+      fieldErrors: {
+        slug: "Faqat lotin kichik harflari, raqamlar va chiziqcha (faqat raqam emas).",
+      },
+    });
+    expect(
+      await saveProduct(
+        product.id,
+        { ...values, seo: { ...values.seo, uz: { title: "x".repeat(121), description: "" } } },
+        null,
+        KEY,
+        CSRF,
+      ),
+    ).toMatchObject({ ok: false, fieldErrors: { "seo.uz.title": "120 belgidan oshmasin." } });
+
+    const seo = {
+      uz: { title: "Gialuron serum — chuqur namlantirish", description: "d".repeat(120) },
+      ru: { title: "Сыворотка с гиалуроновой кислотой", description: "д".repeat(120) },
+      en: { title: "Hyaluronic serum, 30 ml", description: "e".repeat(120) },
+    };
+    const saved = await saveProduct(
+      product.id,
+      { ...values, slug: "yangi-manzil", seo },
+      null,
+      KEY,
+      CSRF,
+    );
+    expect(saved.ok).toBe(true);
+    if (!saved.ok) return;
+    expect(saved.data).toMatchObject({ slug: "yangi-manzil", seo });
+    expect(saved.data.seoStatus.issues.some((i) => i.code.startsWith("seo_"))).toBe(false);
   });
 
   it("image actions validate the file, ids and order", async () => {

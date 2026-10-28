@@ -24,7 +24,10 @@ import {
   TIME_FORMAT_MESSAGE,
   TIME_PATTERN,
 } from "@/domain/clinic";
+import { SPECIALIST_SLUG_MAX } from "@/domain/seo";
 import { PHONE_PATTERN } from "@/lib/phone";
+
+import { slugFieldSchema } from "./products.schema";
 
 /**
  * Validation of the specialists, services, schedules and clinic forms
@@ -72,6 +75,8 @@ export const specialistFormSchema = z.object({
   /** A staff account id, or `""` for none. */
   staffUserId: z.string().regex(/^(|[1-9]\d{0,17})$/, "Xodimni tanlang."),
   isActive: z.boolean(),
+  /** The website URL segment (B-W1); `""` on create = derived from the name. */
+  slug: slugFieldSchema(SPECIALIST_SLUG_MAX),
 });
 export type SpecialistFormValues = z.infer<typeof specialistFormSchema>;
 
@@ -85,6 +90,7 @@ export const EMPTY_SPECIALIST: SpecialistFormValues = {
   staffUserId: "",
   // Decision PS-6: a new specialist starts inactive (add the offer and the hours, then activate).
   isActive: false,
+  slug: "",
 };
 
 /* --- Offered services --- */

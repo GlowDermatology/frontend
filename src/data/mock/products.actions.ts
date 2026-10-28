@@ -1,5 +1,6 @@
 import type { Job } from "@/domain/job";
 import { BILLZ_UNAVAILABLE_MESSAGE, type Product, type ProductImage } from "@/domain/product";
+import { slugifyName } from "@/domain/seo";
 import { formatNumber } from "@/lib/format";
 
 import { referenceNow } from "../config";
@@ -13,6 +14,7 @@ import {
 } from "../products.schema";
 import type { ActionResult } from "../types";
 import { delay } from "./delay";
+import { PRODUCTS, withSeoStatus } from "./catalog";
 import { MOCK_FAILED_IMPORT_JOB_ID, MOCK_IMPORT_JOB_ID, runningImportJob } from "./jobs.queries";
 import { getProduct } from "./products.queries";
 
@@ -44,6 +46,16 @@ function changeNote(before: Product | null, values: ProductFormValues): string {
  */
 export const MOCK_BILLZ_DOWN_SUFFIX = "9999";
 
+/** The API's `unique` message for a product slug (contract §2.3). */
+export const PRODUCT_SLUG_TAKEN_MESSAGE = "Bu manzil (slug) boshqa mahsulotda bor.";
+
+/** The slug the save keeps: the typed one, else the stored one, else one derived like the server's. */
+function savedSlug(before: Product | null, data: ProductFormValues): string {
+  if (data.slug) return data.slug;
+  if (before?.slug) return before.slug;
+  return slugifyName(data.texts.uz.name) || `mahsulot-${data.billzId}`;
+}
+
 export async function saveProduct(
   id: string | null,
   data: ProductFormValues,
@@ -57,9 +69,17 @@ export async function saveProduct(
   if (billzChanged && data.billzId.endsWith(MOCK_BILLZ_DOWN_SUFFIX)) {
     return { ok: false, error: BILLZ_UNAVAILABLE_MESSAGE, code: "provider_unavailable" };
   }
+  const slug = savedSlug(before, data);
+  if (data.slug && PRODUCTS.some((p) => p.slug === slug && p.id !== before?.id)) {
+    return {
+      ok: false,
+      error: "Maydonlarni tekshiring.",
+      fieldErrors: { slug: PRODUCT_SLUG_TAKEN_MESSAGE },
+    };
+  }
   return {
     ok: true,
-    data: {
+    data: withSeoStatus({
       id: before?.id ?? id ?? `draft-${data.billzId}`,
       billzId: data.billzId,
       billzName: before && !billzChanged ? before.billzName : "",
@@ -79,7 +99,9 @@ export async function saveProduct(
         at: referenceNow().toISOString(),
         note: changeNote(before, data),
       },
-    },
+      slug,
+      seo: data.seo,
+    }),
   };
 }
 

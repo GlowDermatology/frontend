@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { ProductBaseline, ProductFormValues } from "@/data/products.schema";
 import type { ActionResult } from "@/data/types";
 import type { Product, ProductImage } from "@/domain/product";
+import { emptySeo } from "@/domain/seo";
 
 import {
   createPendingImages,
@@ -43,6 +44,9 @@ function product(overrides: Partial<Product> = {}): Product {
     texts: structuredClone(TEXTS),
     art: null,
     images: [image("1"), image("2")],
+    slug: "serum",
+    seo: emptySeo(),
+    seoStatus: { ok: true, issues: [] },
     ...overrides,
   };
 }
@@ -59,6 +63,8 @@ function formValues(
     promo: source.promo,
     status: source.status,
     images: structuredClone(source.images),
+    slug: source.slug,
+    seo: structuredClone(source.seo),
     ...overrides,
   };
 }

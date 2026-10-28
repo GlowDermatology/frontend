@@ -32,3 +32,11 @@ export function tashkentIso(input: string | Date): string {
 export function actorName(actor: { display_name: string } | null | undefined): string | null {
   return actor ? actor.display_name || null : null;
 }
+
+/**
+ * What the admin shows in a customer's phone column: the phone, else (hybrid
+ * identity, B-W2: a phoneless account) the e-mail address, else a dash.
+ */
+export function customerContact(phone: string | null, email?: string | null): string {
+  return phone || email || "—";
+}

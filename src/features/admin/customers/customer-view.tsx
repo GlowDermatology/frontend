@@ -18,7 +18,9 @@ import {
   DEVICE_PLATFORM_LABEL,
   lifetimeTotal,
   type Customer,
+  type CustomerSession,
 } from "@/domain/customer";
+import type { Page } from "@/data/types";
 import { cn } from "@/lib/cn";
 import {
   formatDateLong,
@@ -34,6 +36,7 @@ import {
 import { AdjustCashbackDialog } from "./adjust-cashback-dialog";
 import { balanceNote } from "./labels";
 import { LedgerTable, PurchasesTable } from "./ledger";
+import { SessionsSection } from "./sessions-section";
 
 const LANGUAGE_NAME = { uz: "O‘zbekcha", ru: "Ruscha", en: "Inglizcha" } as const;
 const LEDGER_PREVIEW = 6;
@@ -42,6 +45,8 @@ interface CustomerViewProps {
   customer: Customer;
   /** Render time, for "bugun, 09:12" in the device tab. */
   now: string;
+  /** First page of «Faol seanslar» (`null`: it could not be read). */
+  sessions: Page<CustomerSession> | null;
 }
 
 /** The card's ledger and balances, as last loaded or as the last adjustment left them. */
@@ -83,7 +88,7 @@ function Metric({
 const tabTrigger =
   "h-11 border-b-2 border-transparent px-3 text-[14px] leading-[18px] font-semibold text-ink transition-colors duration-150 hover:border-line-strong data-[state=active]:border-gold data-[state=active]:font-bold";
 
-export function CustomerView({ customer, now }: CustomerViewProps) {
+export function CustomerView({ customer, now, sessions }: CustomerViewProps) {
   const toast = useToast();
   // Reset the local ledger whenever the server sends the card again (api
   // mode re-renders the route after an adjustment, so the new props already
@@ -309,7 +314,7 @@ export function CustomerView({ customer, now }: CustomerViewProps) {
                       )}
                     >
                       <Icon
-                        name="phone"
+                        name={row.platform === "web" ? "monitor" : "smartphone"}
                         size={24}
                         className={cn(
                           "shrink-0",
@@ -321,7 +326,8 @@ export function CustomerView({ customer, now }: CustomerViewProps) {
                           {DEVICE_PLATFORM_LABEL[row.platform]} · {row.model} · {row.os}
                         </span>
                         <span className="text-caption font-normal text-ink-muted tabular-nums">
-                          Ilova {row.appVersion} · oxirgi faollik{" "}
+                          {row.platform === "web" ? "Brauzer" : `Ilova ${row.appVersion}`} · oxirgi
+                          faollik{" "}
                           <time dateTime={row.lastActiveAt}>{lastActive(row.lastActiveAt)}</time> ·
                           push {row.pushEnabled ? "yoqilgan" : "o‘chirilgan"}
                         </span>
@@ -339,8 +345,8 @@ export function CustomerView({ customer, now }: CustomerViewProps) {
               )}
               <p className="m-0 flex gap-2.5 text-body-sm leading-5 text-ink-muted">
                 <Icon name="info" size={18} className="mt-px shrink-0 text-gold-ink" />
-                Bitta hisob — bitta faol qurilma. Yangi qurilmadan kirilganda bu sessiya tugatiladi
-                va eski qurilmada “Hisobingizga boshqa qurilmadan kirildi” xabari chiqadi.
+                Mijoz bir vaqtda bir nechta telefon va brauzerda kirgan bo‘lishi mumkin. Ularni
+                quyidagi «Faol seanslar» bo‘limida ko‘rish va tugatish mumkin.
               </p>
             </Tabs.Content>
           </section>
@@ -387,6 +393,8 @@ export function CustomerView({ customer, now }: CustomerViewProps) {
           </p>
         </Card>
       </div>
+
+      <SessionsSection customerId={customer.id} initial={sessions} deleted={deleted} />
 
       {adjustable && (
         <AdjustCashbackDialog

@@ -397,7 +397,7 @@ describe("shipment, cashback and percent", () => {
   it("names a deleted customer", () => {
     const summary = mapOrderSummary({
       ...order10248,
-      customer: { id: 13, name: "", phone: "+998900000013" },
+      customer: { id: 13, name: "", phone: "+998900000013", email: null },
     });
     expect(summary.customer.name).toBe("O‘chirilgan mijoz");
   });

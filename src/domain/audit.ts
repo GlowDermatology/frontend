@@ -117,6 +117,9 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   "settings.updated": "Sozlamalar o‘zgartirildi",
   "export.downloaded": "Eksport yuklab olindi",
   // Django admin (editable models), incl. working_hours_override.* (T13)
+  // Customers (B-W1: a session signed out by staff, or by the customer from «Faol seanslar»)
+  "customer.session_revoked": "Mijoz seansi tugatildi",
+  "customer.sessions_revoked": "Mijoz seanslari tugatildi",
   ...modelActions(),
 };
 
@@ -139,6 +142,7 @@ export const AUDIT_ACTION_GROUPS: ReadonlyArray<{
   { label: "Buyurtmalar", prefixes: ["order.", "refund."] },
   { label: "Katalog", prefixes: ["product.", "billz.", "category.", "banner."] },
   { label: "Cashback", prefixes: ["cashback.", "loyalty."] },
+  { label: "Mijozlar", prefixes: ["customer."] },
   { label: "Bildirishnomalar", prefixes: ["notification.", "notification_template.", "segment."] },
   { label: "Qabullar", prefixes: ["appointment."] },
   { label: "Sozlamalar va eksport", prefixes: ["settings.", "export."] },

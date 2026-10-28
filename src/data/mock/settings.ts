@@ -11,7 +11,7 @@ export const MOCK_SETTINGS: SiteSettings = {
   instagramUrl: "https://instagram.com/glowderma",
   websiteUrl: "https://glowderma.uz",
   terms: {
-    uz: "Glow Derma ilovasidan foydalanish shartlari.\n\nNamuna matn (demo): haqiqiy matnni Sozlamalar bo‘limida kiriting.",
+    uz: "Glow Derma xizmatlaridan foydalanish shartlari.\n\nNamuna matn (demo): haqiqiy matnni Sozlamalar bo‘limida kiriting.",
     ru: "Условия использования приложения Glow Derma.\n\nДемонстрационный текст: настоящий текст вводится в разделе «Настройки».",
     en: "Glow Derma app terms of use.\n\nDemo text: enter the real text under Settings.",
   },
@@ -21,7 +21,7 @@ export const MOCK_SETTINGS: SiteSettings = {
     en: "Privacy policy: your personal data is stored in Uzbekistan.\n\nDemo text: enter the real text under Settings.",
   },
   bookingPolicy: {
-    uz: "Qabulni boshlanishidan oldin istalgan vaqtda bepul bekor qilishingiz mumkin.",
+    uz: "Qabul boshlanishidan oldin istalgan vaqtda bepul bekor qilishingiz mumkin.",
     ru: "Запись можно бесплатно отменить в любое время до её начала.",
     en: "You can cancel a booking free of charge at any time before it starts.",
   },

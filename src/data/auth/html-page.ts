@@ -40,10 +40,10 @@ export function htmlPage(
  * SameSite=Strict session cookies are absent on such a navigation, and a
  * navigation started by this page carries them.
  */
-export function sameOriginBounce(selfPath: string): NextResponse {
+export function sameOriginBounce(selfPath: string, title = "Glow Derma Admin"): NextResponse {
   const self = escapeHtml(selfPath);
   return htmlPage(
-    "Glow Derma Admin",
+    title,
     `<meta http-equiv="refresh" content="0;url=${self}"><p>Yo‘naltirilmoqda…</p><p><a href="${self}">Davom etish</a></p>`,
     { status: 200 },
   );

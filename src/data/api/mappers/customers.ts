@@ -3,6 +3,7 @@ import type {
   Customer,
   CustomerListQuery,
   CustomerPurchase,
+  CustomerSession,
   CustomerSort,
   CustomerTier,
 } from "@/domain/customer";
@@ -12,12 +13,13 @@ import type { QueryValue } from "../client";
 import type {
   ApiCustomerCard,
   ApiCustomerOrdering,
+  ApiCustomerSession,
   ApiCustomerTier,
   ApiLedgerEntry,
   ApiPurchase,
 } from "../types";
 import { DELETED_CUSTOMER_NAME } from "./appointments";
-import { idString, nullToUndefined } from "./common";
+import { idString, nullToUndefined, customerContact } from "./common";
 
 /**
  * Customers (contract §2.6) → the FE domain types, per the §5.3 display
@@ -106,7 +108,7 @@ export function mapCustomerCard(api: ApiCustomerCard): Customer {
   return {
     id: idString(api.id),
     name: api.name || DELETED_CUSTOMER_NAME,
-    phone: api.phone,
+    phone: customerContact(api.phone, api.email),
     status: api.status,
     registeredAt: api.registered_at,
     deletedAt: nullToUndefined(api.deleted_at),
@@ -148,6 +150,18 @@ export function mapCustomerCard(api: ApiCustomerCard): Customer {
       lastActiveAt: row.last_active_at,
       createdAt: row.created_at,
     })),
+  };
+}
+
+/** `AdminCustomerSession` (§2.6, B-W1) → `CustomerSession`; an empty location reads "—". */
+export function mapCustomerSession(api: ApiCustomerSession): CustomerSession {
+  return {
+    id: api.id,
+    device: api.device,
+    platform: api.platform ?? null,
+    location: api.location || "—",
+    createdAt: api.created_at,
+    updatedAt: api.updated_at,
   };
 }
 

@@ -67,6 +67,7 @@ export function mapClinicSpecialist(api: ApiClinicSpecialist): ClinicSpecialist 
       ? { id: idString(api.staff_user.id), name: api.staff_user.display_name }
       : null,
     slotStepMin: api.slot_step_min,
+    slug: api.slug ?? "",
     position: api.position,
     isActive: api.is_active,
     services: api.services.map((offer) => ({
@@ -189,6 +190,7 @@ export function specialistFormValues(specialist: ClinicSpecialist): SpecialistFo
     slotStepMin: step as SpecialistFormValues["slotStepMin"],
     staffUserId: specialist.staffUser?.id ?? "",
     isActive: specialist.isActive,
+    slug: specialist.slug,
   };
 }
 
@@ -219,7 +221,7 @@ export function locationFormValues(location: ClinicLocation | null): LocationFor
 const staffUserId = (value: string): number | null => (value ? Number(value) : null);
 
 export function specialistCreateBody(values: SpecialistFormValues): ApiSpecialistWrite {
-  return {
+  const body: ApiSpecialistWrite = {
     name: values.name,
     role: values.role,
     qualifications: { ...values.qualifications },
@@ -229,6 +231,9 @@ export function specialistCreateBody(values: SpecialistFormValues): ApiSpecialis
     staff_user_id: staffUserId(values.staffUserId),
     is_active: values.isActive,
   };
+  // An empty slug lets the server derive it from the name (B-W1).
+  if (values.slug) body.slug = values.slug;
+  return body;
 }
 
 function changedLeaves(before: I18n | null, after: I18n): Partial<I18n> | undefined {
@@ -263,6 +268,8 @@ export function specialistPatchBody(
   if (values.staffUserId !== baseline.staffUserId) {
     body.staff_user_id = staffUserId(values.staffUserId);
   }
+  // `""` keeps the stored slug (the server refuses an empty one).
+  if (values.slug && values.slug !== baseline.slug) body.slug = values.slug;
   if (values.isActive !== baseline.isActive) {
     body.is_active = values.isActive;
     if (!values.isActive && force) body.force = true;

@@ -3,8 +3,8 @@
  * GENERATED FILE — do not edit by hand. Regenerate with `npm run gen:api`.
  *
  * Source: openapi/schema.yaml of the backend repository
- * Commit: 4d4a5aa2e8139c44c2790b9ab9de3dfb0cabb623
- * Generated: 2026-10-26T23:51:02.552Z (openapi-typescript)
+ * Commit: 13c250b8a79431c9e9ea3a64011231fb963401f0
+ * Generated: 2026-10-27T23:35:12.199Z (openapi-typescript)
  */
 
 export interface paths {
@@ -380,7 +380,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description `search`: the name contains the term, or (≥ 3 digits) the phone contains its digits. `segment`: segment membership (rules or manual, active customers only). Orderings tie by `id`. */
+        /** @description `search`: the name contains the term, or (≥ 3 digits) the phone contains its digits, or (≥ 3 characters) the e-mail address contains it. `segment`: segment membership (rules or manual, active customers only). Orderings tie by `id`. Accounts without a phone yet show `phone: null` and their `email` (exports put the e-mail in the phone column). */
         get: operations["admin_customers_list"];
         put?: never;
         post?: never;
@@ -419,6 +419,40 @@ export interface paths {
         /** @description Checks in order: `amount` 1..10 000 000 ("Summani kiriting."), `reason` trimmed 3..300 ("Sababni kiriting."), then for `subtract` `amount ≤ available` under the account lock ("Balans manfiy bo‘lib qoladi."). Allowed for deleted customers. */
         post: operations["admin_customers_cashback_adjustments_create"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/customers/{id}/sessions/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The customer's open sessions (signed-in phones and browsers), most recently active first. */
+        get: operations["admin_customers_sessions_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/customers/{id}/sessions/{session_id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** @description Sign one session of the customer out (reason `admin_revoked`; the device stops receiving pushes when no other session is left on it). Unknown or already ended session → 404. */
+        delete: operations["admin_customers_sessions_destroy"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1214,7 +1248,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Book a slot (`requested`; staff confirm it). Checks in order: specialist, service, consent, open appointments limit, then the start (aware, lead time, horizon, grid, hours, busy, own overlap); a lost race answers 409 `slot_taken`. */
+        /** @description Book a slot (`requested`; staff confirm it). 409 `phone_required` first while the account has no verified phone (`me/phone/`). Checks in order: specialist, service, consent, open appointments limit, then the start (aware, lead time, horizon, grid, hours, busy, own overlap); a lost race answers 409 `slot_taken`. */
         post: operations["customer_appointments_create"];
         delete?: never;
         options?: never;
@@ -1573,6 +1607,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/catalog/products/{slug}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description One visible product by its website slug (B-W1); the same shape as the id route. */
+        get: operations["customer_catalog_products_by_slug_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/delivery/calculate/": {
         parameters: {
             query?: never;
@@ -1806,6 +1857,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/email/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Attach (or replace) the verified e-mail address with its code; re-authentication as `me/phone/`. → 200 `Me`. */
+        post: operations["customer_me_email_attach"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/email/code/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Send a `verify_email` code to the address to attach (or to replace the current one). 409 `conflict` when it already is the account's address, `email_taken` when another account has it. */
+        post: operations["customer_me_email_code"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/image/": {
         parameters: {
             query?: never;
@@ -1960,6 +2045,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/phone/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Attach the phone with its SMS code. Re-authentication (`password`, or a `reset_password` `verification_token` of the account's own e-mail without a password) unless the session signed in within 10 minutes; an account with neither answers `reauth_required` once that window is over. → 200 `Me` with the phone set (checkout, pay, booking and the QR open up). */
+        post: operations["customer_me_phone_attach"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/phone/code/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Send an `attach_phone` SMS code to the phone a phoneless account wants to attach (every OTP limit of `auth/send-code/`). 409 `conflict` when the account has a phone, `phone_taken` when another account (active or deleted) holds the number: no merge, the customer signs in with that phone. */
+        post: operations["customer_me_phone_code"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/qr/": {
         parameters: {
             query?: never;
@@ -1967,10 +2086,61 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description A fresh single-use personal QR token (60 s; at most two live tokens per customer). Request a new one every `refresh_in_seconds` and whenever the screen regains focus. */
+        /** @description A fresh single-use personal QR token (60 s; at most two live tokens per customer). Request a new one every `refresh_in_seconds` and whenever the screen regains focus. 409 `phone_required` while the account has no verified phone (`me/phone/`). */
         get: operations["customer_qr_retrieve"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/sessions/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Every open session of the customer (each signed-in phone or browser), most recently active first; `current` marks the caller's own. */
+        get: operations["customer_sessions_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/sessions/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** @description Sign one session out (the row menu «Chiqish»). The caller's own session may be named too: it is a logout. Unknown, already ended or another customer's session → 404. */
+        delete: operations["customer_sessions_destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/sessions/revoke-others/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description «Boshqa qurilmalardan chiqish»: every session but the caller's own ends. */
+        post: operations["customer_sessions_revoke_others"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2184,6 +2354,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/specialists/{slug}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description One active specialist by its website slug (B-W1; 404 when inactive or unknown). */
+        get: operations["customer_specialists_by_slug_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/webhooks/bts/": {
         parameters: {
             query?: never;
@@ -2300,6 +2487,19 @@ export interface components {
          * @enum {string}
          */
         AdjustmentDirectionEnum: "add" | "subtract";
+        /** @description One open session of the customer (``CustomerSession`` without ``current``). */
+        AdminCustomerSession: {
+            /** Format: date-time */
+            created_at: string;
+            device: string;
+            /** Format: uuid */
+            id: string;
+            /** @description "Tashkent, Tashkent, UZ"; "—" when unknown. */
+            location: string;
+            platform: (components["schemas"]["OrderChannelEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** Format: date-time */
+            updated_at: string;
+        };
         /**
          * @description * `customer` - customer
          *     * `admin` - admin
@@ -2693,6 +2893,8 @@ export interface components {
             readonly name: components["schemas"]["I18nText60"];
             position: number;
             product_count: number;
+            readonly seo: components["schemas"]["SeoTexts"];
+            readonly seo_status: components["schemas"]["SeoStatus"];
             slug: string;
             /** Format: date-time */
             updated_at: string;
@@ -2704,6 +2906,12 @@ export interface components {
             "name.en"?: string;
             "name.ru"?: string;
             "name.uz": string;
+            "seo.en.description"?: string;
+            "seo.en.title"?: string;
+            "seo.ru.description"?: string;
+            "seo.ru.title"?: string;
+            "seo.uz.description"?: string;
+            "seo.uz.title"?: string;
             slug: string;
         };
         /**
@@ -2732,6 +2940,7 @@ export interface components {
             /** @default true */
             is_active: boolean;
             name: components["schemas"]["CategoryNameRequest"];
+            seo?: components["schemas"]["SeoTextsRequest"];
             slug: string;
         };
         ChangePasswordRequest: {
@@ -2811,6 +3020,8 @@ export interface components {
             role: components["schemas"]["SpecialistRoleEnum"];
             services: components["schemas"]["OfferedService"][];
             slot_step_min: number;
+            /** @description The website URL segment (B-W1): unique, editable. */
+            slug: string;
             staff_user: components["schemas"]["Actor"] | null;
             readonly upcoming_appointments: number;
             /** Format: date-time */
@@ -2836,14 +3047,19 @@ export interface components {
             role: components["schemas"]["SpecialistRoleEnum"];
             /** @description The customer slot grid in minutes: 10, 15, 20, 30 (default) or 60. */
             slot_step_min?: number;
+            /** @description Optional on create (derived from the name). */
+            slug?: string;
             /** @description An active staff account, or null. */
             staff_user_id?: number | null;
         };
         CodeIssue: {
             attempts: number;
+            /** @description The code went by e-mail; else null. */
+            email_mask: string | null;
             expires_in: number;
             length: number;
-            phone_mask: string;
+            /** @description The code went by SMS; else null. */
+            phone_mask: string | null;
             purpose: components["schemas"]["OtpPurposeEnum"];
             resend_in: number;
         };
@@ -2940,6 +3156,8 @@ export interface components {
             deleted_at: string | null;
             device: components["schemas"]["CustomerDevice"] | null;
             devices: components["schemas"]["CustomerDeviceRow"][];
+            /** @description Verified e-mail address | null. */
+            email: string | null;
             groups: components["schemas"]["CustomerGroup"][];
             held: number;
             id: number;
@@ -2947,7 +3165,8 @@ export interface components {
             ledger: components["schemas"]["LedgerEntry"][];
             name: string;
             online_orders: components["schemas"]["OnlineOrders"];
-            phone: string;
+            /** @description Null for an account without a phone yet. */
+            phone: string | null;
             purchases: components["schemas"]["Purchase"][];
             /** Format: date-time */
             registered_at: string;
@@ -3000,11 +3219,23 @@ export interface components {
             volume: string;
         };
         CustomerCategory: {
+            /**
+             * @description Language of `name`: the requested language, or `uz` when it fell back to Uzbek.
+             *
+             *     * `uz` - uz
+             *     * `ru` - ru
+             *     * `en` - en
+             */
+            content_language: components["schemas"]["ContentLanguageEnum"];
             /** Format: uri */
             image_url: string | null;
             name: string;
             product_count: number;
+            seo_description: string;
+            seo_title: string;
             slug: string;
+            /** Format: date-time */
+            updated_at: string;
         };
         CustomerCategoryList: {
             results: components["schemas"]["CustomerCategory"][];
@@ -3081,7 +3312,7 @@ export interface components {
              */
             created_at: string;
             id: number;
-            /** @description `false` after a logout, a sign-in elsewhere or the deletion. */
+            /** @description `false` once no session is left on it (a logout, a session signed out, a password reset or change elsewhere) or after the deletion (B-W1: several devices may be active). */
             is_active: boolean;
             /** Format: date-time */
             last_active_at: string;
@@ -3112,25 +3343,46 @@ export interface components {
          */
         CustomerListItem: {
             balance: number;
+            /** @description Verified e-mail address | null. */
+            email: string | null;
             id: number;
             lifetime_total: number;
             name: string;
             online_orders_count: number;
             /** Format: decimal */
             percent: string | null;
-            phone: string;
+            /** @description Null for an account without a phone yet. */
+            phone: string | null;
             /** Format: date-time */
             registered_at: string;
             status: components["schemas"]["CustomerStatusEnum"];
         };
+        /**
+         * @description ``phone`` **or** ``email`` (hybrid identity, customer contract §2.1): exactly one per call. Neither →
+         *     ``phone`` ``required`` (``field.identifier_required``); both → ``email`` ``invalid``
+         *     (``field.identifier_ambiguous``). ``validated_data["identifier"]`` is the one given (an address holds
+         *     ``@``, a phone never does).
+         */
         CustomerLoginRequest: {
+            email?: string | null;
             password: string;
-            phone: string;
+            phone?: string | null;
             verification_token?: string | null;
+        };
+        /**
+         * @description ``auth/logout/`` (B-W1): ``current`` = this session, ``others`` = every other session, ``all`` =
+         *     everywhere.
+         */
+        CustomerLogoutRequest: {
+            refresh: string;
+            /** @default current */
+            scope: components["schemas"]["LogoutScopeEnum"];
         };
         CustomerMe: {
             consent: components["schemas"]["ConsentState"];
             default_address: components["schemas"]["CustomerAddress"] | null;
+            /** @description Verified e-mail address (lower case) | null. */
+            email: string | null;
             has_password: boolean;
             id: number;
             /** Format: uri */
@@ -3138,7 +3390,8 @@ export interface components {
             language: components["schemas"]["ContentLanguageEnum"];
             linked_providers: components["schemas"]["CustomerSocialProviderEnum"][];
             name: string;
-            phone: string;
+            /** @description Verified phone; null until attached (checkout, pay, booking, QR need it). */
+            phone: string | null;
             push_enabled: boolean;
             /** Format: date-time */
             registered_at: string;
@@ -3229,13 +3482,14 @@ export interface components {
             step: components["schemas"]["ProgressStepEnum"];
         };
         /**
-         * @description ``CustomerRef = {"id", "name", "phone"}`` (contract §2.0); ``name`` is ``""`` once the customer is
-         *     deleted (scrubbed).
+         * @description ``CustomerRef = {"id", "name", "phone", "email"}`` (contract §2.0); ``name`` is ``""`` once the
+         *     customer is deleted (scrubbed).
          */
         CustomerRef: {
+            email: string | null;
             id: number;
             name: string;
-            phone: string;
+            phone: string | null;
         };
         CustomerRefreshRequest: {
             refresh: string;
@@ -3255,6 +3509,28 @@ export interface components {
          * @enum {string}
          */
         CustomerRefundStateEnum: "in_progress" | "completed";
+        /** @description One signed-in device of the customer (``CustomerSession``). */
+        CustomerSession: {
+            /**
+             * Format: date-time
+             * @description The sign-in.
+             */
+            created_at: string;
+            /** @description This request's own session. */
+            current: boolean;
+            /** @description "Chrome (Windows)", "Glow Derma iOS (iPhone 15)". */
+            device: string;
+            /** Format: uuid */
+            id: string;
+            /** @description "Tashkent, Tashkent, UZ"; "—" when unknown. */
+            location: string;
+            platform: (components["schemas"]["OrderChannelEnum"] | components["schemas"]["NullEnum"]) | null;
+            /**
+             * Format: date-time
+             * @description The last activity (recorded at most every 5 minutes).
+             */
+            updated_at: string;
+        };
         CustomerShipment: {
             carrier: string;
             tracking_number: string;
@@ -3781,9 +4057,34 @@ export interface components {
             /** Format: date-time */
             session_expires_at: string;
         };
+        /** @description ``POST me/email/code/``. */
+        MeEmailCodeRequest: {
+            email: string;
+        };
+        /**
+         * @description ``POST me/email/``: the address, its e-mail code and, unless the session is fresh, the
+         *     re-authentication.
+         */
+        MeEmailRequest: {
+            code: string;
+            email: string;
+            password?: string | null;
+            verification_token?: string | null;
+        };
         MePasswordRequest: {
             current_password?: string | null;
             password: string;
+            verification_token?: string | null;
+        };
+        /** @description ``POST me/phone/code/``. */
+        MePhoneCodeRequest: {
+            phone: string;
+        };
+        /** @description ``POST me/phone/``: the phone, its SMS code and, unless the session is fresh, the re-authentication. */
+        MePhoneRequest: {
+            code: string;
+            password?: string | null;
+            phone: string;
             verification_token?: string | null;
         };
         MeSocialLinkRequest: {
@@ -3980,9 +4281,10 @@ export interface components {
         /**
          * @description * `ios` - ios
          *     * `android` - android
+         *     * `web` - web
          * @enum {string}
          */
-        OrderChannelEnum: "ios" | "android";
+        OrderChannelEnum: "ios" | "android" | "web";
         /** @description Contract ``Order`` = ``OrderSummary`` + the detail keys (rendered from ``selectors.order_detail``). */
         OrderDetail: {
             readonly address: string | null;
@@ -4088,9 +4390,18 @@ export interface components {
          *     * `login_new_device` - login_new_device
          *     * `reset_password` - reset_password
          *     * `link_social` - link_social
+         *     * `verify_email` - verify_email
+         *     * `attach_phone` - attach_phone
          * @enum {string}
          */
-        OtpPurposeEnum: "register" | "login_new_device" | "reset_password" | "link_social";
+        OtpPurposeEnum: "register" | "login_new_device" | "reset_password" | "link_social" | "verify_email" | "attach_phone";
+        PaginatedAdminCustomerSessionList: {
+            count: number;
+            page: number;
+            page_count: number;
+            page_size: number;
+            results: components["schemas"]["AdminCustomerSession"][];
+        };
         PaginatedAuditEntryList: {
             count: number;
             page: number;
@@ -4153,6 +4464,13 @@ export interface components {
             page_count: number;
             page_size: number;
             results: components["schemas"]["CustomerOrderSummary"][];
+        };
+        PaginatedCustomerSessionList: {
+            count: number;
+            page: number;
+            page_count: number;
+            page_size: number;
+            results: components["schemas"]["CustomerSession"][];
         };
         PaginatedHoursOverrideList: {
             count: number;
@@ -4281,6 +4599,12 @@ export interface components {
             "name.ru"?: string;
             "name.uz"?: string;
             remove_image?: boolean;
+            "seo.en.description"?: string;
+            "seo.en.title"?: string;
+            "seo.ru.description"?: string;
+            "seo.ru.title"?: string;
+            "seo.uz.description"?: string;
+            "seo.uz.title"?: string;
         };
         /**
          * @description ``PATCH categories/{slug}/``: every field optional; ``remove_image: true`` drops the stored image
@@ -4292,6 +4616,7 @@ export interface components {
             name?: components["schemas"]["CategoryNameRequest"];
             /** @default false */
             remove_image: boolean;
+            seo?: components["schemas"]["SeoTextsRequest"];
             slug?: string;
         };
         /**
@@ -4343,6 +4668,8 @@ export interface components {
             role?: components["schemas"]["SpecialistRoleEnum"];
             /** @description The customer slot grid in minutes: 10, 15, 20, 30 (default) or 60. */
             slot_step_min?: number;
+            /** @description Optional on create (derived from the name). */
+            slug?: string;
             /** @description An active staff account, or null. */
             staff_user_id?: number | null;
         };
@@ -4366,6 +4693,9 @@ export interface components {
             price?: number;
             /** @default false */
             promo: boolean;
+            seo?: components["schemas"]["SeoTextsRequest"];
+            /** @description Optional on create (derived from the Uzbek name). */
+            slug?: string;
             /** @default hidden */
             status: components["schemas"]["ProductStatusEnum"];
             texts?: components["schemas"]["ProductTextsPatchRequest"];
@@ -4519,6 +4849,10 @@ export interface components {
             readonly main_image_url: string | null;
             price: number;
             promo: boolean;
+            readonly seo: components["schemas"]["SeoTexts"];
+            readonly seo_status: components["schemas"]["SeoStatus"];
+            /** @description The website URL segment (B-W1): unique, editable. */
+            slug: string;
             status: components["schemas"]["ProductStatusEnum"];
             readonly stock: number;
             readonly texts: components["schemas"]["ProductTexts"];
@@ -4529,6 +4863,14 @@ export interface components {
         ProductCard: {
             available: number;
             category: components["schemas"]["ProductCategory"] | null;
+            /**
+             * @description Language of `name` (and, where set, the other texts): the requested language, or `uz` when the name fell back to Uzbek or to the Billz name.
+             *
+             *     * `uz` - uz
+             *     * `ru` - ru
+             *     * `en` - en
+             */
+            content_language: components["schemas"]["ContentLanguageEnum"];
             id: number;
             in_cart_quantity: number;
             /** Format: uri */
@@ -4536,7 +4878,16 @@ export interface components {
             name: string;
             price: number;
             promo: boolean;
+            /** @description The Billz product id / barcode (`billz_id`), the shop's article code; null if unknown. */
+            sku: string | null;
+            /** @description The website URL segment (B-W1); `catalog/products/{slug}/`. */
+            slug: string;
             stock_status: components["schemas"]["StockStatusEnum"];
+            /**
+             * Format: date-time
+             * @description Last change of the product page (sitemap `lastmod`).
+             */
+            updated_at: string;
             volume: string;
         };
         ProductCategory: {
@@ -4557,6 +4908,14 @@ export interface components {
         ProductDetail: {
             available: number;
             category: components["schemas"]["ProductCategory"] | null;
+            /**
+             * @description Language of `name` (and, where set, the other texts): the requested language, or `uz` when the name fell back to Uzbek or to the Billz name.
+             *
+             *     * `uz` - uz
+             *     * `ru` - ru
+             *     * `en` - en
+             */
+            content_language: components["schemas"]["ContentLanguageEnum"];
             description: string;
             id: number;
             images: components["schemas"]["CustomerProductImage"][];
@@ -4568,7 +4927,20 @@ export interface components {
             name: string;
             price: number;
             promo: boolean;
+            /** @description Staff-written meta description; "" = none. */
+            seo_description: string;
+            /** @description Staff-written page title in this language; "" = none. */
+            seo_title: string;
+            /** @description The Billz product id / barcode (`billz_id`), the shop's article code; null if unknown. */
+            sku: string | null;
+            /** @description The website URL segment (B-W1); `catalog/products/{slug}/`. */
+            slug: string;
             stock_status: components["schemas"]["StockStatusEnum"];
+            /**
+             * Format: date-time
+             * @description Last change of the product page (sitemap `lastmod`).
+             */
+            updated_at: string;
             usage: string;
             volume: string;
         };
@@ -4661,6 +5033,9 @@ export interface components {
             price: number;
             /** @default false */
             promo: boolean;
+            seo?: components["schemas"]["SeoTextsRequest"];
+            /** @description Optional on create (derived from the Uzbek name). */
+            slug?: string;
             /** @default hidden */
             status: components["schemas"]["ProductStatusEnum"];
             texts: components["schemas"]["ProductTextsRequest"];
@@ -4688,6 +5063,7 @@ export interface components {
             billz: components["schemas"]["IntegrationModeEnum"];
             bts: components["schemas"]["IntegrationModeEnum"];
             click: components["schemas"]["IntegrationModeEnum"];
+            email: components["schemas"]["IntegrationModeEnum"];
             eskiz: components["schemas"]["IntegrationModeEnum"];
             fcm: components["schemas"]["IntegrationModeEnum"];
             oauth: components["schemas"]["IntegrationModeEnum"];
@@ -4870,6 +5246,9 @@ export interface components {
             /** @description `succeeded` or `failed` */
             state: string;
         };
+        RevokedSessions: {
+            revoked: number;
+        };
         /** @description ``GET specialists/{id}/conflicts/``: open future appointments the schedule no longer covers. */
         ScheduleConflicts: {
             results: components["schemas"]["AppointmentItem"][];
@@ -4908,10 +5287,91 @@ export interface components {
             name: string;
             rules?: components["schemas"]["SegmentRulesRequest"];
         };
+        /**
+         * @description ``phone`` **or** ``email`` (hybrid identity, customer contract §2.1): exactly one per call. Neither →
+         *     ``phone`` ``required`` (``field.identifier_required``); both → ``email`` ``invalid``
+         *     (``field.identifier_ambiguous``). ``validated_data["identifier"]`` is the one given (an address holds
+         *     ``@``, a phone never does).
+         */
         SendCodeRequest: {
-            phone: string;
+            email?: string | null;
+            phone?: string | null;
             purpose: components["schemas"]["OtpPurposeEnum"];
             social_ticket?: string | null;
+        };
+        SeoIssue: {
+            code: components["schemas"]["SeoIssueCodeEnum"];
+            language: (components["schemas"]["ContentLanguageEnum"] | components["schemas"]["NullEnum"]) | null;
+            message: string;
+            severity: components["schemas"]["SeoSeverityEnum"];
+        };
+        /**
+         * @description * `name_missing` - name_missing
+         *     * `name_translation_missing` - name_translation_missing
+         *     * `description_missing` - description_missing
+         *     * `description_short` - description_short
+         *     * `images_missing` - images_missing
+         *     * `alt_text_fallback` - alt_text_fallback
+         *     * `category_missing` - category_missing
+         *     * `seo_title_missing` - seo_title_missing
+         *     * `seo_title_short` - seo_title_short
+         *     * `seo_title_long` - seo_title_long
+         *     * `seo_description_missing` - seo_description_missing
+         *     * `seo_description_short` - seo_description_short
+         *     * `seo_description_long` - seo_description_long
+         *     * `image_missing` - image_missing
+         *     * `no_active_products` - no_active_products
+         * @enum {string}
+         */
+        SeoIssueCodeEnum: "name_missing" | "name_translation_missing" | "description_missing" | "description_short" | "images_missing" | "alt_text_fallback" | "category_missing" | "seo_title_missing" | "seo_title_short" | "seo_title_long" | "seo_description_missing" | "seo_description_short" | "seo_description_long" | "image_missing" | "no_active_products";
+        /**
+         * @description * `error` - error
+         *     * `warning` - warning
+         *     * `info` - info
+         * @enum {string}
+         */
+        SeoSeverityEnum: "error" | "warning" | "info";
+        /**
+         * @description «SEO holati» (B-W1): ``ok`` = no error and no warning; ``issues`` errors first, then warnings, then
+         *     hints (``info``: a fallback is used).
+         */
+        SeoStatus: {
+            issues: components["schemas"]["SeoIssue"][];
+            ok: boolean;
+        };
+        /**
+         * @description One language of ``seo`` (B-W1): the page ``title`` (≤120) and meta ``description`` (≤300); ``""`` =
+         *     the website builds one from the name and description.
+         */
+        SeoText: {
+            description?: string;
+            title?: string;
+        };
+        /**
+         * @description One language of ``seo`` (B-W1): the page ``title`` (≤120) and meta ``description`` (≤300); ``""`` =
+         *     the website builds one from the name and description.
+         */
+        SeoTextRequest: {
+            description?: string;
+            title?: string;
+        };
+        /**
+         * @description Language-first ``seo`` ``{uz: {title, description}, ru: …, en: …}``; every language and leaf optional
+         *     on write (merged leaf by leaf, like ``texts``).
+         */
+        SeoTexts: {
+            en?: components["schemas"]["SeoText"];
+            ru?: components["schemas"]["SeoText"];
+            uz?: components["schemas"]["SeoText"];
+        };
+        /**
+         * @description Language-first ``seo`` ``{uz: {title, description}, ru: …, en: …}``; every language and leaf optional
+         *     on write (merged leaf by leaf, like ``texts``).
+         */
+        SeoTextsRequest: {
+            en?: components["schemas"]["SeoTextRequest"];
+            ru?: components["schemas"]["SeoTextRequest"];
+            uz?: components["schemas"]["SeoTextRequest"];
         };
         /**
          * @description * `dermatology` - dermatology
@@ -5062,7 +5522,7 @@ export interface components {
             password?: string | null;
             social_ticket: string;
             terms_version?: string | null;
-            verification_token: string;
+            verification_token?: string | null;
         };
         /**
          * @description * `google` - google
@@ -5085,6 +5545,8 @@ export interface components {
         SocialTokenTypeEnum: "id_token" | "access_token";
         Specialist: {
             readonly bio: string;
+            /** @description Language of `bio` (else of `qualifications`): the requested language, or `uz` when it fell back to Uzbek. `name` is the same in every language. */
+            readonly content_language: components["schemas"]["ContentLanguageEnum"];
             experience_years: number | null;
             id: number;
             location: components["schemas"]["Location"];
@@ -5095,6 +5557,13 @@ export interface components {
             readonly role_label: string;
             readonly services: components["schemas"]["SpecialistService"][];
             slot_step_min: number;
+            /** @description The website URL segment (B-W1); `specialists/{slug}/`. */
+            slug: string;
+            /**
+             * Format: date-time
+             * @description Last change of the specialist (sitemap `lastmod`).
+             */
+            updated_at: string;
         };
         SpecialistDay: {
             blocks: components["schemas"]["DayBlock"][];
@@ -5281,9 +5750,16 @@ export interface components {
             purpose: components["schemas"]["OtpPurposeEnum"];
             verification_token: string;
         };
+        /**
+         * @description ``phone`` **or** ``email`` (hybrid identity, customer contract §2.1): exactly one per call. Neither →
+         *     ``phone`` ``required`` (``field.identifier_required``); both → ``email`` ``invalid``
+         *     (``field.identifier_ambiguous``). ``validated_data["identifier"]`` is the one given (an address holds
+         *     ``@``, a phone never does).
+         */
         VerifyCodeRequest: {
             code: string;
-            phone: string;
+            email?: string | null;
+            phone?: string | null;
             purpose: components["schemas"]["OtpPurposeEnum"];
         };
         /** @description One working weekday (0 = Monday … 6 = Sunday) with its optional recurring break. */
@@ -7747,6 +8223,166 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["CashbackAdjustmentResult"];
                 };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_customers_sessions_list: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: 20 | 50;
+            };
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedAdminCustomerSessionList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_customers_sessions_destroy: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional client-generated UUID; when sent, a retry with the same body returns the stored 2xx response with `Idempotent-Replayed: true` and another body answers 422 `idempotency_key_reused`. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                id: number;
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             400: {
                 headers: {
@@ -13232,12 +13868,12 @@ export interface operations {
                 "Accept-Language"?: string;
                 /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
                 "Idempotency-Key": string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -13330,12 +13966,12 @@ export interface operations {
                 "Accept-Language"?: string;
                 /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
                 "Idempotency-Key": string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path: {
                 id: number;
@@ -13428,14 +14064,14 @@ export interface operations {
             header: {
                 /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
                 "Accept-Language"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
                 /** @description The device key issued once in `AuthTokens.device_key`; proves a known device (§1.9). */
                 "X-GD-Device-Key"?: string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -13526,19 +14162,19 @@ export interface operations {
             header: {
                 /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
                 "Accept-Language"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CustomerRefreshRequest"];
+                "application/json": components["schemas"]["CustomerLogoutRequest"];
             };
         };
         responses: {
@@ -13621,12 +14257,12 @@ export interface operations {
             header: {
                 /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
                 "Accept-Language"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -13717,12 +14353,12 @@ export interface operations {
             header: {
                 /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
                 "Accept-Language"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -13813,12 +14449,12 @@ export interface operations {
             header: {
                 /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
                 "Accept-Language"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -13909,12 +14545,12 @@ export interface operations {
             header: {
                 /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
                 "Accept-Language"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -14005,12 +14641,12 @@ export interface operations {
             header: {
                 /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
                 "Accept-Language"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -14101,12 +14737,12 @@ export interface operations {
             header: {
                 /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
                 "Accept-Language"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -14205,12 +14841,12 @@ export interface operations {
             header: {
                 /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
                 "Accept-Language"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -14297,12 +14933,12 @@ export interface operations {
             header: {
                 /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
                 "Accept-Language"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -14391,12 +15027,12 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -14483,12 +15119,12 @@ export interface operations {
             header: {
                 /** @description Optional client-generated UUID; when sent, a retry with the same body returns the stored 2xx response with `Idempotent-Replayed: true` and another body answers 422 `idempotency_key_reused`. */
                 "Idempotency-Key"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -14575,12 +15211,12 @@ export interface operations {
             header: {
                 /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
                 "Idempotency-Key": string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -14674,12 +15310,12 @@ export interface operations {
             header: {
                 /** @description Optional client-generated UUID; when sent, a retry with the same body returns the stored 2xx response with `Idempotent-Replayed: true` and another body answers 422 `idempotency_key_reused`. */
                 "Idempotency-Key"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -14766,12 +15402,12 @@ export interface operations {
             header: {
                 /** @description Optional client-generated UUID; when sent, a retry with the same body returns the stored 2xx response with `Idempotent-Replayed: true` and another body answers 422 `idempotency_key_reused`. */
                 "Idempotency-Key"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path: {
                 product_id: number;
@@ -14860,12 +15496,12 @@ export interface operations {
             header: {
                 /** @description Optional client-generated UUID; when sent, a retry with the same body returns the stored 2xx response with `Idempotent-Replayed: true` and another body answers 422 `idempotency_key_reused`. */
                 "Idempotency-Key"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path: {
                 product_id: number;
@@ -14958,12 +15594,12 @@ export interface operations {
             header?: {
                 /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
                 "Accept-Language"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
                 "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id"?: string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform"?: "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform"?: "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -15026,12 +15662,12 @@ export interface operations {
             header?: {
                 /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
                 "Accept-Language"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
                 "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id"?: string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform"?: "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform"?: "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -15108,12 +15744,12 @@ export interface operations {
             header?: {
                 /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
                 "Accept-Language"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
                 "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id"?: string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform"?: "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform"?: "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -15176,15 +15812,85 @@ export interface operations {
             header?: {
                 /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
                 "Accept-Language"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
                 "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id"?: string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform"?: "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform"?: "android" | "ios" | "web";
             };
             path: {
                 id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductDetail"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+        };
+    };
+    customer_catalog_products_by_slug_retrieve: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
+                "Accept-Language"?: string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
+                /** @description Firebase installation id of this app install (an identifier, not a secret). */
+                "X-GD-Device-Id"?: string;
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform"?: "android" | "ios" | "web";
+            };
+            path: {
+                slug: string;
             };
             cookie?: never;
         };
@@ -15246,12 +15952,12 @@ export interface operations {
             header: {
                 /** @description Optional client-generated UUID; when sent, a retry with the same body returns the stored 2xx response with `Idempotent-Replayed: true` and another body answers 422 `idempotency_key_reused`. */
                 "Idempotency-Key"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -15340,12 +16046,12 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
                 "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id"?: string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform"?: "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform"?: "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -15445,12 +16151,12 @@ export interface operations {
             header: {
                 /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
                 "Accept-Language"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -15539,12 +16245,12 @@ export interface operations {
                 "Accept-Language"?: string;
                 /** @description Optional client-generated UUID; when sent, a retry with the same body returns the stored 2xx response with `Idempotent-Replayed: true` and another body answers 422 `idempotency_key_reused`. */
                 "Idempotency-Key"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -15636,12 +16342,12 @@ export interface operations {
                 "Accept-Language"?: string;
                 /** @description Optional client-generated UUID; when sent, a retry with the same body returns the stored 2xx response with `Idempotent-Replayed: true` and another body answers 422 `idempotency_key_reused`. */
                 "Idempotency-Key"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -15732,12 +16438,12 @@ export interface operations {
             header: {
                 /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
                 "Accept-Language"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -15826,12 +16532,12 @@ export interface operations {
                 "Accept-Language"?: string;
                 /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
                 "Idempotency-Key": string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -15924,12 +16630,12 @@ export interface operations {
                 "Accept-Language"?: string;
                 /** @description Optional client-generated UUID; when sent, a retry with the same body returns the stored 2xx response with `Idempotent-Replayed: true` and another body answers 422 `idempotency_key_reused`. */
                 "Idempotency-Key"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path: {
                 id: number;
@@ -16019,12 +16725,12 @@ export interface operations {
                 "Accept-Language"?: string;
                 /** @description Optional client-generated UUID; when sent, a retry with the same body returns the stored 2xx response with `Idempotent-Replayed: true` and another body answers 422 `idempotency_key_reused`. */
                 "Idempotency-Key"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path: {
                 id: number;
@@ -16119,12 +16825,12 @@ export interface operations {
                 "Accept-Language"?: string;
                 /** @description Optional client-generated UUID; when sent, a retry with the same body returns the stored 2xx response with `Idempotent-Replayed: true` and another body answers 422 `idempotency_key_reused`. */
                 "Idempotency-Key"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path: {
                 id: number;
@@ -16217,12 +16923,12 @@ export interface operations {
             header: {
                 /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
                 "Accept-Language"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -16309,12 +17015,12 @@ export interface operations {
             header: {
                 /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
                 "Accept-Language"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path: {
                 id: number;
@@ -16403,12 +17109,12 @@ export interface operations {
             header: {
                 /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
                 "Accept-Language"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -16498,12 +17204,12 @@ export interface operations {
             header: {
                 /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
                 "Accept-Language"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -16592,12 +17298,12 @@ export interface operations {
                 "Accept-Language"?: string;
                 /** @description Optional client-generated UUID; when sent, a retry with the same body returns the stored 2xx response with `Idempotent-Replayed: true` and another body answers 422 `idempotency_key_reused`. */
                 "Idempotency-Key"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -16690,12 +17396,12 @@ export interface operations {
                 "Accept-Language"?: string;
                 /** @description Optional client-generated UUID; when sent, a retry with the same body returns the stored 2xx response with `Idempotent-Replayed: true` and another body answers 422 `idempotency_key_reused`. */
                 "Idempotency-Key"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -16780,6 +17486,198 @@ export interface operations {
             };
         };
     };
+    customer_me_email_attach: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
+                "Accept-Language"?: string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
+                /** @description Firebase installation id of this app install (an identifier, not a secret). */
+                "X-GD-Device-Id": string;
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MeEmailRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerMe"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+        };
+    };
+    customer_me_email_code: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
+                "Accept-Language"?: string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
+                /** @description Firebase installation id of this app install (an identifier, not a secret). */
+                "X-GD-Device-Id": string;
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MeEmailCodeRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CodeIssue"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+        };
+    };
     customer_me_image_update: {
         parameters: {
             query?: never;
@@ -16788,12 +17686,12 @@ export interface operations {
                 "Accept-Language"?: string;
                 /** @description Optional client-generated UUID; when sent, a retry with the same body returns the stored 2xx response with `Idempotent-Replayed: true` and another body answers 422 `idempotency_key_reused`. */
                 "Idempotency-Key"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -16889,12 +17787,12 @@ export interface operations {
                 "Accept-Language"?: string;
                 /** @description Optional client-generated UUID; when sent, a retry with the same body returns the stored 2xx response with `Idempotent-Replayed: true` and another body answers 422 `idempotency_key_reused`. */
                 "Idempotency-Key"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -16983,12 +17881,12 @@ export interface operations {
             header: {
                 /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
                 "Accept-Language"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -17077,12 +17975,12 @@ export interface operations {
                 "Accept-Language"?: string;
                 /** @description Optional client-generated UUID; when sent, a retry with the same body returns the stored 2xx response with `Idempotent-Replayed: true` and another body answers 422 `idempotency_key_reused`. */
                 "Idempotency-Key"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path: {
                 id: number;
@@ -17173,12 +18071,12 @@ export interface operations {
                 "Accept-Language"?: string;
                 /** @description Optional client-generated UUID; when sent, a retry with the same body returns the stored 2xx response with `Idempotent-Replayed: true` and another body answers 422 `idempotency_key_reused`. */
                 "Idempotency-Key"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -17271,12 +18169,12 @@ export interface operations {
                 "Accept-Language"?: string;
                 /** @description Optional client-generated UUID; when sent, a retry with the same body returns the stored 2xx response with `Idempotent-Replayed: true` and another body answers 422 `idempotency_key_reused`. */
                 "Idempotency-Key"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -17363,12 +18261,12 @@ export interface operations {
             header: {
                 /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
                 "Accept-Language"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -17463,12 +18361,12 @@ export interface operations {
                 scope?: "active" | "completed" | "cancelled" | "all";
             };
             header: {
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -17553,12 +18451,12 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path: {
                 id: number;
@@ -17649,12 +18547,12 @@ export interface operations {
                 "Accept-Language"?: string;
                 /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
                 "Idempotency-Key": string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -17739,18 +18637,210 @@ export interface operations {
             };
         };
     };
+    customer_me_phone_attach: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
+                "Accept-Language"?: string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
+                /** @description Firebase installation id of this app install (an identifier, not a secret). */
+                "X-GD-Device-Id": string;
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MePhoneRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerMe"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+        };
+    };
+    customer_me_phone_code: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
+                "Accept-Language"?: string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
+                /** @description Firebase installation id of this app install (an identifier, not a secret). */
+                "X-GD-Device-Id": string;
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MePhoneCodeRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CodeIssue"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+        };
+    };
     customer_qr_retrieve: {
         parameters: {
             query?: never;
             header: {
                 /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
                 "Accept-Language"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -17831,6 +18921,290 @@ export interface operations {
             };
         };
     };
+    customer_sessions_list: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: 20 | 50;
+            };
+            header: {
+                /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
+                "Accept-Language"?: string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
+                /** @description Firebase installation id of this app install (an identifier, not a secret). */
+                "X-GD-Device-Id": string;
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedCustomerSessionList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+        };
+    };
+    customer_sessions_destroy: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
+                "Accept-Language"?: string;
+                /** @description Optional client-generated UUID; when sent, a retry with the same body returns the stored 2xx response with `Idempotent-Replayed: true` and another body answers 422 `idempotency_key_reused`. */
+                "Idempotency-Key"?: string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
+                /** @description Firebase installation id of this app install (an identifier, not a secret). */
+                "X-GD-Device-Id": string;
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
+            };
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+        };
+    };
+    customer_sessions_revoke_others: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
+                "Accept-Language"?: string;
+                /** @description Optional client-generated UUID; when sent, a retry with the same body returns the stored 2xx response with `Idempotent-Replayed: true` and another body answers 422 `idempotency_key_reused`. */
+                "Idempotency-Key"?: string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
+                /** @description Firebase installation id of this app install (an identifier, not a secret). */
+                "X-GD-Device-Id": string;
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevokedSessions"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+        };
+    };
     customer_me_social_link: {
         parameters: {
             query?: never;
@@ -17839,12 +19213,12 @@ export interface operations {
                 "Accept-Language"?: string;
                 /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
                 "Idempotency-Key": string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -17937,12 +19311,12 @@ export interface operations {
                 "Accept-Language"?: string;
                 /** @description Optional client-generated UUID; when sent, a retry with the same body returns the stored 2xx response with `Idempotent-Replayed: true` and another body answers 422 `idempotency_key_reused`. */
                 "Idempotency-Key"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path: {
                 provider: "apple" | "facebook" | "google";
@@ -18035,12 +19409,12 @@ export interface operations {
             header: {
                 /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
                 "Idempotency-Key": string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path: {
                 id: number;
@@ -18129,12 +19503,12 @@ export interface operations {
             header: {
                 /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
                 "Idempotency-Key": string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path: {
                 id: number;
@@ -18227,12 +19601,12 @@ export interface operations {
             header: {
                 /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
                 "Idempotency-Key": string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path: {
                 id: number;
@@ -18321,12 +19695,12 @@ export interface operations {
             header: {
                 /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
                 "Idempotency-Key": string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
-                "X-GD-App-Version": string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id": string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform": "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform": "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -18475,12 +19849,12 @@ export interface operations {
             header?: {
                 /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
                 "Accept-Language"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
                 "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id"?: string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform"?: "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform"?: "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -18543,12 +19917,12 @@ export interface operations {
             header?: {
                 /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
                 "Accept-Language"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
                 "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id"?: string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform"?: "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform"?: "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -18611,12 +19985,12 @@ export interface operations {
             header?: {
                 /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
                 "Accept-Language"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
                 "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id"?: string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform"?: "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform"?: "android" | "ios" | "web";
             };
             path?: never;
             cookie?: never;
@@ -18679,12 +20053,12 @@ export interface operations {
             header?: {
                 /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
                 "Accept-Language"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
                 "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id"?: string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform"?: "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform"?: "android" | "ios" | "web";
             };
             path: {
                 id: number;
@@ -18753,12 +20127,12 @@ export interface operations {
             header?: {
                 /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
                 "Accept-Language"?: string;
-                /** @description App version; below the platform's minimum → 426 `app_update_required`. */
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
                 "X-GD-App-Version"?: string;
                 /** @description Firebase installation id of this app install (an identifier, not a secret). */
                 "X-GD-Device-Id"?: string;
-                /** @description Device platform (`OrderChannel` literals). */
-                "X-GD-Platform"?: "android" | "ios";
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform"?: "android" | "ios" | "web";
             };
             path: {
                 id: number;
@@ -18773,6 +20147,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FreeSlots"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+        };
+    };
+    customer_specialists_by_slug_retrieve: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
+                "Accept-Language"?: string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
+                /** @description Firebase installation id of this app install (an identifier, not a secret). */
+                "X-GD-Device-Id"?: string;
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform"?: "android" | "ios" | "web";
+            };
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Specialist"];
                 };
             };
             400: {

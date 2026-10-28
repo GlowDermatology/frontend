@@ -9,7 +9,7 @@ import type {
   ApiSpecialistDay,
 } from "../types";
 import { toActionResult, type ActionFailure, type FieldRemap } from "./errors";
-import { idString } from "./common";
+import { idString, customerContact } from "./common";
 
 /**
  * Appointments (contract §2.9) → the FE domain types, display rules of §5.6:
@@ -63,7 +63,7 @@ export function mapDayAppointment(api: ApiAppointmentItem): DayAppointment {
     customer: {
       id: idString(api.customer.id),
       name: api.customer.name || DELETED_CUSTOMER_NAME,
-      phone: api.customer.phone,
+      phone: customerContact(api.customer.phone, api.customer.email),
     },
     serviceId: idString(api.service_id),
     service: api.service_name,

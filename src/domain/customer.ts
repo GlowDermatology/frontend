@@ -20,11 +20,12 @@ export interface CustomerPurchase {
 }
 
 /** The app installation's platform (contract §2.6, `OrderChannel`). */
-export type DevicePlatform = "ios" | "android";
+export type DevicePlatform = "ios" | "android" | "web";
 
 export const DEVICE_PLATFORM_LABEL: Record<DevicePlatform, string> = {
   ios: "iOS",
   android: "Android",
+  web: "Veb-sayt",
 };
 
 export interface CustomerDevice {
@@ -53,6 +54,27 @@ export interface CustomerDeviceRow {
   /** The installation's first sign-in. */
   createdAt: string;
 }
+
+/**
+ * One open session of the customer — a signed-in phone or browser
+ * (contract §2.6 `AdminCustomerSession`, B-W1), most recently active first.
+ */
+export interface CustomerSession {
+  /** UUID (`sid`). */
+  id: string;
+  /** "Chrome (Windows)", "Glow Derma iOS (iPhone 15)". */
+  device: string;
+  platform: DevicePlatform | null;
+  /** "Tashkent, Tashkent, UZ"; "—" when unknown. */
+  location: string;
+  /** Sign-in. */
+  createdAt: string;
+  /** Last activity (refreshed at most every 5 minutes). */
+  updatedAt: string;
+}
+
+/** Page size of the card's «Faol seanslar» (contract §2.6: 20 | 50). */
+export const CUSTOMER_SESSIONS_PAGE_SIZE = 20;
 
 /** The card's tier block (contract §2.6 `tier`, §5.3 `TierInfo`). */
 export interface CustomerTier {

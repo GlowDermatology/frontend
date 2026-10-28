@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { BILLZ_LISTING_INCOMPLETE_MESSAGE } from "@/domain/job";
 import { BILLZ_UNAVAILABLE_MESSAGE } from "@/domain/product";
+import { emptySeo, PRODUCT_SLUG_MAX, slugProblem } from "@/domain/seo";
 
 import { csvDocument } from "./export-csv";
 import { getBanners } from "./mock/banners.queries";
@@ -43,27 +44,68 @@ describe("mock categories", () => {
       slug: "masks",
       name: { uz: "Niqoblar", ru: "", en: "" },
       isActive: true,
+      seo: emptySeo(),
     });
     expect(created).toMatchObject({
       ok: true,
       data: { slug: "masks", position: 5, productCount: 0 },
     });
     expect(
-      await createCategory({ slug: "serums", name: { uz: "X", ru: "", en: "" }, isActive: true }),
+      await createCategory({
+        slug: "serums",
+        name: { uz: "X", ru: "", en: "" },
+        isActive: true,
+        seo: emptySeo(),
+      }),
     ).toMatchObject({ ok: false, fieldErrors: { slug: "Bu qiymat band." } });
     const updated = await updateCategory("sun", {
       name: { uz: "SPF", ru: "", en: "" },
       isActive: false,
+      seo: emptySeo(),
     });
     expect(updated).toMatchObject({
       ok: true,
       data: { slug: "sun", isActive: false, position: 3 },
     });
     expect(
-      await updateCategory("missing", { name: { uz: "X", ru: "", en: "" }, isActive: true }),
+      await updateCategory("missing", {
+        name: { uz: "X", ru: "", en: "" },
+        isActive: true,
+        seo: emptySeo(),
+      }),
     ).toMatchObject({
       code: "not_found",
     });
+  });
+
+  it("gives every demo product a unique, valid website slug (B-W1)", () => {
+    const slugs = PRODUCTS.map((p) => p.slug);
+    expect(new Set(slugs).size).toBe(PRODUCTS.length);
+    expect(slugs.every((slug) => slugProblem(slug, PRODUCT_SLUG_MAX) === null)).toBe(true);
+    expect(PRODUCTS[0]).toMatchObject({ slug: "gialuron-kislotali-serum" });
+  });
+
+  it("computes «SEO holati» like the server and recomputes it on save (B-W1)", async () => {
+    const serums = CATEGORIES.find((c) => c.slug === "serums")!;
+    // No image in the demo; the SEO texts are filled only in Uzbek and Russian.
+    expect(serums.seoStatus.ok).toBe(false);
+    expect(serums.seoStatus.issues.map((i) => [i.code, i.severity, i.language])).toEqual([
+      ["image_missing", "warning", null],
+      ["seo_description_missing", "info", "ru"],
+      ["seo_title_missing", "info", "en"],
+      ["seo_description_missing", "info", "en"],
+    ]);
+    const seo = {
+      uz: serums.seo.uz,
+      ru: { title: "Сыворотки для лица — Glow Derma", description: "д".repeat(80) },
+      en: { title: "Face serums — Glow Derma", description: "e".repeat(80) },
+    };
+    const updated = await updateCategory(
+      "serums",
+      { name: serums.name, isActive: true, seo },
+      { image: new File(["x"], "c.png", { type: "image/png" }), remove: false },
+    );
+    expect(updated).toMatchObject({ ok: true, data: { seo, seoStatus: { ok: true, issues: [] } } });
   });
 
   it("deletes only empty categories (409 conflict otherwise) and reorders the exact set", async () => {
@@ -200,6 +242,8 @@ describe("mock products: stats, export and import job", () => {
       promo: product.promo,
       status: "hidden" as const,
       images: [],
+      slug: "",
+      seo: emptySeo(),
     };
     expect(await saveProduct(null, values)).toEqual({
       ok: false,

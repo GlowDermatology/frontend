@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import Image from "next/image";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
-import { Controller, useForm, useWatch, type Path } from "react-hook-form";
+import { Controller, useForm, useWatch, type FieldErrors, type Path } from "react-hook-form";
 
 import { Button, buttonStyles } from "@/components/ui/button";
 import { Dialog, DialogClose } from "@/components/ui/dialog";
@@ -24,10 +24,13 @@ import {
   MAX_IMAGE_BYTES,
 } from "@/data/products.schema";
 import { suggestSlug, type Category } from "@/domain/category";
+import { CONTENT_LANGUAGES, type ContentLanguage } from "@/domain/product";
 import { cn } from "@/lib/cn";
 
 import { runAction } from "../shared/action-client";
 import type { IdempotencyKey } from "../shared/idempotency";
+import { SeoEditor, SeoStatusPanel } from "../shared/seo-fields";
+import { categoryFallback, publicUrlLabel, type PageFallback } from "../shared/seo-preview";
 
 interface CategoryDialogProps {
   open: boolean;
@@ -47,7 +50,12 @@ interface CategoryDialogProps {
 
 function toValues(category: Category | null): CategoryFormValues {
   if (!category) return structuredClone(EMPTY_CATEGORY);
-  return { slug: category.slug, name: { ...category.name }, isActive: category.isActive };
+  return {
+    slug: category.slug,
+    name: { ...category.name },
+    isActive: category.isActive,
+    seo: structuredClone(category.seo),
+  };
 }
 
 /** Create / edit dialog of a category (contract §2.4). */
@@ -77,6 +85,9 @@ export function CategoryDialog({
     defaultValues: toValues(category),
   });
   const nameUz = useWatch({ control, name: "name.uz" });
+  const names = useWatch({ control, name: "name" });
+  const slugValue = useWatch({ control, name: "slug" });
+  const [seoLang, setSeoLang] = useState<ContentLanguage>("uz");
   // Synchronous re-entry guard: `isSubmitting` disables the button only after
   // a re-render, and React Hook Form's submit handler is re-entrant.
   const inFlight = useRef(false);
@@ -138,7 +149,7 @@ export function CategoryDialog({
           category
             ? updateCategory(
                 category.slug,
-                { name: values.name, isActive: values.isActive },
+                { name: values.name, isActive: values.isActive, seo: values.seo },
                 idempotency.key,
                 csrf,
                 media,
@@ -153,6 +164,8 @@ export function CategoryDialog({
           if (path === "image" || path === "removeImage") setImageError(message);
           else setError(path as Path<CategoryFormValues>, { message });
         }
+        const seoError = entries.find(([path]) => path.startsWith("seo."));
+        if (seoError) setSeoLang(seoError[0].split(".")[1] as ContentLanguage);
         if (entries.length === 0) setFormError(result.error);
         return;
       }
@@ -161,7 +174,31 @@ export function CategoryDialog({
       setFile(null);
       onSaved(result.data, category ? "edit" : "create", previewUrl);
       onOpenChange(false);
-    })(event);
+    }, onInvalid)(event);
+
+  // A refused SEO field may sit in another language tab: show that tab.
+  const onInvalid = (fieldErrors: FieldErrors<CategoryFormValues>) => {
+    const language = CONTENT_LANGUAGES.find((l) => fieldErrors.seo?.[l]);
+    if (language && !fieldErrors.name && !fieldErrors.slug) setSeoLang(language);
+  };
+  const seoErrors = Object.fromEntries(
+    CONTENT_LANGUAGES.map((l) => [
+      l,
+      {
+        title: errors.seo?.[l]?.title?.message,
+        description: errors.seo?.[l]?.description?.message,
+      },
+    ]),
+  );
+  const seoFallback = Object.fromEntries(
+    CONTENT_LANGUAGES.map((l) => [
+      l,
+      categoryFallback(l, {
+        name: names[l]?.trim() || names.uz?.trim() || "",
+        productCount: category?.productCount ?? 0,
+      }),
+    ]),
+  ) as Record<ContentLanguage, PageFallback>;
 
   return (
     <Dialog
@@ -172,7 +209,7 @@ export function CategoryDialog({
       }}
       onCloseAutoFocus={onCloseAutoFocus}
       title={editing ? "Kategoriyani tahrirlash" : "Yangi kategoriya"}
-      className="max-w-[520px]"
+      className="max-w-[640px]"
     >
       <form noValidate onSubmit={onSubmit} className="flex flex-col gap-4">
         <Field
@@ -202,6 +239,15 @@ export function CategoryDialog({
             <p className="m-0 flex items-start gap-1.5 text-body-sm text-ink-muted">
               <Icon name="lock" size={16} className="mt-px shrink-0" />
               Slug yaratilgach o‘zgartirilmaydi.
+            </p>
+            <p className="m-0 flex items-start gap-1.5 text-body-sm text-ink-muted">
+              <Icon name="link" size={16} className="mt-px shrink-0 text-gold-ink" />
+              <span className="min-w-0 break-all">
+                Saytdagi manzil:{" "}
+                <span className="font-mono text-ink">
+                  {publicUrlLabel("category", category.slug)}
+                </span>
+              </span>
             </p>
             <input type="hidden" {...register("slug")} />
           </div>
@@ -334,6 +380,38 @@ export function CategoryDialog({
             )}
           />
         </div>
+        <section
+          aria-labelledby={`${idBase}-seo`}
+          className="flex flex-col gap-4 border-t border-line pt-4"
+        >
+          <h3 id={`${idBase}-seo`} className="m-0 text-[15px] leading-5 font-bold text-ink">
+            SEO
+          </h3>
+          <Controller
+            control={control}
+            name="seo"
+            render={({ field }) => (
+              <SeoEditor
+                kind="category"
+                idBase={idBase}
+                value={field.value}
+                onChange={field.onChange}
+                language={seoLang}
+                onLanguageChange={setSeoLang}
+                errors={seoErrors}
+                slug={slugValue?.trim() ?? ""}
+                fallback={seoFallback}
+              />
+            )}
+          />
+          {category && (
+            <SeoStatusPanel
+              status={category.seoStatus}
+              note="Oxirgi saqlangan holat bo‘yicha; saqlanganda qayta tekshiriladi."
+              className="rounded-md bg-surface p-4"
+            />
+          )}
+        </section>
         {formError && (
           <p
             role="alert"

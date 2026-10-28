@@ -10,6 +10,7 @@ import {
   type Category,
 } from "./category";
 import { billzImportSummary, isJobDone } from "./job";
+import { emptySeo } from "./seo";
 
 const category = (slug: string, uz: string, productCount = 0): Category => ({
   slug,
@@ -18,6 +19,8 @@ const category = (slug: string, uz: string, productCount = 0): Category => ({
   position: 0,
   isActive: true,
   productCount,
+  seo: emptySeo(),
+  seoStatus: { ok: true, issues: [] },
   createdAt: "",
   updatedAt: "",
 });

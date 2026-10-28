@@ -31,6 +31,7 @@ import specialistFixture from "./api/__fixtures__/specialist-2.json";
 import { ApiError } from "./api/errors";
 import {
   mapClinicSpecialist,
+  specialistCreateBody,
   specialistFormValues,
   specialistListParams,
   specialistPatchBody,
@@ -44,7 +45,7 @@ import {
   saveWorkingHours,
   updateSpecialist,
 } from "./clinic.actions";
-import { workingWeekSchema } from "./clinic.schema";
+import { specialistFormSchema, workingWeekSchema } from "./clinic.schema";
 
 const KEY = "6f1c2a0e-9b8d-4c37-8a1e-2f3b4c5d6e7f";
 const CSRF = "csrf-token";
@@ -120,6 +121,14 @@ describe("clinic mappers", () => {
     expect(specialistPatchBody(base, { ...base, name: "Jasur A." }, true)).toEqual({
       name: "Jasur A.",
     });
+    // B-W1: the recorded slug is kept; a new one is sent, `""` never is.
+    expect(base.slug).toBe("jasur-aliyev");
+    expect(specialistPatchBody(base, { ...base, slug: "dr-jasur" })).toEqual({ slug: "dr-jasur" });
+    expect(specialistPatchBody(base, { ...base, slug: "" })).toEqual({});
+    expect(specialistCreateBody({ ...base, slug: "" })).not.toHaveProperty("slug");
+    expect(specialistCreateBody({ ...base, slug: "dr-jasur" })).toMatchObject({ slug: "dr-jasur" });
+    expect(specialistFormSchema.safeParse({ ...base, slug: "123" }).success).toBe(false);
+    expect(specialistFormSchema.safeParse({ ...base, slug: "" }).success).toBe(true);
   });
 
   it("validates the week (grid, order, break inside) and sends it by weekday", () => {

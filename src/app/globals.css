@@ -34,6 +34,10 @@
   --gd-scrim: #2a241866;
   --gd-shadow-sm: 0 1px 2px #2a24180f, 0 2px 8px #2a24180d;
   --gd-shadow-lg: 0 8px 28px -6px #2a241829;
+  /* Storefront: the warm well behind product photography and skeletons. */
+  --gd-image-well: #f3ede1;
+  --gd-skeleton: #ece5d6;
+  --gd-skeleton-sheen: #f7f2e8;
   color-scheme: light;
 }
 
@@ -59,6 +63,9 @@
   --gd-scrim: #05080fb3;
   --gd-shadow-sm: 0 1px 2px #00000066;
   --gd-shadow-lg: 0 12px 32px -6px #000000b3;
+  --gd-image-well: #121a2c;
+  --gd-skeleton: #1c2438;
+  --gd-skeleton-sheen: #263049;
   color-scheme: dark;
 }
 
@@ -91,6 +98,8 @@
   --color-danger-soft: var(--gd-danger-soft);
   --color-warning-soft: var(--gd-warning-soft);
   --color-scrim: var(--gd-scrim);
+  --color-image-well: var(--gd-image-well);
+  --color-skeleton: var(--gd-skeleton);
 
   --font-serif: var(--font-cormorant), Georgia, "Times New Roman", serif;
   --font-sans: var(--font-manrope), "Segoe UI", system-ui, -apple-system, sans-serif;
@@ -131,6 +140,17 @@
   --text-price-lg--line-height: 30px;
   --text-price-lg--font-weight: 800;
   --text-price-lg--letter-spacing: -0.01em;
+  /* Storefront editorial scale (Cormorant, fluid between phone and desktop). */
+  --text-hero: clamp(48px, 6.6vw, 104px);
+  --text-hero--line-height: 0.95;
+  --text-hero--letter-spacing: -0.025em;
+  --text-headline: clamp(34px, 4vw, 56px);
+  --text-headline--line-height: 1.05;
+  --text-headline--letter-spacing: -0.015em;
+  --text-headline-sm: clamp(28px, 2.6vw, 40px);
+  --text-headline-sm--line-height: 1.1;
+  --text-lead: 18px;
+  --text-lead--line-height: 30px;
 
   --radius-*: initial;
   --radius-sm: 8px;
@@ -146,6 +166,12 @@
   --breakpoint-sm: 37.5rem;
   --breakpoint-nav: 72rem;
 
+  /* Storefront page width and product imagery ratio. */
+  --container-page: 80rem;
+  --container-prose: 44rem;
+  --aspect-product: 4 / 5;
+  --aspect-banner: 2 / 1;
+
   --ease-soft: cubic-bezier(0.2, 0.7, 0.2, 1);
 
   --animate-fade-in: fade-in 0.18s ease-out;
@@ -156,6 +182,17 @@
   --animate-toast-in: toast-in 0.28s var(--ease-soft);
   --animate-drawer-in: drawer-in 0.24s var(--ease-soft);
   --animate-drawer-out: drawer-out 0.18s ease-in;
+  --animate-shimmer: shimmer 1.6s ease-in-out infinite;
+  --animate-reveal: rise-in 0.7s var(--ease-soft) both;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
 }
 
 @keyframes fade-in {
@@ -242,6 +279,21 @@
   }
 }
 
+/*
+ * Storefront figures: Cormorant's old-style digits make prices, balances and
+ * percentages dance; lining figures everywhere in the serif, tabular ones
+ * where amounts line up. Unlayered on purpose: it must beat the
+ * `tabular-nums` utility, which would otherwise drop `lining-nums`.
+ */
+.gd-shop .font-serif {
+  font-variant-numeric: lining-nums;
+}
+.gd-shop .text-price,
+.gd-shop .text-price-lg,
+.gd-shop .tabular-nums {
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   html {
     scroll-behavior: smooth;
@@ -291,6 +343,20 @@
   .data-table tbody tr:hover td {
     background: var(--gd-surface);
   }
+}
+
+/* Storefront skeleton: a quiet sheen over the skeleton colour (static under
+   prefers-reduced-motion, where animations are cut to one frame). */
+@utility skeleton {
+  background-color: var(--gd-skeleton);
+  background-image: linear-gradient(
+    90deg,
+    var(--gd-skeleton) 0%,
+    var(--gd-skeleton-sheen) 50%,
+    var(--gd-skeleton) 100%
+  );
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
 }
 
 /* Diagonal hatching for unavailable time in the appointment grid. */

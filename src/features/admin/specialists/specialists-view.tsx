@@ -335,6 +335,7 @@ function CreateSpecialistDialog({
           staffOptions={staffOptions}
           linkedStaff={null}
           activeHint="Faol mutaxassis ilovada ko‘rinadi va unga yozilish mumkin."
+          savedSlug={null}
         />
         {formError && (
           <p

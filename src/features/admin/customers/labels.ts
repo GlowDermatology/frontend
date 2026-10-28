@@ -20,3 +20,9 @@ export function balanceNote(held: number, available: number): string {
     ? `Band: ${formatSom(held)} · ishlatish mumkin: ${formatSom(available)}`
     : "Band qilingan summa yo‘q";
 }
+
+/** "Chrome (Windows) · Tashkent, Tashkent, UZ" — a session in confirmations and toasts. */
+export function sessionLabel(session: { device: string; location: string }): string {
+  const location = session.location.trim();
+  return location && location !== "—" ? `${session.device} · ${location}` : session.device;
+}

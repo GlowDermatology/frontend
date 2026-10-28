@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { CATEGORY_SLUG_PATTERN } from "@/domain/category";
+import { PRODUCT_SLUG_MAX, SEO_DESCRIPTION_MAX, SEO_TITLE_MAX, slugProblem } from "@/domain/seo";
 
 /**
  * Validation for the product editor. The same schema re-validates the payload
@@ -27,6 +28,29 @@ const image = z.object({
     .optional(),
   src: z.string().optional(),
 });
+
+const seoText = z.object({
+  title: text(SEO_TITLE_MAX),
+  description: text(SEO_DESCRIPTION_MAX),
+});
+
+/** `seo.{uz,ru,en}.{title,description}` (B-W1): optional, ≤120 / ≤300, `""` = the website builds one. */
+export const seoFormSchema = z.object({ uz: seoText, ru: seoText, en: seoText });
+
+/**
+ * The website URL segment (B-W1). `""` on a new product: the server derives
+ * it from the name; an existing product never sends `""` (it keeps its slug).
+ */
+export function slugFieldSchema(max: number) {
+  return z
+    .string()
+    .trim()
+    .superRefine((slug, ctx) => {
+      if (slug === "") return;
+      const problem = slugProblem(slug, max);
+      if (problem) ctx.addIssue({ code: "custom", message: problem });
+    });
+}
 
 export const productFormSchema = z
   .object({
@@ -55,6 +79,8 @@ export const productFormSchema = z
     promo: z.boolean(),
     status: z.enum(["active", "hidden"]),
     images: z.array(image).max(8),
+    slug: slugFieldSchema(PRODUCT_SLUG_MAX),
+    seo: seoFormSchema,
   })
   .superRefine((values, ctx) => {
     if (values.status !== "active") return;
@@ -97,6 +123,12 @@ export const productBaselineSchema = z.object({
   billzId: z.string().max(14),
   promo: z.boolean(),
   status: z.enum(["active", "hidden"]),
+  slug: z.string().max(PRODUCT_SLUG_MAX),
+  seo: z.object({
+    uz: z.object({ title: baselineText, description: baselineText }),
+    ru: z.object({ title: baselineText, description: baselineText }),
+    en: z.object({ title: baselineText, description: baselineText }),
+  }),
 });
 
 export type ProductBaseline = z.infer<typeof productBaselineSchema>;

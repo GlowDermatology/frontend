@@ -35,26 +35,31 @@ Every variable the frontend reads is listed, with its default, whether productio
 
 ### Docker
 
-The image is a Next.js standalone server (`output: "standalone"`), running as the unprivileged `node` user on port 3000 with a `/healthz` healthcheck.
+The image is a Next.js standalone server (`output: "standalone"`), running as uid 1000 on port 3000 with a `/healthz` healthcheck. CI (`.github/workflows/ci.yml`) builds it **twice per commit**, `frontend-<sha7>-staging` and `frontend-<sha7>-production`, because `next build` bakes the public origin in; the values come from the repository variables `STAGING_*` / `PRODUCTION_*`. Deployment, routing and secrets live in the [infra repository](https://github.com/GlowDermatology/infra).
 
 ```bash
 docker build \
-  --build-arg NEXT_PUBLIC_SITE_URL=https://www.glowderma.uz \
-  --build-arg GLOWDERMA_ALLOWED_ORIGINS=www.glowderma.uz,admin.glowderma.uz \
-  --build-arg GLOWDERMA_MEDIA_HOSTS=api.glowderma.uz \
+  --build-arg NEXT_PUBLIC_SITE_URL=https://glowderma.uz \
+  --build-arg GLOWDERMA_ALLOWED_ORIGINS=glowderma.uz \
+  --build-arg GLOWDERMA_MEDIA_HOSTS=glowderma.uz/media \
   --build-arg GLOWDERMA_BUILD_SHA="$(git rev-parse --short HEAD)" \
   -t glowderma-frontend .
 
-docker run --rm -p 3000:3000 \
+docker run --rm -p 3000:3000 --read-only --tmpfs /tmp --tmpfs /app/.next/cache:uid=1000 \
   -e GLOWDERMA_DATA_SOURCE=api \
   -e GLOWDERMA_API_URL=http://api:8000 \
   -e GLOWDERMA_INTERNAL_SECRET=... \
-  -e GLOWDERMA_ALLOWED_ORIGINS=www.glowderma.uz,admin.glowderma.uz \
   -e GLOWDERMA_COOKIE_SECURE=true \
   glowderma-frontend
 ```
 
-The build refuses to run without `NEXT_PUBLIC_SITE_URL` and `GLOWDERMA_ALLOWED_ORIGINS`. The edge proxy in front must pass streamed responses through unbuffered (the app sends `X-Accel-Buffering: no` for nginx) and must allow request bodies up to 6 MB for product image uploads. The backend repository's `docs/ops/deploy.md` holds the full production compose and edge configuration.
+- One origin: the site, the admin panel, the Django API (`/api/v1/*`) and the media (`/media/*`) share `https://<domain>`. The edge sends only `/api/v1/*` to Django; Next keeps `/api/shop/*` and `/api/revalidate`.
+- `GLOWDERMA_MEDIA_HOSTS` entries are `host[:port][/path-prefix]`; on one origin use `<domain>/media` so `/_next/image` can fetch only media files (`src/lib/media-hosts.ts`).
+- `GLOWDERMA_ALLOWED_ORIGINS` and `GLOWDERMA_MEDIA_HOSTS` are baked into the runtime environment of the image as well, so the build and runtime copies cannot differ.
+- Secrets: in the deployed stack a Vault Agent renders `GLOWDERMA_INTERNAL_SECRET` and `GLOWDERMA_REVALIDATE_SECRET` into a JSON file (`FRONTEND_SECRETS_FILE`); `docker/entrypoint.mjs` (copied next to `server.js`) loads it before the server starts. Plain `-e` variables work too.
+- The root filesystem can be read-only: runtime caches go to `/app/.next/cache` (tmpfs) and revalidated pages stay in memory (`experimental.isrFlushToDisk: false`).
+
+The build refuses to run without `NEXT_PUBLIC_SITE_URL` and `GLOWDERMA_ALLOWED_ORIGINS`. The edge proxy in front must pass streamed responses through unbuffered (the app sends `X-Accel-Buffering: no` for nginx) and must allow request bodies up to 6 MB for product image uploads.
 
 **Deployment assumption (edge contract).** The Next server must be reachable only through a single trusted edge proxy that appends or overwrites `X-Forwarded-For` (and `X-Real-IP`). The API client forwards the rightmost `X-Forwarded-For` hop to Django as `X-GD-Client-IP` (`clientIp()` in `src/data/api/client.ts`), because that hop is the one the edge wrote from the TCP peer; hops to its left come from the browser and are ignored. If a second proxy is ever chained in front, it must collapse the header, or Django's per-client-IP throttles and `AuditEntry.ip` would see the inner proxy's address.
 
@@ -200,7 +205,7 @@ The customer website is the storefront above plus the signed-in pages, served by
 | `GLOWDERMA_INTERNAL_SECRET`          | none                                                          | **yes** (api mode)                           | runtime           | Sent as `X-GD-Internal-Secret`; must equal Django `INTERNAL_API_SECRET`. Also keys the signed OAuth flow cookie, so every instance shares it. Never expose it to the browser.                                                                                                                     |
 | `GLOWDERMA_ALLOWED_ORIGINS`          | none (same-origin only)                                       | **yes** (the image build refuses without it) | build + runtime   | Exact `host[:port]` list allowed to call Server Actions and the auth/refresh/logout routes. List **every** host that serves pages: storefront host(s) and admin host, e.g. `glowderma.uz,www.glowderma.uz,admin.glowderma.uz`. If a storefront host is missing, every customer action is refused. |
 | `GLOWDERMA_COOKIE_SECURE`            | `true` in production builds                                   | yes (`true`)                                 | runtime           | `Secure` cookies with the `__Host-`/`__Secure-` prefixes and `https` OAuth redirect URIs. Use `false` only for plain-HTTP local runs.                                                                                                                                                             |
-| `GLOWDERMA_MEDIA_HOSTS`              | empty (no remote images)                                      | **yes**                                      | build + runtime   | `host[:port]` of Django's `PUBLIC_MEDIA_BASE_URL`: the hosts `next/image` may optimise. The mappers drop image URLs on other hosts.                                                                                                                                                               |
+| `GLOWDERMA_MEDIA_HOSTS`              | empty (no remote images)                                      | **yes**                                      | build + runtime   | `host[:port][/path-prefix]` of Django's `PUBLIC_MEDIA_BASE_URL` (one origin: `<domain>/media`): what `next/image` may optimise. The mappers drop image URLs on other hosts.                                                                                                                       |
 | `GLOWDERMA_MEDIA_ALLOW_LOCAL`        | unset                                                         | no (never)                                   | build             | Local only: lets `next/image` fetch from a media host on a private IP (`localhost:8000`).                                                                                                                                                                                                         |
 | `GLOWDERMA_REVALIDATE_SECRET`        | unset (route answers 404)                                     | recommended                                  | runtime           | Bearer secret (≥ 32 characters) of `POST /api/revalidate`, which expires storefront cache tags at once. Without it, catalog edits show up when the 5-minute cache lapses.                                                                                                                         |
 | `GLOWDERMA_SHOP_GOOGLE_CLIENT_ID`    | unset (no button)                                             | optional                                     | runtime           | Customer Google sign-in: the Identity Services **web** client id (listed in Django `GOOGLE_WEB_CLIENT_IDS`).                                                                                                                                                                                      |

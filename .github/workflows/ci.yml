@@ -1,3 +1,16 @@
+# Frontend pipeline. Pull requests: security scans, checks, an image build without push.
+# main: the same, then build TWO images from the same commit (Next.js bakes the public origin into the bundle):
+#   frontend-<sha7>-staging      staging domain    -> written to the infra repo's staging folder (deploys staging)
+#   frontend-<sha7>-production   production domain -> picked by the infra repo's Promote workflow
+# scan both pushed digests, write the staging one to the infra repo, clean old images.
+#
+#   security-gitleaks ┐
+#   security-semgrep  │
+#   security-codeql   ├─► tests ─► build-publish ─► image-scan ─► deploy ─► cleanup-ghcr
+#   security-deps     │            (x staging,      (x staging,
+#   security-iac      ┘             production)      production)
+#
+# Build-time values: repository variables STAGING_* and PRODUCTION_* (infra repo docs/deployment.md).
 name: CI
 
 on:
@@ -5,47 +18,407 @@ on:
     branches: [main]
   pull_request:
 
-permissions:
-  contents: read
+permissions: {}
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Never cancel main: a cancelled matrix could push the staging image without its production sibling.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  IMAGE: ghcr.io/glowdermatology/frontend
 
 jobs:
-  check:
-    name: Lint, types, tests, build
+  # ------------------------------------------------------------------ stage 1: security
+  security-gitleaks:
+    name: security-gitleaks
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          node-version: 22
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Secrets in the whole git history
+        run: >-
+          docker run --rm -v "$PWD:/repo" -w /repo
+          zricethezav/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
+          git --redact --verbose --exit-code 1 /repo
+
+  security-semgrep:
+    name: security-semgrep
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: SAST (TypeScript, React, Node, OWASP Top 10, secrets, Dockerfile, workflows)
+        run: >-
+          docker run --rm -v "$PWD:/src" -w /src
+          semgrep/semgrep:1.183.0@sha256:2e45517a85e13a9cca14a2a00df6bb48affd66b8ebfae1b0991cd57578362fb0
+          semgrep scan --metrics=off --error --severity ERROR
+          --config p/javascript --config p/typescript --config p/react --config p/nodejs --config p/owasp-top-ten
+          --config p/secrets --config p/dockerfile --config p/github-actions
+          --exclude src/data/api/schema.d.ts
+          --sarif --sarif-output=semgrep.sarif
+      - if: always() && hashFiles('semgrep.sarif') != ''
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+
+  security-codeql:
+    name: security-codeql
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          languages: javascript-typescript
+          build-mode: none
+          queries: security-extended
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          category: codeql-javascript-typescript
+
+  security-deps:
+    name: security-deps
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: npm audit (GitHub advisory database) on the runtime dependencies
+        run: npm audit --omit=dev --audit-level=high
+      - name: trivy (lock file CVEs, embedded secrets)
+        run: >-
+          docker run --rm -v "$PWD:/src" -w /src
+          -e TRIVY_DB_REPOSITORY=public.ecr.aws/aquasecurity/trivy-db:2,ghcr.io/aquasecurity/trivy-db:2,mirror.gcr.io/aquasec/trivy-db:2
+          aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
+          fs --scanners vuln,secret --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress
+          --format sarif --output trivy-fs.sarif .
+      - if: always() && hashFiles('trivy-fs.sarif') != ''
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          sarif_file: trivy-fs.sarif
+          category: trivy-fs
+
+  security-iac:
+    name: security-iac
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: hadolint (Dockerfile)
+        run: >-
+          docker run --rm -i
+          hadolint/hadolint:v2.15.1@sha256:32dac94127fd60b7b7e3fbfc65e1383b9b5e25c9bfd7b8536de7a539fe68a12d
+          hadolint --failure-threshold warning - < Dockerfile
+      - name: trivy config (Dockerfile)
+        run: >-
+          docker run --rm -v "$PWD:/src" -w /src
+          aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
+          config --severity HIGH,CRITICAL --exit-code 1 .
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
+      - name: zizmor (GitHub workflow security)
+        run: uvx zizmor@1.32.0 --offline --min-severity medium .github/workflows
+
+  # ------------------------------------------------------------------ stage 2: tests
+  tests:
+    name: tests
+    needs: [security-gitleaks, security-semgrep, security-codeql, security-deps, security-iac]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - run: npm run check
-      # Mock data source: the build must not need Django or any secret.
-      - run: npm run build
-        env:
-          NEXT_TELEMETRY_DISABLED: "1"
-          NEXT_PUBLIC_SITE_URL: https://www.example.com
-          GLOWDERMA_ALLOWED_ORIGINS: admin.example.com
+      - name: Lint, types, unit tests, formatting
+        run: npm run check
+      - name: Container entrypoint loads the secrets file before the server starts
+        run: node --check docker/entrypoint.mjs
 
-  docker:
-    name: Docker image builds
+  # ------------------------------------------------------------------ stage 3: images
+  build-publish:
+    name: build-publish (${{ matrix.target }})
+    needs: tests
     runs-on: ubuntu-24.04
-    needs: check
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    strategy:
+      fail-fast: true
+      matrix:
+        target: [staging, production]
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: meta
+        env:
+          SHA: ${{ github.sha }}
+          TARGET: ${{ matrix.target }}
+          ON_MAIN: ${{ github.ref == 'refs/heads/main' }}
+          SITE_URL: ${{ matrix.target == 'staging' && vars.STAGING_NEXT_PUBLIC_SITE_URL || vars.PRODUCTION_NEXT_PUBLIC_SITE_URL }}
+          ORIGINS: ${{ matrix.target == 'staging' && vars.STAGING_GLOWDERMA_ALLOWED_ORIGINS || vars.PRODUCTION_GLOWDERMA_ALLOWED_ORIGINS }}
+          MEDIA: ${{ matrix.target == 'staging' && vars.STAGING_GLOWDERMA_MEDIA_HOSTS || vars.PRODUCTION_GLOWDERMA_MEDIA_HOSTS }}
+          MEDIA_LOCAL: ${{ matrix.target == 'staging' && vars.STAGING_GLOWDERMA_MEDIA_ALLOW_LOCAL || vars.PRODUCTION_GLOWDERMA_MEDIA_ALLOW_LOCAL }}
+        run: |
+          set -euo pipefail
+          if [ "$ON_MAIN" = true ]; then
+            for name in SITE_URL ORIGINS MEDIA; do
+              [ -n "${!name}" ] || { echo "::error::repository variable for $TARGET ($name) is not set (infra docs/deployment.md)"; exit 1; }
+            done
+          else
+            # Pull requests build with placeholders: the image is never pushed.
+            SITE_URL="https://www.example.com" ORIGINS="www.example.com" MEDIA="www.example.com/media" MEDIA_LOCAL=""
+          fi
+          {
+            echo "tag=frontend-${SHA::7}-${TARGET}"
+            echo "created=$(git log -1 --format=%cI)"
+            echo "build_args<<ARGS"
+            echo "NEXT_PUBLIC_SITE_URL=$SITE_URL"
+            echo "GLOWDERMA_ALLOWED_ORIGINS=$ORIGINS"
+            echo "GLOWDERMA_MEDIA_HOSTS=$MEDIA"
+            echo "GLOWDERMA_MEDIA_ALLOW_LOCAL=$MEDIA_LOCAL"
+            echo "GLOWDERMA_BUILD_SHA=$SHA"
+            echo "ARGS"
+          } >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - if: github.ref == 'refs/heads/main'
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
-          push: false
-          tags: glowderma-frontend:ci
-          build-args: |
-            NEXT_PUBLIC_SITE_URL=https://www.example.com
-            GLOWDERMA_ALLOWED_ORIGINS=admin.example.com
-            GLOWDERMA_BUILD_SHA=${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+          push: ${{ github.ref == 'refs/heads/main' }}
+          tags: ${{ env.IMAGE }}:${{ steps.meta.outputs.tag }}
+          build-args: ${{ steps.meta.outputs.build_args }}
+          labels: |
+            org.opencontainers.image.title=glowderma-frontend
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ steps.meta.outputs.created }}
+            uz.glowderma.target=${{ matrix.target }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=frontend-${{ matrix.target }}
+          cache-to: type=gha,mode=max,scope=frontend-${{ matrix.target }}
+      - if: github.ref == 'refs/heads/main'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+      - name: Record the digest for the next jobs
+        if: github.ref == 'refs/heads/main'
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          CREATED: ${{ steps.meta.outputs.created }}
+          TARGET: ${{ matrix.target }}
+        run: printf 'TAG=%s\nDIGEST=%s\nCREATED=%s\n' "$TAG" "$DIGEST" "$CREATED" > "image-$TARGET.env"
+      - if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: image-${{ matrix.target }}
+          path: image-${{ matrix.target }}.env
+          retention-days: 7
+
+  image-scan:
+    name: image-scan (${{ matrix.target }})
+    needs: build-publish
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [staging, production]
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: image-${{ matrix.target }}
+      - id: ref
+        env:
+          TARGET: ${{ matrix.target }}
+        run: echo "ref=ghcr.io/glowdermatology/frontend@$(sed -n 's/^DIGEST=//p' "image-$TARGET.env")" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: trivy (OS and Node CVEs, secrets) on the pushed digest
+        env:
+          REF: ${{ steps.ref.outputs.ref }}
+        run: |
+          mkdir -p sarif
+          for format in "--format sarif --output /out/trivy.sarif --exit-code 0" "--format table --exit-code 1 --skip-db-update"; do
+            # shellcheck disable=SC2086 # the format options are intentionally split
+            docker run --rm -v "$HOME/.docker/config.json:/root/.docker/config.json:ro" -v "$PWD/sarif:/out" \
+              -v "$RUNNER_TEMP/trivy:/root/.cache/trivy" \
+              -e TRIVY_DB_REPOSITORY=public.ecr.aws/aquasecurity/trivy-db:2,ghcr.io/aquasecurity/trivy-db:2,mirror.gcr.io/aquasec/trivy-db:2 \
+              aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c \
+              image --scanners vuln,secret --severity HIGH,CRITICAL --ignore-unfixed --no-progress $format "$REF"
+          done
+      - name: grype (second vulnerability database)
+        if: ${{ !cancelled() }}
+        env:
+          REF: ${{ steps.ref.outputs.ref }}
+        run: >-
+          docker run --rm -v "$HOME/.docker/config.json:/docker/config.json:ro" -e DOCKER_CONFIG=/docker
+          -v "$PWD/sarif:/out"
+          anchore/grype:v0.121.1@sha256:6b06708b036f74b2cd70e94b706b4586af96d1932e6ac46255940b2e39dd44a9
+          "registry:$REF" --only-fixed --fail-on high -o table -o sarif=/out/grype.sarif
+      - name: dockle (CIS Docker image checks)
+        if: ${{ !cancelled() }}
+        env:
+          REF: ${{ steps.ref.outputs.ref }}
+          DOCKLE_USERNAME: ${{ github.actor }}
+          DOCKLE_PASSWORD: ${{ github.token }}
+        run: >-
+          docker run --rm -e DOCKLE_USERNAME -e DOCKLE_PASSWORD -v "$PWD/sarif:/out"
+          goodwithtech/dockle:v0.4.15@sha256:eade932f793742de0aa8755406c7677cd7696f8675b6180926f7eeffa7abe6b9
+          --exit-code 1 --exit-level warn --format sarif --output /out/dockle.sarif "$REF"
+      - if: always() && hashFiles('sarif/trivy.sarif') != ''
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          sarif_file: sarif/trivy.sarif
+          category: trivy-image-${{ matrix.target }}
+      - if: always() && hashFiles('sarif/grype.sarif') != ''
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          sarif_file: sarif/grype.sarif
+          category: grype-image-${{ matrix.target }}
+      - if: always() && hashFiles('sarif/dockle.sarif') != ''
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          sarif_file: sarif/dockle.sarif
+          category: dockle-image-${{ matrix.target }}
+
+  # ------------------------------------------------------------------ stage 4: GitOps
+  deploy:
+    name: deploy
+    needs: image-scan
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    environment:
+      name: staging
+    # Serialised and never cancelled: an older run must not overwrite a newer digest (see the ancestor check).
+    concurrency:
+      group: gitops-frontend-staging
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: app
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: image-staging
+      - name: Write environments/staging/frontend/image.env in the infra repo
+        env:
+          TOKEN: ${{ secrets.INFRA_REPO_TOKEN }}
+          SHA: ${{ github.sha }}
+          ACTOR: ${{ github.actor }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          [ -n "$TOKEN" ] || { echo "::error::secret INFRA_REPO_TOKEN is missing (infra docs/deployment.md)"; exit 1; }
+          TAG="$(sed -n 's/^TAG=//p' image-staging.env)"
+          DIGEST="$(sed -n 's/^DIGEST=//p' image-staging.env)"
+          CREATED="$(sed -n 's/^CREATED=//p' image-staging.env)"
+          git clone --quiet --depth 50 "https://x-access-token:${TOKEN}@github.com/GlowDermatology/infra.git" infra
+          cd infra
+          git config user.name "glowderma-gitops"
+          git config user.email "gitops@users.noreply.github.com"
+          file=environments/staging/frontend/image.env
+          for attempt in 1 2 3 4 5; do
+            git fetch --quiet origin main && git reset --quiet --hard origin/main
+            current="$(sed -n 's/^FRONTEND_SOURCE_SHA=//p' "$file")"
+            if [ -n "$current" ] && ! git -C ../app merge-base --is-ancestor "$current" "$SHA" 2>/dev/null; then
+              echo "::notice::staging already runs $current, which is not an ancestor of $SHA: not overwriting"
+              exit 0
+            fi
+            printf '%s\n' \
+              "# Written ONLY by automation: the frontend pipeline (staging) or the promote workflow (production)." \
+              "# The digest is what runs; the tag is for humans. Empty digest = nothing published yet (deploy waits)." \
+              "FRONTEND_IMAGE=$IMAGE" "FRONTEND_TAG=$TAG" "FRONTEND_DIGEST=$DIGEST" \
+              "FRONTEND_SOURCE_SHA=$SHA" "FRONTEND_BUILT_AT=$CREATED" > "$file"
+            if git diff --quiet; then echo "::notice::staging already runs $TAG"; exit 0; fi
+            git commit --quiet -am "deploy(staging): frontend $TAG" -m "From $RUN_URL (by @$ACTOR)."
+            if git push --quiet origin HEAD:main; then echo "::notice::staging will deploy $TAG"; exit 0; fi
+            sleep $((attempt * 5))
+          done
+          echo "::error::could not push to the infra repository"; exit 1
+
+  cleanup-ghcr:
+    name: cleanup-ghcr
+    needs: deploy
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      packages: write
+    steps:
+      - name: Images that must survive (deployed anywhere, or one of the last 3 production releases)
+        id: keep
+        run: |
+          set -euo pipefail
+          git clone --quiet https://github.com/GlowDermatology/infra.git infra
+          cd infra
+          # Every commit an environment runs or ran recently keeps BOTH of its variants (promote needs the
+          # production sibling of whatever staging runs).
+          shas="$( { cat environments/*/frontend/image.env
+                     git log -3 --format= -p -- environments/production/frontend/image.env | sed -n 's/^[-+]//p'; } |
+                   sed -n -E 's/^FRONTEND_TAG=frontend-([0-9a-f]+)-.*$/\1/p' | sort -u | paste -sd'|' -)"
+          if [ -n "$shas" ]; then echo "exclude=^frontend-(${shas})-" >> "$GITHUB_OUTPUT"; else echo "exclude=^\$never" >> "$GITHUB_OUTPUT"; fi
+          echo "kept commits: ${shas:-none}"
+      - uses: dataaxiom/ghcr-cleanup-action@d52806a0dc70b430571a37da1fde39733ffd640f # v1.2.2
+        with:
+          package: frontend
+          keep-n-tagged: 6
+          exclude-tags: ${{ steps.keep.outputs.exclude }}
+          use-regex: true
+          delete-untagged: true
+          delete-orphaned-images: true
+          validate: true

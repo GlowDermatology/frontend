@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 
+import { mediaRemotePatterns } from "./src/lib/media-hosts";
 import { parseAllowedOrigins } from "./src/lib/origins";
 
 const securityHeaders = [
@@ -48,23 +49,6 @@ function storefrontCsp(dev: boolean): string {
 }
 
 /**
- * `GLOWDERMA_MEDIA_HOSTS`: comma-separated `host[:port]` entries that
- * `next/image` may optimise (Django's `PUBLIC_MEDIA_BASE_URL`). Empty → none.
- */
-function mediaRemotePatterns(value: string | undefined) {
-  if (!value) return [];
-  return value
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter(Boolean)
-    .map((entry) => {
-      const [hostname, port] = entry.split(":");
-      if (!hostname) throw new Error(`GLOWDERMA_MEDIA_HOSTS: invalid entry "${entry}"`);
-      return port ? { hostname, port } : { hostname };
-    });
-}
-
-/**
  * Next's default HTML-limited bots (metadata blocks the render instead of
  * streaming into <body>) plus the link-preview crawlers common in
  * Uzbekistan (Telegram) and the search engines that render JavaScript only
@@ -110,6 +94,9 @@ const nextConfig: NextConfig = {
     dangerouslyAllowLocalIP: process.env.GLOWDERMA_MEDIA_ALLOW_LOCAL === "true",
   },
   experimental: {
+    // Revalidated pages stay in memory: the container's root filesystem is read-only (only .next/cache is a
+    // tmpfs), and one replica serves each environment. A restart regenerates them from the build's prerenders.
+    isrFlushToDisk: false,
     // Branded 404 for unmatched URLs: the app has three root layouts
     // (Uzbek landing, /ru and /en, admin), so there is no single layout to
     // compose a global not-found page from.

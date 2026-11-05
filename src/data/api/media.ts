@@ -1,11 +1,13 @@
 import "server-only";
 
 import { serverEnv } from "@/lib/env.server";
+import { mediaUrlMatches, parseMediaHost } from "@/lib/media-hosts";
 
 /**
  * Whether `next/image` may load a media URL: its host must match one of the
  * `GLOWDERMA_MEDIA_HOSTS` entries the way `images.remotePatterns` does (an
- * entry without a port matches any port). A URL from another host would make
+ * entry without a port matches any port, one with a path prefix only that
+ * prefix; see `src/lib/media-hosts.ts`). A URL from another host would make
  * `next/image` throw while rendering, so such a URL is dropped and the screen
  * shows its empty thumbnail frame instead (order items keep the URL that was
  * current at checkout, which may point at a host the deployment no longer
@@ -19,10 +21,12 @@ export function isAllowedMediaUrl(url: string, hosts: ReadonlyArray<string>): bo
     return false;
   }
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
-  const hostname = parsed.hostname.toLowerCase();
   return hosts.some((entry) => {
-    const [host, port] = entry.split(":");
-    return host === hostname && (port === undefined || port === parsed.port);
+    try {
+      return mediaUrlMatches(parsed, parseMediaHost(entry));
+    } catch {
+      return false; // a malformed entry allows nothing
+    }
   });
 }
 

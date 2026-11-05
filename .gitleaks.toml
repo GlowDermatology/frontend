@@ -1,0 +1,8 @@
+# gitleaks (CI job security-gitleaks): the default rules, minus unit-test fixtures (sample idempotency keys and
+# fake temporary passwords) and e2e helpers. Application code and workflows stay fully scanned.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "test fixtures"
+paths = ['''\.test\.tsx?$''', '''^e2e/''', '''^\.env\.example$''']

@@ -1,0 +1,107 @@
+{
+  "id": 9,
+  "kind": "promo",
+  "title": "Qish uchun namlantiruvchi to‘plam",
+  "body": "Qishki parvarish to‘plamiga 15% chegirma — faqat shu hafta.",
+  "image_url": null,
+  "link": {
+    "kind": "none",
+    "product_id": null,
+    "label": null,
+    "url": null
+  },
+  "audience": {
+    "type": "all",
+    "segment_id": null,
+    "segment_name": null,
+    "phone": null
+  },
+  "recipient_count": 360,
+  "state": "stopping",
+  "scheduled_at": null,
+  "created_at": "2026-10-27T09:00:00+05:00",
+  "sent_at": null,
+  "cancelled_at": null,
+  "sent": 120,
+  "failed": 1,
+  "delivered": null,
+  "author": {
+    "id": 2,
+    "display_name": "Dilnoza Yusupova"
+  },
+  "revision": 2,
+  "tested_revision": 2,
+  "test_confirmed_at": "2026-10-27T09:25:00+05:00",
+  "test_confirmed_by": {
+    "id": 1,
+    "display_name": "Administrator"
+  },
+  "approved_at": "2026-10-27T09:30:00+05:00",
+  "approved_by": {
+    "id": 1,
+    "display_name": "Administrator"
+  },
+  "approved_revision": 2,
+  "dispatch_after": "2026-10-27T09:35:00+05:00",
+  "started_at": "2026-10-27T09:35:10+05:00",
+  "cancelled_by": null,
+  "stop_requested_at": "2026-10-27T09:36:00+05:00",
+  "stopped_at": null,
+  "failed_at": null,
+  "last_error": "",
+  "attempted": 121,
+  "updated_at": "2026-10-27T09:36:00+05:00",
+  "tests": [
+    {
+      "id": 11,
+      "revision": 1,
+      "test_device_id": 1,
+      "device_label": "Dilnoza iPhone",
+      "phone": "+998901234567",
+      "sent_at": "2026-10-27T09:05:00+05:00",
+      "sent_by": {
+        "id": 1,
+        "display_name": "Administrator"
+      },
+      "fcm_ok": true,
+      "fcm_error": "",
+      "confirmed_at": null,
+      "confirmed_by": null
+    },
+    {
+      "id": 12,
+      "revision": 2,
+      "test_device_id": 1,
+      "device_label": "Dilnoza iPhone",
+      "phone": "+998901234567",
+      "sent_at": "2026-10-27T09:20:00+05:00",
+      "sent_by": {
+        "id": 1,
+        "display_name": "Administrator"
+      },
+      "fcm_ok": true,
+      "fcm_error": "",
+      "confirmed_at": "2026-10-27T09:25:00+05:00",
+      "confirmed_by": {
+        "id": 1,
+        "display_name": "Administrator"
+      }
+    },
+    {
+      "id": 13,
+      "revision": 2,
+      "test_device_id": 2,
+      "device_label": "Sardor Android",
+      "phone": "+998935550011",
+      "sent_at": "2026-10-27T09:20:00+05:00",
+      "sent_by": {
+        "id": 1,
+        "display_name": "Administrator"
+      },
+      "fcm_ok": false,
+      "fcm_error": "unregistered",
+      "confirmed_at": null,
+      "confirmed_by": null
+    }
+  ]
+}

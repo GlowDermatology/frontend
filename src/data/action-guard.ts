@@ -3,7 +3,7 @@ import "server-only";
 import { refresh } from "next/cache";
 import { z } from "zod";
 
-import { verifyStaff, type VerifiedStaff } from "./auth";
+import { getMe, verifyStaff, type VerifiedStaff } from "./auth";
 import type { ActionFailure, ActionResult } from "./types";
 
 /**
@@ -31,6 +31,7 @@ export const SESSION_EXPIRED_MESSAGE = "Sessiya tugadi. Qayta kiring.";
 export const CSRF_MESSAGE = "Xavfsizlik tekshiruvi o‘tmadi. Sahifani yangilang.";
 export const NOT_WIRED_MESSAGE = "Bu amal API bilan hali ulanmagan.";
 export const INVALID_FORM_MESSAGE = "Maydonlarni tekshiring.";
+export const PERMISSION_DENIED_MESSAGE = "Ruxsat yo‘q.";
 
 export type Guarded = { ok: true; session: VerifiedStaff } | ActionFailure;
 
@@ -49,6 +50,22 @@ export async function guardAction(csrf: string): Promise<Guarded> {
   if (session.ok) return { ok: true, session };
   if (session.reason === "csrf") return CSRF_FAILURE;
   return { ok: false, error: SESSION_EXPIRED_MESSAGE, code: "session_expired" };
+}
+
+/**
+ * The superuser operations of the campaign approval workflow (test, confirm,
+ * approve, cancel, stop, return to draft, test devices): after `guardAction`,
+ * the signed-in staff member must be a superuser (`auth/me/`, cached per
+ * request; `GLOWDERMA_MOCK_SUPERUSER` in mock mode), else the backend's own
+ * 403 answer, `permission_denied` "Ruxsat yo‘q.", without a call. The
+ * backend enforces the role on every route regardless; this keeps an
+ * ordinary admin's stale page from reaching it.
+ */
+export async function requireSuperuser(guard: Guarded): Promise<Guarded> {
+  if (!guard.ok) return guard;
+  const me = await getMe();
+  if (me?.is_superuser) return guard;
+  return { ok: false, error: PERMISSION_DENIED_MESSAGE, code: "permission_denied" };
 }
 
 /**

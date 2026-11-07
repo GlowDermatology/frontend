@@ -13,7 +13,8 @@
       "link": {
         "kind": "none",
         "product_id": null,
-        "label": null
+        "label": null,
+        "url": null
       },
       "audience": {
         "type": "segment",
@@ -33,7 +34,50 @@
       "author": {
         "id": 1,
         "display_name": "Administrator"
-      }
+      },
+      "tested_revision": 1,
+      "test_confirmed_at": "2026-10-24T11:45:00+05:00",
+      "test_confirmed_by": {
+        "id": 1,
+        "display_name": "Administrator"
+      },
+      "approved_at": "2026-10-24T11:50:00+05:00",
+      "approved_by": {
+        "id": 1,
+        "display_name": "Administrator"
+      },
+      "approved_revision": 1,
+      "dispatch_after": "2026-10-26T10:00:00+05:00",
+      "updated_at": "2026-10-24T11:50:00+05:00",
+      "tests": [
+        {
+          "id": 7,
+          "revision": 1,
+          "test_device_id": 1,
+          "device_label": "Dilnoza iPhone",
+          "phone": "+998901234567",
+          "sent_at": "2026-10-24T11:42:00+05:00",
+          "sent_by": {
+            "id": 1,
+            "display_name": "Administrator"
+          },
+          "fcm_ok": true,
+          "fcm_error": "",
+          "confirmed_at": "2026-10-24T11:45:00+05:00",
+          "confirmed_by": {
+            "id": 1,
+            "display_name": "Administrator"
+          }
+        }
+      ],
+      "revision": 1,
+      "started_at": null,
+      "cancelled_by": null,
+      "stop_requested_at": null,
+      "stopped_at": null,
+      "failed_at": null,
+      "last_error": "",
+      "attempted": null
     },
     {
       "id": 3,
@@ -44,7 +88,8 @@
       "link": {
         "kind": "product",
         "product_id": 4,
-        "label": "Seramidli namlantiruvchi krem"
+        "label": "Seramidli namlantiruvchi krem",
+        "url": null
       },
       "audience": {
         "type": "all",
@@ -64,7 +109,50 @@
       "author": {
         "id": 1,
         "display_name": "Administrator"
-      }
+      },
+      "tested_revision": 1,
+      "test_confirmed_at": "2026-10-24T09:40:00+05:00",
+      "test_confirmed_by": {
+        "id": 1,
+        "display_name": "Administrator"
+      },
+      "approved_at": "2026-10-24T09:40:00+05:00",
+      "approved_by": {
+        "id": 1,
+        "display_name": "Administrator"
+      },
+      "approved_revision": 1,
+      "dispatch_after": "2026-10-24T12:00:00+05:00",
+      "started_at": "2026-10-24T12:00:00+05:00",
+      "attempted": 4751,
+      "updated_at": "2026-10-24T12:02:00+05:00",
+      "tests": [
+        {
+          "id": 3,
+          "revision": 1,
+          "test_device_id": 1,
+          "device_label": "Dilnoza iPhone",
+          "phone": "+998901234567",
+          "sent_at": "2026-10-24T09:40:00+05:00",
+          "sent_by": {
+            "id": 1,
+            "display_name": "Administrator"
+          },
+          "fcm_ok": true,
+          "fcm_error": "",
+          "confirmed_at": "2026-10-24T09:40:00+05:00",
+          "confirmed_by": {
+            "id": 1,
+            "display_name": "Administrator"
+          }
+        }
+      ],
+      "revision": 1,
+      "cancelled_by": null,
+      "stop_requested_at": null,
+      "stopped_at": null,
+      "failed_at": null,
+      "last_error": ""
     },
     {
       "id": 2,
@@ -75,7 +163,8 @@
       "link": {
         "kind": "none",
         "product_id": null,
-        "label": null
+        "label": null,
+        "url": null
       },
       "audience": {
         "type": "all",
@@ -95,7 +184,50 @@
       "author": {
         "id": 1,
         "display_name": "Administrator"
-      }
+      },
+      "tested_revision": 1,
+      "test_confirmed_at": "2026-10-20T15:00:00+05:00",
+      "test_confirmed_by": {
+        "id": 1,
+        "display_name": "Administrator"
+      },
+      "approved_at": "2026-10-20T15:00:00+05:00",
+      "approved_by": {
+        "id": 1,
+        "display_name": "Administrator"
+      },
+      "approved_revision": 1,
+      "dispatch_after": "2026-10-21T10:00:00+05:00",
+      "started_at": "2026-10-21T10:00:00+05:00",
+      "attempted": 4740,
+      "updated_at": "2026-10-21T10:02:00+05:00",
+      "tests": [
+        {
+          "id": 2,
+          "revision": 1,
+          "test_device_id": 1,
+          "device_label": "Dilnoza iPhone",
+          "phone": "+998901234567",
+          "sent_at": "2026-10-20T15:00:00+05:00",
+          "sent_by": {
+            "id": 1,
+            "display_name": "Administrator"
+          },
+          "fcm_ok": true,
+          "fcm_error": "",
+          "confirmed_at": "2026-10-20T15:00:00+05:00",
+          "confirmed_by": {
+            "id": 1,
+            "display_name": "Administrator"
+          }
+        }
+      ],
+      "revision": 1,
+      "cancelled_by": null,
+      "stop_requested_at": null,
+      "stopped_at": null,
+      "failed_at": null,
+      "last_error": ""
     },
     {
       "id": 1,
@@ -106,7 +238,8 @@
       "link": {
         "kind": "none",
         "product_id": null,
-        "label": null
+        "label": null,
+        "url": null
       },
       "audience": {
         "type": "segment",
@@ -126,7 +259,50 @@
       "author": {
         "id": 1,
         "display_name": "Administrator"
-      }
+      },
+      "tested_revision": 1,
+      "test_confirmed_at": "2026-10-18T16:30:00+05:00",
+      "test_confirmed_by": {
+        "id": 1,
+        "display_name": "Administrator"
+      },
+      "approved_at": "2026-10-18T16:30:00+05:00",
+      "approved_by": {
+        "id": 1,
+        "display_name": "Administrator"
+      },
+      "approved_revision": 1,
+      "dispatch_after": null,
+      "started_at": null,
+      "attempted": 318,
+      "updated_at": "2026-10-18T16:31:00+05:00",
+      "tests": [
+        {
+          "id": 1,
+          "revision": 1,
+          "test_device_id": 1,
+          "device_label": "Dilnoza iPhone",
+          "phone": "+998901234567",
+          "sent_at": "2026-10-18T16:30:00+05:00",
+          "sent_by": {
+            "id": 1,
+            "display_name": "Administrator"
+          },
+          "fcm_ok": true,
+          "fcm_error": "",
+          "confirmed_at": "2026-10-18T16:30:00+05:00",
+          "confirmed_by": {
+            "id": 1,
+            "display_name": "Administrator"
+          }
+        }
+      ],
+      "revision": 1,
+      "cancelled_by": null,
+      "stop_requested_at": null,
+      "stopped_at": null,
+      "failed_at": null,
+      "last_error": ""
     }
   ]
 }

@@ -15,6 +15,7 @@ import {
   type NotificationRecord,
   type StatusTemplate,
   type TemplateStatus,
+  type TestDevice,
 } from "@/domain/notification";
 import { isHttpsUrl, LINK_URL_MAX, LINK_URL_MESSAGE } from "@/lib/link-url";
 
@@ -23,35 +24,63 @@ import {
   fieldErrorsFrom,
   guardAction,
   idempotencyKeySchema,
+  requireSuperuser,
   sessionToken,
+  type Guarded,
 } from "./action-guard";
-import { apiCancelNotification, apiCreateNotification, apiUpdateTemplate } from "./api/admin";
-import { toActionResult } from "./api/mappers/errors";
+import {
+  apiApproveNotification,
+  apiCancelNotification,
+  apiConfirmCampaignTest,
+  apiCreateNotification,
+  apiDeleteNotification,
+  apiRegisterTestDevice,
+  apiRemoveTestDevice,
+  apiReturnNotificationToDraft,
+  apiSendCampaignTest,
+  apiStopNotification,
+  apiUpdateNotification,
+  apiUpdateTemplate,
+} from "./api/admin";
+import { toActionResult, type ActionFailure } from "./api/mappers/errors";
 import {
   mapNotificationRecord,
   mapStatusTemplate,
+  mapTestDevice,
   NOTIFICATION_FIELD_REMAP,
   notificationFormData,
 } from "./api/mappers/notifications";
+import type { ApiNotificationRecord } from "./api/types";
 import * as mock from "./mock/notifications.actions";
 import { requestNow } from "./now";
 import { dataSource } from "./source";
 import type { ActionResult } from "./types";
 
 /**
- * Push notification mutations (contract §2.8, §7.12). The view posts a
- * `FormData` with `kind`, `title`, `body`, `link` (`none` | `product:<id>` |
- * `url`, gap ADM-10.1, with the address in `linkUrl`),
+ * Push campaign mutations (contract §2.8, campaign approval workflow). The
+ * composer posts a `FormData` with `kind`, `title`, `body`, `link` (`none` |
+ * `product:<id>` | `url`, gap ADM-10.1, with the address in `linkUrl`),
  * `audience` (`all` | `group` | `one`), `segmentId`, `phone` (`+998…`),
- * `scheduledAt` (ISO with offset, empty = send now) and an optional `image`
- * file. The mock body lives in `./mock/notifications.actions.ts`; the api
- * branch builds the multipart body with dotted keys from the validated input
- * (`notificationFormData`: audience `group` → `segment`, `one` → `customer`,
- * `scheduled_at` as an aware Tashkent time) and posts it to `notifications/`
- * with `Idempotency-Key`; field errors are remapped per §7.1 (`audience.phone`
- * → `phone`, `image` → the top-level error). A send without `scheduled_at`
- * runs inside the request (eager Celery in local settings), so the answer may
- * already be `sent`.
+ * `scheduledAt` (ISO with offset, empty = no requested time) and an optional
+ * `image` file; an update adds `expectedRevision` and `removeImage`.
+ *
+ * - `saveNotificationDraft` / `updateNotificationDraft` / `deleteNotificationDraft`:
+ *   any active staff on their own draft, a superuser on any (the backend
+ *   answers 403 otherwise). Nothing is sent: the campaign is a `draft`.
+ * - `sendCampaignTest`, `confirmCampaignTest`, `approveNotification`,
+ *   `returnNotificationToDraft`, `cancelNotification`, `stopNotification`,
+ *   `registerTestDevice`, `removeTestDevice`: superusers (`requireSuperuser`
+ *   answers `permission_denied` before any call; the backend enforces the
+ *   role as well). A 409 (`conflict`: stale revision or started send;
+ *   `invalid_transition`: wrong state) or 404 re-reads the route in api mode
+ *   (`refresh()`), so the board shows the campaign as it now is; mock mode
+ *   never refreshes (the fixtures do not change).
+ *
+ * The mock bodies live in `./mock/notifications.actions.ts`; the api
+ * branches build the multipart body with dotted keys (`notificationFormData`)
+ * or the small JSON bodies and post them with `Idempotency-Key`; field errors
+ * are remapped per §7.1 (`audience.phone` → `phone`, `image` and
+ * `expected_revision` → the top-level error).
  *
  * `updateNotificationTemplate` PUTs `notification-templates/{status}/` with
  * all three languages; the backend is the authority on the placeholder rule
@@ -69,9 +98,11 @@ export interface NotificationInput {
   audience: "all" | "group" | "one";
   segmentId: string;
   phone: string;
-  /** ISO time for a scheduled send; `null` sends now. */
+  /** ISO time the author asks the send for; `null` = as soon as approved. */
   scheduledAt: string | null;
   image: File | null;
+  /** Update only: drop the stored image (ignored when a new `image` comes). */
+  removeImage: boolean;
 }
 
 const text = (value: FormDataEntryValue | null) => (typeof value === "string" ? value : "");
@@ -103,6 +134,7 @@ function buildSchema(now: Date) {
           error: IMAGE_TOO_LARGE_MESSAGE,
         })
         .nullable(),
+      removeImage: z.boolean(),
       key: idempotencyKeySchema,
     })
     .superRefine((values, ctx) => {
@@ -136,13 +168,11 @@ function buildSchema(now: Date) {
     });
 }
 
-export async function sendNotification(
+/** Re-validates the composer's `FormData`; an image problem is the top-level error (contract §7.1). */
+async function parseComposer(
   formData: FormData,
   key: string,
-  csrf: string,
-): Promise<ActionResult<NotificationRecord>> {
-  const guard = await guardAction(csrf);
-  if (!guard.ok) return guard;
+): Promise<{ ok: true; input: NotificationInput } | ActionFailure> {
   const image = formData.get("image");
   // An empty file input serialises as a File with no name: treat it as absent.
   const file = image instanceof File && image.size > 0 && image.name ? image : null;
@@ -157,11 +187,11 @@ export async function sendNotification(
     phone: text(formData.get("phone")).replace(/[\s()-]/g, ""),
     scheduledAt: text(formData.get("scheduledAt")),
     image: file,
+    removeImage: text(formData.get("removeImage")) === "true",
     key,
   });
   if (!parsed.success) {
     const failure = fieldErrorsFrom(parsed.error);
-    // Contract §7.1: image problems are a top-level error, not a field.
     const imageError = failure.fieldErrors?.image;
     if (imageError) {
       delete failure.fieldErrors?.image;
@@ -171,24 +201,41 @@ export async function sendNotification(
     return failure;
   }
   const { data } = parsed;
-  const input: NotificationInput = {
-    kind: data.kind,
-    title: data.title,
-    body: data.body,
-    link:
-      data.link === "none"
-        ? { kind: "none" }
-        : data.link === "url"
-          ? { kind: "url", url: data.linkUrl }
-          : { kind: "product", productId: data.link.slice(8) },
-    audience: data.audience,
-    segmentId: data.segmentId,
-    phone: data.phone,
-    scheduledAt: data.scheduledAt || null,
-    image: data.image,
+  return {
+    ok: true,
+    input: {
+      kind: data.kind,
+      title: data.title,
+      body: data.body,
+      link:
+        data.link === "none"
+          ? { kind: "none" }
+          : data.link === "url"
+            ? { kind: "url", url: data.linkUrl }
+            : { kind: "product", productId: data.link.slice(8) },
+      audience: data.audience,
+      segmentId: data.segmentId,
+      phone: data.phone,
+      scheduledAt: data.scheduledAt || null,
+      image: data.image,
+      removeImage: data.removeImage,
+    },
   };
+}
+
+/** `POST notifications/`: the campaign is saved as a `draft`; nothing is sent. */
+export async function saveNotificationDraft(
+  formData: FormData,
+  key: string,
+  csrf: string,
+): Promise<ActionResult<NotificationRecord>> {
+  const guard = await guardAction(csrf);
+  if (!guard.ok) return guard;
+  const parsed = await parseComposer(formData, key);
+  if (!parsed.ok) return parsed;
+  const { input } = parsed;
   if ((await dataSource()) === "api") {
-    return apiMutation("sendNotification", async () => {
+    return apiMutation("saveNotificationDraft", async () => {
       try {
         const { data } = await apiCreateNotification(
           sessionToken(guard.session),
@@ -201,54 +248,341 @@ export async function sendNotification(
       }
     });
   }
-  return mock.sendNotification(input);
+  return mock.saveNotificationDraft(input);
 }
 
-const cancelSchema = z.object({
-  // API ids are integers; the demo's fixtures use `n-<n>`.
-  notificationId: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),
-  key: idempotencyKeySchema,
-});
+// API ids are integers; the demo's fixtures use `n-<n>` / `t-<n>` / `td-<n>`.
+const idSchema = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
+const revisionSchema = z.coerce.number().int().min(1);
 
 /**
- * `POST notifications/{id}/cancel/` (contract §2.8, M3): a `scheduled`
- * campaign becomes `cancelled` before its send starts and the answer is the
- * cancelled record (a repeat answers the same record). Once the send started
- * the backend answers 409 `conflict` "Yuborish boshlangan: xabarni bekor
- * qilib bo‘lmaydi."; an unknown id 404. Both come back with the backend's
- * code and message, and in api mode the route is refreshed with them, so the
- * board shows the history as it now is (the client never re-reads: in mock
- * mode that would discard the page's local history).
+ * `PATCH notifications/{id}/` with `expected_revision` (the revision the
+ * editor was opened on): the author or a superuser changes a `draft` or
+ * `tested` campaign; a content change bumps the revision and drops the test
+ * confirmation. 409 `conflict` when someone changed it meanwhile.
+ */
+export async function updateNotificationDraft(
+  notificationId: string,
+  formData: FormData,
+  key: string,
+  csrf: string,
+): Promise<ActionResult<NotificationRecord>> {
+  const guard = await guardAction(csrf);
+  if (!guard.ok) return guard;
+  const ids = z
+    .object({ notificationId: idSchema, expectedRevision: revisionSchema })
+    .safeParse({ notificationId, expectedRevision: text(formData.get("expectedRevision")) });
+  if (!ids.success) return fieldErrorsFrom(ids.error);
+  const parsed = await parseComposer(formData, key);
+  if (!parsed.ok) return parsed;
+  const { input } = parsed;
+  const { expectedRevision } = ids.data;
+  if ((await dataSource()) === "api") {
+    return apiMutation("updateNotificationDraft", async () => {
+      try {
+        const { data } = await apiUpdateNotification(
+          sessionToken(guard.session),
+          ids.data.notificationId,
+          notificationFormData(input, { expectedRevision }),
+          key,
+        );
+        return { ok: true, data: mapNotificationRecord(data) };
+      } catch (error) {
+        return staleAware(toActionResult(error, NOTIFICATION_FIELD_REMAP));
+      }
+    });
+  }
+  return mock.updateNotificationDraft(ids.data.notificationId, input, expectedRevision);
+}
+
+/** `DELETE notifications/{id}/`: a `draft` or `tested` campaign of the author (or any, for a superuser). */
+export async function deleteNotificationDraft(
+  notificationId: string,
+  key: string,
+  csrf: string,
+): Promise<ActionResult<{ id: string }>> {
+  const guard = await guardAction(csrf);
+  if (!guard.ok) return guard;
+  const parsed = z.object({ notificationId: idSchema, key: idempotencyKeySchema }).safeParse({
+    notificationId,
+    key,
+  });
+  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  const id = parsed.data.notificationId;
+  if ((await dataSource()) === "api") {
+    return apiMutation("deleteNotificationDraft", async () => {
+      try {
+        await apiDeleteNotification(sessionToken(guard.session), id);
+        return { ok: true, data: { id } };
+      } catch (error) {
+        return staleAware(toActionResult(error));
+      }
+    });
+  }
+  return mock.deleteNotificationDraft(id);
+}
+
+/**
+ * The campaign changed under the board (409 `conflict` /
+ * `invalid_transition`, 404): re-read the history in this roundtrip (api
+ * mode only; mock mode never refreshes, action-guard.ts).
+ */
+function staleAware(result: ActionFailure): ActionFailure {
+  if (
+    result.code === "conflict" ||
+    result.code === "invalid_transition" ||
+    result.code === "not_found"
+  ) {
+    refresh();
+  }
+  return result;
+}
+
+/** Shared prologue of the superuser transitions: guard, role, ids and key. */
+async function superuserOperation(
+  csrf: string,
+  notificationId: string,
+  key: string,
+): Promise<{ ok: true; guard: Extract<Guarded, { ok: true }>; id: string } | ActionFailure> {
+  const guard = await requireSuperuser(await guardAction(csrf));
+  if (!guard.ok) return guard;
+  const parsed = z.object({ notificationId: idSchema, key: idempotencyKeySchema }).safeParse({
+    notificationId,
+    key,
+  });
+  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  return { ok: true, guard, id: parsed.data.notificationId };
+}
+
+/** The api branch of a transition: the mapped record, stale answers re-read. */
+async function transition(
+  name: string,
+  call: () => Promise<{ data: ApiNotificationRecord }>,
+): Promise<ActionResult<NotificationRecord>> {
+  return apiMutation(name, async () => {
+    try {
+      const { data } = await call();
+      return { ok: true, data: mapNotificationRecord(data) };
+    } catch (error) {
+      return staleAware(toActionResult(error));
+    }
+  });
+}
+
+const deviceIdsSchema = z
+  .array(idSchema)
+  .min(1, "Kamida bitta qurilmani tanlang.")
+  .max(10, "Ko‘pi bilan 10 ta qurilma.");
+
+/**
+ * `POST notifications/{id}/test/` `{device_ids}`: a real push of the
+ * current revision to the chosen registered devices (the tester's inbox
+ * gets the message too, so the deep link can be checked); the answer lists
+ * the tests with FCM's verdict.
+ */
+export async function sendCampaignTest(
+  notificationId: string,
+  deviceIds: ReadonlyArray<string>,
+  key: string,
+  csrf: string,
+): Promise<ActionResult<NotificationRecord>> {
+  const op = await superuserOperation(csrf, notificationId, key);
+  if (!op.ok) return op;
+  const devices = deviceIdsSchema.safeParse(deviceIds);
+  if (!devices.success) {
+    return { ok: false, error: devices.error.issues[0]?.message ?? "Qurilmani tanlang." };
+  }
+  if ((await dataSource()) === "api") {
+    return transition("sendCampaignTest", () =>
+      apiSendCampaignTest(
+        sessionToken(op.guard.session),
+        op.id,
+        { device_ids: devices.data.map(Number) },
+        key,
+      ),
+    );
+  }
+  return mock.sendCampaignTest(op.id, devices.data);
+}
+
+/** `POST notifications/{id}/tests/{test_id}/confirm/`: the tester saw the push; the campaign is `tested`. */
+export async function confirmCampaignTest(
+  notificationId: string,
+  testId: string,
+  key: string,
+  csrf: string,
+): Promise<ActionResult<NotificationRecord>> {
+  const op = await superuserOperation(csrf, notificationId, key);
+  if (!op.ok) return op;
+  const test = idSchema.safeParse(testId);
+  if (!test.success) return { ok: false, error: "Noto‘g‘ri so‘rov." };
+  if ((await dataSource()) === "api") {
+    return transition("confirmCampaignTest", () =>
+      apiConfirmCampaignTest(sessionToken(op.guard.session), op.id, test.data, key),
+    );
+  }
+  return mock.confirmCampaignTest(op.id, test.data);
+}
+
+/**
+ * `POST notifications/{id}/approve/` `{expected_revision}`: the tested
+ * campaign waits for `dispatch_after` (the approval delay after now, or the
+ * requested time when later). Nothing is sent by the approval itself.
+ */
+export async function approveNotification(
+  notificationId: string,
+  expectedRevision: number,
+  key: string,
+  csrf: string,
+): Promise<ActionResult<NotificationRecord>> {
+  const op = await superuserOperation(csrf, notificationId, key);
+  if (!op.ok) return op;
+  const revision = revisionSchema.safeParse(expectedRevision);
+  if (!revision.success) return { ok: false, error: "Noto‘g‘ri so‘rov." };
+  if ((await dataSource()) === "api") {
+    return transition("approveNotification", () =>
+      apiApproveNotification(
+        sessionToken(op.guard.session),
+        op.id,
+        { expected_revision: revision.data },
+        key,
+      ),
+    );
+  }
+  return mock.approveNotification(op.id, revision.data);
+}
+
+/** `POST notifications/{id}/return-to-draft/`: a waiting or cancelled campaign that never started. */
+export async function returnNotificationToDraft(
+  notificationId: string,
+  key: string,
+  csrf: string,
+): Promise<ActionResult<NotificationRecord>> {
+  const op = await superuserOperation(csrf, notificationId, key);
+  if (!op.ok) return op;
+  if ((await dataSource()) === "api") {
+    return transition("returnNotificationToDraft", () =>
+      apiReturnNotificationToDraft(sessionToken(op.guard.session), op.id, key),
+    );
+  }
+  return mock.returnNotificationToDraft(op.id);
+}
+
+/**
+ * `POST notifications/{id}/cancel/` (M3; superusers since the approval
+ * workflow): a waiting campaign becomes `cancelled` before its send starts
+ * (a repeat answers the same record). Once the send started the backend
+ * answers 409 `conflict` "Yuborish boshlangan: xabarni bekor qilib
+ * bo‘lmaydi."; an unknown id 404.
  */
 export async function cancelNotification(
   notificationId: string,
   key: string,
   csrf: string,
 ): Promise<ActionResult<NotificationRecord>> {
-  const guard = await guardAction(csrf);
-  if (!guard.ok) return guard;
-  const parsed = cancelSchema.safeParse({ notificationId, key });
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
-  const input = parsed.data;
+  const op = await superuserOperation(csrf, notificationId, key);
+  if (!op.ok) return op;
   if ((await dataSource()) === "api") {
-    return apiMutation("cancelNotification", async () => {
+    return transition("cancelNotification", () =>
+      apiCancelNotification(sessionToken(op.guard.session), op.id, key),
+    );
+  }
+  return mock.cancelNotification(op.id);
+}
+
+/** `POST notifications/{id}/stop/`: the emergency stop of a `sending` campaign (`stopping`). */
+export async function stopNotification(
+  notificationId: string,
+  key: string,
+  csrf: string,
+): Promise<ActionResult<NotificationRecord>> {
+  const op = await superuserOperation(csrf, notificationId, key);
+  if (!op.ok) return op;
+  if ((await dataSource()) === "api") {
+    return transition("stopNotification", () =>
+      apiStopNotification(sessionToken(op.guard.session), op.id, key),
+    );
+  }
+  return mock.stopNotification(op.id);
+}
+
+export interface TestDeviceInput {
+  phone: string;
+  label: string;
+}
+
+export const TEST_DEVICE_LABEL_MAX = 60;
+
+const testDeviceSchema = z.object({
+  phone: z
+    .string()
+    .trim()
+    .transform((value) => value.replace(/[\s()-]/g, ""))
+    .refine((value) => /^\+998\d{9}$/.test(value), {
+      error: "Telefon raqamni +998 XX XXX XX XX ko‘rinishida kiriting.",
+    }),
+  label: z
+    .string()
+    .trim()
+    .min(2, "Qurilma nomini kiriting.")
+    .max(TEST_DEVICE_LABEL_MAX, `${TEST_DEVICE_LABEL_MAX} belgidan oshmasin.`),
+  key: idempotencyKeySchema,
+});
+
+/**
+ * `POST notifications/test-devices/` `{phone, label}` (superusers): the
+ * customer's latest pushable device becomes a test target. The backend's
+ * field errors land on `phone` (`customer_not_found`, `device_not_pushable`,
+ * `unique`).
+ */
+export async function registerTestDevice(
+  input: TestDeviceInput,
+  key: string,
+  csrf: string,
+): Promise<ActionResult<TestDevice>> {
+  const guard = await requireSuperuser(await guardAction(csrf));
+  if (!guard.ok) return guard;
+  const parsed = testDeviceSchema.safeParse({ ...input, key });
+  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  const device = { phone: parsed.data.phone, label: parsed.data.label };
+  if ((await dataSource()) === "api") {
+    return apiMutation("registerTestDevice", async () => {
       try {
-        const { data } = await apiCancelNotification(
-          sessionToken(guard.session),
-          input.notificationId,
-          input.key,
-        );
-        return { ok: true, data: mapNotificationRecord(data) };
+        const { data } = await apiRegisterTestDevice(sessionToken(guard.session), device, key);
+        return { ok: true, data: mapTestDevice(data) };
       } catch (error) {
-        const result = toActionResult(error);
-        // The campaign changed under the board: re-read the history in this
-        // roundtrip (api mode only; mock mode never refreshes, action-guard.ts).
-        if (result.code === "conflict" || result.code === "not_found") refresh();
-        return result;
+        return toActionResult(error);
       }
     });
   }
-  return mock.cancelNotification(input.notificationId);
+  return mock.registerTestDevice(device);
+}
+
+/** `DELETE notifications/test-devices/{id}/` (superusers): soft, idempotent. */
+export async function removeTestDevice(
+  deviceId: string,
+  key: string,
+  csrf: string,
+): Promise<ActionResult<{ id: string }>> {
+  const guard = await requireSuperuser(await guardAction(csrf));
+  if (!guard.ok) return guard;
+  const parsed = z.object({ deviceId: idSchema, key: idempotencyKeySchema }).safeParse({
+    deviceId,
+    key,
+  });
+  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  const id = parsed.data.deviceId;
+  if ((await dataSource()) === "api") {
+    return apiMutation("removeTestDevice", async () => {
+      try {
+        await apiRemoveTestDevice(sessionToken(guard.session), id);
+        return { ok: true, data: { id } };
+      } catch (error) {
+        return staleAware(toActionResult(error));
+      }
+    });
+  }
+  return mock.removeTestDevice(id);
 }
 
 const TEMPLATE_STATUSES = ["processing", "handed_to_courier", "delivered", "cancelled"] as const;

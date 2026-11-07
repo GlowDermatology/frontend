@@ -81,81 +81,20 @@ export type ApiAppointmentCancel = Partial<Schemas["AppointmentCancelRequest"]>;
 
 /* --- Notifications, templates, segments (contract §2.8) --- */
 
-/*
- * Campaign approval workflow (contract §2.8). Until `npm run gen:api` runs
- * against the backend commit that adds the workflow, the new shapes are
- * written out here next to the generated ones; they become `Schemas[…]`
- * aliases then.
+export type ApiNotificationRecord = Schemas["NotificationRecord"];
+export type ApiNotificationState = Schemas["NotificationStateEnum"];
+export type ApiCampaignTest = Schemas["CampaignTest"];
+export type ApiPaginatedNotifications = Schemas["PaginatedNotificationRecordList"];
+/**
+ * `notifications/meta/` (campaign approval): `approval_delay_minutes` is in
+ * the backend's answer (`selectors.meta`) but not yet in its serializer, so
+ * the schema does not list it; the mapper falls back to the default of 5.
  */
-export type ApiNotificationState =
-  | "draft"
-  | "tested"
-  | "scheduled"
-  | "sending"
-  | "stopping"
-  | "sent"
-  | "partially_sent"
-  | "cancelled"
-  | "failed";
-export interface ApiCampaignTest {
-  id: number;
-  revision: number;
-  test_device_id: number | null;
-  device_label: string;
-  phone: string;
-  sent_at: string;
-  sent_by: ApiActor | null;
-  fcm_ok: boolean | null;
-  fcm_error: string;
-  confirmed_at: string | null;
-  confirmed_by: ApiActor | null;
-}
-export type ApiNotificationRecord = Omit<Schemas["NotificationRecord"], "state"> & {
-  state: ApiNotificationState;
-  revision: number;
-  tested_revision: number | null;
-  test_confirmed_at: string | null;
-  test_confirmed_by: ApiActor | null;
-  approved_at: string | null;
-  approved_by: ApiActor | null;
-  approved_revision: number | null;
-  dispatch_after: string | null;
-  started_at: string | null;
-  cancelled_by: ApiActor | null;
-  stop_requested_at: string | null;
-  stopped_at: string | null;
-  failed_at: string | null;
-  last_error: string;
-  attempted: number | null;
-  updated_at: string;
-  tests: ApiCampaignTest[];
-};
-export type ApiPaginatedNotifications = Omit<
-  Schemas["PaginatedNotificationRecordList"],
-  "results"
-> & {
-  results: ApiNotificationRecord[];
-};
-export type ApiNotificationMeta = Schemas["NotificationMeta"] & { approval_delay_minutes: number };
-export interface ApiTestDevice {
-  id: number;
-  phone: string;
-  label: string;
-  is_active: boolean;
-  is_pushable: boolean;
-  registered_by: ApiActor | null;
-  created_at: string;
-}
-export interface ApiTestDeviceCreate {
-  phone: string;
-  label: string;
-}
-export interface ApiCampaignTestRequest {
-  device_ids: number[];
-}
-export interface ApiApproveRequest {
-  expected_revision: number;
-}
+export type ApiNotificationMeta = Schemas["NotificationMeta"] & { approval_delay_minutes?: number };
+export type ApiTestDevice = Schemas["TestDevice"];
+export type ApiTestDeviceCreate = Schemas["TestDeviceCreateRequest"];
+export type ApiCampaignTestRequest = Schemas["SendTestInputRequest"];
+export type ApiApproveRequest = Schemas["ApproveInputRequest"];
 export type ApiStatusTemplate = Schemas["StatusTemplate"];
 export type ApiTemplateStatus = Schemas["TemplateStatusEnum"];
 export type ApiTemplateUpdate = Schemas["TemplateUpdateRequest"];

@@ -44,15 +44,15 @@ export const SEND_STARTED_MESSAGE = "Yuborish boshlangan: xabarni bekor qilib bo
 export const MESSAGE_STALE_REVISION =
   "Xabar o‘zgartirilgan: sahifani yangilab, qayta urinib ko‘ring.";
 export const MESSAGE_NOT_TESTED = "Avval test yuboring va qurilmada ko‘rganingizni tasdiqlang.";
-export const MESSAGE_NOT_EDITABLE =
-  "Faqat qoralama yoki test tasdiqlangan xabarni o‘zgartirish mumkin.";
-export const MESSAGE_CANCEL_DRAFT = "Qoralama bekor qilinmaydi: uni o‘chiring yoki tahrirlang.";
-export const MESSAGE_NOT_SENDING = "Yuborish ketmayapti: to‘xtatadigan narsa yo‘q.";
+export const MESSAGE_NOT_EDITABLE = "Faqat qoralamani o‘zgartirish mumkin.";
+export const MESSAGE_CANCEL_DRAFT =
+  "Qoralamani bekor qilish shart emas: uni o‘chiring yoki o‘zgartiring.";
+export const MESSAGE_NOT_SENDING = "Xabar hozir yuborilmayapti: to‘xtatadigan narsa yo‘q.";
 export const MESSAGE_NOT_RETURNABLE =
-  "Faqat yuborilishi kutilayotgan yoki bekor qilingan xabar qoralamaga qaytariladi.";
-export const MESSAGE_TEST_STALE = "Test eski tahrir uchun yuborilgan: qayta test yuboring.";
+  "Faqat rejalashtirilgan yoki bekor qilingan xabarni qoralamaga qaytarish mumkin.";
+export const MESSAGE_TEST_STALE = "Bu test eski matn uchun yuborilgan: qayta test yuboring.";
 export const MESSAGE_TEST_UNDELIVERED = "Bu test qurilmaga yetib bormagan: tasdiqlab bo‘lmaydi.";
-export const MESSAGE_NO_TEST_DEVICE = "Avval test qurilmasini ro‘yxatga oling.";
+export const MESSAGE_NO_TEST_DEVICES = "Push qabul qila oladigan test qurilmasi tanlanmadi.";
 export const MESSAGE_CUSTOMER_NOT_FOUND = "Bu raqam bilan mijoz topilmadi.";
 export const MESSAGE_DEVICE_NOT_PUSHABLE = "Bu mijozning push yoqilgan qurilmasi yo‘q.";
 export const MESSAGE_DEVICE_REGISTERED = "Bu qurilma allaqachon ro‘yxatda.";
@@ -222,12 +222,7 @@ export async function sendCampaignTest(
   if (!EDITABLE.has(record.state)) return invalidTransition(MESSAGE_NOT_EDITABLE);
   const devices = deviceIds.map((deviceId) => TEST_DEVICES.find((d) => d.id === deviceId));
   if (devices.length === 0 || devices.some((d) => d === undefined)) {
-    return {
-      ok: false,
-      error: "Maydonlarni tekshiring.",
-      code: "validation_error",
-      fieldErrors: { deviceIds: MESSAGE_NO_TEST_DEVICE },
-    };
+    return conflict(MESSAGE_NO_TEST_DEVICES);
   }
   const sentAt = now();
   const tests: CampaignTest[] = (devices as TestDevice[]).map((device, index) => ({
@@ -291,11 +286,8 @@ export async function approveNotification(
   if (record.state === "scheduled" && record.approvedRevision === expectedRevision) {
     return { ok: true, data: record };
   }
-  if (record.state !== "tested") {
-    return record.state === "draft"
-      ? invalidTransition(MESSAGE_NOT_TESTED)
-      : invalidTransition(SEND_STARTED_MESSAGE);
-  }
+  if (record.state === "draft") return conflict(MESSAGE_NOT_TESTED);
+  if (record.state !== "tested") return invalidTransition(MESSAGE_NOT_TESTED);
   if (record.revision !== expectedRevision || record.testedRevision !== record.revision) {
     return conflict(MESSAGE_STALE_REVISION);
   }
@@ -350,7 +342,8 @@ export async function returnNotificationToDraft(
 /**
  * Cancel with the backend's answers over the fixtures: a waiting campaign
  * comes back cancelled (an already cancelled one unchanged), a draft is a
- * 409 (delete or edit it instead), a started one the 409 `conflict`, an
+ * 409 `invalid_transition` (delete or edit it instead), a started one the
+ * 409 `conflict`, an
  * unknown id — including a draft saved in this demo, which lives only in
  * the page's state — a 404. Nothing is kept.
  */
@@ -359,7 +352,7 @@ export async function cancelNotification(id: string): Promise<ActionResult<Notif
   const record = find(id);
   if (!record) return NOT_FOUND;
   if (record.state === "cancelled") return { ok: true, data: record };
-  if (EDITABLE.has(record.state)) return conflict(MESSAGE_CANCEL_DRAFT);
+  if (EDITABLE.has(record.state)) return invalidTransition(MESSAGE_CANCEL_DRAFT);
   if (record.state !== "scheduled") return conflict(SEND_STARTED_MESSAGE);
   return {
     ok: true,
@@ -373,7 +366,7 @@ export async function stopNotification(id: string): Promise<ActionResult<Notific
   const record = find(id);
   if (!record) return NOT_FOUND;
   if (record.state === "stopping") return { ok: true, data: record };
-  if (record.state !== "sending") return conflict(MESSAGE_NOT_SENDING);
+  if (record.state !== "sending") return invalidTransition(MESSAGE_NOT_SENDING);
   const at = now();
   return {
     ok: true,

@@ -9,7 +9,7 @@ import { Field, TextInput } from "@/components/ui/field";
 import { Icon } from "@/components/ui/icon";
 import { useToast } from "@/components/ui/toast";
 import { registerTestDevice, removeTestDevice } from "@/data/notifications.actions";
-import type { TestDevice } from "@/domain/notification";
+import { TEST_DEVICE_LABEL_MAX, type TestDevice } from "@/domain/notification";
 import { formatDateTimeShort, formatPhone } from "@/lib/format";
 import { maskPhone } from "@/lib/phone";
 
@@ -18,8 +18,6 @@ import { partitionFieldErrors } from "../shared/field-errors";
 import { useFocusFirstInvalid } from "../shared/focus-invalid";
 import { useIdempotencyKey } from "../shared/idempotency";
 import { actionKeyFor, settleActionKey } from "./campaign-outcomes";
-
-const LABEL_MAX = 60;
 
 /**
  * The test devices a superuser registers by the customer's phone (contract
@@ -177,7 +175,7 @@ export function TestDevicesCard({
               {...c}
               name="deviceLabel"
               autoComplete="off"
-              maxLength={LABEL_MAX}
+              maxLength={TEST_DEVICE_LABEL_MAX}
               placeholder="Dilnoza iPhone"
               value={label}
               onChange={(event) => setLabel(event.target.value)}

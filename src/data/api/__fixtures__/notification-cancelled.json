@@ -74,5 +74,6 @@
   "stopped_at": null,
   "failed_at": null,
   "last_error": "",
-  "attempted": null
+  "attempted": null,
+  "stop_requested_by": null
 }

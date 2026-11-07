@@ -645,7 +645,7 @@ describe("the campaign workflow in api mode", () => {
     apiFetch.mockRejectedValueOnce(apiError(409, notTestedFixture));
     expect(await approveNotification("9", 2, KEY, CSRF)).toMatchObject({
       ok: false,
-      code: "invalid_transition",
+      code: "conflict",
       error: "Avval test yuboring va qurilmada ko‘rganingizni tasdiqlang.",
     });
     expect(refresh).toHaveBeenCalledTimes(2);
@@ -796,8 +796,8 @@ describe("cancelling a waiting campaign (M3, superusers)", () => {
     });
     expect(await cancelNotification("n-9", KEY, CSRF)).toMatchObject({
       ok: false,
-      code: "conflict",
-      error: "Qoralama bekor qilinmaydi: uni o‘chiring yoki tahrirlang.",
+      code: "invalid_transition",
+      error: "Qoralamani bekor qilish shart emas: uni o‘chiring yoki o‘zgartiring.",
     });
     expect(await cancelNotification("n-missing", KEY, CSRF)).toMatchObject({
       ok: false,
@@ -822,7 +822,7 @@ describe("the campaign workflow in mock mode", () => {
     expect(await confirmCampaignTest("n-8", "t-1", KEY, CSRF)).toMatchObject({
       ok: false,
       code: "conflict",
-      error: "Test eski tahrir uchun yuborilgan: qayta test yuboring.",
+      error: "Bu test eski matn uchun yuborilgan: qayta test yuboring.",
     });
     expect(await confirmCampaignTest("n-8", "t-2", KEY, CSRF)).toMatchObject({
       ok: true,
@@ -849,7 +849,7 @@ describe("the campaign workflow in mock mode", () => {
     });
     expect(await approveNotification("n-9", 1, KEY, CSRF)).toMatchObject({
       ok: false,
-      code: "invalid_transition",
+      code: "conflict",
       error: "Avval test yuboring va qurilmada ko‘rganingizni tasdiqlang.",
     });
     // A repeat on the waiting campaign answers it unchanged.
@@ -907,8 +907,8 @@ describe("the campaign workflow in mock mode", () => {
     });
     expect(await stopNotification("n-4", KEY, CSRF)).toMatchObject({
       ok: false,
-      code: "conflict",
-      error: "Yuborish ketmayapti: to‘xtatadigan narsa yo‘q.",
+      code: "invalid_transition",
+      error: "Xabar hozir yuborilmayapti: to‘xtatadigan narsa yo‘q.",
     });
   });
 

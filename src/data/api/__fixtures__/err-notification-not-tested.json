@@ -1,5 +1,5 @@
 {
-  "code": "invalid_transition",
+  "code": "conflict",
   "message": "Avval test yuboring va qurilmada ko‘rganingizni tasdiqlang.",
   "errors": [],
   "request_id": "5e2d1c0a-7b6f-4e3d-9a8c-1f2e3d4c5b6a"

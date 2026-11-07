@@ -77,7 +77,8 @@
       "stopped_at": null,
       "failed_at": null,
       "last_error": "",
-      "attempted": null
+      "attempted": null,
+      "stop_requested_by": null
     },
     {
       "id": 3,
@@ -152,7 +153,8 @@
       "stop_requested_at": null,
       "stopped_at": null,
       "failed_at": null,
-      "last_error": ""
+      "last_error": "",
+      "stop_requested_by": null
     },
     {
       "id": 2,
@@ -227,7 +229,8 @@
       "stop_requested_at": null,
       "stopped_at": null,
       "failed_at": null,
-      "last_error": ""
+      "last_error": "",
+      "stop_requested_by": null
     },
     {
       "id": 1,
@@ -302,7 +305,8 @@
       "stop_requested_at": null,
       "stopped_at": null,
       "failed_at": null,
-      "last_error": ""
+      "last_error": "",
+      "stop_requested_by": null
     }
   ]
 }

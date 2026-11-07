@@ -216,3 +216,5 @@ export interface NotificationDraft {
 
 export const TITLE_MAX = 60;
 export const BODY_MAX = 180;
+/** A test device's label (`TestDevice.label`). */
+export const TEST_DEVICE_LABEL_MAX = 60;

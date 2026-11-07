@@ -13,6 +13,7 @@ import {
   TEMPLATE_UZ_MIN,
   TITLE_MAX,
   type NotificationRecord,
+  TEST_DEVICE_LABEL_MAX,
   type StatusTemplate,
   type TemplateStatus,
   type TestDevice,
@@ -510,8 +511,6 @@ export interface TestDeviceInput {
   phone: string;
   label: string;
 }
-
-export const TEST_DEVICE_LABEL_MAX = 60;
 
 const testDeviceSchema = z.object({
   phone: z

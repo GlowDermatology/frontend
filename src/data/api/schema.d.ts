@@ -3,8 +3,8 @@
  * GENERATED FILE — do not edit by hand. Regenerate with `npm run gen:api`.
  *
  * Source: openapi/schema.yaml of the backend repository
- * Commit: f38aa0b9ff5b41800daf1e81a5a260982127f54d
- * Generated: 2026-11-07T21:52:17.352Z (openapi-typescript)
+ * Commit: 637b9a81f6b340805d2b7c9c1da7044d3ce36aca
+ * Generated: 2026-11-07T22:22:11.420Z (openapi-typescript)
  */
 
 export interface paths {
@@ -4330,6 +4330,8 @@ export interface components {
             url: string | null;
         };
         NotificationMeta: {
+            /** @description CAMPAIGN_APPROVAL_DELAY_MINUTES: the cancel window between an approval and the dispatch. */
+            approval_delay_minutes: number;
             link_options: components["schemas"]["LinkOption"][];
             segments: components["schemas"]["MetaSegment"][];
             templates: components["schemas"]["StatusTemplate"][];

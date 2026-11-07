@@ -85,12 +85,7 @@ export type ApiNotificationRecord = Schemas["NotificationRecord"];
 export type ApiNotificationState = Schemas["NotificationStateEnum"];
 export type ApiCampaignTest = Schemas["CampaignTest"];
 export type ApiPaginatedNotifications = Schemas["PaginatedNotificationRecordList"];
-/**
- * `notifications/meta/` (campaign approval): `approval_delay_minutes` is in
- * the backend's answer (`selectors.meta`) but not yet in its serializer, so
- * the schema does not list it; the mapper falls back to the default of 5.
- */
-export type ApiNotificationMeta = Schemas["NotificationMeta"] & { approval_delay_minutes?: number };
+export type ApiNotificationMeta = Schemas["NotificationMeta"];
 export type ApiTestDevice = Schemas["TestDevice"];
 export type ApiTestDeviceCreate = Schemas["TestDeviceCreateRequest"];
 export type ApiCampaignTestRequest = Schemas["SendTestInputRequest"];

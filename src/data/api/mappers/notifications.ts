@@ -175,7 +175,7 @@ export interface NotificationMeta {
 
 export function mapNotificationMeta(api: ApiNotificationMeta): NotificationMeta {
   return {
-    approvalDelayMinutes: api.approval_delay_minutes ?? 5,
+    approvalDelayMinutes: api.approval_delay_minutes,
     totalDevices: api.total_devices,
     segments: api.segments.map((s) => ({ id: idString(s.id), name: s.name, size: s.size })),
     linkOptions: [

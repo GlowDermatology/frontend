@@ -124,27 +124,109 @@ export function clickOrdersWithPaydoc(): number[] {
 }
 
 /**
- * Moves the spec's scheduled campaign `title` to `from` → `to` (`queued`:
- * its send started, as the beat does when it is due; `scheduled`: back
- * again), so the board meets the backend's 409 on "Bekor qilish". Nothing is
- * sent: no task is queued for it.
+ * Moves the spec's campaign `title` from `from` to `to` without any task
+ * (`sending`: its send started, as the beat does when it is due, with
+ * `started_at` set; `scheduled`: back again), so the board meets the
+ * backend's 409 on «Yuborishni bekor qilish». Nothing is sent.
  */
 export function setCampaignState(
   title: string,
-  from: "scheduled" | "queued",
-  to: "scheduled" | "queued",
+  from: "scheduled" | "sending",
+  to: "scheduled" | "sending",
 ): void {
   const code = [
     "import json",
+    "from django.utils import timezone",
     "from glowderma.notifications.models import Campaign",
     `title = json.loads(${JSON.stringify(JSON.stringify(title))})`,
-    `changed = Campaign.objects.filter(title=title, state='${from}').update(state='${to}')`,
+    `fields = {'state': '${to}', 'started_at': timezone.now() if '${to}' == 'sending' else None}`,
+    `if '${to}' == 'sending': fields.update(sent=0, failed=0)`,
+    `changed = Campaign.objects.filter(title=title, state='${from}').update(**fields)`,
     "print(json.dumps({'changed': changed}))",
   ].join("\n");
   const answer = JSON.parse(djangoShell(code).trim().split("\n").at(-1) ?? "{}");
   if (answer.changed !== 1) {
     throw new Error(`the backend moved ${JSON.stringify(answer)} campaigns «${title}» to ${to}`);
   }
+}
+
+/* --- Campaign approval specs (test-only) --- */
+
+/**
+ * An ordinary (non-superuser) staff account for the "staff sees no
+ * privileged controls" spec: created or updated to `password`, active,
+ * never a superuser or manager. Deleted again with `deleteStaffAccounts`.
+ */
+export function ensureStaffAccount(email: string, password: string): void {
+  if (!email.startsWith("e2e")) throw new Error("only e2e accounts are created");
+  const code = [
+    "import json",
+    "from glowderma.accounts.models import StaffUser",
+    `email = json.loads(${JSON.stringify(JSON.stringify(email))})`,
+    `password = json.loads(${JSON.stringify(JSON.stringify(password))})`,
+    "user, _ = StaffUser.objects.get_or_create(email=email, defaults={'full_name': 'E2E xodim'})",
+    "user.is_active = True",
+    "user.is_staff = True",
+    "user.is_superuser = False",
+    "user.is_manager = False",
+    "user.set_password(password)",
+    "user.save()",
+    "print(json.dumps({'id': user.pk, 'superuser': user.is_superuser}))",
+  ].join("\n");
+  const answer = shellJson<{ id: number; superuser: boolean }>(code);
+  if (!answer.id || answer.superuser) {
+    throw new Error(`the backend did not prepare the staff account: ${JSON.stringify(answer)}`);
+  }
+}
+
+/**
+ * Gives the customer with `phone` an active pushable device (a fake FCM
+ * token the fake provider accepts), so a superuser can register it as a
+ * test device and test pushes have somewhere to go. Returns the device id.
+ */
+export function ensurePushableDevice(phone: string): number {
+  const code = [
+    "import json",
+    "from glowderma.accounts.models import Customer, Device",
+    `phone = json.loads(${JSON.stringify(JSON.stringify(phone))})`,
+    "customer = Customer.objects.get(phone=phone, is_active=True)",
+    "device = customer.devices.filter(is_active=True, push_enabled=True).exclude(fcm_token='').order_by('-last_active_at').first()",
+    "if device is None:",
+    "    device = Device.objects.create(customer=customer, fid=f'e2e-{customer.pk}', platform='android', model='E2E Android', fcm_token=f'e2e-token-{customer.pk}', push_enabled=True, is_active=True)",
+    "print(json.dumps({'id': device.pk}))",
+  ].join("\n");
+  const answer = shellJson<{ id: number }>(code);
+  if (!answer.id) throw new Error(`the backend did not prepare a device for ${phone}`);
+  return answer.id;
+}
+
+/**
+ * Runs the campaign beat once, as Celery would every minute: the due
+ * approved campaigns start (eager Celery sends them to the fake FCM inside
+ * the call) and campaigns being stopped are finalised. Returns the ids the
+ * beat started. The backend must run with `CAMPAIGN_APPROVAL_DELAY_MINUTES=0`
+ * for a just-approved campaign to be due.
+ */
+export function runCampaignBeat(): number[] {
+  const code = [
+    "import json",
+    "from glowderma.notifications.services import finalise_stopping_campaigns, start_due_campaigns",
+    "started = start_due_campaigns()",
+    "finalise_stopping_campaigns()",
+    "print(json.dumps([int(pk) for pk in started]))",
+  ].join("\n");
+  return shellJson<number[]>(code);
+}
+
+/** Removes the test devices a spec registered (labels starting with `prefix`), hard, so a rerun registers afresh. */
+export function deleteTestDevices(prefix: string): number {
+  const code = [
+    "import json",
+    "from glowderma.notifications.models import TestDevice",
+    `prefix = json.loads(${JSON.stringify(JSON.stringify(prefix))})`,
+    "print(json.dumps(TestDevice.objects.filter(label__startswith=prefix).delete()[0]))",
+  ].join("\n");
+  return shellJson<number>(code);
 }
 
 /* --- Gap closure specs: arrange and clean up what no API can (test-only) --- */

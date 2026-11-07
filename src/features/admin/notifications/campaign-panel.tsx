@@ -112,7 +112,7 @@ export function CampaignPanel({
   const perform = async (
     action: CampaignAction | "delete",
     invoke: (key: string, csrf: string) => Promise<ActionResult<NotificationRecord>>,
-    success: ToastInput,
+    success: ToastInput | ((answered: NotificationRecord) => ToastInput),
     label: string,
   ) => {
     if (inFlight.current) return;
@@ -125,7 +125,12 @@ export function CampaignPanel({
     inFlight.current = false;
     setPending(null);
     settleActionKey(keys.current, action, record.id, result);
-    applyCampaignOutcome(campaignOutcome(result), record, success, {
+    const outcome = campaignOutcome(result);
+    const toastInput =
+      typeof success === "function"
+        ? success(outcome.type === "done" ? outcome.record : record)
+        : success;
+    applyCampaignOutcome(outcome, record, toastInput, {
       showError: dialog ? setDialogError : setPanelError,
       close: () => setDialog(null),
       replaceRecord: onReplace,
@@ -138,10 +143,12 @@ export function CampaignPanel({
     perform(
       "approve",
       (key, csrf) => approveNotification(record.id, record.revision, key, csrf),
-      {
+      (answered) => ({
         title: "Yuborish tasdiqlandi",
-        description: `${formatDateTimeShort(dispatchEta(new Date(), approvalDelayMinutes, record.scheduledAt))} dan keyin yuboriladi; ungacha bekor qilish mumkin`,
-      },
+        description: answered.dispatchAfter
+          ? `${formatDateTimeShort(answered.dispatchAfter)} dan keyin yuboriladi; ungacha bekor qilish mumkin`
+          : "Ungacha bekor qilish mumkin",
+      }),
       "approve",
     );
 

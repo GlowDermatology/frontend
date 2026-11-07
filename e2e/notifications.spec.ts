@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { historyRow, openPanel, removeLeftovers, saveDraft, TITLE_PREFIX } from "./campaigns";
-import { STAFF_STORAGE_STATE, staffCredentials } from "./env";
+import { BASE_URL, STAFF_STORAGE_STATE, staffCredentials } from "./env";
 import { heading, toast, watchPage } from "./helpers";
 
 /**
@@ -116,6 +116,63 @@ test.describe("an ordinary admin", () => {
         await expect(panel.getByRole("button", { name })).toHaveCount(0);
       }
     }
+    watcher.assertClean();
+  });
+
+  /**
+   * Hiding is not the protection: a privileged Server Action an ordinary
+   * admin forces (the request a superuser's browser sends, replayed with the
+   * admin's own session and csrf cookie) answers `permission_denied`
+   * «Ruxsat yo‘q.» from `requireSuperuser`, before the backend is asked.
+   */
+  test("a forced superuser action answers permission_denied", async ({ page, browser }) => {
+    const watcher = watchPage(page);
+    // What a superuser's click sends: the test devices card's registration
+    // of an unknown phone (the backend refuses it, nothing is stored).
+    const admin = await browser.newContext({ storageState: "e2e/.auth/admin.json" });
+    const adminPage = await admin.newPage();
+    await adminPage.goto("/admin/notifications");
+    const card = adminPage.getByRole("region", { name: "Test qurilmalari" });
+    await card.getByLabel("Mijoz telefoni").fill("+998 90 000 00 01");
+    await card.getByLabel("Qurilma nomi").fill("e2e yo‘q qurilma");
+    const sent = adminPage.waitForRequest(
+      (request) => request.method() === "POST" && Boolean(request.headers()["next-action"]),
+    );
+    await card.getByRole("button", { name: "Qurilma qo‘shish" }).click();
+    const request = await sent;
+    await expect(card).toContainText("Bu raqam bilan mijoz topilmadi.");
+    const headers = request.headers();
+    const args = JSON.parse(request.postData() ?? "[]") as unknown[];
+    await admin.close();
+
+    // The same action with the ordinary admin's session and csrf token.
+    await page.goto("/admin/notifications");
+    await expect(heading(page)).toHaveText("Bildirishnomalar");
+    const csrf = await page.evaluate(
+      () =>
+        document.cookie
+          .split(";")
+          .map((part) => part.trim())
+          .find((part) => part.startsWith("gd_csrf="))
+          ?.slice("gd_csrf=".length) ?? "",
+    );
+    expect(csrf).not.toBe("");
+    args[args.length - 1] = decodeURIComponent(csrf);
+    const response = await page.request.post(request.url(), {
+      headers: {
+        accept: headers["accept"]!,
+        "content-type": headers["content-type"]!,
+        "next-action": headers["next-action"]!,
+        "next-router-state-tree": headers["next-router-state-tree"]!,
+        origin: new URL(BASE_URL).origin,
+      },
+      data: JSON.stringify(args),
+    });
+    expect(response.status()).toBe(200);
+    const body = await response.text();
+    expect(body).toContain("permission_denied");
+    expect(body).toContain("Ruxsat yo‘q.");
+    expect(body).not.toContain("customer_not_found");
     watcher.assertClean();
   });
 });

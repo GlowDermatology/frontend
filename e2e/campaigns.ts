@@ -24,17 +24,30 @@ const FAR_FUTURE = "9999-12-31T10:00";
 export const TITLE_PREFIX = "e2e qoralama";
 
 /**
- * Saves a draft titled `title` to the `CUSTOMER_PATH` customer with the
- * `FAR_FUTURE` requested time from the composer, as the customer card's
- * "Xabar yuborish" opens it, and waits for its toast.
+ * Saves a draft titled `title` from the composer and waits for its toast:
+ * to the `CUSTOMER_PATH` customer, as the customer card's "Xabar yuborish"
+ * opens it (`audience` "one"), or to every device ("all", the stop spec
+ * only: its send is meant to be stopped), with the `FAR_FUTURE` requested
+ * time when `requested`.
  */
-export async function saveDraft(page: Page, title: string, requested = true): Promise<void> {
+export async function saveDraft(
+  page: Page,
+  title: string,
+  requested = true,
+  audience: "one" | "all" = "one",
+): Promise<void> {
   const customerId = CUSTOMER_PATH.split("/").at(-1)!;
-  await page.goto(`/admin/notifications?customer=${customerId}`);
+  await page.goto(
+    audience === "one" ? `/admin/notifications?customer=${customerId}` : "/admin/notifications",
+  );
   await expect(heading(page)).toHaveText("Bildirishnomalar");
-  // The customer card's "Xabar yuborish" prefills the recipient.
-  await expect(page.getByRole("radio", { name: /Bitta mijoz/ })).toBeChecked();
-  await expect(page.getByLabel("Mijoz telefoni").first()).toHaveValue(/^\+998/);
+  if (audience === "one") {
+    // The customer card's "Xabar yuborish" prefills the recipient.
+    await expect(page.getByRole("radio", { name: /Bitta mijoz/ })).toBeChecked();
+    await expect(page.getByLabel("Mijoz telefoni").first()).toHaveValue(/^\+998/);
+  } else {
+    await expect(page.getByRole("radio", { name: /Barcha mijozlar/ })).toBeChecked();
+  }
   await page.getByLabel("Sarlavha").fill(title);
   await page.getByLabel("Matn").fill("E2E: qoralama, test va tasdiqsiz yuborilmaydi.");
   if (requested) {
@@ -55,11 +68,17 @@ export function historyRow(page: Page, title: string) {
     .filter({ hasText: title });
 }
 
-/** Opens the campaign panel of `title` from its row and returns the panel. */
+/**
+ * Opens the campaign panel of `title` from its row and returns the panel. A
+ * just-saved draft's panel is open already («Batafsil» is pressed; a click
+ * would close it), so the click happens only when the row's panel is shut.
+ */
 export async function openPanel(page: Page, title: string) {
-  await historyRow(page, title)
-    .getByRole("button", { name: `Batafsil: «${title}»` })
-    .click();
+  const details = historyRow(page, title).getByRole("button", {
+    name: `Batafsil: «${title}»`,
+  });
+  await expect(details).toBeVisible();
+  if ((await details.getAttribute("aria-pressed")) !== "true") await details.click();
   const panel = page.locator("#campaign-panel");
   await expect(panel).toContainText(title);
   return panel;
@@ -74,11 +93,18 @@ export async function removeLeftovers(page: Page, prefix: string): Promise<void>
   await page.goto("/admin/notifications");
   await expect(heading(page)).toHaveText("Bildirishnomalar");
   const history = page.getByRole("region", { name: "Yuborilgan xabarlar" });
+  await expect(
+    history.locator("tbody tr").first().or(page.getByText("Xabar topilmadi")),
+  ).toBeVisible();
   const leftovers = history.getByRole("button", { name: new RegExp(`^Batafsil: «${prefix} `) });
-  for (let guard = 0; guard < 20; guard += 1) {
-    const details = leftovers.first();
-    if ((await details.count()) === 0) return;
-    const title = /«(.*)»$/.exec((await details.getAttribute("aria-label")) ?? "")?.[1] ?? "";
+  const titles: string[] = [];
+  for (const label of await leftovers.evaluateAll((buttons) =>
+    buttons.map((b) => b.getAttribute("aria-label") ?? ""),
+  )) {
+    const title = /«(.*)»$/.exec(label)?.[1];
+    if (title) titles.push(title);
+  }
+  for (const title of titles) {
     const panel = await openPanel(page, title);
     const cancel = panel.getByRole("button", { name: /^Yuborishni bekor qilish/ });
     if ((await cancel.count()) > 0) {
@@ -98,9 +124,8 @@ export async function removeLeftovers(page: Page, prefix: string): Promise<void>
       await dialog.getByRole("button", { name: "O‘chirish" }).click();
       await expect(dialog).toBeHidden();
       await expect(historyRow(page, title)).toHaveCount(0);
-    } else {
-      // A sent or sending campaign of a stopped run: nothing to clean, leave it.
-      return;
     }
+    // A sent, sending or stopped campaign (the beat and stop specs leave
+    // one each per run): nothing to clean, on to the next.
   }
 }

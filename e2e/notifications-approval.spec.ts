@@ -5,7 +5,9 @@ import {
   deleteTestDevices,
   ensurePushableDevice,
   runCampaignBeat,
+  runCampaignOutbox,
   setCampaignState,
+  startCampaignSendPartially,
 } from "./backend-shell";
 import { historyRow, openPanel, removeLeftovers, saveDraft } from "./campaigns";
 import { heading, toast, watchPage } from "./helpers";
@@ -15,7 +17,9 @@ import { heading, toast, watchPage } from "./helpers";
  * the customer's device as a test device, send a test push, confirm it,
  * approve the send, watch the countdown and cancel; a second draft is
  * approved and the beat sends it to the fake FCM («Yuborildi»); a cancel
- * the backend refuses because the send started re-reads the history.
+ * the backend refuses because the send started re-reads the history; a
+ * send to every device, stopped after its first batch, ends «Qisman
+ * yuborildi» with the rest never attempted.
  *
  * Needs the backend shell (`E2E_BACKEND_DIR`) for the pushable device, the
  * beat and the state change, and a backend running with
@@ -41,8 +45,10 @@ async function recipientPhone(page: Page): Promise<string> {
   const customerId = (process.env.E2E_CUSTOMER_PATH ?? "/admin/customers/288").split("/").at(-1)!;
   await page.goto(`/admin/notifications?customer=${customerId}`);
   await expect(heading(page)).toHaveText("Bildirishnomalar");
-  const masked = await page.getByLabel("Mijoz telefoni").first().inputValue();
-  return `+${masked.replace(/\D/g, "")}`;
+  const phone = page.getByLabel("Mijoz telefoni").first();
+  // The customer card's prefill lands after hydration.
+  await expect(phone).toHaveValue(/^\+998/);
+  return `+${(await phone.inputValue()).replace(/\D/g, "")}`;
 }
 
 /** Registers the customer's device under `label` from the test devices card. */
@@ -62,18 +68,21 @@ async function testAndConfirm(page: Page, title: string, label: string): Promise
   await panel.getByRole("button", { name: "Test yuborish" }).click();
   const dialog = page.getByRole("dialog", { name: "Test yuborish" });
   await expect(dialog).toContainText(title);
+  // Every pushable device is picked by default (the seed registers one of
+  // its own); only the spec's device gets the push.
   const device = dialog.getByRole("checkbox", { name: new RegExp(label) });
   await expect(device).toBeChecked();
+  const others = dialog.locator("label").filter({ hasNotText: label }).getByRole("checkbox");
+  for (let i = 0; i < (await others.count()); i += 1) await others.nth(i).uncheck();
   await dialog.getByRole("button", { name: "Test yuborish" }).click();
   await expect(dialog).toBeHidden();
-  await expect(toast(page, "Test yuborildi")).toBeVisible();
-  const tests = panel
-    .getByRole("region", { name: "Test yuborishlar" })
-    .or(panel.locator("section"));
-  await expect(tests.first()).toContainText("Qurilmaga yetkazildi");
+  await expect(toast(page, "Test yuborildi")).toContainText("1 ta qurilmaga");
+  const testRow = panel.getByRole("listitem").filter({ hasText: label });
+  await expect(testRow).toHaveCount(1);
+  await expect(testRow).toContainText("Qurilmaga yetkazildi");
   // Not approvable before the confirmation.
   await expect(panel.getByRole("button", { name: "Yuborishni tasdiqlash" })).toHaveCount(0);
-  await panel.getByRole("button", { name: "Testni tasdiqlash" }).click();
+  await testRow.getByRole("button", { name: "Testni tasdiqlash" }).click();
   await expect(toast(page, "Test tasdiqlandi")).toBeVisible();
   await expect(historyRow(page, title)).toContainText("Test tasdiqlangan");
   await expect(panel).toContainText("Tasdiqlangan");
@@ -203,4 +212,76 @@ test("a cancel the backend refuses because the send started re-reads the history
   } finally {
     setCampaignState(title, "sending", "scheduled");
   }
+});
+
+/**
+ * Emergency stop (contract §2.8): a campaign to every device is left
+ * mid-send by the shell (its first batch of `BATCH` pushes went to the fake
+ * FCM, the next waits in the outbox), the board offers «Favqulodda
+ * to‘xtatish» on the «Yuborilmoqda» row, the stop makes it «To‘xtatilmoqda»,
+ * and the next outbox delivery finalises it «Qisman yuborildi»: the batch
+ * that went out is counted, nothing else is attempted, no stop or cancel is
+ * offered any more.
+ */
+test("a send to everyone is stopped after its first batch («Qisman yuborildi»)", async ({
+  page,
+}) => {
+  const BATCH = 25;
+  const watcher = watchPage(page);
+  const title = `${TITLE_PREFIX} stop ${Date.now()}`;
+  const label = `${DEVICE_PREFIX} ${Date.now()}`;
+  const phone = await recipientPhone(page);
+  ensurePushableDevice(phone);
+
+  await saveDraft(page, title, false, "all");
+  await registerDevice(page, phone, label);
+  await testAndConfirm(page, title, label);
+  await approve(page, title);
+
+  const started = startCampaignSendPartially(title, BATCH);
+  expect(started.recipients).toBeGreaterThan(BATCH);
+  await page.reload();
+  await expect(heading(page)).toHaveText("Bildirishnomalar");
+  const row = historyRow(page, title);
+  await expect(row).toContainText("Yuborilmoqda");
+  await expect(row.locator("td").nth(4)).toContainText(String(BATCH));
+  const panel = await openPanel(page, title);
+  await expect(panel).toContainText(`${BATCH} / 0 · ${BATCH} / ${started.recipients}`);
+  await expect(panel.getByRole("button", { name: /^Yuborishni bekor qilish/ })).toHaveCount(0);
+
+  await panel.getByRole("button", { name: "Favqulodda to‘xtatish" }).click();
+  const dialog = page.getByRole("alertdialog", { name: "Yuborish favqulodda to‘xtatilsinmi?" });
+  await expect(dialog).toContainText(title);
+  await expect(dialog).toContainText(
+    `Allaqachon yuborilgan ${BATCH} ta xabarni qaytarib bo‘lmaydi`,
+  );
+  await dialog.getByRole("button", { name: "Orqaga" }).click();
+  await expect(dialog).toBeHidden();
+  await panel.getByRole("button", { name: "Favqulodda to‘xtatish" }).click();
+  await dialog.getByRole("button", { name: "To‘xtatish" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(toast(page, "To‘xtatish so‘raldi")).toBeVisible();
+  await expect(row).toContainText("To‘xtatilmoqda");
+  await expect(panel.getByRole("button", { name: "Favqulodda to‘xtatish" })).toHaveCount(0);
+  await expect(panel).toContainText("To‘xtatish so‘raldi");
+
+  // The next batch sees the stop before claiming anything: the campaign is final.
+  const states = runCampaignOutbox([title]);
+  expect(states[title]).toBe("partially_sent");
+  await page.reload();
+  await expect(heading(page)).toHaveText("Bildirishnomalar");
+  await expect(historyRow(page, title)).toContainText("Qisman yuborildi");
+  await expect(historyRow(page, title).locator("td").nth(4)).toContainText(String(BATCH));
+  const closed = await openPanel(page, title);
+  await expect(closed).toContainText("To‘xtatildi");
+  await expect(closed).toContainText(`${BATCH} / 0`);
+  for (const name of [
+    "Favqulodda to‘xtatish",
+    /^Yuborishni bekor qilish/,
+    "Qoralamaga qaytarish",
+    "Yuborishni tasdiqlash",
+  ]) {
+    await expect(closed.getByRole("button", { name })).toHaveCount(0);
+  }
+  watcher.assertClean();
 });

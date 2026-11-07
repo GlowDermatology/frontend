@@ -54,7 +54,6 @@
       "revision": 1,
       "test_device_id": 1,
       "device_label": "Dilnoza iPhone",
-      "phone": "+998901234567",
       "sent_at": "2026-10-27T09:05:00+05:00",
       "sent_by": {
         "id": 1,
@@ -70,7 +69,6 @@
       "revision": 2,
       "test_device_id": 1,
       "device_label": "Dilnoza iPhone",
-      "phone": "+998901234567",
       "sent_at": "2026-10-27T09:20:00+05:00",
       "sent_by": {
         "id": 1,
@@ -89,7 +87,6 @@
       "revision": 2,
       "test_device_id": 2,
       "device_label": "Sardor Android",
-      "phone": "+998935550011",
       "sent_at": "2026-10-27T09:20:00+05:00",
       "sent_by": {
         "id": 1,

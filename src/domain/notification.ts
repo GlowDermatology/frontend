@@ -29,8 +29,8 @@ export interface CampaignTest {
   id: string;
   /** The content revision the test was sent for; a confirmation counts for that revision only. */
   revision: number;
+  /** The registry label; the tester's phone stays in the superuser-only registry. */
   deviceLabel: string;
-  phone: string;
   sentAt: string;
   sentBy: string | null;
   /** `null` while FCM has not answered; `true` accepted; `false` refused (`fcmError` says why). */
@@ -53,7 +53,7 @@ export interface TestDevice {
 
 export interface NotificationRecord {
   id: string;
-  /** `dispatchAfter ?? scheduledAt ?? createdAt` (contract §5.5): the time shown in the history. */
+  /** `scheduledAt ?? createdAt` (contract §5.5; the backend orders the history by the same key). */
   at: string;
   kind: NotificationKind;
   title: string;

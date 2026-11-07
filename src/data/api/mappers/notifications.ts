@@ -63,7 +63,6 @@ export function mapCampaignTest(api: ApiCampaignTest): CampaignTest {
     id: idString(api.id),
     revision: api.revision,
     deviceLabel: api.device_label,
-    phone: api.phone,
     sentAt: api.sent_at,
     sentBy: actorName(api.sent_by),
     fcmOk: api.fcm_ok,
@@ -74,17 +73,18 @@ export function mapCampaignTest(api: ApiCampaignTest): CampaignTest {
 }
 
 /**
- * The record of the approval workflow. `at` is `dispatch_after` (an approved
- * campaign waits for it), else the requested `scheduled_at`, else
- * `created_at`. A state this build does not know (a newer backend) is kept
- * as is: the history shows it with a neutral badge and offers nothing.
+ * The record of the approval workflow. `at` is the requested `scheduled_at`,
+ * else `created_at` — the key the backend orders the history by (§5.5), so
+ * the dates read in the row order; the panel shows `dispatch_after` itself.
+ * A state this build does not know (a newer backend) is kept as is: the
+ * history shows it with a neutral badge and offers nothing.
  */
 export function mapNotificationRecord(api: ApiNotificationRecord): NotificationRecord {
   const author = actorName(api.author);
   const link = linkOf(api);
   const record: NotificationRecord = {
     id: idString(api.id),
-    at: api.dispatch_after ?? api.scheduled_at ?? api.created_at,
+    at: api.scheduled_at ?? api.created_at,
     kind: api.kind,
     title: api.title,
     body: api.body,

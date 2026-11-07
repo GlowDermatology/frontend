@@ -352,9 +352,7 @@ export function CampaignPanel({
                 className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-line px-3 py-2 text-body-sm"
               >
                 <span className="flex min-w-0 flex-col">
-                  <span className="font-semibold text-ink">
-                    {test.deviceLabel} · {formatPhone(test.phone)}
-                  </span>
+                  <span className="font-semibold text-ink">{test.deviceLabel}</span>
                   <span className="text-caption font-normal text-ink-muted tabular-nums">
                     {formatDateTimeShort(test.sentAt)} · {test.revision}-tahrir
                     {test.sentBy ? ` · ${test.sentBy}` : ""} ·{" "}
@@ -458,7 +456,9 @@ export function CampaignPanel({
             <Detail label="Sarlavha">{record.title}</Detail>
             <Detail label="Matn">{record.body}</Detail>
             <Detail label="Kimga">{record.audienceLabel}</Detail>
-            <Detail label="Taxminiy qurilmalar">{formatNumber(record.recipientCount)} ta</Detail>
+            <Detail label="Taxminiy qurilmalar (oxirgi saqlashda)">
+              {formatNumber(record.recipientCount)} ta
+            </Detail>
             <Detail label="Test">
               {confirmed
                 ? `Tasdiqlangan · ${formatDateTimeShort(confirmed.confirmedAt!)} · ${confirmed.deviceLabel}`
@@ -679,7 +679,7 @@ function CountdownLine({ dispatchAfter }: { dispatchAfter: string }) {
     <p className="m-0 font-semibold tabular-nums" aria-live="off">
       {left > 0
         ? `Yuborishgacha ${formatCountdown(left)}`
-        : "Yuborish vaqti keldi: beat uni istalgan daqiqada boshlashi mumkin."}
+        : "Yuborish vaqti keldi: yuborish istalgan daqiqada boshlanishi mumkin."}
     </p>
   );
 }

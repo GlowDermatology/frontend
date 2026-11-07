@@ -91,7 +91,6 @@ const confirmedTest = (id: string, revision: number, sentAt: string): CampaignTe
   id,
   revision,
   deviceLabel: "Dilnoza iPhone",
-  phone: "+998901234567",
   sentAt: t(sentAt),
   sentBy: "Administrator",
   fcmOk: true,
@@ -122,7 +121,7 @@ const DESIGN_HISTORY: ReadonlyArray<NotificationRecord> = [
   }),
   campaignRecord({
     id: "n-8",
-    at: t("2026-10-24T11:20:00"),
+    at: t("2026-10-23T17:05:00"),
     createdAt: t("2026-10-23T17:05:00"),
     updatedAt: t("2026-10-24T11:20:00"),
     kind: "general",
@@ -163,7 +162,7 @@ const DESIGN_HISTORY: ReadonlyArray<NotificationRecord> = [
   }),
   campaignRecord({
     id: "n-7",
-    at: t("2026-10-24T11:50:00"),
+    at: t("2026-10-24T11:00:00"),
     createdAt: t("2026-10-24T11:00:00"),
     updatedAt: t("2026-10-24T11:58:00"),
     kind: "promo",
@@ -186,7 +185,7 @@ const DESIGN_HISTORY: ReadonlyArray<NotificationRecord> = [
   }),
   campaignRecord({
     id: "n-11",
-    at: t("2026-10-24T11:30:00"),
+    at: t("2026-10-24T10:40:00"),
     createdAt: t("2026-10-24T10:40:00"),
     updatedAt: t("2026-10-24T11:55:00"),
     kind: "general",
@@ -210,7 +209,7 @@ const DESIGN_HISTORY: ReadonlyArray<NotificationRecord> = [
   }),
   campaignRecord({
     id: "n-6",
-    at: t("2026-10-23T18:00:00"),
+    at: t("2026-10-23T16:00:00"),
     createdAt: t("2026-10-23T16:00:00"),
     updatedAt: t("2026-10-23T18:04:00"),
     kind: "promo",

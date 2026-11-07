@@ -7,7 +7,6 @@ const test = (overrides: Partial<CampaignTest> = {}): CampaignTest => ({
   id: "t1",
   revision: 2,
   deviceLabel: "Dilnoza iPhone",
-  phone: "+998901234567",
   sentAt: "2026-10-24T12:00:00+05:00",
   sentBy: "Administrator",
   fcmOk: true,

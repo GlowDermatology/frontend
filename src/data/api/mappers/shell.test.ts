@@ -302,7 +302,6 @@ describe("notifications", () => {
         id: "7",
         revision: 1,
         deviceLabel: "Dilnoza iPhone",
-        phone: "+998901234567",
         sentAt: "2026-10-24T11:42:00+05:00",
         sentBy: "Administrator",
         fcmOk: true,
@@ -331,15 +330,15 @@ describe("notifications", () => {
     ]);
   });
 
-  it("shows dispatch_after first, then the requested time, then created_at", () => {
+  it("dates the row by the requested time, else created_at — the backend's sort key", () => {
     const record = page.results[0]!;
-    expect(mapNotificationRecord({ ...record, dispatch_after: null }).at).toBe(record.scheduled_at);
-    expect(mapNotificationRecord({ ...record, dispatch_after: null, scheduled_at: null }).at).toBe(
-      record.created_at,
-    );
+    expect(mapNotificationRecord(record).at).toBe(record.scheduled_at);
+    expect(mapNotificationRecord({ ...record, scheduled_at: null }).at).toBe(record.created_at);
+    // an approved campaign without a requested time keeps its creation date in the history;
+    // the panel shows `dispatchAfter` itself
     expect(mapNotificationRecord(approvedFixture as ApiNotificationRecord)).toMatchObject({
       state: "scheduled",
-      at: "2026-10-27T09:35:00+05:00",
+      at: "2026-10-27T09:00:00+05:00",
       dispatchAfter: "2026-10-27T09:35:00+05:00",
       scheduledAt: null,
     });

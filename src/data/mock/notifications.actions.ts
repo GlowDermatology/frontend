@@ -229,7 +229,6 @@ export async function sendCampaignTest(
     id: `t-${crypto.randomUUID()}-${index}`,
     revision: record.revision,
     deviceLabel: device.label,
-    phone: device.phone,
     sentAt,
     sentBy: "Administrator",
     fcmOk: device.isPushable,

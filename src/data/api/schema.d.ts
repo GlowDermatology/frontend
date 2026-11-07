@@ -3,8 +3,8 @@
  * GENERATED FILE — do not edit by hand. Regenerate with `npm run gen:api`.
  *
  * Source: openapi/schema.yaml of the backend repository
- * Commit: 637b9a81f6b340805d2b7c9c1da7044d3ce36aca
- * Generated: 2026-11-07T22:22:11.420Z (openapi-typescript)
+ * Commit: 464c78ebb8d166daae95423a0f5e1c032b1b836c
+ * Generated: 2026-11-07T23:34:40.992Z (openapi-typescript)
  */
 
 export interface paths {
@@ -588,7 +588,7 @@ export interface paths {
         delete: operations["admin_notifications_destroy"];
         options?: never;
         head?: never;
-        /** @description Author or superuser; `draft` / `tested` only (409 `invalid_transition`). Multipart like the create form with every content key optional, `expected_revision` (409 `conflict` when the campaign changed meanwhile) and `remove_image`. A content change bumps `revision`, clears the test confirmation and puts a `tested` campaign back to `draft`; a `scheduled_at` change alone keeps the state. */
+        /** @description Author or superuser; `draft` / `tested` only (409 `invalid_transition`). Multipart like the create form with every content key optional, `expected_revision` (409 `conflict` when the campaign changed meanwhile) and `remove_image`. A content change bumps `revision`, clears the test confirmation and puts a `tested` campaign back to `draft`; a `scheduled_at` change alone keeps the state (`in_past` applies to a submitted `scheduled_at` only: a kept requested time that went by does not block the edit). */
         patch: operations["admin_notifications_partial_update"];
         trace?: never;
     };
@@ -1020,6 +1020,7 @@ export interface paths {
         delete: operations["admin_segments_destroy"];
         options?: never;
         head?: never;
+        /** @description A rule change answers 409 `conflict` while an approved `scheduled` notification targets the segment (its audience must not grow before the dispatch); renaming is always allowed. */
         patch: operations["admin_segments_partial_update"];
         trace?: never;
     };
@@ -1032,6 +1033,7 @@ export interface paths {
         };
         get: operations["admin_segment_members_list"];
         put?: never;
+        /** @description 409 `conflict` while an approved `scheduled` notification targets the segment (its audience must not grow before the dispatch). */
         post: operations["admin_segment_members_add"];
         delete?: never;
         options?: never;
@@ -2907,12 +2909,12 @@ export interface components {
             /** Format: date-time */
             confirmed_at: string | null;
             confirmed_by: components["schemas"]["Actor"] | null;
+            /** @description The registry label; the tester's phone stays in the superuser-only registry. */
             device_label: string;
             fcm_error: string;
             /** @description null while the push is in flight; true = FCM accepted it. */
             fcm_ok: boolean | null;
             id: number;
-            phone: string;
             revision: number;
             /** Format: date-time */
             sent_at: string;

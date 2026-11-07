@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 
 import type { NotificationsMe } from "@/data/notifications";
 import type { Page } from "@/data/types";
@@ -26,8 +27,13 @@ import { TestDevicesCard } from "./test-devices-card";
  * test devices card. The board keeps the history locally: a saved draft is
  * prepended, an answered operation replaces its row, a gone campaign is
  * dropped; a newer server history (the refresh after an api-mode operation,
- * a navigation back) replaces the local one.
+ * a navigation back) replaces the local one. While a campaign is sending or
+ * stopping the page re-reads the route every few seconds, so the live tallies
+ * and the stop's outcome show without a manual reload.
  */
+
+/** How often the history is re-read while a campaign is `sending` / `stopping`. */
+export const LIVE_REFRESH_MS = 5_000;
 
 /** Whether a new campaign belongs on the history page the URL shows (page 1, matching filters). */
 function showsNewRecord(query: NotificationHistoryQuery, record: NotificationRecord): boolean {
@@ -85,6 +91,13 @@ export function NotificationsView({
   const [testDevices, setTestDevices] = useState(initialDevices);
   const historyRegion = useRef<HTMLDivElement>(null);
   const selected = selectedId ? (history.find((r) => r.id === selectedId) ?? null) : null;
+  const router = useRouter();
+  const live = history.some((r) => r.state === "sending" || r.state === "stopping");
+  useEffect(() => {
+    if (!live) return;
+    const timer = window.setInterval(() => router.refresh(), LIVE_REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, [live, router]);
 
   const replaceRecord = (record: NotificationRecord) => {
     setHistory((current) => current.map((r) => (r.id === record.id ? record : r)));

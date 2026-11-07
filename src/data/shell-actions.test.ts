@@ -630,7 +630,7 @@ describe("the campaign workflow in api mode", () => {
         state: "scheduled",
         approvedRevision: 2,
         dispatchAfter: "2026-10-27T09:35:00+05:00",
-        at: "2026-10-27T09:35:00+05:00",
+        at: "2026-10-27T09:00:00+05:00", // no requested time: the row keeps its creation date
       },
     });
     expect(apiFetch).toHaveBeenCalledWith(

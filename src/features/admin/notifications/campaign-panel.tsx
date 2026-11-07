@@ -248,8 +248,8 @@ export function CampaignPanel({
       tabIndex={-1}
       className="flex flex-col gap-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold-ink"
     >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-1">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="flex flex-wrap items-center gap-2">
             <StateBadge state={record.state} />
             <span className="text-caption font-normal text-ink-muted">

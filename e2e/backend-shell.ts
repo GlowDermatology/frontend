@@ -155,7 +155,9 @@ export function setCampaignState(
 /**
  * An ordinary (non-superuser) staff account for the "staff sees no
  * privileged controls" spec: created or updated to `password`, active,
- * never a superuser or manager. Deleted again with `deleteStaffAccounts`.
+ * never a superuser or manager, and without Django console access
+ * (`is_staff`, which the admin API does not need). Deleted again with
+ * `deleteStaffAccounts`.
  */
 export function ensureStaffAccount(email: string, password: string): void {
   if (!email.startsWith("e2e")) throw new Error("only e2e accounts are created");
@@ -166,7 +168,6 @@ export function ensureStaffAccount(email: string, password: string): void {
     `password = json.loads(${JSON.stringify(JSON.stringify(password))})`,
     "user, _ = StaffUser.objects.get_or_create(email=email, defaults={'full_name': 'E2E xodim'})",
     "user.is_active = True",
-    "user.is_staff = True",
     "user.is_superuser = False",
     "user.is_manager = False",
     "user.set_password(password)",

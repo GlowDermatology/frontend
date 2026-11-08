@@ -13,7 +13,6 @@ import notificationsPageFixture from "../__fixtures__/notifications-page.json";
 import pendingFixture from "../__fixtures__/pending-summary.json";
 import membersFixture from "../__fixtures__/segment-1-members.json";
 import segmentsFixture from "../__fixtures__/segments-page.json";
-import settingsFixture from "../__fixtures__/settings.json";
 import templateFixture from "../__fixtures__/template-processing.json";
 import { ApiError } from "../errors";
 import type {
@@ -25,7 +24,6 @@ import type {
   ApiPaginatedNotifications,
   ApiPaginatedSegments,
   ApiPendingSummary,
-  ApiSettings,
   ApiStatusTemplate,
   ErrorEnvelope,
 } from "../types";
@@ -51,16 +49,7 @@ import {
 } from "./notifications";
 import { mapPage } from "./page";
 import { mapSegment, mapSegmentMember, segmentCreateBody, segmentPatchBody } from "./segments";
-import {
-  contactsFormValues,
-  contactsPatchBody,
-  legalTextsFormValues,
-  legalTextsPatchBody,
-  mapSettings,
-  mapStaffAccount,
-  settingsFormValues,
-  settingsPatchBody,
-} from "./settings";
+import { mapStaffAccount } from "./settings";
 
 /**
  * Recorded JSON from the M1d backend (`src/data/api/__fixtures__`, backend
@@ -69,7 +58,7 @@ import {
  * `appointments/meta/`, `notifications/` (the four seeded campaigns),
  * `notifications/meta/` (link options trimmed to three),
  * `notification-templates/processing/`, `segments/`, `segments/1/members/`,
- * `settings/`, four `audit-log/` rows, and the error envelopes of a taken
+ * four `audit-log/` rows, and the error envelopes of a taken
  * slot, an unknown customer phone, an unknown template placeholder and a
  * segment delete refused by a scheduled campaign → the FE domain objects,
  * display strings included (contract §5.5–§5.7).
@@ -499,71 +488,7 @@ describe("segments", () => {
   });
 });
 
-describe("settings and account", () => {
-  const settings = mapSettings(settingsFixture as ApiSettings);
-
-  it("maps the singleton with the integrations mode, contacts and legal texts (gap closure)", () => {
-    expect(settings).toEqual({
-      reservationMinutes: 15,
-      supportPhone: "+998712000000",
-      pickupAddress: {
-        uz: "Toshkent, Chilonzor tumani, Bunyodkor shoh ko‘chasi, 12",
-        ru: "",
-        en: "",
-      },
-      storePhone: "+998712000001",
-      cosmetologistPhone: "+998712000002",
-      telegramUrl: "https://t.me/glowderma",
-      instagramUrl: "https://instagram.com/glowderma",
-      websiteUrl: "https://glowderma.uz",
-      terms: settingsFixture.terms,
-      privacyPolicy: settingsFixture.privacy_policy,
-      bookingPolicy: settingsFixture.booking_policy,
-      termsVersion: "20241220-1",
-      termsUpdatedAt: "2024-12-20T10:00:00+05:00",
-      termsUnpublishedChanges: false,
-      integrationsMode: "fake",
-      updatedAt: settingsFixture.updated_at,
-      updatedBy: null,
-    });
-  });
-
-  it("patches only the changed contacts, an emptied one as null", () => {
-    const baseline = contactsFormValues(settings);
-    expect(contactsPatchBody(baseline, baseline)).toEqual({});
-    expect(
-      contactsPatchBody(baseline, {
-        ...baseline,
-        storePhone: "",
-        telegramUrl: "https://t.me/glow_derma",
-      }),
-    ).toEqual({ store_phone: null, telegram_url: "https://t.me/glow_derma" });
-  });
-
-  it("patches only the changed languages of each legal text", () => {
-    const baseline = legalTextsFormValues(settings);
-    expect(legalTextsPatchBody(baseline, baseline)).toEqual({});
-    expect(
-      legalTextsPatchBody(baseline, {
-        ...baseline,
-        terms: { ...baseline.terms, ru: "Новые условия" },
-        bookingPolicy: { ...baseline.bookingPolicy, en: "" },
-      }),
-    ).toEqual({ terms: { ru: "Новые условия" }, booking_policy: { en: "" } });
-  });
-
-  it("patches only changed fields, address leaves, and an emptied phone as null", () => {
-    const baseline = settingsFormValues(settings);
-    expect(settingsPatchBody(baseline, baseline)).toEqual({});
-    expect(
-      settingsPatchBody(baseline, {
-        reservationMinutes: 20,
-        supportPhone: "",
-        pickupAddress: { ...baseline.pickupAddress, ru: "Ташкент" },
-      }),
-    ).toEqual({ reservation_minutes: 20, support_phone: null, pickup_address: { ru: "Ташкент" } });
-  });
-
+describe("account", () => {
   it("maps auth/me for the account card and keeps password errors on the form names", () => {
     expect(
       mapStaffAccount({

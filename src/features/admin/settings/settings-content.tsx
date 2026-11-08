@@ -1,19 +1,20 @@
 import { requireStaff } from "@/data/auth";
 import { OAUTH_PROVIDER_LABEL } from "@/data/auth/oauth";
 import { oauthConfig, requestNotice } from "@/data/auth/oauth-env";
-import { getSettings, getStaffAccount } from "@/data/settings";
+import { getStaffAccount } from "@/data/settings";
+import { serverEnv } from "@/lib/env.server";
 
 import { PageHeader } from "../shared/page-header";
 import { AccountCard, type SocialNotice } from "./account-card";
-import { ContactsCard } from "./contacts-card";
-import { LegalTextsCard } from "./legal-texts-card";
-import { SettingsForm } from "./settings-form";
+import { OpsConsoleCard } from "./ops-console-card";
 
 /**
- * Data boundary of /admin/settings: the settings singleton, the staff
- * account, the enabled social sign-in providers and the signed `?oauth=`
- * outcome of a link flow (verified here, so a crafted URL cannot make the
- * card display arbitrary text).
+ * Data boundary of /admin/settings: the staff account, the enabled social
+ * sign-in providers and the signed `?oauth=` outcome of a link flow
+ * (verified here, so a crafted URL cannot make the card display arbitrary
+ * text). The store settings, contacts and legal texts live in the ops
+ * console; the page only links there (`GLOWDERMA_OPS_CONSOLE_URL`, read at
+ * request time).
  */
 export async function SettingsContent({
   searchParams,
@@ -21,11 +22,7 @@ export async function SettingsContent({
   searchParams: PageProps<"/admin/settings">["searchParams"];
 }) {
   await requireStaff();
-  const [settings, account, query] = await Promise.all([
-    getSettings(),
-    getStaffAccount(),
-    searchParams,
-  ]);
+  const [account, query] = await Promise.all([getStaffAccount(), searchParams]);
   const opened = await requestNotice(query.oauth);
   const notice: SocialNotice | null = opened
     ? {
@@ -38,17 +35,15 @@ export async function SettingsContent({
   const providers = oauthConfig().providers.map((id) => ({ id, label: OAUTH_PROVIDER_LABEL[id] }));
   return (
     <>
-      <PageHeader eyebrow="Do‘kon va hisob" title="Sozlamalar" />
+      <PageHeader eyebrow="Hisob" title="Sozlamalar" />
       <div className="flex flex-wrap items-start gap-4">
         <div className="flex min-w-0 flex-[3_1_520px] flex-col gap-4">
-          <SettingsForm settings={settings} />
-          <ContactsCard settings={settings} />
-        </div>
-        <div className="flex min-w-0 flex-[2_1_360px] flex-col gap-4">
           <AccountCard account={account} providers={providers} notice={notice} />
         </div>
+        <div className="flex min-w-0 flex-[2_1_360px] flex-col gap-4">
+          <OpsConsoleCard consoleUrl={serverEnv.opsConsoleUrl()} />
+        </div>
       </div>
-      <LegalTextsCard settings={settings} />
     </>
   );
 }

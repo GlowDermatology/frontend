@@ -13,6 +13,9 @@ function required(name: string): string {
   return value;
 }
 
+/** Invalid `GLOWDERMA_OPS_CONSOLE_URL` values already logged (once per value per process). */
+const warnedConsoleUrls = new Set<string>();
+
 /**
  * Server-side configuration of the admin BFF. Every value is read lazily so
  * `next build` never needs the production environment; a missing required
@@ -51,4 +54,43 @@ export const serverEnv = {
       .map((entry) => entry.trim().toLowerCase())
       .filter(Boolean);
   },
+  /**
+   * `GLOWDERMA_OPS_CONSOLE_URL`: the base of Django's ops console (e.g.
+   * `https://ops.glowderma.uz/django-admin/`), where the store settings,
+   * contacts and legal texts are edited; `null` when unset. An invalid
+   * value does not fail the page: it is logged once and treated as unset.
+   */
+  opsConsoleUrl(): string | null {
+    const value = read("GLOWDERMA_OPS_CONSOLE_URL");
+    if (value === undefined) return null;
+    const url = parseOpsConsoleUrl(value);
+    if (url === null && !warnedConsoleUrls.has(value)) {
+      warnedConsoleUrls.add(value);
+      console.error(
+        "[env] GLOWDERMA_OPS_CONSOLE_URL must be an absolute http(s) URL without credentials, query or fragment; ignoring it.",
+      );
+    }
+    return url;
+  },
 };
+
+/**
+ * The ops console base URL normalised to end with `/` (so relative paths
+ * such as `settings/` resolve under it), or `null` when `value` is not an
+ * absolute `http`/`https` URL, carries credentials, a query or a fragment.
+ */
+export function parseOpsConsoleUrl(value: string): string | null {
+  const trimmed = value.trim();
+  if (!/^https?:\/\//i.test(trimmed)) return null;
+  let url: URL;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+  if (!url.hostname || url.username || url.password) return null;
+  if (url.search || url.hash || trimmed.includes("?") || trimmed.includes("#")) return null;
+  if (!url.pathname.endsWith("/")) url.pathname = `${url.pathname}/`;
+  return url.toString();
+}

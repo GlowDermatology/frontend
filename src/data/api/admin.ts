@@ -21,8 +21,6 @@ import type {
   ApiSegmentPatch,
   ApiSegmentWrite,
   ApiPaginatedStaff,
-  ApiSettings,
-  ApiSettingsPatch,
   ApiStaffCreate,
   ApiStaffCredentials,
   ApiStaffMember,
@@ -34,9 +32,10 @@ import type {
 } from "./types";
 
 /**
- * Typed calls to the M1d shell endpoints (contract §2.8–§2.11, §2.13):
- * appointments, notifications and their templates, segments, settings, the
- * audit log, the nav counts and the password change. Reads go through
+ * Typed calls to the M1d shell endpoints (contract §2.8–§2.10, §2.13):
+ * appointments, notifications and their templates, segments, the audit log,
+ * the nav counts and the password change (the store settings moved to the
+ * ops console, so there is no admin `settings/` endpoint). Reads go through
  * `cachedGet` (deduplicated per render), writes and the reads a client
  * re-fetches through a Server Action through `apiFetch`. Every function
  * throws `ApiError` for a non-2xx answer.
@@ -245,30 +244,7 @@ export function apiRemoveSegmentMember(token: string, segmentId: string, custome
   });
 }
 
-/* --- Settings, audit log, nav counts, password --- */
-
-export function apiGetSettings(token: string) {
-  return cachedGet<ApiSettings>(`${BASE}/settings/`, undefined, token);
-}
-
-export function apiPatchSettings(token: string, body: ApiSettingsPatch, idempotencyKey: string) {
-  return apiFetch<ApiSettings>(`${BASE}/settings/`, {
-    method: "PATCH",
-    body,
-    token,
-    idempotencyKey,
-  });
-}
-
-/** Publishes the terms / privacy drafts as a new version (§2.11): empty body, key required. */
-export function apiPublishTerms(token: string, idempotencyKey: string) {
-  return apiFetch<ApiSettings>(`${BASE}/settings/terms/publish/`, {
-    method: "POST",
-    body: {},
-    token,
-    idempotencyKey,
-  });
-}
+/* --- Audit log, nav counts, password --- */
 
 export function apiListAuditLog(token: string, params: Record<string, QueryValue>) {
   return cachedGet<ApiPaginatedAuditLog>(`${BASE}/audit-log/`, params, token);

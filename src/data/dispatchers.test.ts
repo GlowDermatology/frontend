@@ -13,7 +13,6 @@ import notificationsPageFixture from "./api/__fixtures__/notifications-page.json
 import pendingFixture from "./api/__fixtures__/pending-summary.json";
 import membersFixture from "./api/__fixtures__/segment-1-members.json";
 import segmentsFixture from "./api/__fixtures__/segments-page.json";
-import settingsFixture from "./api/__fixtures__/settings.json";
 // --- orders / payments / dashboard (F2d) ---
 import dashboardWeekFixture from "./api/__fixtures__/dashboard-week.json";
 import order10248Fixture from "./api/__fixtures__/order-10248.json";
@@ -331,7 +330,6 @@ describe("dispatchers in api mode", () => {
         "/api/v1/admin/notifications/meta/": notificationsMetaFixture,
         "/api/v1/admin/segments/": segmentsFixture,
         "/api/v1/admin/segments/1/members/": membersFixture,
-        "/api/v1/admin/settings/": settingsFixture,
         "/api/v1/admin/audit-log/": auditFixture,
         "/api/v1/admin/nav-counts/": navCountsFixture,
       };
@@ -373,7 +371,8 @@ describe("dispatchers in api mode", () => {
     ]);
     expect((await d.segments.listSegmentMembers("1", 1)).items[0]?.name).toBe("Malika Karimova");
     expect(await d.segments.getSegment("s-1")).toBeNull();
-    expect((await d.settings.getSettings()).integrationsMode).toBe("fake");
+    // The store settings moved to the ops console: only the account is read (`auth/me/`, mocked as failed).
+    expect(await d.settings.getStaffAccount()).toBeNull();
     const audit = await d.audit.listAuditLog({
       ordering: "at",
       page: 2,

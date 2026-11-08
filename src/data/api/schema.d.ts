@@ -3,8 +3,8 @@
  * GENERATED FILE — do not edit by hand. Regenerate with `npm run gen:api`.
  *
  * Source: openapi/schema.yaml of the backend repository
- * Commit: 13c250b8a79431c9e9ea3a64011231fb963401f0
- * Generated: 2026-10-27T23:35:12.199Z (openapi-typescript)
+ * Commit: ec08cf7a15c1604cdd97fc418c101f3a1253c4b9
+ * Generated: 2026-11-08T17:24:53.272Z (openapi-typescript)
  */
 
 export interface paths {
@@ -946,40 +946,6 @@ export interface paths {
         head?: never;
         /** @description Every field optional; texts merge leaf by leaf. There is no delete: `is_active: false` retires a service (it leaves the customer catalogue at once; its appointments are kept). */
         patch: operations["admin_services_partial_update"];
-        trace?: never;
-    };
-    "/api/v1/admin/settings/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["admin_settings_retrieve"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** @description Changes the sent fields only (each language of an i18n object separately; keys other than `uz`, `ru`, `en` answer `invalid`). `terms` and `privacy_policy` are drafts: customers keep seeing the published copy until `POST settings/terms/publish/` (`terms_unpublished_changes` tells whether a draft differs from it). The booking policy is not versioned and is served as soon as it is saved. */
-        patch: operations["admin_settings_partial_update"];
-        trace?: never;
-    };
-    "/api/v1/admin/settings/terms/publish/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** @description Publishes the terms and privacy drafts (copied into the published texts) as a new `terms_version` (`YYYYMMDD-n`, the Tashkent day and its publication count) and sets `terms_updated_at`. Registration then accepts only the new version and every customer is asked to accept it again at checkout and booking (409 `terms_update_required`). 409 `conflict` while the uz terms or the uz privacy draft has no visible character. Empty body. */
-        post: operations["admin_settings_terms_publish"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
         trace?: never;
     };
     "/api/v1/admin/specialists/": {
@@ -2054,7 +2020,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Attach the phone with its SMS code. Re-authentication (`password`, or a `reset_password` `verification_token` of the account's own e-mail without a password) unless the session signed in within 10 minutes; an account with neither answers `reauth_required` once that window is over. → 200 `Me` with the phone set (checkout, pay, booking and the QR open up). */
+        /** @description Attach the phone with its SMS code. Re-authentication first: the `password`, or instead (none, or a forgotten one) a `reset_password` `verification_token` of the account's own phone or e-mail; only an account with no password, phone or e-mail passes on a session signed in within 10 minutes, else `reauth_required`. → 200 `Me` with the phone set (checkout, pay, booking and the QR open up). */
         post: operations["customer_me_phone_attach"];
         delete?: never;
         options?: never;
@@ -2730,12 +2696,6 @@ export interface components {
          * @enum {string}
          */
         BlockKindEnum: "busy" | "off";
-        /** @description ``booking_policy`` of a PATCH: each language optional, ≤ 5 000 characters, trimmed. */
-        BookingPolicyPatchRequest: {
-            en?: string;
-            ru?: string;
-            uz?: string;
-        };
         BookingRequest: {
             note?: string | null;
             service_id: number;
@@ -3791,18 +3751,6 @@ export interface components {
             ru: string;
             uz: string;
         };
-        /** @description Contract 1.4: i18n text is {"uz", "ru", "en"}; "" means not filled, never null. */
-        I18nText5000: {
-            en: string;
-            ru: string;
-            uz: string;
-        };
-        /** @description Contract 1.4: i18n text is {"uz", "ru", "en"}; "" means not filled, never null. */
-        I18nText50000: {
-            en: string;
-            ru: string;
-            uz: string;
-        };
         /** @description Body of ``PUT banners/order/``. */
         IdOrderRequest: {
             ids: number[];
@@ -3864,14 +3812,6 @@ export interface components {
          * @enum {string}
          */
         IntegrationModeEnum: "fake" | "live";
-        /**
-         * @description Read-only: ``mode`` = ``INTEGRATIONS_MODE`` (the default of every provider), ``providers`` = the
-         *     effective mode of each provider.
-         */
-        Integrations: {
-            mode: components["schemas"]["IntegrationModeEnum"];
-            providers: components["schemas"]["ProviderModes"];
-        };
         /** @description Contract §2.14 ``Job``. */
         Job: {
             /** Format: date-time */
@@ -3964,12 +3904,6 @@ export interface components {
          * @enum {string}
          */
         LedgerSourceTypeEnum: "order" | "billz_sale" | "admin";
-        /** @description ``terms`` / ``privacy_policy`` of a PATCH: each language optional, ≤ 50 000 characters, trimmed. */
-        LegalTextPatchRequest: {
-            en?: string;
-            ru?: string;
-            uz?: string;
-        };
         /**
          * @description * `none` - none
          *     * `product` - product
@@ -4706,26 +4640,6 @@ export interface components {
             rules?: components["schemas"]["SegmentRulesRequest"];
         };
         /**
-         * @description ``PATCH settings/`` (contract §2.11): ``reservation_minutes`` 5..60; the phones E.164 | null; the links
-         *     https | null (Telegram ``t.me`` / ``telegram.me``, Instagram ``instagram.com``); ``pickup_address.*``
-         *     ≤ 200; ``terms.*`` / ``privacy_policy.*`` ≤ 50 000 and ``booking_policy.*`` ≤ 5 000, trimmed (each
-         *     language optional); ``integrations``, ``terms_version`` and ``terms_updated_at`` are read-only
-         *     (``read_only`` field error).
-         */
-        PatchedSettingsPatchRequest: {
-            booking_policy?: components["schemas"]["BookingPolicyPatchRequest"];
-            cosmetologist_phone?: string | null;
-            instagram_url?: string | null;
-            pickup_address?: components["schemas"]["PickupAddressRequest"];
-            privacy_policy?: components["schemas"]["LegalTextPatchRequest"];
-            reservation_minutes?: number;
-            store_phone?: string | null;
-            support_phone?: string | null;
-            telegram_url?: string | null;
-            terms?: components["schemas"]["LegalTextPatchRequest"];
-            website_url?: string | null;
-        };
-        /**
          * @description ``PATCH staff/{id}/`` body: ``full_name`` and/or ``is_manager``; ``email``, ``is_active`` and
          *     ``password`` → ``read_only``.
          */
@@ -4770,26 +4684,6 @@ export interface components {
             count: number;
             /** Format: date-time */
             next_at: string | null;
-        };
-        /**
-         * @description An i18n object of a PATCH: a JSON object whose keys are ``uz`` / ``ru`` / ``en`` only (each optional).
-         *     Any other value answers ``invalid`` on the object's own field; an unknown key (``"UZ"``, ``"xx"``)
-         *     answers ``invalid`` on that key, never a silent no-op.
-         */
-        PickupAddress: {
-            en?: string;
-            ru?: string;
-            uz?: string;
-        };
-        /**
-         * @description An i18n object of a PATCH: a JSON object whose keys are ``uz`` / ``ru`` / ``en`` only (each optional).
-         *     Any other value answers ``invalid`` on the object's own field; an unknown key (``"UZ"``, ``"xx"``)
-         *     answers ``invalid`` on that key, never a silent no-op.
-         */
-        PickupAddressRequest: {
-            en?: string;
-            ru?: string;
-            uz?: string;
         };
         PlatformValues: {
             android: string;
@@ -5429,31 +5323,6 @@ export interface components {
             password: string;
             terms_version: string;
             verification_token: string;
-        };
-        /** @description ``GET settings/`` (contract §2.11). */
-        Settings: {
-            readonly booking_policy: components["schemas"]["I18nText5000"];
-            readonly cosmetologist_phone: string | null;
-            /** Format: uri */
-            readonly instagram_url: string | null;
-            readonly integrations: components["schemas"]["Integrations"];
-            readonly pickup_address: components["schemas"]["PickupAddress"];
-            readonly privacy_policy: components["schemas"]["I18nText50000"];
-            reservation_minutes: number;
-            readonly store_phone: string | null;
-            readonly support_phone: string | null;
-            /** Format: uri */
-            readonly telegram_url: string | null;
-            readonly terms: components["schemas"]["I18nText50000"];
-            readonly terms_unpublished_changes: boolean;
-            /** Format: date-time */
-            terms_updated_at: string | null;
-            readonly terms_version: string | null;
-            /** Format: date-time */
-            updated_at: string;
-            updated_by: components["schemas"]["Actor"] | null;
-            /** Format: uri */
-            readonly website_url: string | null;
         };
         Shipment: components["schemas"]["ShipmentNotRequired"] | components["schemas"]["ShipmentNotCreated"] | components["schemas"]["ShipmentFailed"] | components["schemas"]["ShipmentCreated"];
         ShipmentCreated: {
@@ -11797,238 +11666,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClinicService"];
-                };
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    admin_settings_retrieve: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Settings"];
-                };
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    admin_settings_partial_update: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["PatchedSettingsPatchRequest"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Settings"];
-                };
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    admin_settings_terms_publish: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
-                "Idempotency-Key": string;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Settings"];
                 };
             };
             400: {

@@ -154,58 +154,6 @@ function shellJson<T>(code: string): T {
   return JSON.parse(djangoShell(code).trim().split("\n").at(-1) ?? "null") as T;
 }
 
-const SETTINGS_FIELDS = [
-  "terms_uz",
-  "terms_ru",
-  "terms_en",
-  "privacy_policy_uz",
-  "privacy_policy_ru",
-  "privacy_policy_en",
-  "terms_draft_uz",
-  "terms_draft_ru",
-  "terms_draft_en",
-  "privacy_policy_draft_uz",
-  "privacy_policy_draft_ru",
-  "privacy_policy_draft_en",
-  "terms_version",
-  "terms_updated_at",
-];
-
-/**
- * The legal texts and the published version (`SiteSettings`), as an opaque
- * JSON string for `restoreLegalTexts`: the settings spec publishes a new
- * version, which asks every customer to accept it, so it puts the seed's
- * version back afterwards.
- */
-export function snapshotLegalTexts(): string {
-  const code = [
-    "import json",
-    "from glowderma.site_config.models import SiteSettings",
-    "s = SiteSettings.load()",
-    `fields = json.loads(${JSON.stringify(JSON.stringify(SETTINGS_FIELDS))})`,
-    "print(json.dumps({f: (getattr(s, f).isoformat() if f == 'terms_updated_at' and getattr(s, f) else getattr(s, f)) for f in fields}))",
-  ].join("\n");
-  return JSON.stringify(shellJson<Record<string, string | null>>(code));
-}
-
-/** Writes a `snapshotLegalTexts` back and starts a new public-settings cache generation. */
-export function restoreLegalTexts(snapshot: string): void {
-  const code = [
-    "import json",
-    "from django.utils.dateparse import parse_datetime",
-    "from glowderma.site_config.models import SiteSettings",
-    "from glowderma.site_config.selectors import invalidate_public_settings",
-    `data = json.loads(${JSON.stringify(snapshot)})`,
-    "if data.get('terms_updated_at'): data['terms_updated_at'] = parse_datetime(data['terms_updated_at'])",
-    "changed = SiteSettings.objects.filter(pk=1).update(**data)",
-    "invalidate_public_settings()",
-    "print(json.dumps({'changed': changed}))",
-  ].join("\n");
-  const answer = shellJson<{ changed: number }>(code);
-  if (answer.changed !== 1)
-    throw new Error(`the backend did not restore the settings: ${JSON.stringify(answer)}`);
-}
-
 /**
  * Removes the specialists and services a spec created (names starting with
  * `prefix`, never a seeded one): the admin API never deletes them (§2.17),

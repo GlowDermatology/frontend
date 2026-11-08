@@ -28,6 +28,7 @@ vi.mock("next/cache", () => ({ refresh: () => refresh() }));
 vi.mock("./auth", () => ({
   verifyStaff: (options?: VerifyStaffOptions) => verifyStaff(options),
   requireApiToken: async () => "t",
+  getMe: async () => ({ id: 1, is_superuser: true }),
 }));
 vi.mock("./mock/delay", () => ({ delay: async () => undefined }));
 vi.mock("./api/client", () => ({
@@ -60,7 +61,7 @@ import { APPOINTMENTS } from "./mock/appointments";
 import { PRODUCTS } from "./mock/catalog";
 import { ORDER_SUMMARIES } from "./mock/orders";
 import { getOrder } from "./mock/orders.queries";
-import { sendNotification } from "./notifications.actions";
+import { saveNotificationDraft } from "./notifications.actions";
 import { cancelOrder, changeOrderStatus, loadOrder, retryShipment } from "./orders.actions";
 import { closeFailedRefund, resolveRefund, retryRefund } from "./payments.actions";
 import order10248Fixture from "./api/__fixtures__/order-10248.json";
@@ -191,7 +192,7 @@ describe("session and csrf gate", () => {
       () => reorderBanners(["1"], missing),
       () => adjustCashback("5", { direction: "add", amount: 1, reason: "abc" }, KEY, missing),
       () => saveCashbackPolicy(ACTIVE_POLICY, KEY, missing),
-      () => sendNotification(notificationForm(), KEY, missing),
+      () => saveNotificationDraft(notificationForm(), KEY, missing),
       () => updateAppointment("a1", "confirm", KEY, missing),
     ];
     for (const call of calls) expect(await call()).toEqual(CSRF_FAILURE);
@@ -1149,9 +1150,9 @@ describe("saveCashbackPolicy", () => {
   });
 });
 
-describe("sendNotification", () => {
+describe("saveNotificationDraft", () => {
   it("validates title (3..60), body (5..180), phone (+998) and the schedule against requestNow()", async () => {
-    const result = await sendNotification(
+    const result = await saveNotificationDraft(
       notificationForm({
         title: "ab",
         body: "abc",
@@ -1172,7 +1173,7 @@ describe("sendNotification", () => {
         scheduledAt: "Kelajakdagi vaqtni tanlang.",
       },
     });
-    const long = await sendNotification(
+    const long = await saveNotificationDraft(
       notificationForm({ title: "x".repeat(61), body: "y".repeat(181) }),
       KEY,
       CSRF,
@@ -1181,20 +1182,20 @@ describe("sendNotification", () => {
       fieldErrors: { title: "60 belgidan oshmasin.", body: "180 belgidan oshmasin." },
     });
     expect(
-      await sendNotification(notificationForm({ audience: "group" }), KEY, CSRF),
+      await saveNotificationDraft(notificationForm({ audience: "group" }), KEY, CSRF),
     ).toMatchObject({
       fieldErrors: { segmentId: "Guruhni tanlang." },
     });
   });
 
   it("folds image problems into the top-level error", async () => {
-    const result = await sendNotification(
+    const result = await saveNotificationDraft(
       notificationForm({ image: new File(["x"], "banner.gif", { type: "image/gif" }) }),
       KEY,
       CSRF,
     );
     expect(result).toEqual({ ok: false, error: "Faqat JPEG, PNG yoki WebP rasm." });
-    const big = await sendNotification(
+    const big = await saveNotificationDraft(
       notificationForm({
         image: new File([new Uint8Array(5 * 1024 * 1024 + 1)], "big.png", { type: "image/png" }),
       }),
@@ -1204,8 +1205,8 @@ describe("sendNotification", () => {
     expect(big).toEqual({ ok: false, error: "Rasm 5 MB dan oshmasin." });
   });
 
-  it("returns the queued record for a send-now and the scheduled one for a later send", async () => {
-    const now = await sendNotification(
+  it("saves a draft — nothing is sent — with or without a requested time", async () => {
+    const asap = await saveNotificationDraft(
       notificationForm({
         title: "  Yangi aksiya  ",
         image: new File(["x"], "b.png", { type: "image/png" }),
@@ -1213,26 +1214,36 @@ describe("sendNotification", () => {
       KEY,
       CSRF,
     );
-    expect(now.ok).toBe(true);
-    if (now.ok) {
-      expect(now.data).toEqual({
+    expect(asap.ok).toBe(true);
+    if (asap.ok) {
+      expect(asap.data).toMatchObject({
         id: expect.stringMatching(/^n-/),
         at: DEMO_NOW_ISO,
+        createdAt: DEMO_NOW_ISO,
         kind: "promo",
         title: "Yangi aksiya",
         audienceLabel: "Barcha · 4\u00a0751",
+        recipientCount: 4751,
+        audience: { type: "all" },
         sent: null,
         failed: null,
+        attempted: null,
         delivered: null,
-        state: "queued",
+        state: "draft",
+        revision: 1,
+        testedRevision: null,
+        approvedAt: null,
+        dispatchAfter: null,
         scheduledAt: null,
         sentAt: null,
-        // Like an M3 record: the history offers «Bekor qilish» once it is scheduled.
         cancelledAt: null,
+        imageUrl: "/demo/campaign-image.jpg",
         author: "Administrator",
+        authorId: "1",
+        tests: [],
       });
     }
-    const later = await sendNotification(
+    const later = await saveNotificationDraft(
       notificationForm({
         audience: "one",
         phone: "+998 90 123 45 67",
@@ -1246,16 +1257,25 @@ describe("sendNotification", () => {
       expect(later.data).toMatchObject({
         at: "2026-10-26T10:00:00+05:00",
         audienceLabel: "Bitta mijoz · +998 90 123 45 67",
-        state: "scheduled",
+        audience: { type: "one", phone: "+998901234567" },
+        // Requested, not scheduled: a superuser still has to test and approve it.
+        state: "draft",
+        scheduledAt: "2026-10-26T10:00:00+05:00",
+        dispatchAfter: null,
       });
     }
-    const group = await sendNotification(
+    const group = await saveNotificationDraft(
       notificationForm({ audience: "group", segmentId: "1" }),
       KEY,
       CSRF,
     );
     expect(group.ok).toBe(true);
-    if (group.ok) expect(group.data.audienceLabel).toBe("Doimiy mijozlar · 612");
+    if (group.ok) {
+      expect(group.data).toMatchObject({
+        audienceLabel: "Doimiy mijozlar · 612",
+        audience: { type: "group", segmentId: "1" },
+      });
+    }
   });
 });
 

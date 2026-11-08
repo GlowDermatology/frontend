@@ -3,8 +3,11 @@ import { expect, type Page } from "@playwright/test";
 import { adminCredentials, BASE_URL } from "./env";
 
 /** Signs in through the login form and waits until the admin shell is shown. */
-export async function signIn(page: Page, password = adminCredentials().password): Promise<void> {
-  const { email } = adminCredentials();
+export async function signIn(
+  page: Page,
+  password = adminCredentials().password,
+  email = adminCredentials().email,
+): Promise<void> {
   await page.goto("/admin/login");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Parol").fill(password);

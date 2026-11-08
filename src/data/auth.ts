@@ -102,7 +102,11 @@ export async function requireApiToken(): Promise<string> {
   return session.token;
 }
 
-/** Shown in mock mode, matching the design's sidebar user block. */
+/**
+ * Shown in mock mode, matching the design's sidebar user block.
+ * `is_superuser` follows `GLOWDERMA_MOCK_SUPERUSER` (default true) at request
+ * time, so the demo can show the ordinary admin's notifications page too.
+ */
 export const MOCK_ME: Me = {
   // The demo staff list's Administrator (`src/data/mock/staff.ts`), so the
   // staff screen knows its own row.
@@ -124,7 +128,7 @@ export const MOCK_ME: Me = {
 export const getMe = cache(async (): Promise<Me | null> => {
   const session = await verifyStaff();
   if (!session.ok) return null;
-  if (session.mode === "mock") return MOCK_ME;
+  if (session.mode === "mock") return { ...MOCK_ME, is_superuser: serverEnv.mockSuperuser() };
   try {
     return (await apiMe(session.token)).data;
   } catch (error) {

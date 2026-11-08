@@ -3,8 +3,8 @@
  * GENERATED FILE — do not edit by hand. Regenerate with `npm run gen:api`.
  *
  * Source: openapi/schema.yaml of the backend repository
- * Commit: 13c250b8a79431c9e9ea3a64011231fb963401f0
- * Generated: 2026-10-27T23:35:12.199Z (openapi-typescript)
+ * Commit: 464c78ebb8d166daae95423a0f5e1c032b1b836c
+ * Generated: 2026-11-07T23:34:40.992Z (openapi-typescript)
  */
 
 export interface paths {
@@ -566,8 +566,43 @@ export interface paths {
         };
         get: operations["admin_notifications_list"];
         put?: never;
-        /** @description Multipart with dotted keys (`link.kind`, `audience.type`, …) and an optional `image` (JPEG, PNG or WebP, ≤ 5 MiB). Without `scheduled_at` the send starts at once; the 201 body is the campaign as stored after the commit (`queued`, or `sent` when the send already ran inside the request). With it the campaign waits for its time (state `scheduled`). */
+        /** @description Multipart with dotted keys (`link.kind`, `audience.type`, …) and an optional `image` (JPEG, PNG or WebP, ≤ 5 MiB). Creates a `draft` (revision 1): nothing is sent until a superuser tested, confirmed and approved it. `scheduled_at` is the requested send time the dispatch waits for. */
         post: operations["admin_notifications_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/notifications/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["admin_notifications_retrieve"];
+        put?: never;
+        post?: never;
+        /** @description Author or superuser; `draft` / `tested` only (409 `invalid_transition`). */
+        delete: operations["admin_notifications_destroy"];
+        options?: never;
+        head?: never;
+        /** @description Author or superuser; `draft` / `tested` only (409 `invalid_transition`). Multipart like the create form with every content key optional, `expected_revision` (409 `conflict` when the campaign changed meanwhile) and `remove_image`. A content change bumps `revision`, clears the test confirmation and puts a `tested` campaign back to `draft`; a `scheduled_at` change alone keeps the state (`in_past` applies to a submitted `scheduled_at` only: a kept requested time that went by does not block the edit). */
+        patch: operations["admin_notifications_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/admin/notifications/{id}/approve/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Superuser. A `tested` campaign becomes `scheduled` with `dispatch_after = max(now + approval_delay_minutes, scheduled_at)`; nothing is sent by this call — the beat starts the send after `dispatch_after`, and `cancel/` works until then. `expected_revision` stale → 409 `conflict`; `draft` → 409 `invalid_transition`; a repeat on the approved revision answers 200 unchanged. */
+        post: operations["admin_notifications_approve"];
         delete?: never;
         options?: never;
         head?: never;
@@ -583,8 +618,76 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Cancel a `scheduled` campaign before its send starts (state `cancelled`, audited `notification.cancelled`). Idempotent: an already cancelled campaign answers 200 unchanged. 409 `conflict` once the send started (`queued` / `sent`); 404 for an unknown id. */
+        /** @description Superuser. Cancel an approved `scheduled` campaign before the beat starts it (state `cancelled`, audited `notification.cancelled`). Idempotent: an already cancelled campaign answers 200 unchanged. A `draft` / `tested` campaign → 409 `invalid_transition` (delete or edit it instead); once the send started → 409 `conflict` (use `stop/`); 404 for an unknown id. */
         post: operations["admin_notifications_cancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/notifications/{id}/return-to-draft/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Superuser. A `scheduled` (not yet started) or `cancelled` (never started) campaign goes back to `draft`: approval and test confirmation cleared, `revision` bumped, so it must be tested again. */
+        post: operations["admin_notifications_return_to_draft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/notifications/{id}/stop/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Superuser; emergency stop of a `sending` campaign → `stopping`. The running batch finalises it (`partially_sent` when a push went out, else `cancelled`; remaining recipients `stopped`); pushes FCM already accepted cannot be recalled. Idempotent on `stopping` and on a campaign that ended by a stop; otherwise 409 `invalid_transition`. */
+        post: operations["admin_notifications_stop"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/notifications/{id}/test/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Superuser. Pushes the current revision of a `draft` / `tested` campaign to the chosen test devices (`device_ids`, 1..10 active registry ids); each push is a real inbox item of the tester and is recorded in `tests[]` with its FCM outcome. 503 `provider_unavailable` when FCM took nothing (the tests are recorded as undelivered). */
+        post: operations["admin_notifications_test"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/notifications/{id}/tests/{test_id}/confirm/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Superuser: the test looked right on the device. The test must be the current revision's and delivered (409 `conflict` otherwise); the campaign becomes `tested`. Idempotent. */
+        post: operations["admin_notifications_test_confirm"];
         delete?: never;
         options?: never;
         head?: never;
@@ -602,6 +705,44 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/notifications/test-devices/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description ``notifications/test-devices/`` (superuser): the global registry of real staff devices test pushes
+         *     go to.
+         */
+        get: operations["admin_notification_test_devices_list"];
+        put?: never;
+        /** @description Superuser. Registers the most recently active pushable device of the active customer with `phone` under `label`. Field errors `phone`: `customer_not_found`, `device_not_pushable`, `unique` (already registered). */
+        post: operations["admin_notification_test_devices_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/notifications/test-devices/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** @description Superuser. Removes the device from the registry (soft, idempotent); unknown id → 404. */
+        delete: operations["admin_notification_test_devices_destroy"];
         options?: never;
         head?: never;
         patch?: never;
@@ -879,6 +1020,7 @@ export interface paths {
         delete: operations["admin_segments_destroy"];
         options?: never;
         head?: never;
+        /** @description A rule change answers 409 `conflict` while an approved `scheduled` notification targets the segment (its audience must not grow before the dispatch); renaming is always allowed. */
         patch: operations["admin_segments_partial_update"];
         trace?: never;
     };
@@ -891,6 +1033,7 @@ export interface paths {
         };
         get: operations["admin_segment_members_list"];
         put?: never;
+        /** @description 409 `conflict` while an approved `scheduled` notification targets the segment (its audience must not grow before the dispatch). */
         post: operations["admin_segment_members_add"];
         delete?: never;
         options?: never;
@@ -2578,6 +2721,10 @@ export interface components {
          * @enum {string}
          */
         AppointmentStatusEnum: "requested" | "confirmed" | "rejected" | "attended" | "cancelled";
+        /** @description ``POST notifications/{id}/approve/``: the revision the superuser is looking at. */
+        ApproveInputRequest: {
+            expected_revision: number;
+        };
         /**
          * @description * `all` - all
          *     * `segment` - segment
@@ -2756,6 +2903,23 @@ export interface components {
             name: string;
             role: components["schemas"]["SpecialistRoleEnum"];
             services: components["schemas"]["BookingService"][];
+        };
+        /** @description ``NotificationRecord.tests[]``: one test push of a revision to one test device. */
+        CampaignTest: {
+            /** Format: date-time */
+            confirmed_at: string | null;
+            confirmed_by: components["schemas"]["Actor"] | null;
+            /** @description The registry label; the tester's phone stays in the superuser-only registry. */
+            device_label: string;
+            fcm_error: string;
+            /** @description null while the push is in flight; true = FCM accepted it. */
+            fcm_ok: boolean | null;
+            id: number;
+            revision: number;
+            /** Format: date-time */
+            sent_at: string;
+            sent_by: components["schemas"]["Actor"] | null;
+            test_device_id: number | null;
         };
         Cancellation: {
             note: string | null;
@@ -4168,45 +4332,87 @@ export interface components {
             url: string | null;
         };
         NotificationMeta: {
+            /** @description CAMPAIGN_APPROVAL_DELAY_MINUTES: the cancel window between an approval and the dispatch. */
+            approval_delay_minutes: number;
             link_options: components["schemas"]["LinkOption"][];
             segments: components["schemas"]["MetaSegment"][];
             templates: components["schemas"]["StatusTemplate"][];
             total_devices: number;
         };
         NotificationRecord: {
+            /** Format: date-time */
+            approved_at: string | null;
+            approved_by: components["schemas"]["Actor"] | null;
+            approved_revision: number | null;
+            readonly attempted: number | null;
             readonly audience: components["schemas"]["NotificationAudience"];
             author: components["schemas"]["Actor"] | null;
             body: string;
             /**
              * Format: date-time
-             * @description M3: when staff cancelled the scheduled campaign (state `cancelled`).
+             * @description When a superuser cancelled the approved campaign, or a stop sent nothing.
              */
             cancelled_at: string | null;
+            cancelled_by: components["schemas"]["Actor"] | null;
             /** Format: date-time */
             created_at: string;
             delivered: number | null;
+            /**
+             * Format: date-time
+             * @description State `scheduled`: the beat starts the send after this instant.
+             */
+            dispatch_after: string | null;
+            /** @description FCM rejected / no token; a live tally while sending. */
             failed: number | null;
+            /** Format: date-time */
+            failed_at: string | null;
             id: number;
             readonly image_url: string | null;
             kind: components["schemas"]["NotificationKindEnum"];
+            last_error: string;
             readonly link: components["schemas"]["NotificationLink"];
             recipient_count: number;
-            /** Format: date-time */
+            /** @description Bumps on every content change; tests and approvals name it. */
+            revision: number;
+            /**
+             * Format: date-time
+             * @description The author's requested send time; the dispatch waits for it.
+             */
             scheduled_at: string | null;
+            /** @description FCM accepted; a live tally while sending. */
             sent: number | null;
             /** Format: date-time */
             sent_at: string | null;
-            readonly state: components["schemas"]["NotificationStateEnum"];
+            /** Format: date-time */
+            started_at: string | null;
+            state: components["schemas"]["NotificationStateEnum"];
+            /** Format: date-time */
+            stop_requested_at: string | null;
+            stop_requested_by: components["schemas"]["Actor"] | null;
+            /** Format: date-time */
+            stopped_at: string | null;
+            /** Format: date-time */
+            test_confirmed_at: string | null;
+            test_confirmed_by: components["schemas"]["Actor"] | null;
+            tested_revision: number | null;
+            tests: components["schemas"]["CampaignTest"][];
             title: string;
+            /** Format: date-time */
+            updated_at: string;
         };
         /**
-         * @description * `scheduled` - scheduled
-         *     * `queued` - queued
+         * @description * `draft` - draft
+         *     * `tested` - tested
+         *     * `scheduled` - scheduled
+         *     * `sending` - sending
+         *     * `stopping` - stopping
          *     * `sent` - sent
+         *     * `partially_sent` - partially_sent
          *     * `cancelled` - cancelled
+         *     * `failed` - failed
          * @enum {string}
          */
-        NotificationStateEnum: "scheduled" | "queued" | "sent" | "cancelled";
+        NotificationStateEnum: "draft" | "tested" | "scheduled" | "sending" | "stopping" | "sent" | "partially_sent" | "cancelled" | "failed";
         /** @enum {unknown} */
         NullEnum: null;
         /**
@@ -4680,6 +4886,23 @@ export interface components {
             language?: components["schemas"]["ContentLanguageEnum"];
             name?: string;
             push_enabled?: boolean;
+        };
+        PatchedNotificationPatchFormRequest: {
+            "audience.phone"?: string;
+            "audience.segment_id"?: number;
+            "audience.type"?: components["schemas"]["AudienceTypeEnum"];
+            body?: string;
+            expected_revision?: number;
+            /** Format: binary */
+            image?: string;
+            kind?: components["schemas"]["NotificationKindEnum"];
+            "link.kind"?: components["schemas"]["LinkKindEnum"];
+            "link.product_id"?: number;
+            "link.url"?: string;
+            remove_image?: boolean;
+            /** Format: date-time */
+            scheduled_at?: string | null;
+            title?: string;
         };
         /**
          * @description ``PATCH products/{id}/``: every field optional and ``texts`` merged leaf by leaf (contract §2.3).
@@ -5299,6 +5522,10 @@ export interface components {
             purpose: components["schemas"]["OtpPurposeEnum"];
             social_ticket?: string | null;
         };
+        /** @description ``POST notifications/{id}/test/``: the active test devices to push the current revision to. */
+        SendTestInputRequest: {
+            device_ids: number[];
+        };
         SeoIssue: {
             code: components["schemas"]["SeoIssueCodeEnum"];
             language: (components["schemas"]["ContentLanguageEnum"] | components["schemas"]["NullEnum"]) | null;
@@ -5712,6 +5939,24 @@ export interface components {
         };
         TemplateUpdateRequest: {
             texts: components["schemas"]["TemplateTextsRequest"];
+        };
+        /** @description ``GET notifications/test-devices/`` rows (``selectors.test_devices`` annotates ``is_pushable``). */
+        TestDevice: {
+            /** Format: date-time */
+            created_at: string;
+            device_id: number;
+            id: number;
+            is_pushable: boolean;
+            label: string;
+            model: string;
+            phone: string;
+            platform: string;
+            registered_by: components["schemas"]["Actor"] | null;
+        };
+        /** @description ``POST notifications/test-devices/``: the customer's phone and a label for the registry. */
+        TestDeviceCreateRequest: {
+            label: string;
+            phone: string;
         };
         /** @description ``warnings[]``: ``gap`` = ``[from, to)`` uncovered; ``uncovered_above``: open top. */
         TierWarning: {
@@ -9083,12 +9328,17 @@ export interface operations {
                 page?: number;
                 page_size?: 20 | 50;
                 /**
-                 * @description * `scheduled` - scheduled
-                 *     * `queued` - queued
+                 * @description * `draft` - draft
+                 *     * `tested` - tested
+                 *     * `scheduled` - scheduled
+                 *     * `sending` - sending
+                 *     * `stopping` - stopping
                  *     * `sent` - sent
+                 *     * `partially_sent` - partially_sent
                  *     * `cancelled` - cancelled
+                 *     * `failed` - failed
                  */
-                state?: "scheduled" | "queued" | "sent" | "cancelled";
+                state?: "draft" | "tested" | "scheduled" | "sending" | "stopping" | "sent" | "partially_sent" | "cancelled" | "failed";
             };
             header?: never;
             path?: never;
@@ -9244,12 +9494,672 @@ export interface operations {
             };
         };
     };
-    admin_notifications_cancel: {
+    admin_notifications_retrieve: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationRecord"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_notifications_destroy: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_notifications_partial_update: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": components["schemas"]["PatchedNotificationPatchFormRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationRecord"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_notifications_approve: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApproveInputRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationRecord"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_notifications_cancel: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationRecord"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_notifications_return_to_draft: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationRecord"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_notifications_stop: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationRecord"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_notifications_test: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendTestInputRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationRecord"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_notifications_test_confirm: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: number;
+                test_id: number;
             };
             cookie?: never;
         };
@@ -9337,6 +10247,242 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["NotificationMeta"];
                 };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_notification_test_devices_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestDevice"][];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_notification_test_devices_create: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TestDeviceCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestDevice"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_notification_test_devices_destroy: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             400: {
                 headers: {

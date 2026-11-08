@@ -1,14 +1,20 @@
-import type { NotificationHistoryQuery, NotificationRecord } from "@/domain/notification";
+import type {
+  NotificationHistoryQuery,
+  NotificationRecord,
+  TestDevice,
+} from "@/domain/notification";
 
 import type { NotificationsOverview } from "../notifications";
 import { paginate } from "../types";
 import {
+  APPROVAL_DELAY_MINUTES,
   DEFAULT_SCHEDULE,
   DRAFT,
   LINK_OPTIONS,
   NOTIFICATION_HISTORY,
   SEGMENTS,
   STATUS_TEMPLATES,
+  TEST_DEVICES,
   TOTAL_DEVICES,
 } from "./notifications";
 
@@ -19,9 +25,14 @@ function filtered(query: Pick<NotificationHistoryQuery, "state" | "kind">): Noti
   );
 }
 
-/** Mock implementation of `src/data/notifications.ts`: the history filtered and paged like `notifications/`. */
+/**
+ * Mock implementation of `src/data/notifications.ts`: the history filtered
+ * and paged like `notifications/`; the test devices only for a superuser,
+ * as `notifications/test-devices/` is theirs alone.
+ */
 export async function getNotificationsOverview(
-  query: NotificationHistoryQuery = { page: 1, pageSize: 20 },
+  query: NotificationHistoryQuery,
+  me: NotificationsOverview["me"],
 ): Promise<NotificationsOverview> {
   return {
     history: paginate(filtered(query), query.page, query.pageSize),
@@ -31,6 +42,9 @@ export async function getNotificationsOverview(
     linkOptions: LINK_OPTIONS,
     defaultSchedule: DEFAULT_SCHEDULE,
     draft: DRAFT,
+    me,
+    approvalDelayMinutes: APPROVAL_DELAY_MINUTES,
+    testDevices: me.isSuperuser ? (TEST_DEVICES as ReadonlyArray<TestDevice>) : null,
   };
 }
 

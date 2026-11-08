@@ -1,15 +1,15 @@
 "use client";
 
-import { useEffect, useState, type ComponentProps, type ReactNode } from "react";
+import { useState, type ComponentProps, type ReactNode } from "react";
 
 import { Field, TextInput } from "@/components/ui/field";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/cn";
+import { useCountdown } from "@/lib/countdown";
 import type { Locale } from "@/lib/i18n/locales";
 import { maskPhone } from "@/lib/phone";
 
 import { commonCopy } from "../copy/common";
-import { remainingSeconds } from "./use-shop-action";
 
 /**
  * Form controls of the private pages: a password field with a show/hide
@@ -128,17 +128,6 @@ export function PhoneField({
       )}
     </Field>
   );
-}
-
-/** A countdown to `seconds` after the code was sent; 0 when a resend is allowed. */
-export function useCountdown(sentAt: number | null, seconds: number): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (sentAt === null) return;
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, [sentAt]);
-  return sentAt === null ? 0 : remainingSeconds(sentAt, seconds, Math.max(now, sentAt));
 }
 
 interface CodeFieldProps {

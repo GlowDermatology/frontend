@@ -9,6 +9,8 @@ import type {
   ApiAppointmentsMeta,
   ApiDaySchedule,
   ApiNavCounts,
+  ApiApproveRequest,
+  ApiCampaignTestRequest,
   ApiNotificationMeta,
   ApiNotificationRecord,
   ApiPaginatedAuditLog,
@@ -30,6 +32,8 @@ import type {
   ApiStatusTemplate,
   ApiTemplateStatus,
   ApiTemplateUpdate,
+  ApiTestDevice,
+  ApiTestDeviceCreate,
   ChangePasswordRequest,
 } from "./types";
 
@@ -130,33 +134,153 @@ export function apiNotificationMeta(token: string) {
   return cachedGet<ApiNotificationMeta>(`${BASE}/notifications/meta/`, undefined, token);
 }
 
-/** Multipart with dotted keys; `Idempotency-Key` required (§2.8). */
+/**
+ * `POST notifications/`: multipart with dotted keys, `Idempotency-Key`
+ * required (§2.8). The campaign is saved as a `draft`; nothing is sent until
+ * a superuser tests and approves it.
+ */
 export function apiCreateNotification(token: string, formData: FormData, idempotencyKey: string) {
   return apiFetch<ApiNotificationRecord>(`${BASE}/notifications/`, {
     method: "POST",
     formData,
     token,
     idempotencyKey,
-    // A send without `scheduled_at` runs the (fake) FCM batch inside the request.
-    timeoutMs: 30_000,
+  });
+}
+
+/** `GET notifications/{id}/`: the record with its tests (uncached: the panel re-reads it). */
+export function apiGetNotification(token: string, notificationId: string) {
+  return apiFetch<ApiNotificationRecord>(`${BASE}/notifications/${id(notificationId)}/`, {
+    token,
   });
 }
 
 /**
- * Cancels a `scheduled` campaign (M3, §2.8): empty body, `Idempotency-Key`
- * optional (always sent). 200 with the cancelled record (also when it was
- * cancelled already); 409 `conflict` once the send started; 404 unknown id.
+ * `PATCH notifications/{id}/`: multipart, every field optional plus
+ * `expected_revision` (409 `conflict` when stale) and `remove_image`; the
+ * author or a superuser, on a `draft` or `tested` campaign (409
+ * `invalid_transition` otherwise).
+ */
+export function apiUpdateNotification(
+  token: string,
+  notificationId: string,
+  formData: FormData,
+  idempotencyKey: string,
+) {
+  return apiFetch<ApiNotificationRecord>(`${BASE}/notifications/${id(notificationId)}/`, {
+    method: "PATCH",
+    formData,
+    token,
+    idempotencyKey,
+  });
+}
+
+/** `DELETE notifications/{id}/` → 204; `draft` or `tested` only. */
+export function apiDeleteNotification(token: string, notificationId: string) {
+  return apiFetch<undefined>(`${BASE}/notifications/${id(notificationId)}/`, {
+    method: "DELETE",
+    token,
+  });
+}
+
+/** One of the superuser transitions of a campaign; empty or small JSON body, `Idempotency-Key` always sent. */
+function campaignOperation(
+  token: string,
+  notificationId: string,
+  operation: string,
+  idempotencyKey: string,
+  body: unknown = {},
+  timeoutMs?: number,
+) {
+  return apiFetch<ApiNotificationRecord>(
+    `${BASE}/notifications/${id(notificationId)}/${operation}/`,
+    { method: "POST", body, token, idempotencyKey, timeoutMs },
+  );
+}
+
+/** `POST notifications/{id}/test/` `{device_ids}` (1–10): FCM is called inside the request. */
+export function apiSendCampaignTest(
+  token: string,
+  notificationId: string,
+  body: ApiCampaignTestRequest,
+  idempotencyKey: string,
+) {
+  return campaignOperation(token, notificationId, "test", idempotencyKey, body, 30_000);
+}
+
+/** `POST notifications/{id}/tests/{test_id}/confirm/` → the record (`tested`). */
+export function apiConfirmCampaignTest(
+  token: string,
+  notificationId: string,
+  testId: string,
+  idempotencyKey: string,
+) {
+  return campaignOperation(token, notificationId, `tests/${id(testId)}/confirm`, idempotencyKey);
+}
+
+/** `POST notifications/{id}/approve/` `{expected_revision}` → the record (`scheduled`, `dispatch_after`). */
+export function apiApproveNotification(
+  token: string,
+  notificationId: string,
+  body: ApiApproveRequest,
+  idempotencyKey: string,
+) {
+  return campaignOperation(token, notificationId, "approve", idempotencyKey, body);
+}
+
+/** `POST notifications/{id}/return-to-draft/` → the record (`draft`). */
+export function apiReturnNotificationToDraft(
+  token: string,
+  notificationId: string,
+  idempotencyKey: string,
+) {
+  return campaignOperation(token, notificationId, "return-to-draft", idempotencyKey);
+}
+
+/**
+ * Cancels a `scheduled` campaign (M3, §2.8; superusers since the approval
+ * workflow): empty body, `Idempotency-Key` optional (always sent). 200 with
+ * the cancelled record (also when it was cancelled already); 409 `conflict`
+ * once the send started; 404 unknown id.
  */
 export function apiCancelNotification(
   token: string,
   notificationId: string,
   idempotencyKey: string,
 ) {
-  return apiFetch<ApiNotificationRecord>(`${BASE}/notifications/${id(notificationId)}/cancel/`, {
+  return campaignOperation(token, notificationId, "cancel", idempotencyKey);
+}
+
+/** `POST notifications/{id}/stop/` → the record (`stopping`); the next batch finalises it. */
+export function apiStopNotification(token: string, notificationId: string, idempotencyKey: string) {
+  return campaignOperation(token, notificationId, "stop", idempotencyKey);
+}
+
+/* --- Test devices (superusers) --- */
+
+export function apiListTestDevices(token: string) {
+  return cachedGet<ApiTestDevice[]>(`${BASE}/notifications/test-devices/`, undefined, token);
+}
+
+/** `POST notifications/test-devices/` `{phone, label}` → the device (400 on the phone: `customer_not_found`, `device_not_pushable`, `unique`). */
+export function apiRegisterTestDevice(
+  token: string,
+  body: ApiTestDeviceCreate,
+  idempotencyKey: string,
+) {
+  return apiFetch<ApiTestDevice>(`${BASE}/notifications/test-devices/`, {
     method: "POST",
-    body: {},
+    body,
     token,
     idempotencyKey,
+  });
+}
+
+/** `DELETE notifications/test-devices/{id}/` → 204 (soft, idempotent). */
+export function apiRemoveTestDevice(token: string, deviceId: string) {
+  return apiFetch<undefined>(`${BASE}/notifications/test-devices/${id(deviceId)}/`, {
+    method: "DELETE",
+    token,
   });
 }
 

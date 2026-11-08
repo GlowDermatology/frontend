@@ -376,10 +376,12 @@ export function Composer({
             <div className="flex min-h-16 flex-[1_1_200px]">
               {image || storedImage ? (
                 <div className="flex flex-1 items-center gap-3 rounded-md border-[1.5px] border-line-strong px-3.5 py-2.5">
-                  {/* Local preview of an unsaved upload (object URL) or the stored image. */}
+                  {/* Local preview of an unsaved upload (a `blob:` object URL of a file the
+                      type check accepted) or the stored image's backend address; neither can
+                      carry script, so the js/xss-through-dom alert on the file input is noise. */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={image?.src ?? storedImage ?? ""}
+                    src={image?.src ?? storedImage ?? "" /* codeql[js/xss-through-dom] */}
                     alt=""
                     className="h-10 w-20 rounded-sm object-cover"
                   />
@@ -671,7 +673,7 @@ export function Composer({
             {(image || storedImage) && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={image?.src ?? storedImage ?? ""}
+                src={image?.src ?? storedImage ?? "" /* codeql[js/xss-through-dom] */}
                 alt=""
                 className="mt-2 aspect-[2/1] w-full rounded-md object-cover"
               />

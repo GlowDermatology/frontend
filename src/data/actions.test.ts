@@ -1237,7 +1237,7 @@ describe("saveNotificationDraft", () => {
         scheduledAt: null,
         sentAt: null,
         cancelledAt: null,
-        imageUrl: "/demo/b.png",
+        imageUrl: "/demo/campaign-image.jpg",
         author: "Administrator",
         authorId: "1",
         tests: [],

@@ -66,6 +66,12 @@ const invalidTransition = (error: string): ActionResult<never> => ({
 });
 
 const EDITABLE = new Set<NotificationRecord["state"]>(["draft", "tested"]);
+/**
+ * The demo's stored-image address: fixed, never built from the uploaded file's
+ * name (a value read from the form), so nothing from the browser reaches an
+ * `<img src>` through a record.
+ */
+const MOCK_IMAGE_URL = "/demo/campaign-image.jpg";
 const now = () => referenceNow().toISOString();
 const find = (id: string) => NOTIFICATION_HISTORY.find((n) => n.id === id);
 
@@ -131,7 +137,7 @@ export async function saveNotificationDraft(
       recipientCount: audience.count,
       audience: audienceOf(input),
       link,
-      imageUrl: input.image ? `/demo/${input.image.name}` : null,
+      imageUrl: input.image ? MOCK_IMAGE_URL : null,
       scheduledAt: input.scheduledAt,
       author: "Administrator",
       authorId: "1",
@@ -178,11 +184,7 @@ export async function updateNotificationDraft(
     recipientCount: audience.count,
     audience: nextAudience,
     link,
-    imageUrl: input.image
-      ? `/demo/${input.image.name}`
-      : input.removeImage
-        ? null
-        : record.imageUrl,
+    imageUrl: input.image ? MOCK_IMAGE_URL : input.removeImage ? null : record.imageUrl,
     scheduledAt: input.scheduledAt,
     updatedAt: at,
     linkLabel: undefined,

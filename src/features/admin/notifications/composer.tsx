@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
-import { useEffect, useId, useRef, useState, type ChangeEvent, type ReactNode } from "react";
+import { useId, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { Controller, useForm, useWatch, type Path } from "react-hook-form";
 import { z } from "zod";
 
@@ -174,7 +174,7 @@ export function Composer({
   "use no memo";
   const toast = useToast();
   const idBase = useId();
-  // The picked file travels with the FormData; the object URL is only the preview.
+  // The picked file travels with the FormData; `src` is its data URL, only for the preview.
   const [image, setImage] = useState<{ name: string; src: string; file: File } | null>(null);
   // Edit mode: the stored image stays unless the admin removes or replaces it.
   const [keepStoredImage, setKeepStoredImage] = useState(true);
@@ -215,13 +215,6 @@ export function Composer({
     control,
     name: ["title", "body", "audience", "segmentId", "when", "scheduledAt", "link", "linkUrl"],
   });
-
-  useEffect(
-    () => () => {
-      if (image) URL.revokeObjectURL(image.src);
-    },
-    [image],
-  );
 
   const segment = segments.find((s) => s.id === segmentId) ?? segments[0];
   const selectedLink: NotificationLink =
@@ -299,7 +292,14 @@ export function Composer({
     const problem = notificationImageProblem(file);
     if (problem) return setImageError(problem);
     setImageError(null);
-    setImage({ name: file.name, src: URL.createObjectURL(file), file });
+    // The preview is the file's data URL (at most 5 MB after the check above); the file itself
+    // is what the FormData carries.
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string")
+        setImage({ name: file.name, src: reader.result, file });
+    };
+    reader.readAsDataURL(file);
   };
 
   const audienceCards = [
@@ -376,12 +376,10 @@ export function Composer({
             <div className="flex min-h-16 flex-[1_1_200px]">
               {image || storedImage ? (
                 <div className="flex flex-1 items-center gap-3 rounded-md border-[1.5px] border-line-strong px-3.5 py-2.5">
-                  {/* Local preview of an unsaved upload (a `blob:` object URL of a file the
-                      type check accepted) or the stored image's backend address; neither can
-                      carry script, so the js/xss-through-dom alert on the file input is noise. */}
+                  {/* Local preview of an unsaved upload (data URL) or the stored image. */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={image?.src ?? storedImage ?? "" /* codeql[js/xss-through-dom] */}
+                    src={image?.src ?? storedImage ?? ""}
                     alt=""
                     className="h-10 w-20 rounded-sm object-cover"
                   />
@@ -673,7 +671,7 @@ export function Composer({
             {(image || storedImage) && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={image?.src ?? storedImage ?? "" /* codeql[js/xss-through-dom] */}
+                src={image?.src ?? storedImage ?? ""}
                 alt=""
                 className="mt-2 aspect-[2/1] w-full rounded-md object-cover"
               />

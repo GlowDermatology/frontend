@@ -14,7 +14,7 @@ import { failureText, useShopAction } from "./use-shop-action";
 
 /**
  * The proof a sign-in-method change needs (contract §2.2.8–§2.2.10, B-W2
- * fix pass): the current password, or — "I have no password" — a
+ * fix pass): the current password, or — "I forgot it / have none" — a
  * `reset_password` code sent to the account's own phone or e-mail. The parent receives the
  * proof (`Reauth`) and sends it with its action.
  */

@@ -45,6 +45,7 @@ import { AddressDialog } from "./address-form";
 import { CodeField, FormAlert, FormNote, PasswordField } from "./controls";
 import { PhoneGate } from "./phone-gate";
 import { ReauthStep } from "./reauth";
+import { keepReauthAfter } from "./reauth-proof";
 import { useShopSession } from "./session-context";
 import { failureText, useShopAction } from "./use-shop-action";
 
@@ -236,7 +237,10 @@ function EmailDialog({
     if (result.ok) {
       onSaved(result.data);
       onOpenChange(false);
-    } else if (
+      return;
+    }
+    setReauth((current) => keepReauthAfter(current, result));
+    if (
       result.code === "reauth_required" ||
       result.fieldErrors?.password ||
       result.fieldErrors?.verification_token
@@ -432,6 +436,8 @@ function PasswordCard({
       setOpen(false);
       setPassword("");
       setCurrent({});
+    } else {
+      setCurrent((proof) => keepReauthAfter(proof, result));
     }
   };
   return (
@@ -526,6 +532,8 @@ function SocialCard({
       onSaved(result.data);
       setNotice(copy.unlinkedNotice(copy.names[dialog.provider]));
       close();
+    } else {
+      setReauth((proof) => keepReauthAfter(proof, result));
     }
   };
   const link = async (token: SocialToken) => {
@@ -549,6 +557,8 @@ function SocialCard({
       onSaved(result.data);
       setNotice(copy.linkedNotice(copy.names[token.provider]));
       close();
+    } else {
+      setReauth((proof) => keepReauthAfter(proof, result));
     }
   };
   const getNonce = async () => {
@@ -840,6 +850,7 @@ function DangerCard({ locale, me }: { locale: Locale; me: ShopMe }) {
   const remove = async () => {
     const result = await run((csrf) => deleteAccount({ locale, reauth, csrf }));
     if (result.ok) window.location.assign(shopPath(locale, { kind: "home" }));
+    else setReauth((proof) => keepReauthAfter(proof, result));
   };
   return (
     <section

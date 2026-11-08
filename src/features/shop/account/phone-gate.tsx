@@ -14,6 +14,7 @@ import { commonCopy } from "../copy/common";
 import { shopHref } from "../routing/routes";
 import { CodeField, FormAlert, PhoneField } from "./controls";
 import { ReauthStep } from "./reauth";
+import { keepReauthAfter } from "./reauth-proof";
 import { failureText, useShopAction } from "./use-shop-action";
 
 /**
@@ -24,7 +25,7 @@ import { failureText, useShopAction } from "./use-shop-action";
  * (`phone_taken`) is never merged: the customer may sign in with it instead.
  * When the API asks for re-authentication (`reauth_required`, B-W2: an
  * account with a password, phone or e-mail) the password is asked — or a
- * code to the account's own e-mail for "I have no password"; a number held
+ * code to the account's own phone or e-mail for "I forgot my password / have none"; a number held
  * by a deleted account (`details.deleted`) offers to register with it.
  */
 export function PhoneGate({
@@ -83,6 +84,7 @@ export function PhoneGate({
       setPhone("");
       return;
     }
+    setReauth((current) => keepReauthAfter(current, result));
     if (
       result.code === "reauth_required" ||
       result.fieldErrors?.password ||

@@ -62,7 +62,7 @@ const uz = {
     verify: "Tasdiqlash",
     verified: "Tasdiqlandi",
     signInAgain: "Xavfsizlik uchun hisobga qaytadan kiring.",
-    noPassword: "Parolim yo‘q — kod orqali tasdiqlash",
+    noPassword: "Parolni unutdim yoki parolim yo‘q — kod orqali tasdiqlash",
     usePassword: "Parol bilan tasdiqlash",
   },
   consent: {
@@ -144,7 +144,7 @@ const ru: Copy = {
     verify: "Подтвердить",
     verified: "Подтверждено",
     signInAgain: "Для безопасности войдите в аккаунт заново.",
-    noPassword: "У меня нет пароля — подтвердить кодом",
+    noPassword: "Забыл пароль или его нет — подтвердить кодом",
     usePassword: "Подтвердить паролем",
   },
   consent: {
@@ -224,7 +224,7 @@ const en: Copy = {
     verify: "Confirm",
     verified: "Confirmed",
     signInAgain: "For your security, please sign in again.",
-    noPassword: "I have no password — confirm with a code",
+    noPassword: "Forgot my password or have none — confirm with a code",
     usePassword: "Confirm with my password",
   },
   consent: {

@@ -8,8 +8,12 @@ import slotErrorFixture from "../__fixtures__/err-appointment-slot.json";
 import phoneErrorFixture from "../__fixtures__/err-notification-phone.json";
 import segmentDeleteFixture from "../__fixtures__/err-segment-delete.json";
 import placeholderErrorFixture from "../__fixtures__/err-template-placeholder.json";
+import approvedFixture from "../__fixtures__/notification-approved.json";
+import draftFixture from "../__fixtures__/notification-draft.json";
+import pendingTestsFixture from "../__fixtures__/notification-draft-tested-pending.json";
 import notificationsMetaFixture from "../__fixtures__/notifications-meta.json";
 import notificationsPageFixture from "../__fixtures__/notifications-page.json";
+import testDevicesFixture from "../__fixtures__/test-devices.json";
 import pendingFixture from "../__fixtures__/pending-summary.json";
 import membersFixture from "../__fixtures__/segment-1-members.json";
 import segmentsFixture from "../__fixtures__/segments-page.json";
@@ -19,12 +23,14 @@ import type {
   ApiAppointmentsMeta,
   ApiDaySchedule,
   ApiNotificationMeta,
+  ApiNotificationRecord,
   ApiPaginatedAuditLog,
   ApiPaginatedCustomers,
   ApiPaginatedNotifications,
   ApiPaginatedSegments,
   ApiPendingSummary,
   ApiStatusTemplate,
+  ApiTestDevice,
   ErrorEnvelope,
 } from "../types";
 import {
@@ -43,6 +49,7 @@ import {
   defaultSchedule,
   mapNotificationMeta,
   mapNotificationRecord,
+  mapTestDevice,
   mapStatusTemplate,
   NOTIFICATION_FIELD_REMAP,
   notificationFormData,
@@ -260,37 +267,106 @@ describe("notifications", () => {
     expect(history[0]?.cancelledAt).toBeNull();
   });
 
-  it("keeps a missing cancelled_at (a backend before M3) apart from null", () => {
-    const m2Record: Record<string, unknown> = { ...page.results[0]! };
-    delete m2Record.cancelled_at;
-    const mapped = mapNotificationRecord(m2Record as unknown as (typeof page.results)[number]);
-    expect(mapped.cancelledAt).toBeUndefined();
-    expect(mapped.state).toBe("scheduled");
+  it("maps the approval workflow fields, the author's id and the tests", () => {
+    expect(history[0]).toMatchObject({
+      body: "Yangi dermatolog qabuliga yozilish ochildi. Ilova orqali qulay vaqtni band qiling.",
+      recipientCount: 612,
+      audience: { type: "group", segmentId: "1" },
+      link: { kind: "none" },
+      revision: 1,
+      testedRevision: 1,
+      testConfirmedAt: "2026-10-24T11:45:00+05:00",
+      approvedAt: "2026-10-24T11:50:00+05:00",
+      approvedBy: "Administrator",
+      approvedRevision: 1,
+      dispatchAfter: "2026-10-26T10:00:00+05:00",
+      startedAt: null,
+      attempted: null,
+      lastError: null,
+      authorId: "1",
+      updatedAt: "2026-10-24T11:50:00+05:00",
+    });
+    expect(history[0]?.tests).toEqual([
+      {
+        id: "7",
+        revision: 1,
+        deviceLabel: "Dilnoza iPhone",
+        sentAt: "2026-10-24T11:42:00+05:00",
+        sentBy: "Administrator",
+        fcmOk: true,
+        fcmError: null,
+        confirmedAt: "2026-10-24T11:45:00+05:00",
+        confirmedBy: "Administrator",
+      },
+    ]);
+    expect(history[1]).toMatchObject({ attempted: 4751, startedAt: "2026-10-24T12:00:00+05:00" });
+    expect(mapNotificationRecord(draftFixture as ApiNotificationRecord)).toMatchObject({
+      state: "draft",
+      at: "2026-10-27T09:00:00+05:00",
+      authorId: "2",
+      author: "Dilnoza Yusupova",
+      tests: [],
+      recipientCount: 360,
+      audience: { type: "all" },
+    });
+    const pending = mapNotificationRecord(pendingTestsFixture as ApiNotificationRecord);
+    expect(
+      pending.tests.map((t) => [t.id, t.revision, t.fcmOk, t.fcmError, t.confirmedAt]),
+    ).toEqual([
+      ["11", 1, true, null, null],
+      ["12", 2, true, null, null],
+      ["13", 2, false, "unregistered", null],
+    ]);
   });
 
-  it("labels a single-customer audience with the formatted phone and falls back to created_at", () => {
+  it("dates the row by the requested time, else created_at — the backend's sort key", () => {
     const record = page.results[0]!;
-    expect(
-      mapNotificationRecord({
-        ...record,
-        scheduled_at: null,
-        audience: {
-          type: "customer",
-          segment_id: null,
-          segment_name: null,
-          phone: "+998901234567",
-        },
-        author: null,
-      }),
-    ).toMatchObject({
-      at: record.created_at,
-      audienceLabel: "Bitta mijoz · +998 90 123 45 67",
+    expect(mapNotificationRecord(record).at).toBe(record.scheduled_at);
+    expect(mapNotificationRecord({ ...record, scheduled_at: null }).at).toBe(record.created_at);
+    // an approved campaign without a requested time keeps its creation date in the history;
+    // the panel shows `dispatchAfter` itself
+    expect(mapNotificationRecord(approvedFixture as ApiNotificationRecord)).toMatchObject({
+      state: "scheduled",
+      at: "2026-10-27T09:00:00+05:00",
+      dispatchAfter: "2026-10-27T09:35:00+05:00",
+      scheduledAt: null,
     });
+  });
+
+  it("keeps a state this build does not know, so a newer backend's row still lists", () => {
+    const record = page.results[0]!;
+    const mapped = mapNotificationRecord({
+      ...record,
+      state: "paused" as ApiNotificationRecord["state"],
+    });
+    expect(mapped.state).toBe("paused");
+  });
+
+  it("maps a test device", () => {
+    expect((testDevicesFixture as ApiTestDevice[]).map(mapTestDevice)).toEqual([
+      {
+        id: "1",
+        phone: "+998901234567",
+        label: "Dilnoza iPhone",
+        isPushable: true,
+        registeredBy: "Administrator",
+        registeredAt: "2026-10-20T09:30:00+05:00",
+      },
+      {
+        id: "2",
+        phone: "+998935550011",
+        label: "Sardor Android",
+        isPushable: false,
+        registeredBy: "Administrator",
+        registeredAt: "2026-10-21T15:10:00+05:00",
+      },
+    ]);
   });
 
   it("maps the composer meta: devices, segment sizes, link options with 'none' first, templates", () => {
     const meta = mapNotificationMeta(notificationsMetaFixture as ApiNotificationMeta);
     expect(meta.totalDevices).toBe(360);
+    expect(meta.approvalDelayMinutes).toBe(5);
     expect(meta.segments).toEqual([
       { id: "1", name: "Doimiy mijozlar", size: 1 },
       { id: "2", name: "10 mln+ xarid", size: 1 },
@@ -337,6 +413,7 @@ describe("notifications", () => {
       phone: "",
       scheduledAt: "2026-10-27T05:00:00.000Z",
       image,
+      removeImage: false,
     });
     expect([...group.keys()].sort()).toEqual([
       "audience.segment_id",
@@ -364,6 +441,7 @@ describe("notifications", () => {
       phone: "+998901234567",
       scheduledAt: null,
       image: null,
+      removeImage: false,
     });
     expect(Object.fromEntries(one)).toEqual({
       kind: "promo",
@@ -383,10 +461,35 @@ describe("notifications", () => {
       phone: "+998901234567",
       scheduledAt: null,
       image: null,
+      removeImage: false,
     });
     expect(all.get("audience.type")).toBe("all");
     expect(all.has("audience.segment_id")).toBe(false);
     expect(all.has("audience.phone")).toBe(false);
+    expect(all.has("expected_revision")).toBe(false);
+    expect(all.has("remove_image")).toBe(false);
+
+    // An update names the revision it was edited from, clears a dropped
+    // requested time and asks for the stored image to go.
+    const update = notificationFormData(
+      {
+        kind: "promo",
+        title: "Sarlavha",
+        body: "Matn matn",
+        link: { kind: "url", url: "https://glowderma.uz/aksiya" },
+        audience: "all",
+        segmentId: "",
+        phone: "",
+        scheduledAt: null,
+        image: null,
+        removeImage: true,
+      },
+      { expectedRevision: 3 },
+    );
+    expect(update.get("expected_revision")).toBe("3");
+    expect(update.get("remove_image")).toBe("true");
+    expect(update.get("scheduled_at")).toBe("");
+    expect(update.get("link.url")).toBe("https://glowderma.uz/aksiya");
   });
 
   it("remaps the composer's field errors per §7.1 (phone, link, schedule, image → top level)", () => {

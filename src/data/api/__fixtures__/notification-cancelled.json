@@ -7,7 +7,8 @@
   "link": {
     "kind": "none",
     "product_id": null,
-    "label": null
+    "label": null,
+    "url": null
   },
   "audience": {
     "type": "segment",
@@ -27,5 +28,51 @@
   "author": {
     "id": 1,
     "display_name": "Administrator"
-  }
+  },
+  "tested_revision": 1,
+  "test_confirmed_at": "2026-10-24T11:45:00+05:00",
+  "test_confirmed_by": {
+    "id": 1,
+    "display_name": "Administrator"
+  },
+  "approved_at": "2026-10-24T11:50:00+05:00",
+  "approved_by": {
+    "id": 1,
+    "display_name": "Administrator"
+  },
+  "approved_revision": 1,
+  "dispatch_after": "2026-10-26T10:00:00+05:00",
+  "cancelled_by": {
+    "id": 1,
+    "display_name": "Administrator"
+  },
+  "updated_at": "2026-10-27T01:03:19+05:00",
+  "tests": [
+    {
+      "id": 7,
+      "revision": 1,
+      "test_device_id": 1,
+      "device_label": "Dilnoza iPhone",
+      "sent_at": "2026-10-24T11:42:00+05:00",
+      "sent_by": {
+        "id": 1,
+        "display_name": "Administrator"
+      },
+      "fcm_ok": true,
+      "fcm_error": "",
+      "confirmed_at": "2026-10-24T11:45:00+05:00",
+      "confirmed_by": {
+        "id": 1,
+        "display_name": "Administrator"
+      }
+    }
+  ],
+  "revision": 1,
+  "started_at": null,
+  "stop_requested_at": null,
+  "stopped_at": null,
+  "failed_at": null,
+  "last_error": "",
+  "attempted": null,
+  "stop_requested_by": null
 }

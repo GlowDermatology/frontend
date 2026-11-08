@@ -36,6 +36,9 @@ export async function NotificationsContent({
         draft={overview.draft}
         recipient={customer ? { name: customer.name, phone: customer.phone } : null}
         now={now.toISOString()}
+        me={overview.me}
+        approvalDelayMinutes={overview.approvalDelayMinutes}
+        testDevices={overview.testDevices}
       />
       <TemplatesSection templates={overview.templates} />
     </>

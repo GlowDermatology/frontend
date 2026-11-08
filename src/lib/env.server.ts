@@ -30,6 +30,17 @@ export const serverEnv = {
     }
     return value;
   },
+  /**
+   * Mock mode only: whether the demo's signed-in account is a superuser
+   * (`GLOWDERMA_MOCK_SUPERUSER`, default true). `false` shows the ordinary
+   * admin's view of the notifications page (no test, approve, cancel or stop
+   * controls). Ignored in api mode, where `auth/me/` decides.
+   */
+  mockSuperuser(): boolean {
+    const value = read("GLOWDERMA_MOCK_SUPERUSER");
+    if (value === undefined) return true;
+    return value === "true" || value === "1";
+  },
   /** Django origin without a trailing slash, e.g. `http://api:8000`. */
   apiUrl(): string {
     return required("GLOWDERMA_API_URL").replace(/\/+$/, "");

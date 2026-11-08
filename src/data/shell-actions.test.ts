@@ -11,6 +11,7 @@ import type { StaffSession, VerifyStaffOptions } from "./auth";
  */
 
 const verifyStaff = vi.fn<(options?: VerifyStaffOptions) => Promise<StaffSession>>();
+const getMe = vi.fn<() => Promise<{ id: number; is_superuser: boolean } | null>>();
 const refresh = vi.fn();
 const apiFetch = vi.fn();
 const cachedGet = vi.fn();
@@ -20,6 +21,7 @@ vi.mock("next/cache", () => ({ refresh: () => refresh() }));
 vi.mock("./auth", () => ({
   verifyStaff: (options?: VerifyStaffOptions) => verifyStaff(options),
   requireApiToken: async () => "t",
+  getMe: () => getMe(),
 }));
 vi.mock("./mock/delay", () => ({ delay: async () => undefined }));
 vi.mock("./api/client", () => ({
@@ -34,9 +36,18 @@ import slotErrorFixture from "./api/__fixtures__/err-appointment-slot.json";
 import phoneErrorFixture from "./api/__fixtures__/err-notification-phone.json";
 import segmentDeleteFixture from "./api/__fixtures__/err-segment-delete.json";
 import placeholderErrorFixture from "./api/__fixtures__/err-template-placeholder.json";
+import notTestedFixture from "./api/__fixtures__/err-notification-not-tested.json";
 import sendStartedFixture from "./api/__fixtures__/err-notification-send-started.json";
+import staleRevisionFixture from "./api/__fixtures__/err-notification-stale-revision.json";
+import permissionDeniedFixture from "./api/__fixtures__/err-permission-denied.json";
+import devicePhoneFixture from "./api/__fixtures__/err-test-device-phone.json";
+import approvedFixture from "./api/__fixtures__/notification-approved.json";
 import cancelledFixture from "./api/__fixtures__/notification-cancelled.json";
-import notificationsPageFixture from "./api/__fixtures__/notifications-page.json";
+import draftFixture from "./api/__fixtures__/notification-draft.json";
+import pendingTestsFixture from "./api/__fixtures__/notification-draft-tested-pending.json";
+import stoppingFixture from "./api/__fixtures__/notification-stopping.json";
+import testedFixture from "./api/__fixtures__/notification-tested.json";
+import testDevicesFixture from "./api/__fixtures__/test-devices.json";
 import segmentsFixture from "./api/__fixtures__/segments-page.json";
 import templateFixture from "./api/__fixtures__/template-processing.json";
 import { ApiError } from "./api/errors";
@@ -49,8 +60,17 @@ import {
   updateAppointment,
 } from "./appointments.actions";
 import {
+  approveNotification,
   cancelNotification,
-  sendNotification,
+  confirmCampaignTest,
+  deleteNotificationDraft,
+  registerTestDevice,
+  removeTestDevice,
+  returnNotificationToDraft,
+  saveNotificationDraft,
+  sendCampaignTest,
+  stopNotification,
+  updateNotificationDraft,
   updateNotificationTemplate,
 } from "./notifications.actions";
 import {
@@ -81,6 +101,8 @@ beforeEach(() => {
   delete process.env.GLOWDERMA_DATA_SOURCE;
   verifyStaff.mockReset();
   verifyStaff.mockResolvedValue({ ok: true, mode: "mock" });
+  getMe.mockReset();
+  getMe.mockResolvedValue({ id: 1, is_superuser: true });
   refresh.mockClear();
   apiFetch.mockReset();
   cachedGet.mockReset();
@@ -330,38 +352,43 @@ describe("appointment actions in api mode", () => {
   });
 });
 
+const apiSession = () => {
+  process.env.GLOWDERMA_DATA_SOURCE = "api";
+  verifyStaff.mockResolvedValue({ ok: true, mode: "api", token: "t", sid: null });
+};
+
+const form = (fields: Record<string, string> = {}) => {
+  const data = new FormData();
+  for (const [name, value] of Object.entries({
+    kind: "general",
+    title: "Yangi xabar",
+    body: "Xabar matni shu yerda.",
+    link: "none",
+    audience: "all",
+    segmentId: "",
+    phone: "",
+    scheduledAt: "",
+    ...fields,
+  })) {
+    data.set(name, value);
+  }
+  return data;
+};
+
 describe("notifications in api mode", () => {
-  beforeEach(() => {
-    process.env.GLOWDERMA_DATA_SOURCE = "api";
-    verifyStaff.mockResolvedValue({ ok: true, mode: "api", token: "t", sid: null });
-  });
+  beforeEach(apiSession);
 
-  const form = (fields: Record<string, string>) => {
-    const data = new FormData();
-    for (const [name, value] of Object.entries({
-      kind: "general",
-      title: "Yangi xabar",
-      body: "Xabar matni shu yerda.",
-      link: "none",
-      audience: "all",
-      segmentId: "",
-      phone: "",
-      scheduledAt: "",
-      ...fields,
-    })) {
-      data.set(name, value);
-    }
-    return data;
-  };
-
-  it("posts the multipart body with the key and maps the answer", async () => {
-    apiFetch.mockResolvedValueOnce(respond(201, notificationsPageFixture.results[0]));
-    const result = await sendNotification(
+  it("posts the multipart body with the key and maps the draft", async () => {
+    apiFetch.mockResolvedValueOnce(respond(201, draftFixture));
+    const result = await saveNotificationDraft(
       form({ audience: "group", segmentId: "1", scheduledAt: "2099-10-27T10:00:00+05:00" }),
       KEY,
       CSRF,
     );
-    expect(result).toMatchObject({ ok: true, data: { id: "4", state: "scheduled" } });
+    expect(result).toMatchObject({
+      ok: true,
+      data: { id: "9", state: "draft", revision: 1, authorId: "2" },
+    });
     const [path, request] = apiFetch.mock.calls[0]!;
     expect(path).toBe("/api/v1/admin/notifications/");
     expect(request).toMatchObject({ method: "POST", idempotencyKey: KEY });
@@ -369,24 +396,25 @@ describe("notifications in api mode", () => {
     expect(body.get("audience.type")).toBe("segment");
     expect(body.get("audience.segment_id")).toBe("1");
     expect(body.get("scheduled_at")).toBe("2099-10-27T10:00:00+05:00");
+    expect(body.has("expected_revision")).toBe(false);
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
   it("sends a URL destination as link.url and maps its errors on linkUrl (gap ADM-10.1)", async () => {
     expect(
-      await sendNotification(form({ link: "url", linkUrl: "http://x.uz" }), KEY, CSRF),
+      await saveNotificationDraft(form({ link: "url", linkUrl: "http://x.uz" }), KEY, CSRF),
     ).toMatchObject({
       ok: false,
       fieldErrors: { linkUrl: "Havolani https:// bilan to‘liq kiriting." },
     });
     expect(apiFetch).not.toHaveBeenCalled();
     const record = {
-      ...notificationsPageFixture.results[0],
+      ...draftFixture,
       link: { kind: "url", product_id: null, label: null, url: "https://glowderma.uz/aksiya" },
     };
     apiFetch.mockResolvedValueOnce(respond(201, record));
     expect(
-      await sendNotification(
+      await saveNotificationDraft(
         form({
           link: "url",
           linkUrl: " https://glowderma.uz/aksiya ",
@@ -409,19 +437,67 @@ describe("notifications in api mode", () => {
       }),
     );
     expect(
-      await sendNotification(form({ link: "url", linkUrl: "https://x.uz/a" }), KEY, CSRF),
+      await saveNotificationDraft(form({ link: "url", linkUrl: "https://x.uz/a" }), KEY, CSRF),
     ).toMatchObject({ fieldErrors: { linkUrl: "500 belgidan oshmasin." } });
   });
 
   it("puts an unknown customer phone on the phone field", async () => {
     apiFetch.mockRejectedValueOnce(apiError(400, phoneErrorFixture));
     expect(
-      await sendNotification(form({ audience: "one", phone: "+998900000001" }), KEY, CSRF),
+      await saveNotificationDraft(form({ audience: "one", phone: "+998900000001" }), KEY, CSRF),
     ).toEqual({
       ok: false,
       error: "Maydonlarni tekshiring.",
       code: "validation_error",
       fieldErrors: { phone: "Bu raqam bilan mijoz topilmadi." },
+    });
+  });
+
+  it("PATCHes a draft with expected_revision; a stale revision is the 409 and re-reads", async () => {
+    apiFetch.mockResolvedValueOnce(respond(200, { ...draftFixture, revision: 2 }));
+    const result = await updateNotificationDraft(
+      "9",
+      form({ expectedRevision: "1", removeImage: "true" }),
+      KEY,
+      CSRF,
+    );
+    expect(result).toMatchObject({ ok: true, data: { id: "9", revision: 2 } });
+    const [path, request] = apiFetch.mock.calls[0]!;
+    expect(path).toBe("/api/v1/admin/notifications/9/");
+    expect(request).toMatchObject({ method: "PATCH", idempotencyKey: KEY });
+    const body = request.formData as FormData;
+    expect(body.get("expected_revision")).toBe("1");
+    expect(body.get("remove_image")).toBe("true");
+    expect(body.get("scheduled_at")).toBe("");
+    expect(refresh).toHaveBeenCalledTimes(1);
+
+    apiFetch.mockRejectedValueOnce(apiError(409, staleRevisionFixture));
+    expect(
+      await updateNotificationDraft("9", form({ expectedRevision: "1" }), KEY, CSRF),
+    ).toMatchObject({
+      ok: false,
+      code: "conflict",
+      error: "Xabar o‘zgartirilgan: sahifani yangilab, qayta urinib ko‘ring.",
+    });
+    expect(refresh).toHaveBeenCalledTimes(2);
+    // Without the revision the editor opened on, nothing is sent.
+    expect(await updateNotificationDraft("9", form(), KEY, CSRF)).toMatchObject({ ok: false });
+    expect(apiFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("DELETEs a draft; a 403 of another admin's draft is the backend's permission_denied", async () => {
+    apiFetch.mockResolvedValueOnce(respond(204, undefined));
+    expect(await deleteNotificationDraft("9", KEY, CSRF)).toEqual({ ok: true, data: { id: "9" } });
+    expect(apiFetch).toHaveBeenCalledWith(
+      "/api/v1/admin/notifications/9/",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+    expect(refresh).toHaveBeenCalledTimes(1);
+    apiFetch.mockRejectedValueOnce(apiError(403, permissionDeniedFixture));
+    expect(await deleteNotificationDraft("9", KEY, CSRF)).toMatchObject({
+      ok: false,
+      code: "permission_denied",
+      error: "Ruxsat yo‘q.",
     });
   });
 
@@ -446,10 +522,201 @@ describe("notifications in api mode", () => {
   });
 });
 
-describe("cancelling a scheduled campaign (M3)", () => {
+describe("the superuser gate of the campaign workflow", () => {
+  const operations: ReadonlyArray<[string, (csrf: string) => Promise<{ ok: boolean }>]> = [
+    ["sendCampaignTest", (csrf) => sendCampaignTest("9", ["1"], KEY, csrf)],
+    ["confirmCampaignTest", (csrf) => confirmCampaignTest("9", "12", KEY, csrf)],
+    ["approveNotification", (csrf) => approveNotification("9", 2, KEY, csrf)],
+    ["returnNotificationToDraft", (csrf) => returnNotificationToDraft("9", KEY, csrf)],
+    ["cancelNotification", (csrf) => cancelNotification("9", KEY, csrf)],
+    ["stopNotification", (csrf) => stopNotification("9", KEY, csrf)],
+    [
+      "registerTestDevice",
+      (csrf) => registerTestDevice({ phone: "+998901234567", label: "Mening iPhone" }, KEY, csrf),
+    ],
+    ["removeTestDevice", (csrf) => removeTestDevice("1", KEY, csrf)],
+  ];
+
+  it("answers an ordinary admin permission_denied before any call, in both modes", async () => {
+    getMe.mockResolvedValue({ id: 2, is_superuser: false });
+    for (const [name, run] of operations) {
+      expect(await run(CSRF), name).toEqual({
+        ok: false,
+        error: "Ruxsat yo‘q.",
+        code: "permission_denied",
+      });
+    }
+    apiSession();
+    for (const [name, run] of operations) {
+      expect(await run(CSRF), name).toMatchObject({ code: "permission_denied" });
+    }
+    expect(apiFetch).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("treats a lost auth/me/ as an ordinary admin, and checks the session first", async () => {
+    getMe.mockResolvedValue(null);
+    expect(await approveNotification("9", 2, KEY, CSRF)).toMatchObject({
+      code: "permission_denied",
+    });
+    verifyStaff.mockResolvedValue({ ok: false, reason: "expired" });
+    expect(await approveNotification("9", 2, KEY, CSRF)).toMatchObject({ code: "session_expired" });
+    expect(getMe).toHaveBeenCalledTimes(1);
+  });
+
+  it("drafts need no superuser: an ordinary admin saves one", async () => {
+    getMe.mockResolvedValue({ id: 2, is_superuser: false });
+    expect(await saveNotificationDraft(form(), KEY, CSRF)).toMatchObject({
+      ok: true,
+      data: { state: "draft" },
+    });
+  });
+});
+
+describe("the campaign workflow in api mode", () => {
+  beforeEach(apiSession);
+
+  it("test: posts the device ids and maps the tests FCM answered", async () => {
+    apiFetch.mockResolvedValueOnce(respond(200, pendingTestsFixture));
+    const result = await sendCampaignTest("9", ["1", "2"], KEY, CSRF);
+    expect(result.ok && result.data.tests.map((t) => [t.id, t.fcmOk, t.fcmError])).toEqual([
+      ["11", true, null],
+      ["12", true, null],
+      ["13", false, "unregistered"],
+    ]);
+    expect(apiFetch).toHaveBeenCalledWith(
+      "/api/v1/admin/notifications/9/test/",
+      expect.objectContaining({
+        method: "POST",
+        body: { device_ids: [1, 2] },
+        idempotencyKey: KEY,
+        timeoutMs: 30_000,
+      }),
+    );
+    expect(refresh).toHaveBeenCalledTimes(1);
+    // 1–10 devices, before any call.
+    expect(await sendCampaignTest("9", [], KEY, CSRF)).toMatchObject({
+      ok: false,
+      error: "Kamida bitta qurilmani tanlang.",
+    });
+    expect(apiFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("confirm: posts tests/{id}/confirm/ and maps the tested record", async () => {
+    apiFetch.mockResolvedValueOnce(respond(200, testedFixture));
+    expect(await confirmCampaignTest("9", "12", KEY, CSRF)).toMatchObject({
+      ok: true,
+      data: { state: "tested", testedRevision: 2, testConfirmedAt: "2026-10-27T09:25:00+05:00" },
+    });
+    expect(apiFetch).toHaveBeenCalledWith(
+      "/api/v1/admin/notifications/9/tests/12/confirm/",
+      expect.objectContaining({ method: "POST", body: {}, idempotencyKey: KEY }),
+    );
+  });
+
+  it("approve: posts expected_revision and maps the waiting record; a draft is the 409 and re-reads", async () => {
+    apiFetch.mockResolvedValueOnce(respond(200, approvedFixture));
+    expect(await approveNotification("9", 2, KEY, CSRF)).toMatchObject({
+      ok: true,
+      data: {
+        state: "scheduled",
+        approvedRevision: 2,
+        dispatchAfter: "2026-10-27T09:35:00+05:00",
+        at: "2026-10-27T09:00:00+05:00", // no requested time: the row keeps its creation date
+      },
+    });
+    expect(apiFetch).toHaveBeenCalledWith(
+      "/api/v1/admin/notifications/9/approve/",
+      expect.objectContaining({
+        method: "POST",
+        body: { expected_revision: 2 },
+        idempotencyKey: KEY,
+      }),
+    );
+    expect(refresh).toHaveBeenCalledTimes(1);
+    apiFetch.mockRejectedValueOnce(apiError(409, notTestedFixture));
+    expect(await approveNotification("9", 2, KEY, CSRF)).toMatchObject({
+      ok: false,
+      code: "conflict",
+      error: "Avval test yuboring va qurilmada ko‘rganingizni tasdiqlang.",
+    });
+    expect(refresh).toHaveBeenCalledTimes(2);
+    apiFetch.mockRejectedValueOnce(apiError(409, staleRevisionFixture));
+    expect(await approveNotification("9", 1, KEY, CSRF)).toMatchObject({ code: "conflict" });
+    expect(refresh).toHaveBeenCalledTimes(3);
+  });
+
+  it("return to draft and stop post their routes and map the record", async () => {
+    apiFetch.mockResolvedValueOnce(respond(200, { ...draftFixture, revision: 3 }));
+    expect(await returnNotificationToDraft("9", KEY, CSRF)).toMatchObject({
+      ok: true,
+      data: { state: "draft", revision: 3 },
+    });
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/notifications/9/return-to-draft/",
+      expect.objectContaining({ method: "POST", body: {}, idempotencyKey: KEY }),
+    );
+    apiFetch.mockResolvedValueOnce(respond(200, stoppingFixture));
+    expect(await stopNotification("9", KEY, CSRF)).toMatchObject({
+      ok: true,
+      data: { state: "stopping", stopRequestedAt: "2026-10-27T09:36:00+05:00", attempted: 121 },
+    });
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/notifications/9/stop/",
+      expect.objectContaining({ method: "POST", body: {}, idempotencyKey: KEY }),
+    );
+    expect(refresh).toHaveBeenCalledTimes(2);
+  });
+
+  it("test devices: registers by phone with the key, maps the backend's phone errors, removes", async () => {
+    apiFetch.mockResolvedValueOnce(respond(201, testDevicesFixture[0]));
+    expect(
+      await registerTestDevice(
+        { phone: "+998 90 123 45 67", label: " Dilnoza iPhone " },
+        KEY,
+        CSRF,
+      ),
+    ).toEqual({
+      ok: true,
+      data: {
+        id: "1",
+        phone: "+998901234567",
+        label: "Dilnoza iPhone",
+        isPushable: true,
+        registeredBy: "Administrator",
+        registeredAt: "2026-10-20T09:30:00+05:00",
+      },
+    });
+    expect(apiFetch).toHaveBeenCalledWith(
+      "/api/v1/admin/notifications/test-devices/",
+      expect.objectContaining({
+        method: "POST",
+        body: { phone: "+998901234567", label: "Dilnoza iPhone" },
+        idempotencyKey: KEY,
+      }),
+    );
+    apiFetch.mockRejectedValueOnce(apiError(400, devicePhoneFixture));
+    expect(
+      await registerTestDevice({ phone: "+998901234567", label: "Dilnoza iPhone" }, KEY, CSRF),
+    ).toMatchObject({
+      ok: false,
+      fieldErrors: { phone: "Bu mijozning push yoqilgan qurilmasi yo‘q." },
+    });
+    expect(await registerTestDevice({ phone: "+998 90 12", label: "x" }, KEY, CSRF)).toMatchObject({
+      fieldErrors: { phone: expect.any(String), label: "Qurilma nomini kiriting." },
+    });
+    apiFetch.mockResolvedValueOnce(respond(204, undefined));
+    expect(await removeTestDevice("1", KEY, CSRF)).toEqual({ ok: true, data: { id: "1" } });
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/notifications/test-devices/1/",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+  });
+});
+
+describe("cancelling a waiting campaign (M3, superusers)", () => {
   it("api: posts cancel/ with the key and maps the cancelled record", async () => {
-    process.env.GLOWDERMA_DATA_SOURCE = "api";
-    verifyStaff.mockResolvedValue({ ok: true, mode: "api", token: "t", sid: null });
+    apiSession();
     apiFetch.mockResolvedValueOnce(respond(200, cancelledFixture));
     const result = await cancelNotification("4", KEY, CSRF);
     expect(result).toMatchObject({
@@ -470,8 +737,7 @@ describe("cancelling a scheduled campaign (M3)", () => {
   });
 
   it("api: a send that started is the backend's 409 conflict, an unknown id its 404", async () => {
-    process.env.GLOWDERMA_DATA_SOURCE = "api";
-    verifyStaff.mockResolvedValue({ ok: true, mode: "api", token: "t", sid: null });
+    apiSession();
     apiFetch.mockRejectedValueOnce(apiError(409, sendStartedFixture));
     expect(await cancelNotification("3", KEY, CSRF)).toMatchObject({
       ok: false,
@@ -490,8 +756,7 @@ describe("cancelling a scheduled campaign (M3)", () => {
   });
 
   it("api: an answer that changed nothing does not re-read the history", async () => {
-    process.env.GLOWDERMA_DATA_SOURCE = "api";
-    verifyStaff.mockResolvedValue({ ok: true, mode: "api", token: "t", sid: null });
+    apiSession();
     apiFetch.mockRejectedValueOnce(
       apiError(503, {
         code: "provider_unavailable",
@@ -505,14 +770,13 @@ describe("cancelling a scheduled campaign (M3)", () => {
   });
 
   it("refuses a malformed id or key before any call", async () => {
-    process.env.GLOWDERMA_DATA_SOURCE = "api";
-    verifyStaff.mockResolvedValue({ ok: true, mode: "api", token: "t", sid: null });
+    apiSession();
     expect(await cancelNotification("4/../../x", KEY, CSRF)).toMatchObject({ ok: false });
     expect(await cancelNotification("4", "not-a-uuid", CSRF)).toMatchObject({ ok: false });
     expect(apiFetch).not.toHaveBeenCalled();
   });
 
-  it("mock: the scheduled fixture is cancelled, a sent one is the 409, an unknown id 404", async () => {
+  it("mock: the waiting fixture is cancelled, a sent one is the 409, a draft too, an unknown id 404", async () => {
     expect(await cancelNotification("n-4", KEY, CSRF)).toMatchObject({
       ok: true,
       data: { id: "n-4", state: "cancelled", cancelledAt: expect.any(String) },
@@ -522,12 +786,138 @@ describe("cancelling a scheduled campaign (M3)", () => {
       code: "conflict",
       error: "Yuborish boshlangan: xabarni bekor qilib bo‘lmaydi.",
     });
+    expect(await cancelNotification("n-9", KEY, CSRF)).toMatchObject({
+      ok: false,
+      code: "invalid_transition",
+      error: "Qoralamani bekor qilish shart emas: uni o‘chiring yoki o‘zgartiring.",
+    });
     expect(await cancelNotification("n-missing", KEY, CSRF)).toMatchObject({
       ok: false,
       code: "not_found",
     });
     // The fixtures never change: a re-render would only discard the page's own history.
     expect(refresh).not.toHaveBeenCalled();
+  });
+});
+
+describe("the campaign workflow in mock mode", () => {
+  it("walks a draft through test, confirmation and approval; the approval sets dispatch_after, sends nothing", async () => {
+    const tested = await sendCampaignTest("n-9", ["1", "2"], KEY, CSRF);
+    expect(tested.ok && tested.data.tests.map((t) => [t.deviceLabel, t.fcmOk, t.fcmError])).toEqual(
+      [
+        ["Dilnoza iPhone", true, null],
+        ["Sardor Android", false, "unregistered"],
+      ],
+    );
+    expect(tested.ok && tested.data.state).toBe("draft");
+    // The fixtures are not kept, so the confirm targets the tested fixture's own pending test.
+    expect(await confirmCampaignTest("n-8", "t-1", KEY, CSRF)).toMatchObject({
+      ok: false,
+      code: "conflict",
+      error: "Bu test eski matn uchun yuborilgan: qayta test yuboring.",
+    });
+    expect(await confirmCampaignTest("n-8", "t-2", KEY, CSRF)).toMatchObject({
+      ok: true,
+      data: { state: "tested", testedRevision: 2 },
+    });
+    const approved = await approveNotification("n-8", 2, KEY, CSRF);
+    expect(approved).toMatchObject({
+      ok: true,
+      data: {
+        state: "scheduled",
+        approvedRevision: 2,
+        approvedBy: "Administrator",
+        // Five minutes after the demo's now (no requested time).
+        dispatchAfter: "2026-10-24T07:05:00.000Z",
+        at: "2026-10-24T07:05:00.000Z",
+        startedAt: null,
+        sent: null,
+      },
+    });
+    expect(await approveNotification("n-8", 1, KEY, CSRF)).toMatchObject({
+      ok: false,
+      code: "conflict",
+      error: "Xabar o‘zgartirilgan: sahifani yangilab, qayta urinib ko‘ring.",
+    });
+    expect(await approveNotification("n-9", 1, KEY, CSRF)).toMatchObject({
+      ok: false,
+      code: "conflict",
+      error: "Avval test yuboring va qurilmada ko‘rganingizni tasdiqlang.",
+    });
+    // A repeat on the waiting campaign answers it unchanged.
+    expect(await approveNotification("n-4", 1, KEY, CSRF)).toMatchObject({
+      ok: true,
+      data: { state: "scheduled", dispatchAfter: "2026-10-26T10:00:00+05:00" },
+    });
+  });
+
+  it("edits bump the revision and drop the confirmation; a stale revision is refused", async () => {
+    const changed = await updateNotificationDraft(
+      "n-8",
+      form({ title: "Yangi sarlavha", expectedRevision: "2" }),
+      KEY,
+      CSRF,
+    );
+    expect(changed).toMatchObject({
+      ok: true,
+      data: { state: "draft", revision: 3, testedRevision: null, testConfirmedAt: null },
+    });
+    expect(
+      await updateNotificationDraft("n-8", form({ expectedRevision: "1" }), KEY, CSRF),
+    ).toMatchObject({ ok: false, code: "conflict" });
+    expect(
+      await updateNotificationDraft("n-4", form({ expectedRevision: "1" }), KEY, CSRF),
+    ).toMatchObject({ ok: false, code: "invalid_transition" });
+    expect(await deleteNotificationDraft("n-9", KEY, CSRF)).toEqual({
+      ok: true,
+      data: { id: "n-9" },
+    });
+    expect(await deleteNotificationDraft("n-3", KEY, CSRF)).toMatchObject({
+      code: "invalid_transition",
+    });
+  });
+
+  it("returns a waiting or cancelled campaign to draft, stops a sending one", async () => {
+    expect(await returnNotificationToDraft("n-4", KEY, CSRF)).toMatchObject({
+      ok: true,
+      data: { state: "draft", revision: 2, approvedAt: null, dispatchAfter: null },
+    });
+    expect(await returnNotificationToDraft("n-5", KEY, CSRF)).toMatchObject({
+      ok: true,
+      data: { state: "draft", cancelledAt: null },
+    });
+    expect(await returnNotificationToDraft("n-3", KEY, CSRF)).toMatchObject({
+      code: "invalid_transition",
+    });
+    expect(await stopNotification("n-7", KEY, CSRF)).toMatchObject({
+      ok: true,
+      data: { state: "stopping", stopRequestedAt: expect.any(String) },
+    });
+    expect(await stopNotification("n-11", KEY, CSRF)).toMatchObject({
+      ok: true,
+      data: { state: "stopping" },
+    });
+    expect(await stopNotification("n-4", KEY, CSRF)).toMatchObject({
+      ok: false,
+      code: "invalid_transition",
+      error: "Xabar hozir yuborilmayapti: to‘xtatadigan narsa yo‘q.",
+    });
+  });
+
+  it("registers a test device by phone with the backend's refusals", async () => {
+    expect(
+      await registerTestDevice({ phone: "+998 90 555 00 11", label: "Mening iPhone" }, KEY, CSRF),
+    ).toMatchObject({ ok: true, data: { phone: "+998905550011", isPushable: true } });
+    expect(
+      await registerTestDevice({ phone: "+998901230000", label: "x y" }, KEY, CSRF),
+    ).toMatchObject({ fieldErrors: { phone: "Bu raqam bilan mijoz topilmadi." } });
+    expect(
+      await registerTestDevice({ phone: "+998901239999", label: "x y" }, KEY, CSRF),
+    ).toMatchObject({ fieldErrors: { phone: "Bu mijozning push yoqilgan qurilmasi yo‘q." } });
+    expect(
+      await registerTestDevice({ phone: "+998901234567", label: "x y" }, KEY, CSRF),
+    ).toMatchObject({ fieldErrors: { phone: "Bu qurilma allaqachon ro‘yxatda." } });
+    expect(await removeTestDevice("1", KEY, CSRF)).toEqual({ ok: true, data: { id: "1" } });
   });
 });
 

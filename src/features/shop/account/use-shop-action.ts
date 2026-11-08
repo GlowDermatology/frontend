@@ -46,8 +46,3 @@ export function useShopAction(locale: Locale): ShopActionRunner {
   );
   return { pending, error, setError, run };
 }
-
-/** Seconds left of a countdown that starts at `seconds` whenever `key` changes. */
-export function remainingSeconds(startedAt: number, seconds: number, now: number): number {
-  return Math.max(0, Math.ceil(seconds - (now - startedAt) / 1000));
-}

@@ -82,8 +82,14 @@ export type ApiAppointmentCancel = Partial<Schemas["AppointmentCancelRequest"]>;
 /* --- Notifications, templates, segments (contract §2.8) --- */
 
 export type ApiNotificationRecord = Schemas["NotificationRecord"];
+export type ApiNotificationState = Schemas["NotificationStateEnum"];
+export type ApiCampaignTest = Schemas["CampaignTest"];
 export type ApiPaginatedNotifications = Schemas["PaginatedNotificationRecordList"];
 export type ApiNotificationMeta = Schemas["NotificationMeta"];
+export type ApiTestDevice = Schemas["TestDevice"];
+export type ApiTestDeviceCreate = Schemas["TestDeviceCreateRequest"];
+export type ApiCampaignTestRequest = Schemas["SendTestInputRequest"];
+export type ApiApproveRequest = Schemas["ApproveInputRequest"];
 export type ApiStatusTemplate = Schemas["StatusTemplate"];
 export type ApiTemplateStatus = Schemas["TemplateStatusEnum"];
 export type ApiTemplateUpdate = Schemas["TemplateUpdateRequest"];

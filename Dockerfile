@@ -5,7 +5,8 @@
 #   ghcr.io/glowdermatology/frontend:frontend-<sha7>-staging     (staging domain)
 #   ghcr.io/glowdermatology/frontend:frontend-<sha7>-production  (production domain)
 #
-# Build-time values (GitHub environment variables of this repository; changing one needs a rebuild):
+# Build-time values (variables of this repository's GitHub environments staging / production; changing one needs
+# a rebuild):
 #   NEXT_PUBLIC_SITE_URL, GLOWDERMA_ALLOWED_ORIGINS, GLOWDERMA_MEDIA_HOSTS, GLOWDERMA_MEDIA_ALLOW_LOCAL,
 #   GLOWDERMA_BUILD_SHA. ALLOWED_ORIGINS and MEDIA_HOSTS are also read at runtime: the same values are baked into
 #   the runtime environment below, so the two can never drift.

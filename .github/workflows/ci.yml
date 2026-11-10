@@ -10,7 +10,8 @@
 #   security-deps     │            (x staging,      (x staging,
 #   security-iac      ┘             production)      production)
 #
-# Build-time values: repository variables STAGING_* and PRODUCTION_* (infra repo docs/deployment.md).
+# Build-time values: variables of this repository's GitHub environments staging and production, same names in
+# both (infra repo docs/deployment.md).
 name: CI
 
 on:
@@ -189,6 +190,11 @@ jobs:
       fail-fast: true
       matrix:
         target: [staging, production]
+    # Each row reads the build-time values of its own GitHub environment (staging / production), so a value
+    # missing in one environment fails the build instead of falling back to the other's. Only main attaches an
+    # environment: pull requests build with placeholders and must not touch either one. The environments carry
+    # no reviewers: production is gated by the infra repo's Promote workflow, not by this build.
+    environment: ${{ github.ref == 'refs/heads/main' && matrix.target || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -198,15 +204,15 @@ jobs:
           SHA: ${{ github.sha }}
           TARGET: ${{ matrix.target }}
           ON_MAIN: ${{ github.ref == 'refs/heads/main' }}
-          SITE_URL: ${{ matrix.target == 'staging' && vars.STAGING_NEXT_PUBLIC_SITE_URL || vars.PRODUCTION_NEXT_PUBLIC_SITE_URL }}
-          ORIGINS: ${{ matrix.target == 'staging' && vars.STAGING_GLOWDERMA_ALLOWED_ORIGINS || vars.PRODUCTION_GLOWDERMA_ALLOWED_ORIGINS }}
-          MEDIA: ${{ matrix.target == 'staging' && vars.STAGING_GLOWDERMA_MEDIA_HOSTS || vars.PRODUCTION_GLOWDERMA_MEDIA_HOSTS }}
-          MEDIA_LOCAL: ${{ matrix.target == 'staging' && vars.STAGING_GLOWDERMA_MEDIA_ALLOW_LOCAL || vars.PRODUCTION_GLOWDERMA_MEDIA_ALLOW_LOCAL }}
+          SITE_URL: ${{ vars.NEXT_PUBLIC_SITE_URL }}
+          ORIGINS: ${{ vars.GLOWDERMA_ALLOWED_ORIGINS }}
+          MEDIA: ${{ vars.GLOWDERMA_MEDIA_HOSTS }}
+          MEDIA_LOCAL: ${{ vars.GLOWDERMA_MEDIA_ALLOW_LOCAL }}
         run: |
           set -euo pipefail
           if [ "$ON_MAIN" = true ]; then
             for name in SITE_URL ORIGINS MEDIA; do
-              [ -n "${!name}" ] || { echo "::error::repository variable for $TARGET ($name) is not set (infra docs/deployment.md)"; exit 1; }
+              [ -n "${!name}" ] || { echo "::error::variable $name is not set in the $TARGET environment of this repository (infra docs/deployment.md)"; exit 1; }
             done
           else
             # Pull requests build with placeholders: the image is never pushed.

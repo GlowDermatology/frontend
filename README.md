@@ -35,7 +35,7 @@ Every variable the frontend reads is listed, with its default, whether productio
 
 ### Docker
 
-The image is a Next.js standalone server (`output: "standalone"`), running as uid 1000 on port 3000 with a `/healthz` healthcheck. CI (`.github/workflows/ci.yml`) builds it **twice per commit**, `frontend-<sha7>-staging` and `frontend-<sha7>-production`, because `next build` bakes the public origin in; the values come from the repository variables `STAGING_*` / `PRODUCTION_*`. Deployment, routing and secrets live in the [infra repository](https://github.com/GlowDermatology/infra).
+The image is a Next.js standalone server (`output: "standalone"`), running as uid 1000 on port 3000 with a `/healthz` healthcheck. CI (`.github/workflows/ci.yml`) builds it **twice per commit**, `frontend-<sha7>-staging` and `frontend-<sha7>-production`, because `next build` bakes the public origin in; the values come from the variables of the repository's GitHub environments `staging` / `production`. Deployment, routing and secrets live in the [infra repository](https://github.com/GlowDermatology/infra).
 
 ```bash
 docker build \

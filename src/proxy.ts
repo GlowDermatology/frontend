@@ -163,8 +163,9 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     "/admin/:path*",
-    // Storefront pages: not Next internals, route handlers, metadata files or
-    // anything with a file extension.
-    "/((?!_next/|api/|og/|sitemaps/|healthz|admin|.*\\.[A-Za-z0-9]+$).*)",
+    // Storefront pages: not Next internals, route handlers, metadata files,
+    // the mobile app's payment return (/pay/*) and app-link files
+    // (/.well-known/*), or anything with a file extension.
+    "/((?!_next/|api/|og/|sitemaps/|healthz|admin|pay/|\\.well-known/|.*\\.[A-Za-z0-9]+$).*)",
   ],
 };

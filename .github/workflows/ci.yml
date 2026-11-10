@@ -17,6 +17,13 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      skip_tests:
+        # TEMPORARY: manual runs only; push and pull_request always run every test.
+        description: Skip the slow test suites (vitest)
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -159,8 +166,11 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - name: Lint, types, unit tests, formatting
-        run: npm run check
+      - name: Lint, types, formatting
+        run: npm run lint && npm run typecheck && npm run format:check
+      - name: Unit tests
+        if: ${{ !inputs.skip_tests }}
+        run: npm run test
       - name: Container entrypoint loads the secrets file before the server starts
         run: node --check docker/entrypoint.mjs
 

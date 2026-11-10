@@ -356,15 +356,24 @@ jobs:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: image-staging
+      # Short-lived (1 h, revoked when the job ends) installation token scoped to the infra repo's contents.
+      # A push made with it starts the infra deploy workflow, which a GITHUB_TOKEN push would not.
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: infra-token
+        with:
+          client-id: ${{ vars.INFRA_APP_CLIENT_ID }}
+          private-key: ${{ secrets.INFRA_APP_PRIVATE_KEY }}
+          owner: GlowDermatology
+          repositories: infra
+          permission-contents: write
       - name: Write environments/staging/frontend/image.env in the infra repo
         env:
-          TOKEN: ${{ secrets.INFRA_REPO_TOKEN }}
+          TOKEN: ${{ steps.infra-token.outputs.token }}
           SHA: ${{ github.sha }}
           ACTOR: ${{ github.actor }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
-          [ -n "$TOKEN" ] || { echo "::error::secret INFRA_REPO_TOKEN is missing (infra docs/deployment.md)"; exit 1; }
           TAG="$(sed -n 's/^TAG=//p' image-staging.env)"
           DIGEST="$(sed -n 's/^DIGEST=//p' image-staging.env)"
           CREATED="$(sed -n 's/^CREATED=//p' image-staging.env)"

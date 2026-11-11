@@ -64,7 +64,13 @@ COPY --from=build /app/public ./public
 COPY docker/entrypoint.mjs ./entrypoint.mjs
 # The server runs with plain `node`: npm, npx and corepack (and the dependencies npm bundles, which the image
 # scanners flag) are dead weight at runtime, so they are removed.
-RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+# Debian security fixes can land before the official node image is rebuilt (zlib1g +deb13u1 did), so packages
+# already in the base image are brought up to date here.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends --only-upgrade zlib1g \
+ && apt-get upgrade -y --no-install-recommends \
+ && rm -rf /var/lib/apt/lists/* \
+ && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
       /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
  && mkdir -p /app/.next/cache && chown node:node /app/.next/cache
 USER 1000:1000

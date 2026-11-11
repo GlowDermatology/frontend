@@ -14,7 +14,7 @@
 #   ids, and the secrets file FRONTEND_SECRETS_FILE (Vault Agent) with GLOWDERMA_INTERNAL_SECRET and
 #   GLOWDERMA_REVALIDATE_SECRET.
 
-ARG NODE_IMAGE=node:24.22.2-trixie-slim@sha256:90943ae8e65444498fd83f0f23d2a19ef5807e00396cee96bb96b87f9d9ca976
+ARG NODE_IMAGE=node:24.22.2-trixie-slim@sha256:0820eaa85e07d0490446dd01d14707e17e6108a36988cf374899cd057eb3812d
 
 FROM ${NODE_IMAGE} AS deps
 WORKDIR /app
@@ -62,7 +62,11 @@ COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 COPY --from=build /app/public ./public
 COPY docker/entrypoint.mjs ./entrypoint.mjs
-RUN mkdir -p /app/.next/cache && chown node:node /app/.next/cache
+# The server runs with plain `node`: npm, npx and corepack (and the dependencies npm bundles, which the image
+# scanners flag) are dead weight at runtime, so they are removed.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+      /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+ && mkdir -p /app/.next/cache && chown node:node /app/.next/cache
 USER 1000:1000
 EXPOSE 3000
 HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \

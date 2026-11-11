@@ -67,7 +67,6 @@ COPY docker/entrypoint.mjs ./entrypoint.mjs
 # Debian security fixes can land before the official node image is rebuilt (zlib1g +deb13u1 did), so packages
 # already in the base image are brought up to date here.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends --only-upgrade zlib1g \
  && apt-get upgrade -y --no-install-recommends \
  && rm -rf /var/lib/apt/lists/* \
  && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \

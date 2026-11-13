@@ -19,7 +19,7 @@ export function SpecialistPortrait({
   sizes,
   priority = false,
 }: {
-  specialist: Pick<ShopSpecialist, "name" | "photo">;
+  specialist: Pick<ShopSpecialist, "name" | "photo"> & { photoThumb?: string | null };
   size: number;
   sizes: string;
   priority?: boolean;
@@ -31,7 +31,7 @@ export function SpecialistPortrait({
     >
       {specialist.photo ? (
         <Image
-          src={specialist.photo}
+          src={specialist.photoThumb ?? specialist.photo}
           alt=""
           fill
           sizes={sizes}

@@ -61,7 +61,7 @@ describe("mapProduct", () => {
       status: "active",
       isNewFromBillz: false,
       art: null,
-      mainImageUrl: "http://localhost:8001/media/products/1/d5872db9aa73d5e9.webp",
+      mainImageUrl: "http://localhost:8001/media/products/1/d5872db9aa73d5e9_400.webp", // the 400 px variant
       lastChange: {
         by: "Administrator",
         at: "2026-10-22T18:04:00+05:00",
@@ -404,7 +404,7 @@ describe("banners", () => {
     expect(mapBanner(bannerFixture as ApiBanner)).toEqual({
       id: "1",
       title: { uz: "Kuzgi chegirmalar", ru: "", en: "" },
-      imageUrl: "http://localhost:8001/media/banners/1/8349b8f7b347589a.png",
+      imageUrl: "http://localhost:8001/media/banners/1/8349b8f7b347589a_1000.webp", // the 1000 px variant
       link: { kind: "product", productId: "4", category: null, url: null },
       isActive: true,
       startsAt: null,

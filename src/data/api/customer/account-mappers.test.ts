@@ -26,6 +26,8 @@ const me: ApiMe = {
   name: " Malika ",
   language: "ru",
   image_url: null,
+  image_thumbnail_url: null,
+  image_medium_url: null,
   registered_at: "2026-10-01T10:00:00+05:00",
   has_password: true,
   linked_providers: ["google", "twitter" as never],
@@ -62,6 +64,8 @@ const cart: ApiCart = {
       name: "Krem",
       volume: "50 ml",
       main_image_url: "https://media.glowderma.uz/a.webp",
+      main_image_thumbnail_url: "https://media.glowderma.uz/a_400.webp",
+      main_image_medium_url: "https://media.glowderma.uz/a_1000.webp",
       unit_price: 312000,
       promo: false,
       quantity: 3,
@@ -78,6 +82,8 @@ const cart: ApiCart = {
       name: "Serum",
       volume: "",
       main_image_url: "https://elsewhere.example/b.webp",
+      main_image_thumbnail_url: "https://elsewhere.example/b_400.webp",
+      main_image_medium_url: "https://elsewhere.example/b_1000.webp",
       unit_price: 185000,
       promo: true,
       quantity: 1,
@@ -109,7 +115,7 @@ describe("mapCart", () => {
       maxReached: true,
       priceChanged: true,
       previousPrice: 300000,
-      image: "https://media.glowderma.uz/a.webp",
+      image: "https://media.glowderma.uz/a_400.webp", // the 400 px variant
     });
     // Unknown status literal → the safest reading; foreign image host → no next/image.
     expect(mapped.lines[1]).toMatchObject({ status: "unavailable", image: null });

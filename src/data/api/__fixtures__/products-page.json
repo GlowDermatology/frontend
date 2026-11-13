@@ -37,6 +37,8 @@
         }
       },
       "main_image_url": "http://localhost:8001/media/products/1/d5872db9aa73d5e9.webp",
+      "main_image_thumbnail_url": "http://localhost:8001/media/products/1/d5872db9aa73d5e9_400.webp",
+      "main_image_medium_url": "http://localhost:8001/media/products/1/d5872db9aa73d5e9_1000.webp",
       "images": [
         {
           "id": 1,
@@ -162,6 +164,8 @@
         }
       },
       "main_image_url": null,
+      "main_image_thumbnail_url": null,
+      "main_image_medium_url": null,
       "images": [],
       "last_change": null,
       "slug": "vit-c-serum-20ml",

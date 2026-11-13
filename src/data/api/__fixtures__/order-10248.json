@@ -32,6 +32,8 @@
       "name": "Seramidli namlantiruvchi krem",
       "billz_id": "4607012345",
       "image_url": "http://127.0.0.1:8000/media/products/4/98967745a01b7d3b_mkY6nkg.webp",
+      "image_thumbnail_url": "http://127.0.0.1:8000/media/products/4/98967745a01b7d3b_mkY6nkg_400.webp",
+      "image_medium_url": "http://127.0.0.1:8000/media/products/4/98967745a01b7d3b_mkY6nkg_1000.webp",
       "quantity": 1,
       "unit_price": 312000,
       "promo": false
@@ -41,6 +43,8 @@
       "name": "Quyoshdan himoya kremi SPF 50",
       "billz_id": "4607012401",
       "image_url": "http://127.0.0.1:8000/media/products/2/f0eb68b38a2ce813_tPPFcPh.webp",
+      "image_thumbnail_url": "http://127.0.0.1:8000/media/products/2/f0eb68b38a2ce813_tPPFcPh_400.webp",
+      "image_medium_url": "http://127.0.0.1:8000/media/products/2/f0eb68b38a2ce813_tPPFcPh_1000.webp",
       "quantity": 1,
       "unit_price": 240000,
       "promo": true
@@ -50,6 +54,8 @@
       "name": "Yumshoq tozalovchi ko\u2018pik",
       "billz_id": "4607012388",
       "image_url": "http://127.0.0.1:8000/media/products/3/b524f0fd9d214ed8_rZxfa4z.webp",
+      "image_thumbnail_url": "http://127.0.0.1:8000/media/products/3/b524f0fd9d214ed8_rZxfa4z_400.webp",
+      "image_medium_url": "http://127.0.0.1:8000/media/products/3/b524f0fd9d214ed8_rZxfa4z_1000.webp",
       "quantity": 2,
       "unit_price": 128000,
       "promo": false

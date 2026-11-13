@@ -9,7 +9,8 @@ export function mapCategory(api: ApiCategory): Category {
   return {
     slug: api.slug,
     name: { uz: api.name.uz, ru: api.name.ru, en: api.name.en },
-    imageUrl: api.image_url ?? null,
+    // 40 px table, 96 px dialog: the 400 px variant (spec 2026-11-13-image-variants)
+    imageUrl: api.image_thumbnail_url ?? api.image_url ?? null,
     position: api.position,
     isActive: api.is_active,
     productCount: api.product_count,

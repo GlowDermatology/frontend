@@ -2,6 +2,8 @@
   "id": 1,
   "title": { "uz": "Kuzgi chegirmalar", "ru": "", "en": "" },
   "image_url": "http://localhost:8001/media/banners/1/8349b8f7b347589a.png",
+  "image_thumbnail_url": "http://localhost:8001/media/banners/1/8349b8f7b347589a_400.webp",
+  "image_medium_url": "http://localhost:8001/media/banners/1/8349b8f7b347589a_1000.webp",
   "link": { "kind": "product", "product_id": 4, "category": null },
   "is_active": true,
   "starts_at": null,

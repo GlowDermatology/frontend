@@ -9,7 +9,8 @@ export function mapBanner(api: ApiBanner): Banner {
   return {
     id: idString(api.id),
     title: { uz: api.title.uz, ru: api.title.ru, en: api.title.en },
-    imageUrl: api.image_url,
+    // 72 px list, 280 px dialog preview: the 1000 px variant (spec 2026-11-13-image-variants)
+    imageUrl: api.image_medium_url ?? api.image_url,
     link: {
       kind: api.link.kind ?? "none",
       productId: api.link.product_id == null ? null : idString(api.link.product_id),

@@ -400,6 +400,15 @@ export interface MapOrderOptions {
   imageUrl?: (url: string) => string | undefined;
 }
 
+/** A 40 px row photo: the 400 px variant when the API sends one (spec 2026-11-13-image-variants). */
+function itemPhoto(
+  item: ApiOrderDetail["items"][number],
+  keep: (url: string) => string | undefined,
+): string | undefined {
+  const url = item.image_thumbnail_url ?? item.image_url;
+  return url ? keep(url) : undefined;
+}
+
 export function mapOrder(api: ApiOrderDetail, options: MapOrderOptions = {}): Order {
   const imageUrl = options.imageUrl ?? ((url: string) => url);
   const reasons = manualRefundReasons(api.history);
@@ -418,7 +427,7 @@ export function mapOrder(api: ApiOrderDetail, options: MapOrderOptions = {}): Or
       productId: idString(item.product_id),
       name: item.name,
       art: null,
-      imageUrl: item.image_url ? imageUrl(item.image_url) : undefined,
+      imageUrl: itemPhoto(item, imageUrl),
       billzId: item.billz_id,
       quantity: item.quantity,
       unitPrice: item.unit_price,

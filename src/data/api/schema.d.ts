@@ -3,8 +3,8 @@
  * GENERATED FILE — do not edit by hand. Regenerate with `npm run gen:api`.
  *
  * Source: openapi/schema.yaml of the backend repository
- * Commit: 531ec06a55bc4527aa906a3533e2dfed0ebaeacc
- * Generated: 2026-11-08T18:05:08.772Z (openapi-typescript)
+ * Commit: fd8e089a981f4cebb4735064872cdc10036bd60b
+ * Generated: 2026-11-13T21:50:50.011Z (openapi-typescript)
  */
 
 export interface paths {
@@ -2674,6 +2674,16 @@ export interface components {
         AppointmentSpecialist: {
             id: number;
             name: string;
+            /**
+             * Format: uri
+             * @description 1000 px WebP variant.
+             */
+            readonly photo_medium_url: string | null;
+            /**
+             * Format: uri
+             * @description 400 px WebP variant.
+             */
+            readonly photo_thumbnail_url: string | null;
             readonly photo_url: string | null;
             role: components["schemas"]["SpecialistRoleEnum"];
             readonly role_label: string;
@@ -2743,6 +2753,16 @@ export interface components {
             /** Format: date-time */
             ends_at: string | null;
             id: number;
+            /**
+             * Format: uri
+             * @description 1000 px WebP variant.
+             */
+            readonly image_medium_url: string;
+            /**
+             * Format: uri
+             * @description 400 px WebP variant.
+             */
+            readonly image_thumbnail_url: string;
             /** Format: uri */
             readonly image_url: string;
             is_active: boolean;
@@ -3011,6 +3031,16 @@ export interface components {
         Category: {
             /** Format: date-time */
             created_at: string;
+            /**
+             * Format: uri
+             * @description 1000 px WebP variant.
+             */
+            readonly image_medium_url: string | null;
+            /**
+             * Format: uri
+             * @description 400 px WebP variant.
+             */
+            readonly image_thumbnail_url: string | null;
             /** Format: uri */
             readonly image_url: string | null;
             is_active: boolean;
@@ -3137,6 +3167,16 @@ export interface components {
             is_active: boolean;
             location_id: number;
             name: string;
+            /**
+             * Format: uri
+             * @description 1000 px WebP variant.
+             */
+            readonly photo_medium_url: string | null;
+            /**
+             * Format: uri
+             * @description 400 px WebP variant.
+             */
+            readonly photo_thumbnail_url: string | null;
             /** Format: uri */
             readonly photo_url: string | null;
             position: number;
@@ -3251,6 +3291,16 @@ export interface components {
         CustomerBanner: {
             id: number;
             image_height: number;
+            /**
+             * Format: uri
+             * @description 1000 px WebP variant.
+             */
+            image_medium_url: string | null;
+            /**
+             * Format: uri
+             * @description 400 px WebP variant.
+             */
+            image_thumbnail_url: string | null;
             /** Format: uri */
             image_url: string | null;
             image_width: number;
@@ -3329,6 +3379,10 @@ export interface components {
         CustomerCartLine: {
             available: number;
             line_total: number;
+            /** @description 1000 px WebP variant. */
+            main_image_medium_url: string | null;
+            /** @description 400 px WebP variant. */
+            main_image_thumbnail_url: string | null;
             main_image_url: string | null;
             max_quantity: number;
             max_reached: boolean;
@@ -3351,6 +3405,16 @@ export interface components {
              *     * `en` - en
              */
             content_language: components["schemas"]["ContentLanguageEnum"];
+            /**
+             * Format: uri
+             * @description 1000 px WebP variant.
+             */
+            image_medium_url: string | null;
+            /**
+             * Format: uri
+             * @description 400 px WebP variant.
+             */
+            image_thumbnail_url: string | null;
             /** Format: uri */
             image_url: string | null;
             name: string;
@@ -3396,6 +3460,10 @@ export interface components {
             weight_g: number | null;
         };
         CustomerDetailItem: {
+            /** @description 1000 px WebP variant. */
+            image_medium_url: string | null;
+            /** @description 400 px WebP variant. */
+            image_thumbnail_url: string | null;
             image_url: string | null;
             line_total: number;
             name: string;
@@ -3509,6 +3577,16 @@ export interface components {
             email: string | null;
             has_password: boolean;
             id: number;
+            /**
+             * Format: uri
+             * @description 1000 px WebP variant.
+             */
+            image_medium_url: string | null;
+            /**
+             * Format: uri
+             * @description 400 px WebP variant.
+             */
+            image_thumbnail_url: string | null;
             /** Format: uri */
             image_url: string | null;
             language: components["schemas"]["ContentLanguageEnum"];
@@ -3552,6 +3630,8 @@ export interface components {
             payment: components["schemas"]["CustomerDetailPayment"];
             pickup_address: string | null;
             preview_images: string[];
+            /** @description `preview_images` as their 400 px WebP variants, same order. */
+            preview_thumbnail_images: string[];
             progress: components["schemas"]["CustomerProgressStep"][];
             promo_subtotal: number;
             refund: components["schemas"]["CustomerRefund"] | null;
@@ -3572,6 +3652,8 @@ export interface components {
             pay_by: string | null;
             payment: components["schemas"]["CustomerSummaryPayment"];
             preview_images: string[];
+            /** @description `preview_images` as their 400 px WebP variants, same order. */
+            preview_thumbnail_images: string[];
             status: components["schemas"]["OrderStatusEnum"];
             status_label: string;
             total: number;
@@ -3594,7 +3676,17 @@ export interface components {
         };
         CustomerProductImage: {
             id: number;
+            /**
+             * Format: uri
+             * @description 1000 px WebP variant.
+             */
+            medium_url: string;
             position: number;
+            /**
+             * Format: uri
+             * @description 400 px WebP variant.
+             */
+            thumbnail_url: string;
             /** Format: uri */
             url: string;
         };
@@ -3927,6 +4019,16 @@ export interface components {
             images: components["schemas"]["ProductImage"][];
         };
         ImageUrl: {
+            /**
+             * Format: uri
+             * @description 1000 px WebP variant.
+             */
+            image_medium_url: string;
+            /**
+             * Format: uri
+             * @description 400 px WebP variant.
+             */
+            image_thumbnail_url: string;
             /** Format: uri */
             image_url: string;
         };
@@ -3938,6 +4040,10 @@ export interface components {
             /** Format: date-time */
             delivered_at: string | null;
             id: number;
+            /** @description 1000 px WebP variant. */
+            readonly image_medium_url: string | null;
+            /** @description 400 px WebP variant. */
+            readonly image_thumbnail_url: string | null;
             readonly image_url: string | null;
             kind: components["schemas"]["InboxKindEnum"];
             readonly link: components["schemas"]["InboxLink"];
@@ -4301,6 +4407,10 @@ export interface components {
             /** Format: date-time */
             failed_at: string | null;
             id: number;
+            /** @description 1000 px WebP variant. */
+            readonly image_medium_url: string | null;
+            /** @description 400 px WebP variant. */
+            readonly image_thumbnail_url: string | null;
             readonly image_url: string | null;
             kind: components["schemas"]["NotificationKindEnum"];
             last_error: string;
@@ -4483,6 +4593,10 @@ export interface components {
         OrderEventTypeEnum: "order_created" | "reservation_created" | "payment_confirmed" | "billz_sale_recorded" | "cashback_credited" | "payment_failed" | "shipment_created" | "shipment_failed" | "status_changed" | "handed_to_courier" | "delivered" | "cancelled" | "reservation_expired" | "refund_requested" | "refund_succeeded" | "refund_failed";
         OrderItem: {
             billz_id: string;
+            /** @description 1000 px WebP variant. */
+            image_medium_url: string | null;
+            /** @description 400 px WebP variant. */
+            image_thumbnail_url: string | null;
             image_url: string | null;
             name: string;
             product_id: number;
@@ -4962,6 +5076,16 @@ export interface components {
             readonly images: components["schemas"]["ProductImage"][];
             is_new_from_billz: boolean;
             readonly last_change: components["schemas"]["LastChange"] | null;
+            /**
+             * Format: uri
+             * @description 1000 px WebP variant.
+             */
+            readonly main_image_medium_url: string | null;
+            /**
+             * Format: uri
+             * @description 400 px WebP variant.
+             */
+            readonly main_image_thumbnail_url: string | null;
             /** Format: uri */
             readonly main_image_url: string | null;
             price: number;
@@ -4990,6 +5114,16 @@ export interface components {
             content_language: components["schemas"]["ContentLanguageEnum"];
             id: number;
             in_cart_quantity: number;
+            /**
+             * Format: uri
+             * @description 1000 px WebP variant.
+             */
+            main_image_medium_url: string | null;
+            /**
+             * Format: uri
+             * @description 400 px WebP variant.
+             */
+            main_image_thumbnail_url: string | null;
             /** Format: uri */
             main_image_url: string | null;
             name: string;
@@ -5038,6 +5172,16 @@ export interface components {
             images: components["schemas"]["CustomerProductImage"][];
             in_cart_quantity: number;
             ingredients: string;
+            /**
+             * Format: uri
+             * @description 1000 px WebP variant.
+             */
+            main_image_medium_url: string | null;
+            /**
+             * Format: uri
+             * @description 400 px WebP variant.
+             */
+            main_image_thumbnail_url: string | null;
             /** Format: uri */
             main_image_url: string | null;
             max_quantity: number;
@@ -5061,10 +5205,14 @@ export interface components {
             usage: string;
             volume: string;
         };
-        /** @description Contract §2.3 ``ProductImage = {id, url, position}``. */
+        /** @description Contract §2.3 ``ProductImage = {id, url, thumbnail_url, medium_url, position}``. */
         ProductImage: {
             id: number;
+            /** @description 1000 px WebP variant. */
+            readonly medium_url: string;
             position: number;
+            /** @description 400 px WebP variant. */
+            readonly thumbnail_url: string;
             readonly url: string;
         };
         ProductImageUploadRequest: {
@@ -5647,6 +5795,16 @@ export interface components {
             id: number;
             location: components["schemas"]["Location"];
             name: string;
+            /**
+             * Format: uri
+             * @description 1000 px WebP variant.
+             */
+            readonly photo_medium_url: string | null;
+            /**
+             * Format: uri
+             * @description 400 px WebP variant.
+             */
+            readonly photo_thumbnail_url: string | null;
             readonly photo_url: string | null;
             readonly qualifications: string;
             role: components["schemas"]["SpecialistRoleEnum"];

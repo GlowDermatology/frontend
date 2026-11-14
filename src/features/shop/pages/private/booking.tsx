@@ -62,7 +62,7 @@ async function BookingBody({
       id: item.id,
       name: item.name,
       roleLabel: item.roleLabel,
-      photo: item.photo,
+      photo: item.photoThumb ?? item.photo,
       experienceYears: item.experienceYears,
       location: {
         name: item.location.name,

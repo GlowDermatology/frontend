@@ -230,7 +230,9 @@ async function Hero({ locale, dict }: { locale: Locale; dict: ShopDictionary }) 
               className="aspect-[4/5] w-full sm:aspect-[4/3] nav:aspect-[4/5]"
             />
           ) : collage.length > 0 ? (
-            <HeroCollage images={collage.map((product) => product.image as string)} />
+            <HeroCollage
+              images={collage.map((product) => (product.imageMedium ?? product.image) as string)}
+            />
           ) : (
             <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg bg-banner nav:aspect-[4/5]">
               <Rings

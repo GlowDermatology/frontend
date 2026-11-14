@@ -73,9 +73,33 @@ export function optimizable(value: unknown, mediaHosts: ReadonlyArray<string>): 
   return url && isAllowedMediaUrl(url, mediaHosts) ? url : null;
 }
 
+/**
+ * An image variant URL (spec 2026-11-13-image-variants) under the same host rule as the original; `fallback`
+ * (the original) when the API sends none (a backend from before the variants).
+ */
+export function variant(
+  value: unknown,
+  fallback: string | null,
+  mediaHosts: ReadonlyArray<string>,
+): string | null {
+  return value === undefined || value === null ? fallback : optimizable(value, mediaHosts);
+}
+
 /** `content_language` (feat/customer-web); anything else, or missing, is `null`. */
 export function contentLanguageOf(value: unknown): ContentLanguage | null {
   return value === "uz" || value === "ru" || value === "en" ? value : null;
+}
+
+function productImages(
+  api: ApiCustomerProductCard,
+  mediaHosts: ReadonlyArray<string>,
+): Pick<ShopProductCard, "image" | "imageThumb" | "imageMedium"> {
+  const image = optimizable(api.main_image_url, mediaHosts);
+  return {
+    image,
+    imageThumb: variant(api.main_image_thumbnail_url, image, mediaHosts),
+    imageMedium: variant(api.main_image_medium_url, image, mediaHosts),
+  };
 }
 
 export function mapProductCard(
@@ -91,7 +115,7 @@ export function mapProductCard(
     price: Math.max(0, Math.trunc(api.price)),
     promo: Boolean(api.promo),
     category: api.category ? { slug: api.category.slug, name: text(api.category.name) } : null,
-    image: optimizable(api.main_image_url, mediaHosts),
+    ...productImages(api, mediaHosts),
     imageUrl: absoluteUrl(api.main_image_url),
     available,
     inStock: api.stock_status === "in_stock" && available > 0,
@@ -114,7 +138,16 @@ export function mapProduct(
     .sort((a, b) => a.position - b.position || a.id - b.id)
     .flatMap((image) => {
       const url = absoluteUrl(image.url);
-      return url ? [{ id: image.id, image: optimizable(url, mediaHosts), url }] : [];
+      if (!url) return [];
+      const optimised = optimizable(url, mediaHosts);
+      return [
+        {
+          id: image.id,
+          image: optimised,
+          url,
+          thumb: variant(image.thumbnail_url, optimised, mediaHosts),
+        },
+      ];
     });
   return {
     ...mapProductCard(api, mediaHosts),
@@ -149,6 +182,7 @@ export function mapCategory(
     slug: api.slug,
     name: text(api.name),
     image: optimizable(api.image_url, mediaHosts),
+    imageMedium: variant(api.image_medium_url, optimizable(api.image_url, mediaHosts), mediaHosts),
     imageUrl: absoluteUrl(api.image_url),
     productCount: Math.max(0, Math.trunc(api.product_count)),
     description: optionalText(api.description),
@@ -200,6 +234,11 @@ export function mapSpecialist(
     role: api.role,
     roleLabel: text(api.role_label),
     photo: optimizable(api.photo_url, mediaHosts),
+    photoThumb: variant(
+      api.photo_thumbnail_url,
+      optimizable(api.photo_url, mediaHosts),
+      mediaHosts,
+    ),
     photoUrl: absoluteUrl(api.photo_url),
     bio: text(api.bio),
     qualifications: text(api.qualifications),

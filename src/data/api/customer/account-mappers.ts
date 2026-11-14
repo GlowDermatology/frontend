@@ -40,7 +40,7 @@ import type {
   ApiRegionCatalog,
   ApiSession,
 } from "./account-types";
-import { absoluteUrl, optimizable } from "./mappers";
+import { absoluteUrl, optimizable, variant } from "./mappers";
 
 /**
  * Customer API → private storefront view models (pure; unit-tested). Every
@@ -123,7 +123,12 @@ export function mapCartLine(api: ApiCartLine, mediaHosts: ReadonlyArray<string>)
     productId: api.product_id,
     name: text(api.name),
     volume: text(api.volume),
-    image: optimizable(api.main_image_url, mediaHosts),
+    // ≤112 px slot: the 400 px variant (spec 2026-11-13-image-variants)
+    image: variant(
+      api.main_image_thumbnail_url,
+      optimizable(api.main_image_url, mediaHosts),
+      mediaHosts,
+    ),
     unitPrice: nonNegative(api.unit_price),
     promo: Boolean(api.promo),
     quantity: nonNegative(api.quantity),
@@ -198,7 +203,13 @@ export function mapOrderSummary(
     fulfilment: api.fulfilment === "delivery" ? "delivery" : "pickup",
     total: nonNegative(api.total),
     itemCount: nonNegative(api.item_count),
-    previewImages: previewImages(api.preview_images, mediaHosts),
+    // 56 px avatars: the 400 px variants when the API sends them (same order as preview_images)
+    previewImages: previewImages(
+      Array.isArray(api.preview_thumbnail_images)
+        ? api.preview_thumbnail_images
+        : api.preview_images,
+      mediaHosts,
+    ),
     payment: {
       status: api.payment.status,
       statusLabel: text(api.payment.status_label),
@@ -217,7 +228,7 @@ export function mapOrder(api: ApiOrderDetail, mediaHosts: ReadonlyArray<string>)
     items: (api.items ?? []).map((item) => ({
       productId: item.product_id,
       name: text(item.name),
-      image: optimizable(item.image_url, mediaHosts),
+      image: variant(item.image_thumbnail_url, optimizable(item.image_url, mediaHosts), mediaHosts),
       quantity: nonNegative(item.quantity),
       unitPrice: nonNegative(item.unit_price),
       promo: Boolean(item.promo),
@@ -374,7 +385,11 @@ export function mapAppointment(
       id: api.specialist.id,
       name: text(api.specialist.name),
       roleLabel: text(api.specialist.role_label),
-      photo: optimizable(api.specialist.photo_url, mediaHosts),
+      photo: variant(
+        api.specialist.photo_thumbnail_url,
+        optimizable(api.specialist.photo_url, mediaHosts),
+        mediaHosts,
+      ),
     },
     service: {
       id: api.service.id,
@@ -435,7 +450,7 @@ export function mapInboxItem(api: ApiInboxItem, mediaHosts: ReadonlyArray<string
     kind: api.kind,
     title: text(api.title),
     body: text(api.body),
-    image: optimizable(api.image_url, mediaHosts),
+    image: variant(api.image_thumbnail_url, optimizable(api.image_url, mediaHosts), mediaHosts),
     target: inboxTarget(api.link),
     createdAt: api.created_at,
     read: api.read_at !== null && api.read_at !== undefined,

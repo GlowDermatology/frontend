@@ -41,9 +41,14 @@ export function mapProductTexts(texts: ApiProduct["texts"]): Record<ContentLangu
   return out;
 }
 
-/** `{id, url, position}` → `{id, src, label: "Rasm N"}`. */
+/** `{id, url, thumbnail_url, position}` → `{id, src, label: "Rasm N"}`; `src` is the 400 px variant (the
+ * image manager shows 160 px tiles; spec 2026-11-13-image-variants), the original from an older API. */
 export function mapProductImage(image: ApiProductImage): ProductImage {
-  return { id: idString(image.id), src: image.url, label: `Rasm ${image.position + 1}` };
+  return {
+    id: idString(image.id),
+    src: image.thumbnail_url ?? image.url,
+    label: `Rasm ${image.position + 1}`,
+  };
 }
 
 /** The last-change note per §5.2 (`price_changed` → "narx 175 000 → 185 000"). */
@@ -90,7 +95,9 @@ export function mapProduct(api: ApiProduct): Product {
     seo: mapSeo(api.seo),
     seoStatus: mapSeoStatus(api.seo_status),
   };
-  if (api.main_image_url) product.mainImageUrl = api.main_image_url;
+  // tables and pickers (≤44 px): the 400 px variant when the API sends one
+  const mainImageUrl = api.main_image_thumbnail_url ?? api.main_image_url;
+  if (mainImageUrl) product.mainImageUrl = mainImageUrl;
   if (api.last_change) {
     product.lastChange = {
       // No actor = the system (since M3 the Billz full sync hides products, §2.3).

@@ -14,6 +14,8 @@
   },
   "experience_years": null,
   "photo_url": null,
+  "photo_thumbnail_url": null,
+  "photo_medium_url": null,
   "location_id": 1,
   "staff_user": null,
   "slot_step_min": 30,

@@ -23,6 +23,10 @@ export interface ShopProductCard {
   category: ShopCategoryRef | null;
   /** Main image `next/image` may optimise (allowed media host), else `null`. */
   image: string | null;
+  /** Its 400 px variant (small slots); the original when the API sends none. */
+  imageThumb: string | null;
+  /** Its 1000 px variant (cards and grids); the original when the API sends none. */
+  imageMedium: string | null;
   /** Main image as the API sent it (absolute http(s)), for Open Graph / JSON-LD. */
   imageUrl: string | null;
   available: number;
@@ -42,7 +46,7 @@ export interface ShopProduct extends ShopProductCard {
   ingredients: string;
   usage: string;
   /** Gallery in position order: optimisable URL (or `null`) and the raw URL. */
-  images: ReadonlyArray<{ id: number; image: string | null; url: string }>;
+  images: ReadonlyArray<{ id: number; image: string | null; url: string; thumb: string | null }>;
   /** `min(available, per-line cap)`; 0 = cannot be added (§2.3). */
   maxQuantity: number;
   seoTitle: string | null;
@@ -56,6 +60,8 @@ export interface ShopCategory {
   slug: string;
   name: string;
   image: string | null;
+  /** The 1000 px variant for the category card; the original when the API sends none. */
+  imageMedium: string | null;
   imageUrl: string | null;
   productCount: number;
   description: string | null;
@@ -107,6 +113,8 @@ export interface ShopSpecialist {
   role: ShopSpecialistRole;
   roleLabel: string;
   photo: string | null;
+  /** The 400 px variant (cards, portraits, booking rows); the original when the API sends none. */
+  photoThumb: string | null;
   photoUrl: string | null;
   bio: string;
   qualifications: string;

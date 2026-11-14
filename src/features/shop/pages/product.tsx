@@ -145,7 +145,13 @@ async function Alternatives({
             >
               <span className="relative block aspect-product w-12 shrink-0 overflow-hidden rounded-sm bg-gold-soft">
                 {item.image ? (
-                  <Image src={item.image} alt="" fill sizes="48px" className="object-cover" />
+                  <Image
+                    src={item.imageThumb ?? item.image}
+                    alt=""
+                    fill
+                    sizes="48px"
+                    className="object-cover"
+                  />
                 ) : null}
               </span>
               <span className="flex min-w-0 flex-1 flex-col">

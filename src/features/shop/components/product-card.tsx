@@ -41,7 +41,7 @@ export function ProductCard({
   return (
     <article className="group relative flex h-full flex-col gap-4">
       <ProductImage
-        src={product.image}
+        src={product.imageMedium ?? product.image}
         alt=""
         sizes={sizes}
         priority={priority}

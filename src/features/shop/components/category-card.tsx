@@ -32,7 +32,7 @@ export function CategoryCard({
       <span className="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg bg-gold-soft">
         {category.image ? (
           <Image
-            src={category.image}
+            src={category.imageMedium ?? category.image}
             alt=""
             fill
             sizes="(min-width: 72rem) 240px, (min-width: 37.5rem) 30vw, 46vw"

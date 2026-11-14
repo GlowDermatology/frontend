@@ -32,6 +32,8 @@ describe("sitemaps", () => {
         promo: false,
         category: null,
         image: null,
+        imageThumb: null,
+        imageMedium: null,
         imageUrl: "https://media.glowderma.uz/a.webp?x=1&y=2",
         available: 1,
         inStock: true,

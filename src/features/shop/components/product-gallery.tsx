@@ -62,7 +62,13 @@ export function ProductGallery({ product, dict }: { product: ShopProduct; dict: 
               aria-label={dict.product.imageLabel(index + 1, photos.length)}
               className="relative block size-16 overflow-hidden rounded-md border border-line bg-image-well transition-[border-color] duration-150 hover:border-gold sm:size-20"
             >
-              <Image src={photo.image!} alt="" fill sizes="80px" className="object-cover" />
+              <Image
+                src={(photo.thumb ?? photo.image)!}
+                alt=""
+                fill
+                sizes="80px"
+                className="object-cover"
+              />
             </a>
           </li>
         ))}

@@ -61,7 +61,8 @@ export function mapClinicSpecialist(api: ApiClinicSpecialist): ClinicSpecialist 
     qualifications: i18n(api.qualifications),
     bio: i18n(api.bio),
     experienceYears: api.experience_years ?? null,
-    photoUrl: api.photo_url ?? null,
+    // 40 px table, 80 px profile card: the 400 px variant (spec 2026-11-13-image-variants)
+    photoUrl: api.photo_thumbnail_url ?? api.photo_url ?? null,
     locationId: idString(api.location_id),
     staffUser: api.staff_user
       ? { id: idString(api.staff_user.id), name: api.staff_user.display_name }

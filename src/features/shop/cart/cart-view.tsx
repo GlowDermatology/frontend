@@ -2,13 +2,14 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { buttonStyles } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { removeCartItem, setCartQuantity } from "@/data/shop/commerce.actions";
-import type { ShopCart, ShopCartLine } from "@/domain/shop-account";
+import type { PaymentProvider, ShopCart, ShopCartLine } from "@/domain/shop-account";
 import { cn } from "@/lib/cn";
 import type { Locale } from "@/lib/i18n/locales";
 
@@ -19,6 +20,8 @@ import { failureText, useShopAction } from "../account/use-shop-action";
 import { EmptyState } from "../components/empty-state";
 import { ordersCopy } from "../copy/orders";
 import { shopPath } from "../routing/routes";
+import { CheckoutRecovery } from "./checkout-recovery";
+import { cartBadgeQuantity } from "./recovery";
 
 /**
  * The cart island (contract §2.5): a quantity stepper per line (`PATCH` with
@@ -33,6 +36,7 @@ interface CartViewProps {
   initial: ShopCart;
   canCheckout: { sales: boolean; payments: boolean };
   supportPhone: string | null;
+  providers: ReadonlyArray<PaymentProvider>;
 }
 
 function Stepper({
@@ -89,18 +93,51 @@ function LineProblem({ locale, line }: { locale: Locale; line: ShopCartLine }) {
   return null;
 }
 
-export function CartView({ locale, initial, canCheckout, supportPhone }: CartViewProps) {
+export function CartView({ locale, initial, canCheckout, supportPhone, providers }: CartViewProps) {
   const copy = ordersCopy[locale].cart;
   const money = ordersCopy[locale].money;
   const [cart, setCart] = useState(initial);
+  const [source, setSource] = useState(initial);
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
+  const router = useRouter();
+  // router.refresh() supplies authoritative payment/cart state without losing this page's controls.
+  if (source !== initial) {
+    setSource(initial);
+    setCart(initial);
+  }
   const [busyLine, setBusyLine] = useState<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const { run, error } = useShopAction(locale);
   const { setCartQuantity: setBadge } = useShopSession();
+  const pendingCheckout = cart.checkoutOrder?.status === "awaiting_payment";
+
+  useEffect(() => {
+    setBadge(cartBadgeQuantity(cart));
+  }, [cart, setBadge]);
+
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === "visible" && !recoveryBusy && busyLine === null)
+        router.refresh();
+    };
+    const restorePage = (event: PageTransitionEvent) => {
+      if (event.persisted) window.location.reload();
+    };
+    window.addEventListener("focus", refresh);
+    window.addEventListener("pageshow", restorePage);
+    document.addEventListener("visibilitychange", refresh);
+    const timer = pendingCheckout ? window.setInterval(refresh, 5000) : null;
+    return () => {
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("pageshow", restorePage);
+      document.removeEventListener("visibilitychange", refresh);
+      if (timer !== null) window.clearInterval(timer);
+    };
+  }, [router, pendingCheckout, recoveryBusy, busyLine]);
 
   const apply = (next: ShopCart) => {
     setCart(next);
-    setBadge(next.quantityTotal);
+    setBadge(cartBadgeQuantity(next));
   };
 
   const change = async (line: ShopCartLine, quantity: number) => {
@@ -123,192 +160,224 @@ export function CartView({ locale, initial, canCheckout, supportPhone }: CartVie
     }
   };
 
+  const recovery = cart.checkoutOrder ? (
+    <CheckoutRecovery
+      key={cart.checkoutOrder.id}
+      locale={locale}
+      order={cart.checkoutOrder}
+      providers={providers}
+      busy={busyLine !== null || recoveryBusy}
+      onBusyChange={setRecoveryBusy}
+      onRestored={(next) => {
+        apply(next);
+        setNotice(ordersCopy[locale].recovery.restored);
+      }}
+    />
+  ) : null;
+
   if (cart.lines.length === 0) {
     return (
       <div className="flex flex-col gap-4">
         <p role="status" className="sr-only">
           {notice}
         </p>
-        <EmptyState
-          title={copy.emptyTitle}
-          body={copy.emptyBody}
-          action={
-            <Link
-              href={shopPath(locale, { kind: "catalog" })}
-              className={buttonStyles({ size: "lg", lift: true })}
-            >
-              {copy.toCatalog}
-              <Icon name="arrow-right" size={18} />
-            </Link>
-          }
-        />
+        {recovery ?? (
+          <EmptyState
+            title={copy.emptyTitle}
+            body={copy.emptyBody}
+            action={
+              <Link
+                href={shopPath(locale, { kind: "catalog" })}
+                className={buttonStyles({ size: "lg", lift: true })}
+              >
+                {copy.toCatalog}
+                <Icon name="arrow-right" size={18} />
+              </Link>
+            }
+          />
+        )}
       </div>
     );
   }
 
-  const blocked = cart.hasProblems || !canCheckout.sales || !canCheckout.payments;
+  const blocked =
+    cart.hasProblems || !canCheckout.sales || !canCheckout.payments || pendingCheckout;
   return (
-    <div className="grid gap-8 nav:grid-cols-[minmax(0,1fr)_360px] nav:items-start nav:gap-12">
-      <section aria-labelledby="cart-lines" className="flex flex-col">
-        <h2 id="cart-lines" className="sr-only">
-          {copy.items(cart.quantityTotal)}
+    <div className="flex flex-col gap-8">
+      {recovery}
+      {recovery ? (
+        <h2 className="m-0 font-serif text-[26px] leading-8 font-semibold">
+          {ordersCopy[locale].recovery.newItems}
         </h2>
-        <p role="status" className="m-0 min-h-0 text-body-sm text-ink-muted empty:hidden">
-          {notice}
-        </p>
-        <ul className="m-0 flex list-none flex-col p-0">
-          {cart.lines.map((line) => {
-            const problem = line.status !== "ok";
-            return (
-              <li
-                key={line.productId}
-                className={cn(
-                  "grid grid-cols-[88px_minmax(0,1fr)] gap-4 border-b border-line py-6 first:pt-0 sm:grid-cols-[112px_minmax(0,1fr)_auto] sm:gap-6",
-                  busyLine === line.productId && "opacity-70",
-                )}
-              >
-                <div className="relative aspect-product w-full overflow-hidden rounded-md bg-image-well">
-                  {line.image ? (
-                    <Image
-                      src={line.image}
-                      alt={line.name}
-                      fill
-                      sizes="112px"
-                      className="object-cover"
-                    />
-                  ) : (
-                    <span className="flex size-full items-center justify-center text-ink-muted">
-                      <Icon name="image" size={24} />
-                    </span>
+      ) : null}
+      <div className="grid gap-8 nav:grid-cols-[minmax(0,1fr)_360px] nav:items-start nav:gap-12">
+        <section aria-labelledby="cart-lines" className="flex flex-col">
+          <h2 id="cart-lines" className="sr-only">
+            {copy.items(cart.quantityTotal)}
+          </h2>
+          <p role="status" className="m-0 min-h-0 text-body-sm text-ink-muted empty:hidden">
+            {notice}
+          </p>
+          <ul className="m-0 flex list-none flex-col p-0">
+            {cart.lines.map((line) => {
+              const problem = line.status !== "ok";
+              return (
+                <li
+                  key={line.productId}
+                  className={cn(
+                    "grid grid-cols-[88px_minmax(0,1fr)] gap-4 border-b border-line py-6 first:pt-0 sm:grid-cols-[112px_minmax(0,1fr)_auto] sm:gap-6",
+                    busyLine === line.productId && "opacity-70",
                   )}
-                </div>
-                <div className="flex min-w-0 flex-col gap-1.5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    {line.promo ? (
-                      <Badge tone="gold" dot={false}>
-                        {copy.promo}
-                      </Badge>
-                    ) : null}
-                  </div>
-                  <p className="m-0 font-serif text-[22px] leading-7 font-semibold text-ink">
-                    {line.name}
-                  </p>
-                  {line.volume ? (
-                    <p className="m-0 text-body-sm text-ink-muted">
-                      {localizeVolume(line.volume, locale)}
-                    </p>
-                  ) : null}
-                  <p className="m-0 text-label text-ink tabular-nums">
-                    {money(line.unitPrice)}
-                    {line.priceChanged && line.previousPrice !== null ? (
-                      <span className="ml-2 text-body-sm font-normal text-ink-muted">
-                        {copy.priceChanged(money(line.previousPrice))}
+                >
+                  <div className="relative aspect-product w-full overflow-hidden rounded-md bg-image-well">
+                    {line.image ? (
+                      <Image
+                        src={line.image}
+                        alt={line.name}
+                        fill
+                        sizes="112px"
+                        className="object-cover"
+                      />
+                    ) : (
+                      <span className="flex size-full items-center justify-center text-ink-muted">
+                        <Icon name="image" size={24} />
                       </span>
-                    ) : null}
-                  </p>
-                  {problem ? (
-                    <p className="m-0 flex items-center gap-1.5 text-body-sm font-semibold text-danger-strong">
-                      <Icon name="alert-circle" size={16} />
-                      <LineProblem locale={locale} line={line} />
+                    )}
+                  </div>
+                  <div className="flex min-w-0 flex-col gap-1.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {line.promo ? (
+                        <Badge tone="gold" dot={false}>
+                          {copy.promo}
+                        </Badge>
+                      ) : null}
+                    </div>
+                    <p className="m-0 font-serif text-[22px] leading-7 font-semibold text-ink">
+                      {line.name}
                     </p>
-                  ) : line.maxReached ? (
-                    <p className="m-0 text-body-sm text-ink-muted">{copy.maxReached}</p>
-                  ) : null}
-                  <div className="mt-2 flex flex-wrap items-center gap-3 sm:hidden">
+                    {line.volume ? (
+                      <p className="m-0 text-body-sm text-ink-muted">
+                        {localizeVolume(line.volume, locale)}
+                      </p>
+                    ) : null}
+                    <p className="m-0 text-label text-ink tabular-nums">
+                      {money(line.unitPrice)}
+                      {line.priceChanged && line.previousPrice !== null ? (
+                        <span className="ml-2 text-body-sm font-normal text-ink-muted">
+                          {copy.priceChanged(money(line.previousPrice))}
+                        </span>
+                      ) : null}
+                    </p>
+                    {problem ? (
+                      <p className="m-0 flex items-center gap-1.5 text-body-sm font-semibold text-danger-strong">
+                        <Icon name="alert-circle" size={16} />
+                        <LineProblem locale={locale} line={line} />
+                      </p>
+                    ) : line.maxReached ? (
+                      <p className="m-0 text-body-sm text-ink-muted">{copy.maxReached}</p>
+                    ) : null}
+                    <div className="mt-2 flex flex-wrap items-center gap-3 sm:hidden">
+                      <Stepper
+                        locale={locale}
+                        line={line}
+                        busy={busyLine !== null || recoveryBusy}
+                        onChange={(q) => void change(line, q)}
+                      />
+                      <span className="text-label tabular-nums">{money(line.lineTotal)}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void remove(line)}
+                      disabled={busyLine !== null || recoveryBusy}
+                      aria-label={copy.removeLabel(line.name)}
+                      className="mt-1 inline-flex items-center gap-1.5 self-start text-body-sm text-ink-muted underline-offset-4 hover:text-ink hover:underline disabled:opacity-60"
+                    >
+                      <Icon name="trash" size={16} />
+                      {copy.remove}
+                    </button>
+                  </div>
+                  <div className="hidden flex-col items-end gap-3 sm:flex">
                     <Stepper
                       locale={locale}
                       line={line}
-                      busy={busyLine !== null}
+                      busy={busyLine !== null || recoveryBusy}
                       onChange={(q) => void change(line, q)}
                     />
-                    <span className="text-label tabular-nums">{money(line.lineTotal)}</span>
+                    <span className="text-price text-ink tabular-nums">
+                      {money(line.lineTotal)}
+                    </span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => void remove(line)}
-                    disabled={busyLine !== null}
-                    aria-label={copy.removeLabel(line.name)}
-                    className="mt-1 inline-flex items-center gap-1.5 self-start text-body-sm text-ink-muted underline-offset-4 hover:text-ink hover:underline disabled:opacity-60"
-                  >
-                    <Icon name="trash" size={16} />
-                    {copy.remove}
-                  </button>
-                </div>
-                <div className="hidden flex-col items-end gap-3 sm:flex">
-                  <Stepper
-                    locale={locale}
-                    line={line}
-                    busy={busyLine !== null}
-                    onChange={(q) => void change(line, q)}
-                  />
-                  <span className="text-price text-ink tabular-nums">{money(line.lineTotal)}</span>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-        {error ? <FormAlert className="mt-4">{failureText(error, locale)}</FormAlert> : null}
-      </section>
-
-      <aside
-        aria-labelledby="cart-summary"
-        className="flex flex-col gap-5 rounded-lg border border-line bg-surface-raised p-6 nav:sticky nav:top-6"
-      >
-        <h2
-          id="cart-summary"
-          className="m-0 font-serif text-[26px] leading-8 font-semibold text-ink"
-        >
-          {copy.summary}
-        </h2>
-        {/* One subtotal line (U17): the count lives in its label. */}
-        <div className="flex items-baseline justify-between gap-3">
-          <span className="text-subheading">{copy.items(cart.quantityTotal)}</span>
-          <span className="text-price-lg tabular-nums">{money(cart.itemsSubtotal)}</span>
-        </div>
-        {cart.cashbackAvailable > 0 ? (
-          <p className="m-0 flex items-baseline justify-between gap-3 border-t border-line pt-4 text-body">
-            <span className="text-ink-muted">{copy.cashbackAvailable}</span>
-            <span className="font-semibold text-ink tabular-nums">
-              {money(cart.cashbackAvailable)}
-            </span>
-          </p>
-        ) : null}
-        <p className="m-0 text-body-sm text-ink-muted">{copy.deliveryNote}</p>
-        {!canCheckout.sales ? (
-          <FormAlert>{copy.salesOff}</FormAlert>
-        ) : !canCheckout.payments ? (
-          <FormAlert>{copy.noPayments}</FormAlert>
-        ) : cart.hasProblems ? (
-          <FormAlert>{copy.fixProblems}</FormAlert>
-        ) : null}
-        {blocked ? (
-          <span
-            className={buttonStyles({
-              size: "xl",
-              className: "pointer-events-none w-full bg-line text-ink-muted",
+                </li>
+              );
             })}
-            aria-disabled="true"
+          </ul>
+          {error ? <FormAlert className="mt-4">{failureText(error, locale)}</FormAlert> : null}
+        </section>
+
+        <aside
+          aria-labelledby="cart-summary"
+          className="flex flex-col gap-5 rounded-lg border border-line bg-surface-raised p-6 nav:sticky nav:top-6"
+        >
+          <h2
+            id="cart-summary"
+            className="m-0 font-serif text-[26px] leading-8 font-semibold text-ink"
           >
-            {copy.checkout}
-          </span>
-        ) : (
-          <Link
-            href={shopPath(locale, { kind: "checkout" })}
-            className={buttonStyles({ size: "xl", lift: true, className: "w-full" })}
-          >
-            {copy.checkout}
-            <Icon name="arrow-right" size={18} />
-          </Link>
-        )}
-        {supportPhone && cart.lines.some((line) => line.maxReached) ? (
-          <a
-            href={`tel:${supportPhone}`}
-            className="text-center text-label text-ink underline decoration-gold underline-offset-4"
-          >
-            {copy.support}
-          </a>
-        ) : null}
-      </aside>
+            {copy.summary}
+          </h2>
+          {/* One subtotal line (U17): the count lives in its label. */}
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-subheading">{copy.items(cart.quantityTotal)}</span>
+            <span className="text-price-lg tabular-nums">{money(cart.itemsSubtotal)}</span>
+          </div>
+          {cart.cashbackAvailable > 0 ? (
+            <p className="m-0 flex items-baseline justify-between gap-3 border-t border-line pt-4 text-body">
+              <span className="text-ink-muted">{copy.cashbackAvailable}</span>
+              <span className="font-semibold text-ink tabular-nums">
+                {money(cart.cashbackAvailable)}
+              </span>
+            </p>
+          ) : null}
+          <p className="m-0 text-body-sm text-ink-muted">{copy.deliveryNote}</p>
+          {pendingCheckout ? (
+            <p role="status" className="m-0 text-body-sm text-ink-muted">
+              {ordersCopy[locale].recovery.resolveFirst}
+            </p>
+          ) : !canCheckout.sales ? (
+            <FormAlert>{copy.salesOff}</FormAlert>
+          ) : !canCheckout.payments ? (
+            <FormAlert>{copy.noPayments}</FormAlert>
+          ) : cart.hasProblems ? (
+            <FormAlert>{copy.fixProblems}</FormAlert>
+          ) : null}
+          {blocked ? (
+            <span
+              className={buttonStyles({
+                size: "xl",
+                className: "pointer-events-none w-full bg-line text-ink-muted",
+              })}
+              aria-disabled="true"
+            >
+              {copy.checkout}
+            </span>
+          ) : (
+            <Link
+              href={shopPath(locale, { kind: "checkout" })}
+              className={buttonStyles({ size: "xl", lift: true, className: "w-full" })}
+            >
+              {copy.checkout}
+              <Icon name="arrow-right" size={18} />
+            </Link>
+          )}
+          {supportPhone && cart.lines.some((line) => line.maxReached) ? (
+            <a
+              href={`tel:${supportPhone}`}
+              className="text-center text-label text-ink underline decoration-gold underline-offset-4"
+            >
+              {copy.support}
+            </a>
+          ) : null}
+        </aside>
+      </div>
     </div>
   );
 }

@@ -155,6 +155,13 @@ export function CheckoutView({
 
   const runQuote = quoting.run;
   useEffect(() => {
+    const restorePage = (event: PageTransitionEvent) => {
+      if (event.persisted) window.location.reload();
+    };
+    window.addEventListener("pageshow", restorePage);
+    return () => window.removeEventListener("pageshow", restorePage);
+  }, []);
+  useEffect(() => {
     if (needsAddress) return;
     const id = ++requestId.current;
     void runQuote((csrf) =>
@@ -215,11 +222,15 @@ export function CheckoutView({
     );
     if (result.ok) {
       setPlacedOrder(result.data.orderId);
-      setCartQuantity(0);
+      setCartQuantity(cart.quantityTotal);
       await pay(result.data.orderId);
       return;
     }
     setStage("idle");
+    if (result.code === "open_order_exists") {
+      window.location.assign(shopHref(locale, { kind: "cart" }));
+      return;
+    }
     if (result.code === "phone_required") setGateOpen(true);
     else if (result.code === "terms_update_required") setConsentNeeded(true);
     else if (result.code === "price_changed") {

@@ -144,6 +144,7 @@ export function mapCartLine(api: ApiCartLine, mediaHosts: ReadonlyArray<string>)
 
 export function mapCart(api: ApiCart, mediaHosts: ReadonlyArray<string>): ShopCart {
   return {
+    checkoutOrder: api.checkout_order ? mapOrder(api.checkout_order, mediaHosts) : null,
     lines: (api.items ?? []).map((line) => mapCartLine(line, mediaHosts)),
     itemCount: nonNegative(api.item_count),
     quantityTotal: nonNegative(api.quantity_total),

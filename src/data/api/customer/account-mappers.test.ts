@@ -121,6 +121,7 @@ describe("mapCart", () => {
     expect(mapped.lines[1]).toMatchObject({ status: "unavailable", image: null });
     expect(mapped.quantityTotal).toBe(4);
     expect(mapped.cashbackAvailable).toBe(-500);
+    expect(mapped.checkoutOrder).toBeNull(); // older API responses can omit the additive field
     expect(mapped.lastChange).toEqual({
       productId: 4,
       requested: 5,
@@ -203,6 +204,10 @@ describe("mapOrder", () => {
     expect(order.timeline[0]).toMatchObject({ title: "Kuryerga topshirildi", subtitle: "BTS" });
     expect(order.actions).toEqual({ pay: false, cancel: false, reorder: true });
     expect(order.cashback).toEqual({ used: 48600, earned: 5680, earnedState: "credited" });
+    const savedCart = mapCart({ ...cart, checkout_order: api }, HOSTS);
+    expect(savedCart.checkoutOrder?.id).toBe(10248);
+    expect(savedCart.checkoutOrder?.previewImages).toEqual(["https://media.glowderma.uz/a.webp"]);
+    expect(savedCart.checkoutOrder?.actions).toEqual(order.actions);
   });
 });
 

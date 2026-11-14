@@ -123,11 +123,17 @@ export function apiCancelOrder(locale: Locale, orderId: number, idempotencyKey: 
   });
 }
 
-export function apiReorder(locale: Locale, orderId: number, idempotencyKey: string) {
+export function apiReorder(
+  locale: Locale,
+  orderId: number,
+  idempotencyKey: string,
+  cancelUnpaid = false,
+) {
   return customerFetch<ApiCart>(`${V1}/orders/${orderId}/reorder/`, {
     method: "POST",
     locale,
     auth: "session",
+    body: cancelUnpaid ? { cancel_unpaid: true } : undefined,
     idempotencyKey,
   });
 }

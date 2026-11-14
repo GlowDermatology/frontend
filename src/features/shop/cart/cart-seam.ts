@@ -2,6 +2,7 @@ import { addCartItem } from "@/data/shop/commerce.actions";
 import type { Locale } from "@/lib/i18n/locales";
 
 import { hasSignedInHint, runShopAction } from "../shared/action-client";
+import { cartBadgeQuantity } from "./recovery";
 
 /**
  * Add to cart from a product page: `POST cart/items/` (contract §2.5) with
@@ -35,7 +36,7 @@ export async function addToCart(input: {
     return {
       kind: "added",
       lineQuantity: line?.quantity ?? input.quantity,
-      cartQuantity: result.data.quantityTotal,
+      cartQuantity: cartBadgeQuantity(result.data),
       maxReached: result.data.lastChange?.maxReached ?? false,
     };
   }

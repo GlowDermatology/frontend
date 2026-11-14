@@ -3,8 +3,8 @@
  * GENERATED FILE — do not edit by hand. Regenerate with `npm run gen:api`.
  *
  * Source: openapi/schema.yaml of the backend repository
- * Commit: fd8e089a981f4cebb4735064872cdc10036bd60b
- * Generated: 2026-11-13T21:50:50.011Z (openapi-typescript)
+ * Commit: 5a46ee0a1c0600d4a5e38a7579eb79a2725b6342
+ * Generated: 2026-11-14T21:00:16.686Z (openapi-typescript)
  */
 
 export interface paths {
@@ -3351,6 +3351,7 @@ export interface components {
         };
         CustomerCart: {
             cashback: components["schemas"]["CustomerCartCashback"];
+            checkout_order?: components["schemas"]["CustomerOrderDetail"] | null;
             has_problems: boolean;
             item_count: number;
             items: components["schemas"]["CustomerCartLine"][];
@@ -3725,6 +3726,10 @@ export interface components {
          * @enum {string}
          */
         CustomerRefundStateEnum: "in_progress" | "completed";
+        CustomerReorderRequest: {
+            /** @default false */
+            cancel_unpaid: boolean;
+        };
         /** @description One signed-in device of the customer (``CustomerSession``). */
         CustomerSession: {
             /**
@@ -20554,7 +20559,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["CustomerReorderRequest"];
+            };
+        };
         responses: {
             200: {
                 headers: {

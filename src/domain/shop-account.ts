@@ -59,6 +59,8 @@ export interface ShopCartLine {
 }
 
 export interface ShopCart {
+  /** The unpaid/expired checkout whose items remain recoverable from this cart. */
+  checkoutOrder?: ShopOrder | null;
   lines: ShopCartLine[];
   itemCount: number;
   quantityTotal: number;

@@ -24,6 +24,8 @@ import {
 import { mapAddress, mapMe } from "@/data/api/customer/account-mappers";
 import type { ApiAddressWrite } from "@/data/api/customer/account-types";
 import { apiCart, apiUnreadCount } from "@/data/api/customer/commerce";
+import { mapCart } from "@/data/api/customer/account-mappers";
+import { cartBadgeQuantity } from "@/features/shop/cart/recovery";
 import { isApiError } from "@/data/api/errors";
 import { readCustomerSession, guardCustomerAction } from "@/data/customer-auth/session";
 import type { ActionResult } from "@/data/types";
@@ -112,7 +114,7 @@ export async function headerSummary(input: {
       data: {
         signedIn: true,
         name: me.data.name.trim() || null,
-        cartQuantity: cart?.data.quantity_total ?? 0,
+        cartQuantity: cart ? cartBadgeQuantity(mapCart(cart.data, [])) : 0,
         unread: unread?.data.unread_count ?? 0,
       },
     };

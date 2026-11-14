@@ -296,6 +296,7 @@ export async function reorder(input: {
   orderId: number;
   idempotencyKey: string;
   csrf: string;
+  cancelUnpaid?: boolean;
 }): Promise<ActionResult<ShopCart>> {
   const locale = localeOf(input.locale);
   const guard = await guardCustomerAction(input.csrf);
@@ -303,7 +304,12 @@ export async function reorder(input: {
   const orderId = positiveInt(input.orderId);
   if (!orderId) return invalid(locale);
   try {
-    const { data } = await apiReorder(locale, orderId, String(input.idempotencyKey));
+    const { data } = await apiReorder(
+      locale,
+      orderId,
+      String(input.idempotencyKey),
+      input.cancelUnpaid === true,
+    );
     return { ok: true, data: mapCart(data, serverEnv.mediaHosts()) };
   } catch (error) {
     return toShopFailure(error, locale);

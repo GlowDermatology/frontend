@@ -44,6 +44,7 @@ async function CartBody({ locale }: { locale: Locale }) {
         payments: (settings?.paymentProviders.length ?? 1) > 0,
       }}
       supportPhone={settings?.supportPhone ?? null}
+      providers={settings?.paymentProviders ?? []}
     />
   );
 }
@@ -57,7 +58,12 @@ async function CheckoutBody({ locale }: { locale: Locale }) {
     settle(getRegions(locale), [], "delivery regions"),
     settle(getSettings(locale), null, "settings"),
   ]);
-  if (cart.lines.length === 0 || cart.hasProblems) redirect(shopPath(locale, { kind: "cart" }));
+  if (
+    cart.checkoutOrder?.status === "awaiting_payment" ||
+    cart.lines.length === 0 ||
+    cart.hasProblems
+  )
+    redirect(shopPath(locale, { kind: "cart" }));
   return (
     <CheckoutView
       locale={locale}

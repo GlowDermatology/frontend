@@ -4,6 +4,29 @@ import type { CopySet, Widen } from "./widen";
 
 /** Add to cart, the cart, checkout, payment, the orders list and an order. */
 const uz = {
+  recovery: {
+    title: "To‘lov kutilmoqda",
+    body: "Mahsulotlaringiz saqlangan. To‘lov hali tasdiqlanmadi. To‘lovni davom ettiring yoki mahsulotlarni tahrirlang.",
+    confirmingTitle: "To‘lov tasdiqlanishi kutilmoqda",
+    confirmingBody:
+      "To‘lov tizimi javobini kutyapmiz. Natija aniqlanmaguncha qayta to‘lamang. Holat avtomatik yangilanadi.",
+    expiredTitle: "Band qilish muddati tugadi",
+    expiredBody:
+      "Mahsulotlaringiz saqlangan. Savatga qaytarganingizda narx va mavjudlik yangilanadi.",
+    cancelledTitle: "To‘lanmagan buyurtma bekor qilingan",
+    cancelledBody: "Mahsulotlarni savatga qaytarib, qaytadan rasmiylashtirishingiz mumkin.",
+    continuePayment: "To‘lovni davom ettirish",
+    edit: "Mahsulotlarni tahrirlash",
+    editHint:
+      "Tahrirlash to‘lanmagan buyurtmani bekor qiladi va mahsulotlarni savatga qaytaradi. Keyin qo‘shilgan mahsulotlar ham saqlanadi.",
+    restore: "Mahsulotlarni savatga qaytarish",
+    restored: "Mahsulotlar savatga qaytarildi. Narx va miqdorlarni tekshiring.",
+    newItems: "Keyin qo‘shilgan mahsulotlar",
+    resolveFirst:
+      "Yangi buyurtma berish uchun avval yuqoridagi to‘lovni davom ettiring yoki mahsulotlarni tahrirlang.",
+    refresh: "Holatni yangilash",
+    details: "Buyurtma tafsilotlari",
+  },
   addToCart: {
     added: "Savatga qo‘shildi",
     inCart: (count: number) => `Savatda: ${count} ta`,
@@ -169,6 +192,27 @@ type Copy = Widen<typeof uz>;
 const units = (count: number) => `${count} ${pluralRu(count, ["товар", "товара", "товаров"])}`;
 
 const ru: Copy = {
+  recovery: {
+    title: "Ожидает оплаты",
+    body: "Ваши товары сохранены. Оплата ещё не подтверждена. Продолжите оплату или измените товары.",
+    confirmingTitle: "Ожидаем подтверждение оплаты",
+    confirmingBody:
+      "Ждём ответ платёжной системы. Не платите повторно до получения результата. Статус обновляется автоматически.",
+    expiredTitle: "Срок бронирования истёк",
+    expiredBody: "Ваши товары сохранены. При возврате в корзину цены и наличие обновятся.",
+    cancelledTitle: "Неоплаченный заказ отменён",
+    cancelledBody: "Вы можете вернуть товары в корзину и оформить заказ заново.",
+    continuePayment: "Продолжить оплату",
+    edit: "Изменить товары",
+    editHint:
+      "Изменение отменит неоплаченный заказ и вернёт товары в корзину. Добавленные позже товары сохранятся.",
+    restore: "Вернуть товары в корзину",
+    restored: "Товары возвращены в корзину. Проверьте цены и количество.",
+    newItems: "Товары, добавленные позже",
+    resolveFirst: "Перед новым заказом продолжите оплату выше или измените товары.",
+    refresh: "Обновить статус",
+    details: "Подробнее о заказе",
+  },
   addToCart: {
     added: "Добавлено в корзину",
     inCart: (count) => `В корзине: ${count} шт.`,
@@ -322,6 +366,28 @@ const ru: Copy = {
 const items = (count: number) => `${count} ${count === 1 ? "item" : "items"}`;
 
 const en: Copy = {
+  recovery: {
+    title: "Awaiting payment",
+    body: "Your items are saved. Payment has not been confirmed. Continue payment or edit your items.",
+    confirmingTitle: "Waiting for payment confirmation",
+    confirmingBody:
+      "We’re waiting for the payment provider. Please don’t pay again until the result is known. The status updates automatically.",
+    expiredTitle: "Your reservation expired",
+    expiredBody:
+      "Your items are saved. Prices and availability will be checked when you return them to the cart.",
+    cancelledTitle: "Your unpaid order was cancelled",
+    cancelledBody: "You can return the items to your cart and check out again.",
+    continuePayment: "Continue payment",
+    edit: "Edit items",
+    editHint:
+      "Editing cancels the unpaid order and returns its items to your cart. Items added afterwards are kept too.",
+    restore: "Return items to cart",
+    restored: "Items returned to your cart. Check the prices and quantities.",
+    newItems: "Items added afterwards",
+    resolveFirst: "Before placing a new order, continue payment above or edit your items.",
+    refresh: "Refresh status",
+    details: "Order details",
+  },
   addToCart: {
     added: "Added to your bag",
     inCart: (count) => `In your bag: ${count}`,

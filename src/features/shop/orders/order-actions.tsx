@@ -17,6 +17,7 @@ import { useShopSession } from "../account/session-context";
 import { failureText, useShopAction } from "../account/use-shop-action";
 import { ordersCopy } from "../copy/orders";
 import { shopPath } from "../routing/routes";
+import { cartBadgeQuantity } from "../cart/recovery";
 
 /**
  * The order page's commands (`actions` of `OrderDetail`, contract §2.8):
@@ -75,7 +76,7 @@ export function OrderActions({
       await run((csrf) => reorder({ locale, orderId, idempotencyKey: reorderKey.key, csrf })),
     );
     if (result.ok) {
-      setCartQuantity(result.data.quantityTotal);
+      setCartQuantity(cartBadgeQuantity(result.data));
       router.push(shopPath(locale, { kind: "cart" }));
     }
   };

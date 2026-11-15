@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 
+import { mapTileOrigins } from "./src/lib/map-tiles";
 import { mediaRemotePatterns } from "./src/lib/media-hosts";
 import { parseAllowedOrigins } from "./src/lib/origins";
 
@@ -10,15 +11,21 @@ const securityHeaders = [
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
 ];
 
+/** Storefront pages override the header above (the later match wins). */
+const STOREFRONT_PERMISSIONS_POLICY = "camera=(), microphone=(), geolocation=(self)";
+
 /**
  * Content-Security-Policy of the storefront pages (everything but /admin).
  * Partial Prerendering serves a static shell, so per-request nonces (and
  * `'strict-dynamic'`) are not possible: scripts are limited to this origin
  * plus the social sign-in SDKs, with `'unsafe-inline'` for Next's inline
  * RSC payload; no `eval` outside development, no plugins, no framing, forms
- * post only here. Images load through `/_next/image` (same origin).
+ * post only here. Images load through `/_next/image` (same origin), except
+ * the address map's tiles: exactly the origin(s) of `NEXT_PUBLIC_MAP_TILE_URL`
+ * (OpenStreetMap by default), parsed by the same helper the map uses.
  */
 function storefrontCsp(dev: boolean): string {
+  const tiles = mapTileOrigins(process.env.NEXT_PUBLIC_MAP_TILE_URL);
   const sdk = {
     script: [
       "https://accounts.google.com",
@@ -37,7 +44,7 @@ function storefrontCsp(dev: boolean): string {
     "default-src 'self'",
     `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ""} ${sdk.script.join(" ")}`,
     "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style",
-    "img-src 'self' data: blob: https://*.googleusercontent.com https://*.fbcdn.net https://*.facebook.com",
+    `img-src 'self' data: blob: https://*.googleusercontent.com https://*.fbcdn.net https://*.facebook.com ${tiles.join(" ")}`,
     "font-src 'self' data:",
     `connect-src 'self' ${sdk.connect.join(" ")}${dev ? " ws: wss:" : ""}`,
     `frame-src ${sdk.frame.join(" ")}`,
@@ -134,6 +141,9 @@ const nextConfig: NextConfig = {
             key: "Content-Security-Policy",
             value: storefrontCsp(process.env.NODE_ENV === "development"),
           },
+          // "Joylashuvimni aniqlash" in the address form: geolocation for this
+          // origin only (no frames); the admin panel keeps `geolocation=()`.
+          { key: "Permissions-Policy", value: STOREFRONT_PERMISSIONS_POLICY },
         ],
       },
       // Streamed (partially prerendered) responses must reach the browser

@@ -27,6 +27,7 @@ import { cn } from "@/lib/cn";
 import type { Locale } from "@/lib/i18n/locales";
 
 import { AddressDialog } from "../account/address-form";
+import { AddressPinNote } from "../account/address-pin-note";
 import { FormAlert } from "../account/controls";
 import { PhoneGate } from "../account/phone-gate";
 import { useShopSession } from "../account/session-context";
@@ -66,6 +67,7 @@ function OptionCard({
   title,
   hint,
   icon,
+  meta,
 }: {
   name: string;
   value: string;
@@ -74,6 +76,8 @@ function OptionCard({
   title: string;
   hint?: string;
   icon?: React.ReactNode;
+  /** A line under the hint (the address's map-pin note). */
+  meta?: React.ReactNode;
 }) {
   return (
     <label
@@ -98,6 +102,7 @@ function OptionCard({
             {hint}
           </span>
         ) : null}
+        {meta}
       </span>
     </label>
   );
@@ -330,6 +335,7 @@ export function CheckoutView({
                   onChange={() => setAddressId(address.id)}
                   title={address.label || address.text}
                   hint={address.label ? address.text : address.comment || undefined}
+                  meta={<AddressPinNote locale={locale} address={address} className="mt-1" />}
                 />
               ))}
               <Button variant="dashed" onClick={() => setAddressOpen(true)} className="self-start">

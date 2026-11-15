@@ -19,6 +19,7 @@
   "dependencies": {
     "@hookform/resolvers": "^5.9.2",
     "clsx": "^2.1.1",
+    "leaflet": "1.9.4",
     "next": "16.4.3",
     "radix-ui": "^1.8.1",
     "react": "19.3.0",
@@ -32,6 +33,7 @@
   "devDependencies": {
     "@playwright/test": "1.63.0",
     "@tailwindcss/turbopack": "^4",
+    "@types/leaflet": "1.9.21",
     "@types/node": "^22.20.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",

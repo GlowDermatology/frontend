@@ -5,6 +5,7 @@ import { ApiError } from "@/data/api/errors";
 
 import {
   inboxTarget,
+  mapAddress,
   mapCart,
   mapCashback,
   mapMe,
@@ -15,7 +16,7 @@ import {
   mapSession,
   orderSessions,
 } from "./account-mappers";
-import type { ApiCart, ApiMe, ApiOrderDetail, ApiSession } from "./account-types";
+import type { ApiAddress, ApiCart, ApiMe, ApiOrderDetail, ApiSession } from "./account-types";
 
 const HOSTS = ["media.glowderma.uz"];
 
@@ -40,6 +41,49 @@ const me: ApiMe = {
   },
   default_address: null,
 };
+
+describe("mapAddress", () => {
+  const address: ApiAddress = {
+    id: 7,
+    label: " Uy ",
+    text: "Chilonzor 9, 12-uy",
+    region_code: "1",
+    city_code: "12",
+    comment: "",
+    is_default: true,
+    latitude: 41.31110049,
+    longitude: 69.2797005,
+    created_at: "2026-11-01T10:00:00+05:00",
+    updated_at: "2026-11-01T10:00:00+05:00",
+  };
+
+  it("reads the pin rounded to 6 decimals", () => {
+    expect(mapAddress(address)).toMatchObject({
+      id: 7,
+      label: "Uy",
+      regionCode: "1",
+      latitude: 41.3111,
+      longitude: 69.279701,
+    });
+  });
+
+  it("reads decimal strings and treats half a pin as none", () => {
+    const strings = { ...address, latitude: "41.285000", longitude: "69.203400" } as never;
+    expect(mapAddress(strings)).toMatchObject({ latitude: 41.285, longitude: 69.2034 });
+    expect(mapAddress({ ...address, longitude: null })).toMatchObject({
+      latitude: null,
+      longitude: null,
+    });
+    expect(mapAddress({ ...address, latitude: null, longitude: null })).toMatchObject({
+      latitude: null,
+      longitude: null,
+    });
+    const older = { ...address } as Partial<ApiAddress>;
+    delete older.latitude;
+    delete older.longitude;
+    expect(mapAddress(older as ApiAddress)).toMatchObject({ latitude: null, longitude: null });
+  });
+});
 
 describe("mapMe", () => {
   it("keeps a phoneless account phoneless and drops unknown providers", () => {

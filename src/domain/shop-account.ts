@@ -15,10 +15,26 @@ export interface ShopAddress {
   id: number;
   label: string;
   text: string;
+  /** BTS region and city codes (`""` when not chosen). */
   regionCode: string;
   cityCode: string;
   comment: string;
   isDefault: boolean;
+  /** The map pin (Yandex Delivery): both set, rounded to 6 decimals, or both `null`. */
+  latitude: number | null;
+  longitude: number | null;
+}
+
+/** Whether the address carries a map pin, so courier delivery to the exact point can be offered. */
+export function hasPin<T extends Pick<ShopAddress, "latitude" | "longitude">>(
+  address: T,
+): address is T & { latitude: number; longitude: number } {
+  return (
+    typeof address.latitude === "number" &&
+    Number.isFinite(address.latitude) &&
+    typeof address.longitude === "number" &&
+    Number.isFinite(address.longitude)
+  );
 }
 
 export interface ShopMe {

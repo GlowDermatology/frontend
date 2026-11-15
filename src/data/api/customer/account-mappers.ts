@@ -20,6 +20,7 @@ import type {
   ShopSlots,
   SocialProvider,
 } from "@/domain/shop-account";
+import { toPin } from "@/domain/geo-pin";
 import type { ShopPage } from "@/domain/shop";
 
 import type {
@@ -81,6 +82,8 @@ function httpsOnly(value: unknown): string | null {
 }
 
 export function mapAddress(api: ApiAddress): ShopAddress {
+  // A pin is a pair: half a pin or an out-of-range value reads as "no pin".
+  const pin = toPin(api.latitude, api.longitude);
   return {
     id: api.id,
     label: text(api.label),
@@ -89,6 +92,8 @@ export function mapAddress(api: ApiAddress): ShopAddress {
     cityCode: text(api.city_code),
     comment: text(api.comment),
     isDefault: Boolean(api.is_default),
+    latitude: pin?.latitude ?? null,
+    longitude: pin?.longitude ?? null,
   };
 }
 

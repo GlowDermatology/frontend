@@ -3,8 +3,8 @@
  * GENERATED FILE — do not edit by hand. Regenerate with `npm run gen:api`.
  *
  * Source: openapi/schema.yaml of the backend repository
- * Commit: 7fbc5a9ca0761af43f20d4dfaa039229392cd0b7
- * Generated: 2026-11-16T00:55:45.679Z (openapi-typescript)
+ * Commit: 571a8d7d7ffe88349d70ae9e182ba19dcbcbc7ae
+ * Generated: 2026-11-16T04:15:05.221Z (openapi-typescript)
  */
 
 export interface paths {
@@ -875,11 +875,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /**
-         * @description Yandex Delivery plan §3.6: staff call a courier. Nothing is sent to Yandex in the request: the claim
-         *     is stored and ``yandex.dispatch`` enqueued (202, the order detail; ``delivery.stage`` =
-         *     ``courier_requested``).
-         */
+        /** @description Call a Yandex courier for a paid delivery order (plan §3.6): staff confirm they checked the contents and give the parcel weight; `approved_price` accepts the offer of an open price review (`dispatch_review`), `method` switches Standard / Express. The parcel and a new courier claim are stored and the dispatch is queued — nothing is sent to Yandex in the request (202, `delivery.stage` = `courier_requested`); the order's open `dispatch_failed` / `dispatch_review` / `preparation_overdue` issues are resolved. 409 `invalid_transition` (not a paid, open Yandex delivery waiting for a courier: stage `awaiting_dispatch` / `failed` / `returned`, a `handed_to_courier` order only once its parcel is `returned`), 409 `conflict` (a courier claim is still open — a dispatch is running or a courier may come —, a cancel is in progress, `approved_price` without an open price review, or the order is busy), 409 `coordinates_required` (the address has no map pin), 409 `method_disabled` (the method switched to is turned off), 409 `too_heavy` (the weight is above the method's class limit: courier 10 kg, express 20 kg), 409 `not_configured` (the warehouse data is incomplete), 409 `suspended` (dispatch is suspended), 409 `closed` (the warehouse is closed now), 409 `after_cutoff` (past today's dispatch deadline), 409 `returns_unavailable` (the warehouse does not take returned parcels now). */
         post: operations["admin_orders_dispatch"];
         delete?: never;
         options?: never;

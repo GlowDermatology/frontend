@@ -8,6 +8,7 @@ export type AdminSection =
   | "categories"
   | "banners"
   | "orders"
+  | "delivery-issues"
   | "appointments"
   | "specialists"
   | "services"
@@ -25,7 +26,7 @@ export interface NavItem {
   href: Route;
   icon: IconName;
   /** Live count shown as a pill (work waiting for the admin). */
-  badge?: "orders" | "appointments";
+  badge?: "orders" | "appointments" | "issues";
   /** Shown only to managers (`Me.is_manager`, contract §2.16). */
   managerOnly?: boolean;
 }
@@ -41,6 +42,14 @@ export const NAV_ITEMS: ReadonlyArray<NavItem> = [
     href: "/admin/orders",
     icon: "receipt",
     badge: "orders",
+  },
+  {
+    // Yandex Delivery plan §4: the exception queue (the Telegram bot links here).
+    section: "delivery-issues",
+    label: "Muammolar",
+    href: "/admin/delivery-issues",
+    icon: "alert-triangle",
+    badge: "issues",
   },
   {
     section: "appointments",

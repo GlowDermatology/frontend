@@ -1,7 +1,13 @@
 import type { Route } from "next";
 
-import type { OrderListQuery, OrderPeriod, OrderSort } from "@/data/orders";
-import { ORDER_STATUSES, type FulfilmentMethod, type PaymentStatus } from "@/domain/order";
+import type { OrderAttention, OrderListQuery, OrderPeriod, OrderSort } from "@/data/orders";
+import {
+  DELIVERY_PROVIDERS,
+  ORDER_STATUSES,
+  SHIPMENT_STAGES,
+  type FulfilmentMethod,
+  type PaymentStatus,
+} from "@/domain/order";
 import { MONTHS, tashkentParts } from "@/lib/format";
 
 import {
@@ -19,13 +25,16 @@ const PERIODS: ReadonlyArray<OrderPeriod> = ["today", "week", "month", "all"];
 const FULFILMENTS: ReadonlyArray<FulfilmentMethod> = ["delivery", "pickup"];
 const PAYMENTS: ReadonlyArray<PaymentStatus> = ["pending", "paid", "failed", "refunded"];
 const SORTS: ReadonlyArray<OrderSort> = ["date_desc", "date_asc"];
+const ATTENTION: ReadonlyArray<OrderAttention> = ["open", "urgent"];
 
 export const DEFAULT_PERIOD: OrderPeriod = "month";
 
 /**
  * `/admin/orders?status=&q=&period=&fulfilment=&payment=&date_from=&date_to=
- * &customer=&sort=&page=&size=`, validated: a malformed value is dropped
- * (and an inverted date range swapped) rather than sent to the API.
+ * &customer=&provider=&stage=&attention=&sort=&page=&size=`, validated: a
+ * malformed value is dropped (and an inverted date range swapped) rather
+ * than sent to the API. `stage` is a Yandex shipment's stage, so it implies
+ * `provider=yandex`.
  */
 export function parseOrderQuery(params: SearchParams): OrderListQuery {
   const size = positiveInt(firstParam(params, "size"), 10);
@@ -33,6 +42,7 @@ export function parseOrderQuery(params: SearchParams): OrderListQuery {
   let dateFrom = isoDateParam(firstParam(params, "date_from"));
   let dateTo = isoDateParam(firstParam(params, "date_to"));
   if (dateFrom && dateTo && dateFrom > dateTo) [dateFrom, dateTo] = [dateTo, dateFrom];
+  const stage = oneOf(firstParam(params, "stage"), SHIPMENT_STAGES);
   return {
     dateFrom,
     dateTo,
@@ -43,6 +53,9 @@ export function parseOrderQuery(params: SearchParams): OrderListQuery {
     period: oneOf(firstParam(params, "period"), PERIODS) ?? DEFAULT_PERIOD,
     fulfilment: oneOf(firstParam(params, "fulfilment"), FULFILMENTS),
     payment: oneOf(firstParam(params, "payment"), PAYMENTS),
+    provider: stage ? "yandex" : oneOf(firstParam(params, "provider"), DELIVERY_PROVIDERS),
+    stage,
+    attention: oneOf(firstParam(params, "attention"), ATTENTION),
     sort: oneOf(firstParam(params, "sort"), SORTS) ?? "date_desc",
     page: positiveInt(firstParam(params, "page"), 1),
     pageSize: (PAGE_SIZES as ReadonlyArray<number>).includes(size) ? size : 10,
@@ -60,6 +73,9 @@ export function orderListHref(query: Partial<OrderListQuery>, base = "/admin/ord
     date_from: query.dateFrom,
     date_to: query.dateTo,
     customer: query.customer,
+    provider: query.provider,
+    stage: query.stage,
+    attention: query.attention,
     sort: query.sort && query.sort !== "date_desc" ? query.sort : undefined,
     page: query.page && query.page > 1 ? query.page : undefined,
     size: query.pageSize && query.pageSize !== 10 ? query.pageSize : undefined,
@@ -83,6 +99,9 @@ export function hasActiveFilters(query: OrderListQuery): boolean {
     query.dateFrom ||
     query.dateTo ||
     query.customer ||
+    query.provider ||
+    query.stage ||
+    query.attention ||
     query.period !== DEFAULT_PERIOD,
   );
 }

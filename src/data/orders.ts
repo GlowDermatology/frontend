@@ -3,11 +3,13 @@ import "server-only";
 import { cache } from "react";
 
 import type {
+  DeliveryProvider,
   FulfilmentMethod,
   Order,
   OrderStatus,
   OrderSummary,
   PaymentStatus,
+  ShipmentStage,
 } from "@/domain/order";
 
 import { apiGetOrder, apiListOrders, apiOrderStatusCounts } from "./api/orders";
@@ -35,8 +37,15 @@ import type { Page } from "./types";
 
 export type OrderPeriod = "today" | "week" | "month" | "all";
 export type OrderSort = "date_desc" | "date_asc";
+/** `open`: the order has an open delivery issue; `urgent`: an open urgent one (plan §3.10). */
+export type OrderAttention = "open" | "urgent";
 
 export interface OrderFilters {
+  /** The shipment's carrier (pickup orders never match). */
+  provider?: DeliveryProvider;
+  /** A Yandex shipment's stage (implies `provider=yandex` on the API). */
+  stage?: ShipmentStage;
+  attention?: OrderAttention;
   q?: string;
   fulfilment?: FulfilmentMethod;
   payment?: PaymentStatus;
@@ -56,7 +65,7 @@ export interface OrderListQuery extends OrderFilters {
   sort: OrderSort;
 }
 
-/** `GET /api/v1/admin/orders/?status=&search=&fulfilment=&payment=&period=&date_from=&date_to=&customer=&ordering=&page=&page_size=` */
+/** `GET /api/v1/admin/orders/?status=&search=&fulfilment=&payment=&period=&date_from=&date_to=&customer=&provider=&stage=&attention=&ordering=&page=&page_size=` */
 export async function listOrders(query: OrderListQuery): Promise<Page<OrderSummary>> {
   if ((await dataSource()) === "api") {
     const token = await requireApiToken();

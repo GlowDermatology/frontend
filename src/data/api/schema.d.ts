@@ -3,8 +3,8 @@
  * GENERATED FILE — do not edit by hand. Regenerate with `npm run gen:api`.
  *
  * Source: openapi/schema.yaml of the backend repository
- * Commit: 5a46ee0a1c0600d4a5e38a7579eb79a2725b6342
- * Generated: 2026-11-14T21:00:16.686Z (openapi-typescript)
+ * Commit: 7fbc5a9ca0761af43f20d4dfaa039229392cd0b7
+ * Generated: 2026-11-16T00:55:45.679Z (openapi-typescript)
  */
 
 export interface paths {
@@ -474,6 +474,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/delivery/issues/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The delivery exception queue: open issues first (urgent first, then oldest first); `state=resolved` lists the newest resolved first. */
+        get: operations["admin_delivery_issues_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/delivery/issues/{id}/resolve/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Close an open issue with a note (audited `delivery.issue_resolved`); 409 `conflict` when it is resolved already. */
+        post: operations["admin_delivery_issues_resolve"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/delivery/suspension/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Whether courier dispatch is suspended now (`until` passed → `suspended: false`). */
+        get: operations["admin_delivery_suspension_retrieve"];
+        put?: never;
+        /** @description Suspend courier dispatch (until `until`, or until lifted) or resume it; audited `delivery.suspension_updated`. `until` must be in the future (`in_past`); it is ignored when resuming. */
+        post: operations["admin_delivery_suspension_update"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/integrations/billz/import/": {
         parameters: {
             query?: never;
@@ -789,7 +841,63 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** @description Cancel an order (full refund when paid). A Yandex Delivery order is first made carrier-safe outside the transaction (plan §3.8): an open courier claim is cancelled at Yandex before pickup (free or paid), after pickup a return to the warehouse is requested and the cancel proceeds once Yandex reports it `returning`; a returning / returned parcel needs no call, a delivered order is refused. 409 `not_cancellable` (Yandex refused, delivered, parcel not coming back), 409 `return_requested` (return asked, not confirmed yet: retry later; the order is unchanged), 409 `conflict` (another Yandex operation of the order is running, or Yandex has not shown the cancel yet), 503 `provider_unavailable` (Yandex did not answer; nothing changed). */
         post: operations["admin_orders_cancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/orders/{id}/confirm-return/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Confirm that the parcel of a Yandex order whose delivery stage is `returning` / `returned` is physically back at the warehouse: stage `returned`, `returned_at`, the open `return_pending` issue resolved (the note is its resolution note), order event `shipment_returned`, audit `order.return_confirmed`. A cancelled order stays cancelled; an open order stays as it is (staff dispatch again or cancel). 409 `invalid_transition` (no returning parcel), 409 `conflict` (confirmed already, or the order is busy). */
+        post: operations["admin_orders_confirm_return"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/orders/{id}/dispatch/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Yandex Delivery plan §3.6: staff call a courier. Nothing is sent to Yandex in the request: the claim
+         *     is stored and ``yandex.dispatch`` enqueued (202, the order detail; ``delivery.stage`` =
+         *     ``courier_requested``).
+         */
+        post: operations["admin_orders_dispatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/orders/{id}/issues/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Staff report a delivery incident of a delivery order (a wrong or missing product…): `kind` must be `incident`. 201 opens the order's incident issue; 200 refreshes the one already open (note and urgency). Audited `delivery.issue_opened`; an urgent incident alerts staff. A pickup order → 409 `conflict`. */
+        post: operations["admin_orders_issues_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2548,6 +2656,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/webhooks/yandex-delivery/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Yandex Delivery claim callback (an unauthenticated hint): `?ref=<order>-<hmac>` (our own reference, registered per claim) plus the `updated_ts` and `claim_id` Yandex appends; answers 200 for a verified ref and re-reads the claim asynchronously. */
+        post: operations["webhook_yandex_delivery_status"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2743,6 +2868,10 @@ export interface components {
         AuthTokensOrNextStep: components["schemas"]["AuthTokens"] | components["schemas"]["NextStep"];
         AvailableActions: {
             cancel: boolean;
+            /** @description Yandex Delivery: the parcel is returning / returned and its return is not confirmed yet (`POST orders/{id}/confirm-return/`). */
+            confirm_return: boolean;
+            /** @description Yandex Delivery: `POST orders/{id}/dispatch/` would be accepted now (false for BTS). */
+            dispatch: boolean;
             retry_shipment: boolean;
             transitions: components["schemas"]["OrderStatusEnum"][];
         };
@@ -3227,6 +3356,14 @@ export interface components {
             purpose: components["schemas"]["OtpPurposeEnum"];
             resend_in: number;
         };
+        /** @description ``POST orders/{id}/confirm-return/`` (Yandex Delivery plan §3.8): the parcel is physically back. */
+        ConfirmReturnRequest: {
+            /**
+             * @description Optional (≤ 1000): the parcel's condition; becomes the `return_pending` resolution note.
+             * @default
+             */
+            note: string;
+        };
         ConsentRequest: {
             terms_version: string;
         };
@@ -3435,6 +3572,11 @@ export interface components {
             cashback_to_use: number;
             /** @default  */
             customer_note: string;
+            /**
+             * Format: uuid
+             * @description A Yandex `quote_id` from `delivery/calculate/`; without it delivery ships by BTS.
+             */
+            delivery_quote_id?: string | null;
             expected_total: number;
             fulfilment: components["schemas"]["FulfilmentMethodEnum"];
             payment_provider: components["schemas"]["PaymentProviderEnum"];
@@ -3443,9 +3585,52 @@ export interface components {
             address_id?: number | null;
             cashback_to_use?: number | null;
             city_code?: string | null;
+            /**
+             * @description Preferred Yandex method (implies `delivery_provider=yandex`).
+             *
+             *     * `standard` - standard
+             *     * `express` - express
+             */
+            delivery_method?: (components["schemas"]["DeliveryMethodEnum"] | components["schemas"]["NullEnum"]) | null;
+            /**
+             * @description Preferred carrier; the answer falls back to the default option when it is unavailable.
+             *
+             *     * `bts` - bts
+             *     * `yandex` - yandex
+             */
+            delivery_provider?: (components["schemas"]["DeliveryProviderEnum"] | components["schemas"]["NullEnum"]) | null;
             fulfilment: components["schemas"]["FulfilmentMethodEnum"];
             region_code?: string | null;
+            /** @description List every delivery option (Yandex Standard / Express, BTS) with its fee, ETA and quote. */
+            with_options?: boolean | null;
         };
+        CustomerDeliveryOption: {
+            available: boolean;
+            /** Format: date-time */
+            eta_from: string | null;
+            /** Format: date-time */
+            eta_to: string | null;
+            expected_total: number | null;
+            /** Format: date-time */
+            expires_at: string | null;
+            /** @description so'm; null when unavailable (never invented). */
+            fee: number | null;
+            label: string;
+            method: (components["schemas"]["DeliveryMethodEnum"] | components["schemas"]["NullEnum"]) | null;
+            provider: components["schemas"]["DeliveryProviderEnum"];
+            /**
+             * Format: uuid
+             * @description Pass to checkout as `delivery_quote_id`.
+             */
+            quote_id: string | null;
+            /** @description The window starts at a later warehouse opening. */
+            scheduled: boolean;
+            unavailable_reason: (components["schemas"]["DeliveryUnavailableReasonEnum"] | components["schemas"]["NullEnum"]) | null;
+        };
+        /**
+         * @description ``DeliveryQuote``: the released keys, plus — only when the request sent ``with_options``,
+         *     ``delivery_provider`` or ``delivery_method`` — the selected option and every option.
+         */
         CustomerDeliveryQuote: {
             cashback_max: number;
             cashback_to_use: number;
@@ -3454,7 +3639,14 @@ export interface components {
             expected_total: number;
             fulfilment: components["schemas"]["FulfilmentMethodEnum"];
             items_subtotal: number;
+            method?: (components["schemas"]["DeliveryMethodEnum"] | components["schemas"]["NullEnum"]) | null;
+            options?: components["schemas"]["CustomerDeliveryOption"][];
             pickup_address: string | null;
+            provider?: (components["schemas"]["DeliveryProviderEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** Format: date-time */
+            quote_expires_at?: string | null;
+            /** Format: uuid */
+            quote_id?: string | null;
             /** Format: date-time */
             quoted_at: string;
             region_code: string | null;
@@ -3609,6 +3801,21 @@ export interface components {
             earned_state: components["schemas"]["CashbackEarnedStateEnum"];
             used: number;
         };
+        /** @description The carrier view of a delivery order (plan §3.4); a BTS order has only ``provider``. */
+        CustomerOrderDelivery: {
+            courier_name: string | null;
+            courier_vehicle: string | null;
+            /** Format: date-time */
+            eta_from: string | null;
+            /** Format: date-time */
+            eta_to: string | null;
+            method: (components["schemas"]["DeliveryMethodEnum"] | components["schemas"]["NullEnum"]) | null;
+            method_label: string | null;
+            provider: components["schemas"]["DeliveryProviderEnum"];
+            stage: (components["schemas"]["ShipmentStageEnum"] | components["schemas"]["NullEnum"]) | null;
+            stage_label: string | null;
+            tracking_url: string | null;
+        };
         CustomerOrderDetail: {
             actions: components["schemas"]["CustomerOrderActions"];
             address: string | null;
@@ -3619,6 +3826,8 @@ export interface components {
             /** Format: date-time */
             created_at: string;
             customer_note: string | null;
+            /** @description null for pickup. */
+            delivery: components["schemas"]["CustomerOrderDelivery"] | null;
             delivery_fee: number;
             fulfilment: components["schemas"]["FulfilmentMethodEnum"];
             fulfilment_label: string;
@@ -3646,6 +3855,8 @@ export interface components {
         CustomerOrderSummary: {
             /** Format: date-time */
             created_at: string;
+            /** @description null for pickup. */
+            delivery: components["schemas"]["CustomerOrderDelivery"] | null;
             fulfilment: components["schemas"]["FulfilmentMethodEnum"];
             id: number;
             item_count: number;
@@ -3800,6 +4011,7 @@ export interface components {
             buckets: components["schemas"]["DashboardBucket"][];
             /** Format: date */
             from: string;
+            fulfilment: components["schemas"]["DashboardFulfilment"];
             /** Format: date-time */
             generated_at: string;
             previous_period_orders: number;
@@ -3819,6 +4031,8 @@ export interface components {
             next_appointment_at: string | null;
             pending_appointments: number;
             refunds_needing_action: number;
+            /** @description Yandex Delivery is live and its last status poll or price check failed (always false in fake mode). */
+            yandex_failing: boolean;
         };
         DashboardBucket: {
             orders: number;
@@ -3832,6 +4046,23 @@ export interface components {
          * @enum {string}
          */
         DashboardBucketEnum: "hour" | "day";
+        /** @description Order-state counters as the orders stand now (not windowed by ``range``). */
+        DashboardFulfilment: {
+            /** @description Delivered today (Asia/Tashkent), pickup included. */
+            completed_today: number;
+            /** @description Handed to the courier and not coming back. */
+            in_delivery: number;
+            /** @description Open delivery issues. */
+            needs_action: number;
+            /** @description Processing orders still to be prepared: Yandex `awaiting_dispatch` (or `failed` / `returned` waiting for a new dispatch), BTS not handed over, pickup. */
+            paid_to_prepare: number;
+            /** @description Yandex `returning` / `returned` while the order is open. */
+            returning: number;
+            /** @description Processing Yandex orders whose courier is requested, assigned or arrived. */
+            to_hand_to_courier: number;
+            /** @description Open urgent delivery issues. */
+            urgent: number;
+        };
         /**
          * @description * `today` - today
          *     * `week` - week
@@ -3861,6 +4092,83 @@ export interface components {
             date: string;
             specialists: components["schemas"]["SpecialistDay"][];
         };
+        /**
+         * @description One row of the exception queue: ``details`` holds ids and amounts only; ``resolved_by`` is ``null``
+         *     while open or when the system closed it.
+         */
+        DeliveryIssue: {
+            code: string;
+            details: unknown;
+            id: number;
+            kind: components["schemas"]["DeliveryIssueKindEnum"];
+            note: string;
+            /** Format: date-time */
+            opened_at: string;
+            order_id: number;
+            /** Format: date-time */
+            reminded_at: string | null;
+            reminders: number;
+            resolution_note: string;
+            /** Format: date-time */
+            resolved_at: string | null;
+            resolved_by: components["schemas"]["Actor"] | null;
+            state: components["schemas"]["DeliveryIssueStateEnum"];
+            /** Format: date-time */
+            updated_at: string;
+            urgent: boolean;
+        };
+        /**
+         * @description * `dispatch_failed` - dispatch_failed
+         *     * `dispatch_unknown` - dispatch_unknown
+         *     * `dispatch_review` - dispatch_review
+         *     * `delivery_failed` - delivery_failed
+         *     * `return_pending` - return_pending
+         *     * `preparation_overdue` - preparation_overdue
+         *     * `cancel_incomplete` - cancel_incomplete
+         *     * `parcel_unaccounted` - parcel_unaccounted
+         *     * `incident` - incident
+         * @enum {string}
+         */
+        DeliveryIssueKindEnum: "dispatch_failed" | "dispatch_unknown" | "dispatch_review" | "delivery_failed" | "return_pending" | "preparation_overdue" | "cancel_incomplete" | "parcel_unaccounted" | "incident";
+        /** @description One open issue on the order card (the queue has the full row: ``GET delivery/issues/``). */
+        DeliveryIssueRef: {
+            code: string;
+            id: number;
+            kind: components["schemas"]["DeliveryIssueKindEnum"];
+            /** Format: date-time */
+            opened_at: string;
+            urgent: boolean;
+        };
+        /**
+         * @description * `open` - open
+         *     * `resolved` - resolved
+         * @enum {string}
+         */
+        DeliveryIssueStateEnum: "open" | "resolved";
+        /**
+         * @description * `standard` - standard
+         *     * `express` - express
+         * @enum {string}
+         */
+        DeliveryMethodEnum: "standard" | "express";
+        /**
+         * @description * `bts` - bts
+         *     * `yandex` - yandex
+         * @enum {string}
+         */
+        DeliveryProviderEnum: "bts" | "yandex";
+        /**
+         * @description * `coordinates_required` - coordinates_required
+         *     * `provider_unavailable` - provider_unavailable
+         *     * `out_of_zone` - out_of_zone
+         *     * `method_disabled` - method_disabled
+         *     * `too_heavy` - too_heavy
+         *     * `warehouse_closed` - warehouse_closed
+         *     * `dispatch_suspended` - dispatch_suspended
+         *     * `not_configured` - not_configured
+         * @enum {string}
+         */
+        DeliveryUnavailableReasonEnum: "coordinates_required" | "provider_unavailable" | "out_of_zone" | "method_disabled" | "too_heavy" | "warehouse_closed" | "dispatch_suspended" | "not_configured";
         DeviceRequest: {
             fcm_token?: string | null;
             /** @default  */
@@ -3881,6 +4189,22 @@ export interface components {
             platform: components["schemas"]["OrderChannelEnum"];
             push_enabled: boolean;
         };
+        /** @description ``POST orders/{id}/dispatch/`` (Yandex Delivery plan §3.6): staff checked the parcel and weighed it. */
+        DispatchRequest: {
+            /** @description So'm (VAT-inclusive): the courier price staff approved; only while a `dispatch_review` issue is open. */
+            approved_price?: number | null;
+            /** @description Must be `true`: staff checked the contents. */
+            contents_verified: boolean;
+            /**
+             * @description Switch the delivery method (the fee the customer paid never changes).
+             *
+             *     * `standard` - standard
+             *     * `express` - express
+             */
+            method?: (components["schemas"]["DeliveryMethodEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Grams. */
+            weight_g: number;
+        };
         ErrorEnvelope: {
             code: string;
             errors: components["schemas"]["ErrorItem"][];
@@ -3896,9 +4220,10 @@ export interface components {
          * @description * `system` - system
          *     * `bts` - bts
          *     * `admin` - admin
+         *     * `yandex` - yandex
          * @enum {string}
          */
-        EventSourceEnum: "system" | "bts" | "admin";
+        EventSourceEnum: "system" | "bts" | "admin" | "yandex";
         FreeSlots: {
             /** Format: date */
             date: string;
@@ -4312,6 +4637,8 @@ export interface components {
         };
         NavCounts: {
             appointments_pending: number;
+            /** @description Open delivery issues (the exception queue). */
+            delivery_issues_open: number;
             orders_processing: number;
         };
         NextStep: {
@@ -4515,6 +4842,17 @@ export interface components {
             /** @description The newest order of any status. */
             last_order_id: number | null;
         };
+        /**
+         * @description ``POST orders/{id}/issues/``: staff open an ``incident`` (a wrong or missing product…); every other
+         *     kind is opened by the system only.
+         */
+        OpenIssueRequest: {
+            /** @description `incident` (the only kind staff may open) */
+            kind: string;
+            note: string;
+            /** @default false */
+            urgent: boolean;
+        };
         OrderCashback: {
             amount: number;
             /** Format: date-time */
@@ -4540,6 +4878,39 @@ export interface components {
          * @enum {string}
          */
         OrderChannelEnum: "ios" | "android" | "web";
+        /**
+         * @description The order's carrier view (``null`` for pickup). BTS: ``provider`` and ``open_issues`` only, every
+         *     Yandex key ``null``. Amounts in so'm; ``claim_status`` is Yandex's status verbatim; no courier phone.
+         */
+        OrderDelivery: {
+            approved_price: number | null;
+            /** @description Yandex's final prices of every claim of the shipment, summed. */
+            carrier_cost_total: number | null;
+            /** @description Yandex's estimate the checkout quote was computed from. */
+            carrier_price: number | null;
+            claim_number: number | null;
+            claim_status: string | null;
+            cost_difference: number | null;
+            courier_name: string | null;
+            courier_vehicle: string | null;
+            failure_code: string | null;
+            method: (components["schemas"]["DeliveryMethodEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description The binding offer of the current courier claim (VAT included). */
+            offer_price: number | null;
+            open_issues: components["schemas"]["DeliveryIssueRef"][];
+            parcel_weight_g: number | null;
+            /** Format: date-time */
+            prepared_at: string | null;
+            /** Format: date-time */
+            promised_from: string | null;
+            /** Format: date-time */
+            promised_to: string | null;
+            provider: components["schemas"]["DeliveryProviderEnum"];
+            /** @description The fee the checkout quote charged. */
+            quote_fee: number | null;
+            stage: (components["schemas"]["ShipmentStageEnum"] | components["schemas"]["NullEnum"]) | null;
+            tracking_url: string | null;
+        };
         /** @description Contract ``Order`` = ``OrderSummary`` + the detail keys (rendered from ``selectors.order_detail``). */
         OrderDetail: {
             readonly address: string | null;
@@ -4552,6 +4923,7 @@ export interface components {
             /** Format: date-time */
             created_at: string;
             customer: components["schemas"]["CustomerRef"];
+            readonly delivery: components["schemas"]["OrderDelivery"] | null;
             delivery_fee: number;
             fulfilment: components["schemas"]["FulfilmentMethodEnum"];
             history: components["schemas"]["OrderEvent"][];
@@ -4593,9 +4965,11 @@ export interface components {
          *     * `refund_requested` - refund_requested
          *     * `refund_succeeded` - refund_succeeded
          *     * `refund_failed` - refund_failed
+         *     * `delivery_failed` - delivery_failed
+         *     * `shipment_returned` - shipment_returned
          * @enum {string}
          */
-        OrderEventTypeEnum: "order_created" | "reservation_created" | "payment_confirmed" | "billz_sale_recorded" | "cashback_credited" | "payment_failed" | "shipment_created" | "shipment_failed" | "status_changed" | "handed_to_courier" | "delivered" | "cancelled" | "reservation_expired" | "refund_requested" | "refund_succeeded" | "refund_failed";
+        OrderEventTypeEnum: "order_created" | "reservation_created" | "payment_confirmed" | "billz_sale_recorded" | "cashback_credited" | "payment_failed" | "shipment_created" | "shipment_failed" | "status_changed" | "handed_to_courier" | "delivered" | "cancelled" | "reservation_expired" | "refund_requested" | "refund_succeeded" | "refund_failed" | "delivery_failed" | "shipment_returned";
         OrderItem: {
             billz_id: string;
             /** @description 1000 px WebP variant. */
@@ -4632,6 +5006,7 @@ export interface components {
             /** Format: date-time */
             created_at: string;
             customer: components["schemas"]["CustomerRef"];
+            readonly delivery: components["schemas"]["OrderDelivery"] | null;
             fulfilment: components["schemas"]["FulfilmentMethodEnum"];
             id: number;
             readonly payment: components["schemas"]["PaymentSummary"];
@@ -4730,6 +5105,13 @@ export interface components {
             page_count: number;
             page_size: number;
             results: components["schemas"]["CustomerSession"][];
+        };
+        PaginatedDeliveryIssueList: {
+            count: number;
+            page: number;
+            page_count: number;
+            page_size: number;
+            results: components["schemas"]["DeliveryIssue"][];
         };
         PaginatedHoursOverrideList: {
             count: number;
@@ -5338,6 +5720,7 @@ export interface components {
             fcm: components["schemas"]["IntegrationModeEnum"];
             oauth: components["schemas"]["IntegrationModeEnum"];
             payme: components["schemas"]["IntegrationModeEnum"];
+            yandex: components["schemas"]["IntegrationModeEnum"];
         };
         ProviderReadiness: {
             /** @description The live adapter can be built and its `is_configured()` (where the port has one) says yes; `false` makes readiness answer 503. */
@@ -5350,9 +5733,15 @@ export interface components {
              */
             last_sync_at: string | null;
         };
+        PublicDelivery: {
+            default_provider: (components["schemas"]["DeliveryProviderEnum"] | components["schemas"]["NullEnum"]) | null;
+            /** @description Home-delivery carriers that can take an order now, in preference order. */
+            providers: components["schemas"]["DeliveryProviderEnum"][];
+        };
         PublicSettings: {
             booking_policy: string;
             cosmetologist_phone: string | null;
+            delivery: components["schemas"]["PublicDelivery"];
             fulfilment_methods: components["schemas"]["FulfilmentMethodEnum"][];
             /** Format: uri */
             instagram_url: string | null;
@@ -5497,6 +5886,9 @@ export interface components {
             phone_mask: string;
             /** Format: date-time */
             resolved_at: string;
+        };
+        ResolveIssueRequest: {
+            note: string;
         };
         ResolveQrRequest: {
             sale_ref?: string | null;
@@ -5744,6 +6136,21 @@ export interface components {
             state: "not_required";
         };
         /**
+         * @description * `awaiting_dispatch` - awaiting_dispatch
+         *     * `courier_requested` - courier_requested
+         *     * `courier_assigned` - courier_assigned
+         *     * `courier_arrived` - courier_arrived
+         *     * `in_transit` - in_transit
+         *     * `at_destination` - at_destination
+         *     * `delivered` - delivered
+         *     * `returning` - returning
+         *     * `returned` - returned
+         *     * `cancelled` - cancelled
+         *     * `failed` - failed
+         * @enum {string}
+         */
+        ShipmentStageEnum: "awaiting_dispatch" | "courier_requested" | "courier_assigned" | "courier_arrived" | "in_transit" | "at_destination" | "delivered" | "returning" | "returned" | "cancelled" | "failed";
+        /**
          * @description * `webhook` - webhook
          *     * `polling` - polling
          * @enum {string}
@@ -5951,6 +6358,23 @@ export interface components {
          * @enum {string}
          */
         StockStatusEnum: "in_stock" | "out_of_stock";
+        /** @description The courier-dispatch switch: ``suspended`` is in effect now (``until`` passed → ``false``). */
+        Suspension: {
+            note: string;
+            suspended: boolean;
+            /** Format: date-time */
+            until: string | null;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        /** @description ``POST delivery/suspension/``: ``until`` (future, optional: until lifted) only while suspending. */
+        SuspensionBodyRequest: {
+            /** @default  */
+            note: string;
+            suspended: boolean;
+            /** Format: date-time */
+            until?: string | null;
+        };
         /**
          * @description * `processing` - processing
          *     * `handed_to_courier` - handed_to_courier
@@ -6012,9 +6436,11 @@ export interface components {
          *     * `cancelled` - cancelled
          *     * `refund_in_progress` - refund_in_progress
          *     * `refund_succeeded` - refund_succeeded
+         *     * `delivery_failed` - delivery_failed
+         *     * `shipment_returned` - shipment_returned
          * @enum {string}
          */
-        TimelineTypeEnum: "order_created" | "payment_confirmed" | "payment_failed" | "shipment_created" | "handed_to_courier" | "delivered" | "cancelled" | "refund_in_progress" | "refund_succeeded";
+        TimelineTypeEnum: "order_created" | "payment_confirmed" | "payment_failed" | "shipment_created" | "handed_to_courier" | "delivered" | "cancelled" | "refund_in_progress" | "refund_succeeded" | "delivery_failed" | "shipment_returned";
         TransitionRequest: {
             status: components["schemas"]["OrderStatusEnum"];
         };
@@ -8804,6 +9230,344 @@ export interface operations {
             };
         };
     };
+    admin_delivery_issues_list: {
+        parameters: {
+            query?: {
+                /**
+                 * @description * `dispatch_failed` - dispatch_failed
+                 *     * `dispatch_unknown` - dispatch_unknown
+                 *     * `dispatch_review` - dispatch_review
+                 *     * `delivery_failed` - delivery_failed
+                 *     * `return_pending` - return_pending
+                 *     * `preparation_overdue` - preparation_overdue
+                 *     * `cancel_incomplete` - cancel_incomplete
+                 *     * `parcel_unaccounted` - parcel_unaccounted
+                 *     * `incident` - incident
+                 */
+                kind?: "dispatch_failed" | "dispatch_unknown" | "dispatch_review" | "delivery_failed" | "return_pending" | "preparation_overdue" | "cancel_incomplete" | "parcel_unaccounted" | "incident";
+                order?: number;
+                page?: number;
+                page_size?: 20 | 50;
+                /**
+                 * @description * `open` - open
+                 *     * `resolved` - resolved
+                 */
+                state?: "open" | "resolved";
+                urgent?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedDeliveryIssueList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_delivery_issues_resolve: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveIssueRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryIssue"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_delivery_suspension_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Suspension"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_delivery_suspension_update: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuspensionBodyRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Suspension"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     admin_billz_import_create: {
         parameters: {
             query?: never;
@@ -10577,6 +11341,13 @@ export interface operations {
     admin_orders_list: {
         parameters: {
             query?: {
+                /**
+                 * @description `open`: the order has an open delivery issue; `urgent`: an open urgent one.
+                 *
+                 *     * `open` - open
+                 *     * `urgent` - urgent
+                 */
+                attention?: "open" | "urgent";
                 customer?: number;
                 date_from?: string;
                 date_to?: string;
@@ -10608,7 +11379,30 @@ export interface operations {
                  *     * `all` - all
                  */
                 period?: "today" | "week" | "month" | "all";
+                /**
+                 * @description The shipment's carrier.
+                 *
+                 *     * `bts` - bts
+                 *     * `yandex` - yandex
+                 */
+                provider?: "bts" | "yandex";
                 search?: string;
+                /**
+                 * @description A Yandex shipment's stage.
+                 *
+                 *     * `awaiting_dispatch` - awaiting_dispatch
+                 *     * `courier_requested` - courier_requested
+                 *     * `courier_assigned` - courier_assigned
+                 *     * `courier_arrived` - courier_arrived
+                 *     * `in_transit` - in_transit
+                 *     * `at_destination` - at_destination
+                 *     * `delivered` - delivered
+                 *     * `returning` - returning
+                 *     * `returned` - returned
+                 *     * `cancelled` - cancelled
+                 *     * `failed` - failed
+                 */
+                stage?: "awaiting_dispatch" | "courier_requested" | "courier_assigned" | "courier_arrived" | "in_transit" | "at_destination" | "delivered" | "returning" | "returned" | "cancelled" | "failed";
                 /**
                  * @description * `awaiting_payment` - awaiting_payment
                  *     * `processing` - processing
@@ -10859,6 +11653,266 @@ export interface operations {
             };
         };
     };
+    admin_orders_confirm_return: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ConfirmReturnRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderDetail"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_orders_dispatch: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DispatchRequest"];
+            };
+        };
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderDetail"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_orders_issues_create: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpenIssueRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryIssue"];
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryIssue"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     admin_orders_retry_shipment: {
         parameters: {
             query?: never;
@@ -11026,6 +12080,13 @@ export interface operations {
     admin_orders_status_counts: {
         parameters: {
             query?: {
+                /**
+                 * @description `open`: the order has an open delivery issue; `urgent`: an open urgent one.
+                 *
+                 *     * `open` - open
+                 *     * `urgent` - urgent
+                 */
+                attention?: "open" | "urgent";
                 customer?: number;
                 date_from?: string;
                 date_to?: string;
@@ -11048,7 +12109,30 @@ export interface operations {
                  *     * `all` - all
                  */
                 period?: "today" | "week" | "month" | "all";
+                /**
+                 * @description The shipment's carrier.
+                 *
+                 *     * `bts` - bts
+                 *     * `yandex` - yandex
+                 */
+                provider?: "bts" | "yandex";
                 search?: string;
+                /**
+                 * @description A Yandex shipment's stage.
+                 *
+                 *     * `awaiting_dispatch` - awaiting_dispatch
+                 *     * `courier_requested` - courier_requested
+                 *     * `courier_assigned` - courier_assigned
+                 *     * `courier_arrived` - courier_arrived
+                 *     * `in_transit` - in_transit
+                 *     * `at_destination` - at_destination
+                 *     * `delivered` - delivered
+                 *     * `returning` - returning
+                 *     * `returned` - returned
+                 *     * `cancelled` - cancelled
+                 *     * `failed` - failed
+                 */
+                stage?: "awaiting_dispatch" | "courier_requested" | "courier_assigned" | "courier_arrived" | "in_transit" | "at_destination" | "delivered" | "returning" | "returned" | "cancelled" | "failed";
             };
             header?: never;
             path?: never;
@@ -21366,6 +22450,51 @@ export interface operations {
         };
         responses: {
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    webhook_yandex_delivery_status: {
+        parameters: {
+            query: {
+                claim_id?: string;
+                ref: string;
+                updated_ts?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -3,7 +3,13 @@ import type { Route } from "next";
 
 import { Icon } from "@/components/ui/icon";
 import { ScrollRegion } from "@/components/ui/scroll-region";
-import type { OrderSummary } from "@/domain/order";
+import {
+  carrierLabel,
+  SHIPMENT_STAGE_LABEL,
+  urgentIssues,
+  type OrderSummary,
+} from "@/domain/order";
+import { cn } from "@/lib/cn";
 import { formatDateTimeShort, formatNumber, formatPhone } from "@/lib/format";
 
 import {
@@ -47,6 +53,46 @@ function ShipmentCell({ order }: { order: OrderSummary }) {
   }
 }
 
+/** Open delivery issues of the row: a red mark for an urgent one, amber otherwise. */
+function IssueMark({ order }: { order: OrderSummary }) {
+  const open = order.delivery?.openIssues.length ?? 0;
+  if (open === 0) return null;
+  const urgent = urgentIssues(order.delivery).length > 0;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 text-[12px] leading-4 font-bold",
+        urgent ? "text-danger" : "text-warning",
+      )}
+    >
+      <Icon name={urgent ? "alert-triangle" : "alert-circle"} size={14} />
+      {urgent ? "Shoshilinch" : `${open} ta muammo`}
+      {urgent && <span className="sr-only"> muammo</span>}
+    </span>
+  );
+}
+
+/**
+ * The carrier and where the parcel is: "Yandex Express · Kuryer qidirilmoqda",
+ * "BTS" with the BTS state (tracking number, failed hand-off), or "Kerak emas"
+ * for pickup. Yandex rows never show the claim id or "Yuborilmadi".
+ */
+function DeliveryCell({ order }: { order: OrderSummary }) {
+  if (order.fulfilment === "pickup") return <ShipmentCell order={order} />;
+  const delivery = order.delivery;
+  return (
+    <span className="flex flex-col items-start gap-0.5">
+      <span className="text-[12px] leading-4 font-bold text-ink-muted">{carrierLabel(order)}</span>
+      {delivery?.provider === "yandex" ? (
+        <span>{delivery.stage ? SHIPMENT_STAGE_LABEL[delivery.stage] : "—"}</span>
+      ) : (
+        <ShipmentCell order={order} />
+      )}
+      <IssueMark order={order} />
+    </span>
+  );
+}
+
 interface OrdersTableProps {
   orders: OrderSummary[];
   sortHref: Route;
@@ -59,7 +105,7 @@ export function OrdersTable({ orders, sortHref, sortedAscending }: OrdersTablePr
       label="Buyurtmalar jadvali"
       className="transition-opacity duration-150 group-data-[pending]:opacity-60"
     >
-      <table className="data-table min-w-[1040px]">
+      <table className="data-table min-w-[1080px]">
         <thead>
           <tr>
             <th scope="col">№</th>
@@ -84,7 +130,7 @@ export function OrdersTable({ orders, sortHref, sortedAscending }: OrdersTablePr
             <th scope="col">TO‘LOV</th>
             <th scope="col">OLISH USULI</th>
             <th scope="col">HOLAT</th>
-            <th scope="col">BTS</th>
+            <th scope="col">YETKAZISH</th>
             <th scope="col">
               <span className="sr-only">Amallar</span>
             </th>
@@ -126,7 +172,7 @@ export function OrdersTable({ orders, sortHref, sortedAscending }: OrdersTablePr
                 )}
               </td>
               <td>
-                <ShipmentCell order={order} />
+                <DeliveryCell order={order} />
               </td>
               <td>
                 <Link

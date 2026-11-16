@@ -354,6 +354,15 @@ describe("mapSpecialist / mapService / mapSettings", () => {
     expect(mapped.cosmetologistPhone).toBeNull();
     expect(mapped.storeUrls).toEqual({ ios: "https://apps.apple.com/x", android: null });
     expect(mapped.fulfilmentMethods).toEqual(["delivery", "pickup"]);
+    // An older answer has no `delivery` block: no Yandex.
+    expect(mapped.deliveryProviders).toEqual([]);
+    const withYandex = mapSettings({
+      ...settings,
+      fulfilment_methods: ["pickup"],
+      delivery: { providers: ["yandex", "dhl" as never, "yandex"], default_provider: "yandex" },
+    });
+    expect(withYandex.deliveryProviders).toEqual(["yandex"]);
+    expect(withYandex.fulfilmentMethods).toEqual(["pickup"]);
   });
 });
 

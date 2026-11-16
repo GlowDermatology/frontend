@@ -25,6 +25,7 @@ import {
 } from "../../account/account-shell";
 import { EmptyState } from "../../components/empty-state";
 import { ordersCopy } from "../../copy/orders";
+import { DeliveryStatus } from "../../orders/delivery-status";
 import { OrderActions } from "../../orders/order-actions";
 import { deriveProgress, paymentLabel } from "../../orders/progress";
 import { PaymentReturn, PaymentSandbox } from "../../orders/payment-return";
@@ -165,6 +166,16 @@ async function OrdersBody({
                       {copy.orders.payBy(formatShortDateTime(order.payBy, locale))}
                     </span>
                   ) : null}
+                  {(order.status === "processing" || order.status === "handed_to_courier") &&
+                  order.delivery?.provider === "yandex" &&
+                  order.delivery.stageLabel ? (
+                    <span className="inline-flex items-center gap-1.5 text-body-sm text-ink">
+                      <Icon name="truck" size={16} className="text-gold-ink" />
+                      {order.delivery.methodLabel
+                        ? `${order.delivery.methodLabel} · ${order.delivery.stageLabel}`
+                        : order.delivery.stageLabel}
+                    </span>
+                  ) : null}
                 </div>
                 <div className="flex items-center justify-between gap-4 sm:flex-col sm:items-end">
                   <span className="text-price text-ink tabular-nums">
@@ -279,6 +290,12 @@ function Progress({ steps, label }: { steps: ReadonlyArray<ShopProgressStep>; la
   );
 }
 
+/** Timeline entries that tell of a delivery that went wrong (Yandex). */
+const TIMELINE_ALERTS: Record<string, string> = {
+  delivery_failed: "bg-danger",
+  shipment_returned: "bg-warning",
+};
+
 function Timeline({ order, locale, title }: { order: ShopOrder; locale: Locale; title: string }) {
   if (order.timeline.length === 0) return null;
   return (
@@ -299,7 +316,7 @@ function Timeline({ order, locale, title }: { order: ShopOrder; locale: Locale; 
               aria-hidden="true"
               className={cn(
                 "relative mt-1.5 size-[11px] shrink-0 rounded-full",
-                index === 0 ? "bg-gold" : "bg-line-strong",
+                TIMELINE_ALERTS[entry.type] ?? (index === 0 ? "bg-gold" : "bg-line-strong"),
               )}
             />
             <div className="flex min-w-0 flex-col gap-0.5">
@@ -493,9 +510,22 @@ async function OrderBody({
             {order.pickupAddress ? (
               <p className="m-0 text-body-sm text-ink-muted">{order.pickupAddress}</p>
             ) : null}
-            {order.shipment ? (
+            {order.delivery?.provider === "yandex" ? (
+              <DeliveryStatus
+                locale={locale}
+                order={order}
+                delivery={{
+                  ...order.delivery,
+                  trackingUrl: order.delivery.trackingUrl ?? order.shipment?.trackingUrl ?? null,
+                }}
+                carrier={order.shipment?.carrier || "Yandex"}
+              />
+            ) : order.shipment && (order.shipment.trackingNumber || order.shipment.trackingUrl) ? (
               <p className="m-0 text-body-sm">
-                {order.shipment.carrier} · {t.tracking(order.shipment.trackingNumber)}
+                {order.shipment.carrier}
+                {order.shipment.trackingNumber
+                  ? ` · ${t.tracking(order.shipment.trackingNumber)}`
+                  : ""}
                 {order.shipment.trackingUrl ? (
                   <>
                     {" "}

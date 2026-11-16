@@ -10,14 +10,13 @@ import { AlertDialog, AlertDialogCancel } from "@/components/ui/dialog";
 import { Field, TextArea } from "@/components/ui/field";
 import { Icon } from "@/components/ui/icon";
 import { cancelOrder } from "@/data/orders.actions";
-import type { ActionFailure } from "@/data/types";
-import type { Order } from "@/domain/order";
+import { isYandexDelivery, type Order, type ShipmentStage } from "@/domain/order";
 import { formatSom } from "@/lib/format";
 
 import { runAction } from "../shared/action-client";
 import { useIdempotencyKey } from "../shared/idempotency";
 import { PROVIDER_LABEL } from "../shared/status";
-import { isStaleRefusal } from "./refusals";
+import { cancelOutcome, type CancelOutcome } from "./carrier-refusals";
 
 const schema = z.object({
   reason: z
@@ -28,6 +27,39 @@ const schema = z.object({
 });
 
 type FormValues = z.infer<typeof schema>;
+
+/** Yandex's fee rule, stated (never computed): plan §3.8, fees undocumented by Yandex. */
+export const YANDEX_CANCEL_FEE_NOTE =
+  "Kuryer biriktirilgan bo‘lsa, Yandex bekor qilish uchun haq olishi mumkin: summani Yandex belgilaydi, u yetkazish xarajatiga yoziladi.";
+
+const CLAIM_BEFORE_PICKUP: ReadonlyArray<ShipmentStage> = [
+  "courier_requested",
+  "courier_assigned",
+  "courier_arrived",
+];
+const WITH_COURIER: ReadonlyArray<ShipmentStage> = ["in_transit", "at_destination"];
+
+/**
+ * The carrier lines of a Yandex order's cancel (plan §3.8 matrix), by stage:
+ * an open claim before pickup is cancelled at Yandex (a fee is possible once
+ * a courier is assigned); a parcel with the courier is asked back first and
+ * the order stays open until Yandex confirms; a returning or returned parcel
+ * needs no call.
+ */
+function yandexCancelLines(stage: ShipmentStage | null): string[] {
+  if (stage !== null && CLAIM_BEFORE_PICKUP.includes(stage)) {
+    return ["Yandex kuryer buyurtmasi bekor qilish uchun yuboriladi.", YANDEX_CANCEL_FEE_NOTE];
+  }
+  if (stage !== null && WITH_COURIER.includes(stage)) {
+    return [
+      "Posilka kuryerda: avval Yandexdan uni omborga qaytarish so‘raladi. Yandex qaytarishni tasdiqlaguncha buyurtma ochiq qoladi, so‘ng bekor qilishni qayta bosing.",
+      "Qaytarish va bekor qilish uchun Yandex haq olishi mumkin: summani Yandex belgilaydi.",
+    ];
+  }
+  if (stage === "returning") return ["Posilka omborga qaytmoqda: Yandexga so‘rov yuborilmaydi."];
+  if (stage === "returned") return ["Posilka omborga qaytgan: Yandexga so‘rov yuborilmaydi."];
+  return [];
+}
 
 /** What cancelling this order will do, computed from its money and shipment state. */
 export function cancellationEffects(order: Order): string[] {
@@ -49,7 +81,10 @@ export function cancellationEffects(order: Order): string[] {
       );
     }
   }
-  if (order.shipment.state === "created") {
+  if (isYandexDelivery(order)) {
+    // A Yandex order's tracking number is the courier claim's id: not a number to show here.
+    effects.push(...yandexCancelLines(order.delivery?.stage ?? null));
+  } else if (order.shipment.state === "created") {
     effects.push(`BTS buyurtmasi ${order.shipment.trackingNumber} bekor qilish uchun yuboriladi.`);
   }
   return effects;
@@ -61,11 +96,13 @@ interface CancelOrderDialogProps {
   onOpenChange: (open: boolean) => void;
   onCancelled: (order: Order) => void;
   /**
-   * A refusal from the server (409 `not_cancellable` incl. the BTS text, the
-   * busy-order `conflict`, 503 `provider_unavailable`, …): the view shows the
-   * backend's message as a toast and closes the dialog when the order changed.
+   * A refusal from the server (`cancelOutcome`): 409 `not_cancellable` incl.
+   * the BTS text and the Yandex cases, 409 `return_requested` (Yandex asked
+   * to bring the parcel back; the order stays open), the busy-order or
+   * carrier `conflict`, 503 `provider_unavailable`, …: the view toasts it and
+   * closes the dialog and re-reads the order unless it is a `retry`.
    */
-  onRefused: (result: ActionFailure) => void;
+  onRefused: (outcome: CancelOutcome) => void;
   onCloseAutoFocus?: (event: Event) => void;
 }
 
@@ -98,16 +135,18 @@ export function CancelOrderDialog({
     if (!result.ok) {
       if (result.fieldErrors?.reason) {
         setError("reason", { message: result.fieldErrors.reason }, { shouldFocus: true });
-      } else if (isStaleRefusal(result)) {
-        // The order cannot be cancelled any more: the view closes the dialog.
+        return;
+      }
+      const outcome = cancelOutcome(result, isYandexDelivery(order));
+      if (outcome.kind === "retry") {
+        // Transient: kept next to the button too, for a retry with the same key.
+        setFormError(outcome.message);
+      } else {
+        // Cancelled no more, or a return was asked first: the view closes the dialog.
         reset();
         setFormError(null);
-        onRefused(result);
-      } else {
-        // Transient: kept next to the button too, for a retry with the same key.
-        setFormError(result.error);
-        onRefused(result);
       }
+      onRefused(outcome);
       return;
     }
     reset();

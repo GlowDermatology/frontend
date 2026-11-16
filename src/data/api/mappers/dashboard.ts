@@ -1,4 +1,9 @@
-import type { DashboardData, DashboardQuery, SeriesPoint } from "@/domain/dashboard";
+import type {
+  DashboardData,
+  DashboardQuery,
+  FulfilmentCounters,
+  SeriesPoint,
+} from "@/domain/dashboard";
 import {
   formatDayMonthShort,
   formatTime,
@@ -8,7 +13,7 @@ import {
 } from "@/lib/format";
 
 import type { QueryValue } from "../client";
-import type { ApiDashboard, ApiDashboardBucket } from "../types";
+import type { ApiDashboard, ApiDashboardBucket, ApiDashboardFulfilment } from "../types";
 
 /**
  * Dashboard: the screen's query → `dashboard/?range=&from=&to=` and the
@@ -102,6 +107,25 @@ export function mapDashboard(api: ApiDashboard): DashboardData {
       refundsNeedingAction: api.attention.refunds_needing_action,
       btsPollingFailing: api.attention.bts_polling_failing,
       cashbackPolicyMissing: api.attention.cashback_policy_missing ?? false,
+      // Absent from a backend before Yandex Delivery.
+      yandexFailing: api.attention.yandex_failing ?? false,
     },
+    fulfilment: mapFulfilment(api.fulfilment),
+  };
+}
+
+/** `dashboard.fulfilment` (plan §3.10) → the tiles' counters; `null` when the API has none. */
+export function mapFulfilment(
+  api: ApiDashboardFulfilment | null | undefined,
+): FulfilmentCounters | null {
+  if (!api) return null;
+  return {
+    paidToPrepare: api.paid_to_prepare,
+    toHandToCourier: api.to_hand_to_courier,
+    inDelivery: api.in_delivery,
+    returning: api.returning,
+    completedToday: api.completed_today,
+    needsAction: api.needs_action,
+    urgent: api.urgent,
   };
 }

@@ -5,8 +5,15 @@ import { useEffect, useRef, useState } from "react";
 import { Icon } from "@/components/ui/icon";
 import { SearchInput } from "@/components/ui/field";
 import { SelectMenu } from "@/components/ui/menu";
-import type { OrderListQuery, OrderPeriod } from "@/data/orders";
-import type { FulfilmentMethod, PaymentStatus } from "@/domain/order";
+import type { OrderAttention, OrderListQuery, OrderPeriod } from "@/data/orders";
+import {
+  SHIPMENT_STAGE_LABEL,
+  SHIPMENT_STAGES,
+  type DeliveryProvider,
+  type FulfilmentMethod,
+  type PaymentStatus,
+  type ShipmentStage,
+} from "@/domain/order";
 
 import { DateRangeFields } from "../shared/date-range-fields";
 import { useListNavigation } from "../shared/list-transition";
@@ -14,6 +21,12 @@ import { FULFILMENT_LABEL, PAYMENT_STATUS_META } from "../shared/status";
 import { DEFAULT_PERIOD, PAGE_SIZES, hasActiveFilters, orderListHref } from "./query";
 
 type All = "all";
+
+const PROVIDER_FILTER_LABEL: Record<DeliveryProvider, string> = { yandex: "Yandex", bts: "BTS" };
+const ATTENTION_LABEL: Record<OrderAttention, string> = {
+  open: "Ochiq muammo bor",
+  urgent: "Shoshilinch",
+};
 
 interface OrdersToolbarProps {
   query: OrderListQuery;
@@ -93,6 +106,46 @@ export function OrdersToolbar({ query, periodLabels, customerName }: OrdersToolb
             value,
             label: PAYMENT_STATUS_META[value].label,
           })),
+        ]}
+      />
+      <SelectMenu<DeliveryProvider | All>
+        label="Yetkazuvchi"
+        trigger={`Yetkazuvchi: ${query.provider ? PROVIDER_FILTER_LABEL[query.provider] : "Hammasi"}`}
+        value={query.provider ?? "all"}
+        onValueChange={(value) =>
+          // A stage is a Yandex stage: it goes with any other choice.
+          update({
+            provider: value === "all" ? undefined : value,
+            stage: value === "yandex" ? query.stage : undefined,
+          })
+        }
+        options={[
+          { value: "all", label: "Hammasi" },
+          { value: "yandex", label: PROVIDER_FILTER_LABEL.yandex },
+          { value: "bts", label: PROVIDER_FILTER_LABEL.bts },
+        ]}
+      />
+      {query.provider === "yandex" && (
+        <SelectMenu<ShipmentStage | All>
+          label="Yandex bosqichi"
+          trigger={`Bosqich: ${query.stage ? SHIPMENT_STAGE_LABEL[query.stage] : "Hammasi"}`}
+          value={query.stage ?? "all"}
+          onValueChange={(value) => update({ stage: value === "all" ? undefined : value })}
+          options={[
+            { value: "all", label: "Hammasi" },
+            ...SHIPMENT_STAGES.map((value) => ({ value, label: SHIPMENT_STAGE_LABEL[value] })),
+          ]}
+        />
+      )}
+      <SelectMenu<OrderAttention | All>
+        label="Yetkazish muammolari"
+        trigger={`Muammo: ${query.attention ? ATTENTION_LABEL[query.attention] : "Hammasi"}`}
+        value={query.attention ?? "all"}
+        onValueChange={(value) => update({ attention: value === "all" ? undefined : value })}
+        options={[
+          { value: "all", label: "Hammasi" },
+          { value: "open", label: ATTENTION_LABEL.open },
+          { value: "urgent", label: ATTENTION_LABEL.urgent },
         ]}
       />
       <DateRangeFields

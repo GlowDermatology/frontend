@@ -45,6 +45,33 @@ describe("deriveProgress", () => {
     expect(states).toEqual(["done", "done", "done", "current"]);
   });
 
+  it("does not pass the courier step of a Yandex order when a courier was only requested", () => {
+    const yandex = {
+      status: "processing" as const,
+      fulfilment: "delivery" as const,
+      progress: delivery,
+      timeline: [event("shipment_created"), event("payment_confirmed")],
+    };
+    const courierRequested = deriveProgress({
+      ...yandex,
+      delivery: {
+        provider: "yandex",
+        method: "standard",
+        methodLabel: "Standart",
+        stage: "courier_requested",
+        stageLabel: "Kuryer qidirilmoqda",
+        etaFrom: null,
+        etaTo: null,
+        courierName: null,
+        courierVehicle: null,
+        trackingUrl: null,
+      },
+    }).map((s) => s.state);
+    expect(courierRequested).toEqual(["done", "done", "current", "upcoming"]);
+    // BTS keeps reading a created parcel as handed over.
+    expect(deriveProgress(yandex).map((s) => s.state)).toEqual(["done", "done", "done", "current"]);
+  });
+
   it("skips what a cancelled order never reached and ends with the cancellation", () => {
     const steps = deriveProgress({
       status: "cancelled",

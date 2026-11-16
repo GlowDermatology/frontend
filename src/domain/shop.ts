@@ -153,7 +153,10 @@ export interface ShopSettings {
   termsVersion: string | null;
   termsUpdatedAt: string | null;
   onlineSalesEnabled: boolean;
+  /** BTS only (released clients): Yandex delivery is announced by `deliveryProviders`. */
   fulfilmentMethods: ReadonlyArray<"delivery" | "pickup">;
+  /** Home-delivery carriers that can take an order now, in preference order (`settings/public` `delivery`). */
+  deliveryProviders: ReadonlyArray<"yandex" | "bts">;
   paymentProviders: ReadonlyArray<"click" | "payme">;
   storeUrls: { ios: string | null; android: string | null };
 }

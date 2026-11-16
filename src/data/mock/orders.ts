@@ -20,8 +20,17 @@ import {
 } from "@/domain/order";
 import { formatNumber, formatSom } from "@/lib/format";
 
+import type { DeliveryIssue } from "@/domain/delivery-issue";
+
 import { ACTIVE_POLICY } from "./cashback";
 import { PRODUCTS, productByBillzId } from "./catalog";
+import {
+  btsIncident,
+  deliveryView,
+  planYandexDeliveries,
+  yandexShipment,
+  type YandexSeed,
+} from "./order-delivery";
 import { CUSTOMERS, CUSTOMER_IDS, customerRef } from "./people";
 import { createRandom, type Random } from "./random";
 
@@ -41,6 +50,8 @@ export interface OrderSeed {
   cancellation?: { reason: CancellationReason; note?: string };
   channel?: Order["channel"];
   address?: string;
+  /** Set for the demo's Yandex deliveries (`withYandexDeliveries`). */
+  yandex?: YandexSeed;
 }
 
 const t = (iso: string) => `${iso}+05:00`;
@@ -491,7 +502,60 @@ export function isLateCapture(seed: Pick<OrderSeed, "id">): boolean {
   return OPEN_REFUNDS.get(seed.id)?.lateCapture === true;
 }
 
-export const ORDER_SEEDS: ReadonlyArray<OrderSeed> = withOpenRefunds(generateSeeds());
+/** The demo's exception queue (Yandex Delivery plan §3.9), filled by `withYandexDeliveries`. */
+const ISSUES: DeliveryIssue[] = [];
+
+/**
+ * Yandex Delivery demo (plan §3.10): ten generated paid delivery orders
+ * (not the design's, nor one with an open refund) go with a Yandex courier
+ * at every interesting stage, with the queue's issues; one delivered BTS
+ * order carries a resolved staff incident.
+ */
+function withYandexDeliveries(seeds: OrderSeed[]): OrderSeed[] {
+  const candidates = seeds.filter(
+    (s) =>
+      s.id < 10_243 &&
+      s.customerId !== CUSTOMER_IDS.malika &&
+      s.fulfilment === "delivery" &&
+      s.payment === "paid" &&
+      s.shipment.state !== "failed" &&
+      !OPEN_REFUNDS.has(s.id),
+  );
+  const plan = planYandexDeliveries(candidates);
+  for (const seed of seeds) {
+    const yandex = plan.deliveries.get(seed.id);
+    if (!yandex) continue;
+    seed.yandex = yandex;
+    seed.shipment = yandexShipment(yandex, seed);
+  }
+  ISSUES.push(...plan.issues);
+  const bts = candidates.find((s) => s.status === "delivered" && !plan.deliveries.has(s.id));
+  if (bts) ISSUES.push(btsIncident(bts, 500));
+  return seeds;
+}
+
+export const ORDER_SEEDS: ReadonlyArray<OrderSeed> = withYandexDeliveries(
+  withOpenRefunds(generateSeeds()),
+);
+
+/** Every demo delivery issue, open and resolved (`delivery/issues/`). */
+export const DELIVERY_ISSUES: ReadonlyArray<DeliveryIssue> = ISSUES;
+
+/** The carrier view of a seed (`delivery`), with its open issues. */
+export function deliveryOfSeed(seed: OrderSeed): Order["delivery"] {
+  return deliveryView(
+    seed.fulfilment,
+    seed.yandex,
+    ISSUES.filter((issue) => issue.orderId === seed.id),
+  );
+}
+
+/** When the order was delivered (matches the history row below); `null` while it is not. */
+export function deliveredAtOf(seed: OrderSeed): string | null {
+  if (seed.status !== "delivered") return null;
+  if (seed.yandex) return plusMinutes(seed.at, seed.yandex.method === "express" ? 80 : 140);
+  return plusMinutes(seed.at, seed.fulfilment === "delivery" ? 26 * 60 : 5 * 60);
+}
 
 /** Payment id of an order's payment: №10248 → 301, as in the contract's example. */
 export const paymentIdOf = (orderId: number) => orderId - 9_947;
@@ -562,6 +626,7 @@ export const ORDER_SUMMARIES: ReadonlyArray<OrderSummary> = ORDER_SEEDS.map((see
   fulfilment: seed.fulfilment,
   shipment: seed.shipment,
   cancellation: seed.cancellation,
+  delivery: deliveryOfSeed(seed),
 }));
 
 const PROVIDER_NAME: Record<PaymentProvider, string> = { click: "Click", payme: "Payme" };
@@ -580,6 +645,7 @@ export function buildOrderDetail(seed: OrderSeed): Order {
   const paid = (seed.payment === "paid" || seed.payment === "refunded") && !lateCapture;
   const confirmedAt = confirmedAtOf(seed);
   const refunds = refundsOf(seed);
+  const delivery = deliveryOfSeed(seed);
   const credit = calculateCashback(
     {
       amount: subtotal,
@@ -612,7 +678,21 @@ export function buildOrderDetail(seed: OrderSeed): Order {
       note: `${PROVIDER_NAME[seed.provider]} to‘lovi tasdiqlandi · band qilish savdoga aylantirildi · Billz’ga yozildi · cashback +${formatNumber(creditAmount)}`,
     });
   }
-  if (seed.shipment.state === "created") {
+  const yandex = seed.yandex;
+  if (yandex) {
+    // Staff called the courier after packing (plan §3.6); the claim id is the tracking number.
+    // A claim parked for price review writes no order event (only the review issue).
+    if (yandex.claimNumber !== null && yandex.claimStatus !== "ready_for_approval") {
+      history.push({
+        at: plusMinutes(seed.at, 41),
+        title: yandex.claimId ? "Kuryer chaqirildi" : "Kuryer chaqirilmadi",
+        source: yandex.claimId ? "admin" : "yandex",
+        note: yandex.claimId
+          ? `Yandex · buyurtma ${yandex.claimId}`
+          : `Yandex · ${yandex.failureCode ?? "xato"}`,
+      });
+    }
+  } else if (seed.shipment.state === "created") {
     history.push({
       at: plusMinutes(seed.at, 4),
       title: "BTS buyurtmasi yaratildi",
@@ -629,7 +709,23 @@ export function buildOrderDetail(seed: OrderSeed): Order {
     });
   }
   if (seed.status === "handed_to_courier" || seed.status === "delivered") {
-    if (seed.fulfilment === "delivery") {
+    if (yandex) {
+      history.push({
+        at: plusMinutes(seed.at, 60),
+        title: "Kuryerga topshirildi",
+        source: "yandex",
+        status: "handed_to_courier",
+        note: "Polling · mijozga push yuborildi",
+      });
+      if (yandex.stage === "returning") {
+        history.push({
+          at: plusMinutes(seed.at, 150),
+          title: "Yetkazib bo‘lmadi",
+          source: "yandex",
+          note: "Yandex · returning · recipient_unreachable",
+        });
+      }
+    } else if (seed.fulfilment === "delivery") {
       const handedAt =
         seed.shipment.state === "created" && seed.status === "handed_to_courier"
           ? seed.shipment.updatedAt
@@ -643,16 +739,17 @@ export function buildOrderDetail(seed: OrderSeed): Order {
       });
     }
   }
-  if (seed.status === "delivered") {
+  const deliveredAt = deliveredAtOf(seed);
+  if (deliveredAt) {
+    const carrier = yandex ? "yandex" : seed.fulfilment === "delivery" ? "bts" : null;
     history.push({
-      at: plusMinutes(seed.at, seed.fulfilment === "delivery" ? 26 * 60 : 5 * 60),
+      at: deliveredAt,
       title: "Yetkazildi",
-      source: seed.fulfilment === "delivery" ? "bts" : "admin",
+      source: carrier ?? "admin",
       status: "delivered",
-      note:
-        seed.fulfilment === "delivery"
-          ? "Webhook · mijozga push yuborildi"
-          : "Administrator · mijozga topshirildi",
+      note: carrier
+        ? `${carrier === "yandex" ? "Polling" : "Webhook"} · mijozga push yuborildi`
+        : "Administrator · mijozga topshirildi",
     });
   }
   if (seed.status === "cancelled") {
@@ -738,7 +835,8 @@ export function buildOrderDetail(seed: OrderSeed): Order {
     refunds,
     history: history.reverse(),
     cashback,
-    availableActions: orderActions(seed),
+    delivery,
+    availableActions: orderActions({ ...seed, delivery }),
   };
 }
 

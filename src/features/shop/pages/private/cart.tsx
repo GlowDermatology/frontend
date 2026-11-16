@@ -5,6 +5,7 @@ import { Suspense, type ReactNode } from "react";
 import { getAddresses, getCart, getRegions } from "@/data/shop/account";
 import { getSettings } from "@/data/shop/catalog";
 import { privateRead } from "@/data/shop/private";
+import { offeredFulfilments } from "@/domain/shop-delivery";
 import type { Locale } from "@/lib/i18n/locales";
 
 import { BodySkeleton, privateMetadata } from "../../account/account-shell";
@@ -70,7 +71,11 @@ async function CheckoutBody({ locale }: { locale: Locale }) {
       cart={cart}
       addresses={addresses}
       regions={regions}
-      fulfilmentMethods={settings?.fulfilmentMethods ?? ["pickup"]}
+      fulfilmentMethods={
+        settings
+          ? offeredFulfilments(settings.fulfilmentMethods, settings.deliveryProviders)
+          : ["pickup"]
+      }
       providers={settings?.paymentProviders ?? ["click", "payme"]}
       pickupAddress={settings?.pickupAddress ?? ""}
       termsVersion={settings?.termsVersion ?? null}

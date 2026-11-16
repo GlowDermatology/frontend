@@ -10,6 +10,12 @@ import {
   mapSlots,
 } from "@/data/api/customer/account-mappers";
 import {
+  deliveryConflictDetails,
+  deliveryMethodOf,
+  deliveryProviderOf,
+  quoteIdOrNull,
+} from "@/data/api/customer/delivery-mappers";
+import {
   apiAddCartItem,
   apiBook,
   apiCancelAppointment,
@@ -29,6 +35,7 @@ import {
 } from "@/data/api/customer/commerce";
 import { guardCustomerAction } from "@/data/customer-auth/session";
 import type { ActionResult } from "@/data/types";
+import type { DeliveryChoice } from "@/domain/shop-delivery";
 import type {
   Fulfilment,
   PaymentProvider,
@@ -140,34 +147,77 @@ export interface CheckoutSelection {
   cashbackToUse: number;
 }
 
-/** `POST delivery/calculate/`: the fee, the cashback cap and the total to send to checkout. */
+/** A delivery choice from the browser, checked: a known carrier, a Yandex method or none. */
+function deliveryChoiceOf(value: unknown): DeliveryChoice | null {
+  if (typeof value !== "object" || value === null) return null;
+  const choice = value as { provider?: unknown; method?: unknown };
+  const provider = deliveryProviderOf(choice.provider);
+  if (provider === "bts") return { provider, method: null };
+  if (provider === "yandex") return { provider, method: deliveryMethodOf(choice.method) };
+  return null;
+}
+
+/**
+ * The delivery refusals of `delivery/calculate/` and `orders/checkout/`
+ * carry their options mapped for the page (`DeliveryConflict`); any other
+ * failure keeps the API's `details` as sent.
+ */
+function checkoutFailure(error: unknown, locale: Locale): ActionResult<never> {
+  const failure = toShopFailure(error, locale);
+  const conflict = deliveryConflictDetails(failure.code, failure.details);
+  return conflict ? { ...failure, details: conflict } : failure;
+}
+
+/**
+ * `POST delivery/calculate/`: the fee, the cashback cap and the total to send
+ * to checkout. A delivery quote always asks for every option (`with_options`,
+ * plan §3.4) and names the customer's choice (`delivery_provider` /
+ * `delivery_method`) when they made one; the server answers with that option
+ * when it is available, else with its default (Yandex Standard → Express →
+ * BTS). 409 `delivery_unavailable` carries the options and their reasons.
+ */
 export async function quoteCheckout(input: {
   locale: string;
   selection: CheckoutSelection;
+  delivery?: DeliveryChoice | null;
   csrf: string;
 }): Promise<ActionResult<ShopQuote>> {
   const locale = localeOf(input.locale);
   const guard = await guardCustomerAction(input.csrf);
   if (!guard.ok) return guard;
   const fulfilment = input.selection?.fulfilment === "delivery" ? "delivery" : "pickup";
+  const choice = fulfilment === "delivery" ? deliveryChoiceOf(input.delivery) : null;
   try {
     const { data } = await apiDeliveryQuote(locale, {
       fulfilment,
       address_id: fulfilment === "delivery" ? positiveInt(input.selection.addressId) : null,
       cashback_to_use: Math.max(0, Math.trunc(Number(input.selection.cashbackToUse) || 0)),
+      ...(fulfilment === "delivery"
+        ? {
+            with_options: true,
+            delivery_provider: choice?.provider ?? null,
+            delivery_method: choice?.provider === "yandex" ? choice.method : null,
+          }
+        : {}),
     });
     return { ok: true, data: mapQuote(data) };
   } catch (error) {
-    return toShopFailure(error, locale);
+    return checkoutFailure(error, locale);
   }
 }
 
-/** `POST orders/checkout/` → the new order (`awaiting_payment`). */
+/**
+ * `POST orders/checkout/` → the new order (`awaiting_payment`). A Yandex
+ * option is placed with its `delivery_quote_id` (the server re-checks it and
+ * answers 409 `price_changed` with fresh options or `quote_expired`); BTS and
+ * pickup send the released request without it.
+ */
 export async function placeOrder(input: {
   locale: string;
   selection: CheckoutSelection;
   provider: PaymentProvider;
   expectedTotal: number;
+  deliveryQuoteId?: string | null;
   note: string;
   idempotencyKey: string;
   csrf: string;
@@ -176,6 +226,8 @@ export async function placeOrder(input: {
   const guard = await guardCustomerAction(input.csrf);
   if (!guard.ok) return guard;
   const fulfilment = input.selection?.fulfilment === "delivery" ? "delivery" : "pickup";
+  const quoteId = fulfilment === "delivery" ? quoteIdOrNull(input.deliveryQuoteId) : null;
+  if (input.deliveryQuoteId && !quoteId && fulfilment === "delivery") return invalid(locale);
   try {
     const { data } = await apiCheckout(
       locale,
@@ -188,12 +240,13 @@ export async function placeOrder(input: {
         customer_note: String(input.note ?? "")
           .trim()
           .slice(0, 300),
+        ...(quoteId ? { delivery_quote_id: quoteId } : {}),
       },
       String(input.idempotencyKey),
     );
     return { ok: true, data: { orderId: data.id } };
   } catch (error) {
-    return toShopFailure(error, locale);
+    return checkoutFailure(error, locale);
   }
 }
 

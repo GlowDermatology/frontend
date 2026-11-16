@@ -10,7 +10,14 @@ import { ActionMenu, type ActionMenuItem } from "@/components/ui/menu";
 import { useToast } from "@/components/ui/toast";
 import { changeOrderStatus, loadOrder, retryShipment } from "@/data/orders.actions";
 import type { ActionResult } from "@/data/types";
-import { refundStateLine, shipmentPending, type Order, type OrderStatus } from "@/domain/order";
+import {
+  isYandexDelivery,
+  refundStateLine,
+  shipmentPending,
+  type Order,
+  type OrderStatus,
+} from "@/domain/order";
+import { dispatchPhase, pollProgressLabel } from "@/domain/order-dispatch";
 import { cn } from "@/lib/cn";
 import { formatDateTimeLong } from "@/lib/format";
 
@@ -18,6 +25,18 @@ import { runAction } from "../shared/action-client";
 import { useIdempotencyKey } from "../shared/idempotency";
 import { FULFILMENT_LABEL, ORDER_STATUS_META, OrderStatusBadge } from "../shared/status";
 import { CancelOrderDialog } from "./cancel-order-dialog";
+import { ConfirmReturnDialog } from "./confirm-return-dialog";
+import { OpenIssuesSection, OrderDeliveryCard } from "./delivery-card";
+import {
+  DISPATCH_TIMEOUT_TOAST,
+  dispatchOffer,
+  dispatchToast,
+  withOpenIssue,
+  type DispatchToast,
+} from "./delivery-view";
+import { DispatchDialog } from "./dispatch-dialog";
+import { initialDispatchProgress, pollDispatch, type DispatchProgress } from "./dispatch-poll";
+import { IncidentDialog } from "./incident-dialog";
 import {
   OrderCashbackCard,
   OrderCustomerCard,
@@ -37,10 +56,16 @@ const CHANNEL_LABEL: Record<Order["channel"], string> = {
 
 function transitionHint(order: Order, status: OrderStatus): string {
   if (status === "delivered" && order.fulfilment === "pickup") return "Mijoz do‘kondan olib ketdi";
+  // Listed by the server for a Yandex order only while a `parcel_unaccounted` issue is open.
+  if (isYandexDelivery(order)) return "Yandex posilkani kuzatmayapti, mijoz olgan bo‘lsa";
   return "BTS webhook kelmagan bo‘lsa";
 }
 
-function noTransitionsMessage(status: OrderStatus): string {
+function noTransitionsMessage(status: OrderStatus, yandex: boolean): string {
+  // Plan decision 8: a Yandex order follows the courier's statuses, never a manual step.
+  if (yandex && (status === "processing" || status === "handed_to_courier")) {
+    return "Yandex buyurtmasining holati kuryer holatidan avtomatik yangilanadi.";
+  }
   switch (status) {
     case "awaiting_payment":
       return "To‘lov tasdiqlangach holat avtomatik «Jarayonda»ga o‘tadi.";
@@ -79,6 +104,12 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
   const [order, setOrder] = useState(initialOrder);
   const [now, setNow] = useState(initialNow);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [incidentOpen, setIncidentOpen] = useState(false);
+  const [dispatchOpen, setDispatchOpen] = useState(false);
+  const [returnOpen, setReturnOpen] = useState(false);
+  // Each "Kuryer chaqirish" (or "Holatni tekshirish") starts one 3-minute poll.
+  const [dispatchPoll, setDispatchPoll] = useState(0);
+  const [progress, setProgress] = useState<DispatchProgress | null>(null);
   const [pending, startTransition] = useTransition();
   const [pendingAction, setPendingAction] = useState<"status" | "shipment" | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -93,11 +124,25 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
     setNow((current) => latestEventAt(next, current));
   };
 
-  /** Re-reads the order after a refusal that says it changed (`isStaleRefusal`). */
-  const reloadIfStale = async (result: ActionResult<unknown>) => {
-    if (!isStaleRefusal(result)) return;
+  /** Re-reads the order (after a refusal that says it changed). */
+  const reload = async () => {
     const fresh = await runAction((csrf) => loadOrder(order.id, csrf));
     if (fresh.ok) replaceOrder(fresh.data);
+  };
+
+  /** Re-reads the order after a refusal that says it changed (`isStaleRefusal`). */
+  const reloadIfStale = async (result: ActionResult<unknown>) => {
+    if (isStaleRefusal(result)) await reload();
+  };
+
+  const showToast = (message: DispatchToast | null) => {
+    if (message) toast(message);
+  };
+
+  /** Starts (or restarts) the status poll of a dispatched order. */
+  const startDispatchPoll = () => {
+    setProgress(initialDispatchProgress());
+    setDispatchPoll((run) => run + 1);
   };
 
   const apply = (result: ActionResult<Order>, success: { title: string; description?: string }) => {
@@ -151,6 +196,31 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
     });
     return () => controller.abort();
   }, [awaitingShipment, orderId, toast]);
+
+  // After "Kuryer chaqirish" (202, stage `courier_requested`): re-read the order every 10 s
+  // for at most 3 minutes while Yandex searches; any other stage or a dispatch issue ends it.
+  useEffect(() => {
+    if (dispatchPoll === 0) return;
+    const controller = new AbortController();
+    void pollDispatch({
+      load: () => runAction((csrf) => loadOrder(orderId, csrf)),
+      signal: controller.signal,
+      onAttempt: setProgress,
+      onSearching: (next) => setOrder(next),
+    }).then((outcome) => {
+      if (outcome.kind === "aborted") return;
+      setProgress(null);
+      if (outcome.kind === "timeout") {
+        toast(DISPATCH_TIMEOUT_TOAST);
+        return;
+      }
+      setOrder(outcome.order);
+      setNow((current) => latestEventAt(outcome.order, current));
+      const message = dispatchToast(outcome.phase, outcome.order);
+      if (message) toast(message);
+    });
+    return () => controller.abort();
+  }, [dispatchPoll, orderId, toast]);
 
   const [confirmStatus, setConfirmStatus] = useState<OrderStatus | null>(null);
   const [confirmShown, setConfirmShown] = useState<OrderStatus | null>(null);
@@ -210,6 +280,27 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
   }));
 
   const { shipment } = order;
+  const yandex = isYandexDelivery(order);
+  const dispatch = dispatchOffer(order);
+  const searching = yandex && dispatchPhase(order).kind === "searching";
+  const polling = progress !== null;
+  const issuesSection = order.delivery ? (
+    <OpenIssuesSection
+      orderId={order.id}
+      issues={order.delivery.openIssues}
+      action={
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => setIncidentOpen(true)}
+          disabled={pending}
+        >
+          <Icon name="alert-circle" size={16} />
+          Hodisa qayd etish
+        </Button>
+      }
+    />
+  ) : null;
 
   return (
     <>
@@ -239,7 +330,7 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
           <ActionMenu
             label="Yangi holat"
             items={statusItems}
-            empty={noTransitionsMessage(order.status)}
+            empty={noTransitionsMessage(order.status, yandex)}
             disabled={pending}
             triggerClassName={cn(
               buttonStyles({ variant: "secondary", className: headerButton }),
@@ -253,7 +344,60 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
             }
           />
 
-          {awaitingShipment ? (
+          {polling ? (
+            <span className="flex flex-col items-start gap-1">
+              <button
+                type="button"
+                disabled
+                aria-describedby="dispatch-progress"
+                className="inline-flex h-11 items-center gap-2 rounded-md border border-dashed border-line-strong px-4 text-label font-bold text-ink-muted"
+              >
+                <Icon name="refresh" size={18} className="animate-spin" />
+                Kuryer qidirilmoqda…
+              </button>
+              <span
+                id="dispatch-progress"
+                role="status"
+                className="text-[12px] leading-4 text-ink-muted tabular-nums"
+              >
+                Holat har 10 soniyada tekshiriladi · {pollProgressLabel(progress.elapsedMs)}
+              </span>
+            </span>
+          ) : searching ? (
+            <Button
+              variant="secondary"
+              className={headerButton}
+              onClick={startDispatchPoll}
+              disabled={pending}
+              title="Yandex kuryer qidirmoqda"
+            >
+              <Icon name="refresh" size={18} />
+              Holatni tekshirish
+            </Button>
+          ) : dispatch ? (
+            <Button
+              className={headerButton}
+              onClick={() => setDispatchOpen(true)}
+              disabled={pending}
+            >
+              <Icon name="truck" size={18} />
+              {dispatch.label}
+            </Button>
+          ) : null}
+
+          {yandex && order.availableActions.confirmReturn && (
+            <Button
+              variant="secondary"
+              className={headerButton}
+              onClick={() => setReturnOpen(true)}
+              disabled={pending}
+            >
+              <Icon name="store" size={18} />
+              Qaytganini tasdiqlash
+            </Button>
+          )}
+
+          {yandex ? null : awaitingShipment ? (
             <button
               type="button"
               disabled
@@ -312,7 +456,18 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
         <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-4">
           <OrderCustomerCard order={order} />
           <OrderPaymentCard order={order} />
-          {order.fulfilment === "delivery" && <OrderShipmentCard order={order} />}
+          {order.fulfilment === "delivery" &&
+            (yandex ? (
+              <OrderDeliveryCard
+                order={order}
+                disabled={pending}
+                onMarkDelivered={() => setConfirmStatus("delivered")}
+              >
+                {issuesSection}
+              </OrderDeliveryCard>
+            ) : (
+              <OrderShipmentCard order={order}>{issuesSection}</OrderShipmentCard>
+            ))}
           <OrderCashbackCard order={order} />
         </div>
       </div>
@@ -329,6 +484,9 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
         }
         description={
           <p className="m-0 text-[14px] leading-5 text-ink">
+            {yandex &&
+              confirmShown === "delivered" &&
+              "Yandex bu posilkani kuzatmayapti: faqat mijoz olganini aniq bilsangiz belgilang. "}
             Buyurtma №{order.id} mijozi push xabar oladi. Bu amalni qaytarib bo‘lmaydi.
           </p>
         }
@@ -348,6 +506,38 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
           </Button>
         </div>
       </AlertDialog>
+      {order.delivery && (
+        <IncidentDialog
+          orderId={order.id}
+          open={incidentOpen}
+          onOpenChange={setIncidentOpen}
+          onOpened={({ issue, created }) => {
+            setIncidentOpen(false);
+            setOrder((current) =>
+              withOpenIssue(current, {
+                id: issue.id,
+                kind: issue.kind,
+                code: issue.code,
+                urgent: issue.urgent,
+                openedAt: issue.openedAt,
+              }),
+            );
+            toast({
+              title: created ? "Hodisa qayd etildi" : "Ochiq hodisa yangilandi",
+              description: issue.urgent
+                ? "Shoshilinch: xodimlarga xabar yuborildi."
+                : "Muammolar ro‘yxatiga qo‘shildi.",
+            });
+          }}
+          onStale={(message) => {
+            setIncidentOpen(false);
+            toast({ tone: "info", title: "Amal bajarilmadi", description: message });
+            void runAction((csrf) => loadOrder(order.id, csrf)).then((fresh) => {
+              if (fresh.ok) replaceOrder(fresh.data);
+            });
+          }}
+        />
+      )}
       <CancelOrderDialog
         order={order}
         open={cancelOpen}
@@ -371,14 +561,63 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
               : "Band qilingan mahsulotlar bo‘shatildi",
           });
         }}
-        onRefused={(result) => {
-          toast({ tone: "info", title: "Amal bajarilmadi", description: result.error });
-          if (isStaleRefusal(result)) {
+        onRefused={(outcome) => {
+          toast({ tone: "info", title: outcome.title, description: outcome.message });
+          // `return_requested`: Yandex was asked to bring the parcel back; the order (and its new
+          // `return_pending` issue) is re-read, the cancel is pressed again once Yandex confirms.
+          if (outcome.kind !== "retry") {
             setCancelOpen(false);
-            void reloadIfStale(result);
+            void reload();
           }
         }}
       />
+      {yandex && (
+        <DispatchDialog
+          order={order}
+          open={dispatchOpen}
+          onOpenChange={setDispatchOpen}
+          onDispatched={(next) => {
+            setDispatchOpen(false);
+            replaceOrder(next);
+            const phase = dispatchPhase(next);
+            showToast(dispatchToast(phase, next));
+            if (phase.kind === "searching") startDispatchPoll();
+          }}
+          onStale={(title, message) => {
+            setDispatchOpen(false);
+            toast({ tone: "info", title, description: message });
+            void reload();
+          }}
+          onReload={() => void reload()}
+          onCancelOrder={() => {
+            setDispatchOpen(false);
+            setCancelOpen(true);
+          }}
+        />
+      )}
+      {yandex && (
+        <ConfirmReturnDialog
+          order={order}
+          open={returnOpen}
+          onOpenChange={setReturnOpen}
+          onConfirmed={(next) => {
+            setReturnOpen(false);
+            replaceOrder(next);
+            toast({
+              title: "Posilka qaytgani tasdiqlandi",
+              description:
+                next.status === "cancelled"
+                  ? "«Qaytish kutilmoqda» yopildi; buyurtma bekor qilinganicha qoladi."
+                  : "Posilka omborda. Kerak bo‘lsa, kuryerni qayta chaqiring yoki buyurtmani bekor qiling.",
+            });
+          }}
+          onStale={(title, message) => {
+            setReturnOpen(false);
+            toast({ tone: "info", title, description: message });
+            void reload();
+          }}
+        />
+      )}
     </>
   );
 }

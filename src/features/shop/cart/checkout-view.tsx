@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { Button, buttonStyles } from "@/components/ui/button";
 import { Field, TextArea } from "@/components/ui/field";
@@ -22,11 +23,21 @@ import type {
   ShopQuote,
   ShopRegion,
 } from "@/domain/shop-account";
+import {
+  findOption,
+  isDeliveryConflict,
+  quoteExpiredAt,
+  requoteAt,
+  sameChoice,
+  type DeliveryChoice,
+  type ShopDeliveryOption,
+} from "@/domain/shop-delivery";
 import { useIdempotencyKey } from "@/lib/actions/idempotency";
 import { cn } from "@/lib/cn";
 import type { Locale } from "@/lib/i18n/locales";
 
 import { AddressDialog } from "../account/address-form";
+import { AddressPinNote } from "../account/address-pin-note";
 import { FormAlert } from "../account/controls";
 import { PhoneGate } from "../account/phone-gate";
 import { useShopSession } from "../account/session-context";
@@ -34,16 +45,41 @@ import { failureText, useShopAction } from "../account/use-shop-action";
 import { commonCopy } from "../copy/common";
 import { ordersCopy } from "../copy/orders";
 import { shopHref, shopPath } from "../routing/routes";
+import {
+  checkoutTerms,
+  compareQuotes,
+  conflictOptions,
+  displayedChoice,
+  outcomeNotice,
+  placeable,
+  readConflict,
+  seenTerms,
+  selectedChoice,
+} from "./delivery-flow";
+import { DeliveryOptions } from "./delivery-options";
 
 /**
- * Checkout (contract §2.6–§2.7): pickup or BTS delivery to a saved address
- * (with "add an address"), Click or Payme, cashback, a note. Every change
- * asks `delivery/calculate/` for the fee, the cashback cap and the total,
- * which is sent unchanged to `orders/checkout/` with one idempotency key per
- * attempt. The refusals the customer can fix are handled in place: the
- * phone gate (409 `phone_required`), new terms (`terms_update_required`),
- * changed prices (`price_changed`) and an earlier unpaid order. A placed
- * order goes straight to payment (`orders/{id}/pay/`) on the provider page.
+ * Checkout (contract §2.6–§2.7, Yandex Delivery plan §4): pickup or delivery
+ * to a saved address (with "add an address"), Click or Payme, cashback, a
+ * note. Every change asks `delivery/calculate/` (`with_options`) for every
+ * delivery option — Yandex Standard / Express and BTS with the server's fee
+ * and ETA window, the unavailable ones with their reason — and for the fee,
+ * cashback cap and total of the selected one (the server's default until
+ * the customer picks another). That total is sent unchanged to
+ * `orders/checkout/`, with the option's `delivery_quote_id` for Yandex (BTS
+ * keeps the released request), one idempotency key per attempt.
+ *
+ * The quote is asked again when the address, the cart or the choice
+ * changes and shortly before its `quote_expires_at`. The refusals the
+ * customer can fix are handled in place: the phone gate (409
+ * `phone_required`), new terms (`terms_update_required`), changed prices
+ * (`price_changed`: the items, or a Yandex fee — the new price and options
+ * are shown and the order waits for a confirmation), an expired quote
+ * (`quote_expired`: asked again silently once, then the customer
+ * confirms), no delivery to the address (`delivery_unavailable`), a missing
+ * map pin (`coordinates_required`: the address dialog opens on the map) and
+ * an earlier unpaid order. A placed order goes straight to payment
+ * (`orders/{id}/pay/`) on the provider page.
  */
 
 interface CheckoutViewProps {
@@ -66,6 +102,7 @@ function OptionCard({
   title,
   hint,
   icon,
+  meta,
 }: {
   name: string;
   value: string;
@@ -74,6 +111,8 @@ function OptionCard({
   title: string;
   hint?: string;
   icon?: React.ReactNode;
+  /** A line under the hint (the address's map-pin note). */
+  meta?: React.ReactNode;
 }) {
   return (
     <label
@@ -98,6 +137,7 @@ function OptionCard({
             {hint}
           </span>
         ) : null}
+        {meta}
       </span>
     </label>
   );
@@ -131,7 +171,16 @@ export function CheckoutView({
   const [useCashback, setUseCashback] = useState(false);
   const [note, setNote] = useState("");
   const [rawQuote, setQuote] = useState<ShopQuote | null>(null);
-  const [addressOpen, setAddressOpen] = useState(false);
+  /** The customer's pick (`null` = the server's default). */
+  const [preferred, setPreferred] = useState<DeliveryChoice | null>(null);
+  /** The options a `delivery_unavailable` answer listed (every one refused). */
+  const [refusedOptions, setRefusedOptions] = useState<ShopDeliveryOption[] | null>(null);
+  /** Bumped to ask for the quote again with unchanged inputs (address edited, retry, expiry). */
+  const [revision, setRevision] = useState(0);
+  /** The clock the ETA labels ("Bugun") are read against: the moment the quote arrived. */
+  const [quotedAtMs, setQuotedAtMs] = useState(0);
+  const [editing, setEditing] = useState<ShopAddress | "new" | null>(null);
+  const [confirmPrice, setConfirmPrice] = useState(false);
   const [gateOpen, setGateOpen] = useState(false);
   const [consentNeeded, setConsentNeeded] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -142,18 +191,77 @@ export function CheckoutView({
   const orderKey = useIdempotencyKey();
   const payKey = useIdempotencyKey();
   const { setCartQuantity } = useShopSession();
+  const router = useRouter();
   const requestId = useRef(0);
+  const lastQuote = useRef<{ quote: ShopQuote; inputs: string } | null>(null);
+  const silentNext = useRef(false);
   const groupId = useId();
 
+  const cashbackToUse = useCashback ? Math.max(0, cart.cashbackAvailable) : 0;
   const selection: CheckoutSelection = {
     fulfilment,
     addressId: fulfilment === "delivery" ? addressId : null,
-    cashbackToUse: useCashback ? Math.max(0, cart.cashbackAvailable) : 0,
+    cashbackToUse,
   };
   const needsAddress = fulfilment === "delivery" && addressId === null;
   const quote = needsAddress ? null : rawQuote;
+  const address = addresses.find((item) => item.id === addressId) ?? null;
+  const cartSignature = `${cart.quantityTotal}:${cart.itemsSubtotal}:${cart.lines
+    .map((line) => `${line.productId}x${line.quantity}`)
+    .join(",")}`;
 
   const runQuote = quoting.run;
+  /**
+   * Asks `delivery/calculate/`; only the newest request lands. A silent
+   * re-quote (the quote ran out with nothing else changed) says so when the
+   * selected option's fee moved or the option went away.
+   */
+  const requestQuote = useCallback(
+    (input: {
+      selection: CheckoutSelection;
+      delivery: DeliveryChoice | null;
+    }): Promise<ShopQuote | null> => {
+      const id = ++requestId.current;
+      const silent = silentNext.current;
+      silentNext.current = false;
+      const inputs = JSON.stringify(input);
+      return runQuote((csrf) =>
+        quoteCheckout({ locale, selection: input.selection, delivery: input.delivery, csrf }),
+      ).then((result) => {
+        if (id !== requestId.current) return null;
+        if (!result.ok) {
+          setQuote(null);
+          lastQuote.current = null;
+          setRefusedOptions(
+            isDeliveryConflict(result.details) ? (result.details.options ?? []) : null,
+          );
+          return null;
+        }
+        const previous = lastQuote.current;
+        lastQuote.current = { quote: result.data, inputs };
+        setQuote(result.data);
+        setRefusedOptions(null);
+        setQuotedAtMs(Date.now());
+        // Only a re-quote of unchanged inputs is compared: other changes show their own numbers.
+        if (silent && previous?.inputs === inputs) {
+          const outcome = compareQuotes(seenTerms(previous.quote), result.data);
+          const copy = ordersCopy[locale];
+          const text = outcomeNotice(
+            outcome,
+            { ...copy.checkout, none: copy.delivery.none },
+            copy.money,
+          );
+          if (text) {
+            setNotice(text);
+            setConfirmPrice(outcome.kind !== "none");
+          }
+        }
+        return result.data;
+      });
+    },
+    [locale, runQuote],
+  );
+
   useEffect(() => {
     const restorePage = (event: PageTransitionEvent) => {
       if (event.persisted) window.location.reload();
@@ -163,21 +271,52 @@ export function CheckoutView({
   }, []);
   useEffect(() => {
     if (needsAddress) return;
-    const id = ++requestId.current;
-    void runQuote((csrf) =>
-      quoteCheckout({
-        locale,
-        selection: {
-          fulfilment,
-          addressId,
-          cashbackToUse: useCashback ? Math.max(0, cart.cashbackAvailable) : 0,
-        },
-        csrf,
-      }),
-    ).then((result) => {
-      if (id === requestId.current) setQuote(result.ok ? result.data : null);
+    void requestQuote({
+      selection: { fulfilment, addressId, cashbackToUse },
+      delivery: fulfilment === "delivery" ? preferred : null,
     });
-  }, [locale, fulfilment, addressId, useCashback, cart.cashbackAvailable, needsAddress, runQuote]);
+  }, [
+    requestQuote,
+    fulfilment,
+    addressId,
+    cashbackToUse,
+    preferred,
+    needsAddress,
+    revision,
+    cartSignature,
+  ]);
+
+  // A Yandex quote lives 15 minutes: ask again as soon as it runs out, and
+  // at once when the tab comes back after it did.
+  const quoteDeadline = quote ? requoteAt(quote, quotedAtMs) : null;
+  useEffect(() => {
+    if (quoteDeadline === null) return;
+    const requote = () => {
+      silentNext.current = true;
+      setRevision((value) => value + 1);
+    };
+    const timer = window.setTimeout(requote, Math.max(0, quoteDeadline - Date.now()));
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && Date.now() >= quoteDeadline) requote();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [quoteDeadline]);
+
+  /** The inputs of a re-quote for the option `current` was placed with. */
+  const requoteFor = (current: ShopQuote | null) => ({
+    selection,
+    delivery: fulfilment === "delivery" ? (selectedChoice(current) ?? preferred) : null,
+  });
+
+  const resetPrompt = () => {
+    setNotice(null);
+    setConfirmPrice(false);
+  };
+  const outcomeTexts = { ...t, none: copy.delivery.none };
 
   const pay = async (orderId: number) => {
     setStage("paying");
@@ -199,21 +338,24 @@ export function CheckoutView({
     window.location.assign(shopHref(locale, { kind: "order", slug: String(orderId) }));
   };
 
-  const place = async () => {
-    if (!quote) return;
-    if (placedOrder) {
-      await pay(placedOrder);
-      return;
-    }
+  /**
+   * Places the order with `current` (the quote the customer sees). On a
+   * delivery refusal the options are asked for again: an expired quote is
+   * re-quoted silently once and, when nothing changed, placed again at once;
+   * anything else waits for the customer to confirm the new terms.
+   */
+  const submit = async (current: ShopQuote, retried: boolean): Promise<void> => {
     setNotice(null);
     setStage("placing");
+    const terms = checkoutTerms(current);
     const result = orderKey.settle(
       await placing.run((csrf) =>
         placeOrder({
           locale,
-          selection: { ...selection, cashbackToUse: quote.cashbackToUse },
+          selection: { ...selection, cashbackToUse: current.cashbackToUse },
           provider,
-          expectedTotal: quote.expectedTotal,
+          expectedTotal: terms.expectedTotal,
+          deliveryQuoteId: terms.deliveryQuoteId,
           note,
           idempotencyKey: orderKey.key,
           csrf,
@@ -221,6 +363,7 @@ export function CheckoutView({
       ),
     );
     if (result.ok) {
+      setConfirmPrice(false);
       setPlacedOrder(result.data.orderId);
       setCartQuantity(cart.quantityTotal);
       await pay(result.data.orderId);
@@ -231,15 +374,81 @@ export function CheckoutView({
       window.location.assign(shopHref(locale, { kind: "cart" }));
       return;
     }
-    if (result.code === "phone_required") setGateOpen(true);
-    else if (result.code === "terms_update_required") setConsentNeeded(true);
-    else if (result.code === "price_changed") {
-      setNotice(t.priceChanged);
-      requestId.current += 1;
-      const id = requestId.current;
-      const fresh = await quoting.run((csrf) => quoteCheckout({ locale, selection, csrf }));
-      if (id === requestId.current && fresh.ok) setQuote(fresh.data);
+    if (result.code === "phone_required") {
+      setGateOpen(true);
+      return;
     }
+    if (result.code === "terms_update_required") {
+      setConsentNeeded(true);
+      return;
+    }
+    const conflict = readConflict(result);
+    if (!conflict) return;
+    switch (conflict.kind) {
+      case "price_changed": {
+        // The items or the cashback moved: fresh cart lines and a fresh quote.
+        setNotice(t.priceChanged);
+        setConfirmPrice(true);
+        router.refresh();
+        await requestQuote(requoteFor(current));
+        return;
+      }
+      case "delivery_price_changed": {
+        // A Yandex re-quote gave another fee: show it and the fresh options, then ask.
+        setNotice(
+          conflict.fee !== null
+            ? t.deliveryPriceChanged(money(current.deliveryFee), money(conflict.fee))
+            : t.quoteExpired,
+        );
+        setConfirmPrice(true);
+        setQuote({ ...current, options: conflictOptions(conflict, current.options) });
+        await requestQuote(requoteFor(current));
+        return;
+      }
+      case "quote_expired": {
+        const fresh = await requestQuote(requoteFor(current));
+        if (!fresh) {
+          // The re-quote was refused (its message and the options say why) or superseded.
+          placing.setError(null);
+          return;
+        }
+        const outcome = compareQuotes(seenTerms(current), fresh);
+        if (outcome.kind === "same" && !retried) {
+          await submit(fresh, true);
+          return;
+        }
+        setNotice(outcomeNotice(outcome, outcomeTexts, money) ?? t.quoteExpired);
+        setConfirmPrice(outcome.kind !== "none");
+        return;
+      }
+      case "delivery_unavailable": {
+        setNotice(failureText(result, locale) || copy.delivery.none);
+        await requestQuote(requoteFor(current));
+        return;
+      }
+    }
+  };
+
+  const place = async () => {
+    if (!quote || !placeable(quote)) return;
+    if (placedOrder) {
+      await pay(placedOrder);
+      return;
+    }
+    let current = quote;
+    if (quote.fulfilment === "delivery" && quoteExpiredAt(quoteDeadline, Date.now())) {
+      // The quote ran out while the page sat open: ask again before placing.
+      const fresh = await requestQuote(requoteFor(quote));
+      if (!fresh) return;
+      const outcome = compareQuotes(seenTerms(quote), fresh);
+      if (outcome.kind !== "same") {
+        setNotice(outcomeNotice(outcome, outcomeTexts, money));
+        setConfirmPrice(outcome.kind !== "none");
+        return;
+      }
+      current = fresh;
+    }
+    await submit(current, false);
   };
 
   const accept = async () => {
@@ -268,6 +477,29 @@ export function CheckoutView({
       : "";
   const busy = stage !== "idle" || placing.pending;
 
+  const options = fulfilment === "delivery" ? (quote?.options ?? refusedOptions ?? []) : [];
+  const chosen = displayedChoice(quote, preferred, quoting.pending);
+  const selected = selectedChoice(quote);
+  // While a newly picked option is being quoted, its totals are not known yet.
+  const switching = quoting.pending && !sameChoice(chosen, selected);
+  const selectedLabel = findOption(quote?.options ?? [], selected)?.label ?? null;
+  const choose = (choice: DeliveryChoice) => {
+    if (sameChoice(choice, chosen)) return;
+    resetPrompt();
+    setPreferred(choice);
+  };
+  const saved = (next: ShopAddress) => {
+    setAddresses((current) => {
+      const updated = current.map((item) =>
+        item.id === next.id ? next : next.isDefault ? { ...item, isDefault: false } : item,
+      );
+      return current.some((item) => item.id === next.id) ? updated : [...updated, next];
+    });
+    setAddressId(next.id);
+    resetPrompt();
+    setRevision((value) => value + 1);
+  };
+
   return (
     <div className="grid gap-8 nav:grid-cols-[minmax(0,1fr)_380px] nav:items-start nav:gap-12">
       <div className="flex flex-col gap-8">
@@ -288,7 +520,10 @@ export function CheckoutView({
                 name={`${groupId}-fulfilment`}
                 value="pickup"
                 checked={fulfilment === "pickup"}
-                onChange={() => setFulfilment("pickup")}
+                onChange={() => {
+                  resetPrompt();
+                  setFulfilment("pickup");
+                }}
                 title={t.pickup}
                 hint={t.pickupHint}
                 icon={<Icon name="store" size={22} className="text-gold-ink" />}
@@ -299,7 +534,10 @@ export function CheckoutView({
                 name={`${groupId}-fulfilment`}
                 value="delivery"
                 checked={fulfilment === "delivery"}
-                onChange={() => setFulfilment("delivery")}
+                onChange={() => {
+                  resetPrompt();
+                  setFulfilment("delivery");
+                }}
                 title={t.delivery}
                 hint={t.deliveryHint}
                 icon={<Icon name="truck" size={22} className="text-gold-ink" />}
@@ -327,18 +565,59 @@ export function CheckoutView({
                   name={`${groupId}-address`}
                   value={String(address.id)}
                   checked={addressId === address.id}
-                  onChange={() => setAddressId(address.id)}
+                  onChange={() => {
+                    resetPrompt();
+                    setAddressId(address.id);
+                  }}
                   title={address.label || address.text}
                   hint={address.label ? address.text : address.comment || undefined}
+                  meta={<AddressPinNote locale={locale} address={address} className="mt-1" />}
                 />
               ))}
-              <Button variant="dashed" onClick={() => setAddressOpen(true)} className="self-start">
+              <Button variant="dashed" onClick={() => setEditing("new")} className="self-start">
                 <Icon name="plus" size={18} />
                 {t.addAddress}
               </Button>
             </fieldset>
           ) : null}
         </form>
+
+        {fulfilment === "delivery" && !needsAddress && (options.length > 0 || quoting.pending) ? (
+          <form
+            aria-labelledby="delivery-option-title"
+            aria-busy={quoting.pending || undefined}
+            onSubmit={(event) => event.preventDefault()}
+            className="flex flex-col gap-4"
+          >
+            <h2
+              id="delivery-option-title"
+              className="m-0 font-serif text-[26px] leading-8 font-semibold"
+            >
+              {copy.delivery.title}
+            </h2>
+            {options.length > 0 ? (
+              <DeliveryOptions
+                locale={locale}
+                name={`${groupId}-delivery`}
+                options={options}
+                chosen={chosen}
+                address={address}
+                pending={quoting.pending}
+                nowMs={quotedAtMs}
+                onChoose={choose}
+                onFixAddress={() => setEditing(address)}
+                onRetry={() => {
+                  resetPrompt();
+                  setRevision((value) => value + 1);
+                }}
+              />
+            ) : (
+              <p role="status" className="m-0 text-body text-ink-muted">
+                {copy.delivery.loading}
+              </p>
+            )}
+          </form>
+        ) : null}
 
         <form
           aria-labelledby="payment-title"
@@ -379,7 +658,10 @@ export function CheckoutView({
                 id="use-cashback"
                 aria-label={t.cashbackUse}
                 checked={useCashback}
-                onCheckedChange={setUseCashback}
+                onCheckedChange={(value) => {
+                  resetPrompt();
+                  setUseCashback(value);
+                }}
               />
             </div>
           ) : (
@@ -431,9 +713,20 @@ export function CheckoutView({
           {/* Pickup has no delivery line (U17). */}
           {fulfilment === "delivery" ? (
             <div className="flex justify-between gap-3">
-              <dt className="text-ink-muted">{t.deliveryFee}</dt>
+              <dt className="text-ink-muted">
+                {t.deliveryFee}
+                {selectedLabel && !switching ? (
+                  <span className="block text-caption">{selectedLabel}</span>
+                ) : null}
+              </dt>
               <dd className="m-0 tabular-nums">
-                {quote ? (quote.deliveryFee > 0 ? money(quote.deliveryFee) : t.free) : "—"}
+                {switching
+                  ? t.calculating
+                  : quote
+                    ? quote.deliveryFee > 0
+                      ? money(quote.deliveryFee)
+                      : t.free
+                    : "—"}
               </dd>
             </div>
           ) : null}
@@ -446,12 +739,18 @@ export function CheckoutView({
           <div className="flex items-baseline justify-between gap-3 border-t border-line pt-4">
             <dt className="text-subheading">{t.total}</dt>
             <dd className="m-0 text-price-lg tabular-nums">
-              {quote ? money(quote.expectedTotal) : quoting.pending ? t.calculating : "—"}
+              {switching
+                ? t.calculating
+                : quote
+                  ? money(checkoutTerms(quote).expectedTotal)
+                  : quoting.pending
+                    ? t.calculating
+                    : "—"}
             </dd>
           </div>
         </dl>
         {notice ? <FormAlert>{notice}</FormAlert> : null}
-        {quoteError ? <FormAlert>{quoteError}</FormAlert> : null}
+        {quoteError && !notice ? <FormAlert>{quoteError}</FormAlert> : null}
         {placeError && !notice ? <FormAlert>{placeError}</FormAlert> : null}
         {openOrderId ? (
           <Link
@@ -497,11 +796,17 @@ export function CheckoutView({
           size="xl"
           lift
           onClick={() => void place()}
-          disabled={busy || !quote || needsAddress || quoting.pending}
+          disabled={busy || !placeable(quote) || needsAddress || quoting.pending}
           aria-busy={busy || undefined}
           className="w-full"
         >
-          {stage === "placing" ? t.placing : stage === "paying" ? t.redirecting : t.placeOrder}
+          {stage === "placing"
+            ? t.placing
+            : stage === "paying"
+              ? t.redirecting
+              : confirmPrice
+                ? t.confirmNewPrice
+                : t.placeOrder}
         </Button>
         <Link
           href={shopPath(locale, { kind: "cart" })}
@@ -511,20 +816,17 @@ export function CheckoutView({
         </Link>
       </aside>
 
-      {addressOpen ? (
+      {editing ? (
         <AddressDialog
+          key={editing === "new" ? "new" : editing.id}
           locale={locale}
-          open={addressOpen}
-          onOpenChange={setAddressOpen}
-          regions={regions}
-          address={null}
-          onSaved={(address) => {
-            setAddresses((current) => [
-              ...current.map((item) => (address.isDefault ? { ...item, isDefault: false } : item)),
-              address,
-            ]);
-            setAddressId(address.id);
+          open
+          onOpenChange={(open) => {
+            if (!open) setEditing(null);
           }}
+          regions={regions}
+          address={editing === "new" ? null : editing}
+          onSaved={saved}
         />
       ) : null}
       <PhoneGate

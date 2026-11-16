@@ -20,6 +20,10 @@ export interface AttentionItem {
 export const BTS_POLLING_FAILING_TITLE =
   "BTS kuzatuvi ishlamayapti · buyurtma holatlari yangilanmayapti";
 
+/** Yandex Delivery plan §3.9 `attention.yandex_failing`. */
+export const YANDEX_FAILING_TITLE =
+  "Yandex Dostavka javob bermayapti · narxlar va holatlar yangilanmayapti";
+
 /** §5.7 (gap CB-9.2.4) `attention.cashback_policy_missing`. */
 export const CASHBACK_POLICY_MISSING_TITLE =
   "Cashback siyosati yo‘q · xaridlarga cashback yozilmayapti";
@@ -45,6 +49,18 @@ export function attentionItems(attention: DashboardData["attention"]): Attention
       key: "bts-polling",
       icon: "truck",
       title: BTS_POLLING_FAILING_TITLE,
+      tone: "danger",
+    });
+  }
+  if (attention.yandexFailing) {
+    // Repeated auth / payment errors of the price checks or the status poll:
+    // new orders cannot get a Yandex quote and courier statuses stand still.
+    items.push({
+      key: "yandex-failing",
+      href: "/admin/delivery-issues",
+      icon: "truck",
+      title: YANDEX_FAILING_TITLE,
+      body: "Yandex kabinetidagi balans va kalitni tekshiring; ochiq muammolarni ko‘ring.",
       tone: "danger",
     });
   }

@@ -8,6 +8,7 @@ import { getNavCounts } from "@/data/shell";
 import { cn } from "@/lib/cn";
 
 import { BillzStatus, BillzStatusFallback } from "./billz-status";
+import { IssuesNavPill } from "./issues-badge";
 import { NAV_ITEMS, type AdminSection, type NavItem } from "./nav-items";
 import { SidebarUser, SidebarUserFallback } from "./sidebar-user";
 
@@ -19,6 +20,8 @@ import { SidebarUser, SidebarUserFallback } from "./sidebar-user";
  */
 async function NavCount({ kind }: { kind: NonNullable<NavItem["badge"]> }) {
   const counts = await getNavCounts();
+  // Delivery issues follow the shell's 30 s poll (a client island).
+  if (kind === "issues") return <IssuesNavPill initial={counts?.deliveryIssuesOpen ?? null} />;
   const count = counts
     ? kind === "orders"
       ? counts.ordersProcessing

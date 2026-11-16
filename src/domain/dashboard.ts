@@ -14,6 +14,27 @@ export interface SeriesPoint {
   orders: number;
 }
 
+/**
+ * Order-state counters as the orders stand now (`dashboard.fulfilment`,
+ * Yandex Delivery plan §3.10; not windowed by the range).
+ */
+export interface FulfilmentCounters {
+  /** Processing orders still to be prepared (Yandex awaiting a courier, BTS, pickup). */
+  paidToPrepare: number;
+  /** Processing Yandex orders whose courier is requested, assigned or arrived. */
+  toHandToCourier: number;
+  /** Handed to the courier and not coming back. */
+  inDelivery: number;
+  /** Yandex `returning` / `returned` while the order is open. */
+  returning: number;
+  /** Delivered today (Tashkent), pickup included. */
+  completedToday: number;
+  /** Open delivery issues. */
+  needsAction: number;
+  /** Open urgent delivery issues. */
+  urgent: number;
+}
+
 export interface DashboardData {
   range: DashboardRange | "custom";
   /** Inclusive Tashkent days the numbers cover (`YYYY-MM-DD`). */
@@ -54,7 +75,14 @@ export interface DashboardData {
      * confirmed meanwhile earn no cashback until staff add one.
      */
     cashbackPolicyMissing: boolean;
+    /**
+     * Yandex Delivery is live and its last status poll or price check failed
+     * (always false in fake mode): quotes and statuses are not moving.
+     */
+    yandexFailing: boolean;
   };
+  /** `null` when the API predates Yandex Delivery (no tiles then). */
+  fulfilment: FulfilmentCounters | null;
 }
 
 /** Longest custom range, in days, inclusive (contract §2.10). */

@@ -389,7 +389,12 @@ describe("dispatchers in api mode", () => {
       "staff-token",
     );
     expect(audit.items).toHaveLength(4);
-    expect(await d.shell.getNavCounts()).toEqual({ ordersProcessing: 0, appointmentsPending: 3 });
+    // The recorded answer predates Yandex Delivery: no `delivery_issues_open` → 0.
+    expect(await d.shell.getNavCounts()).toEqual({
+      ordersProcessing: 0,
+      appointmentsPending: 3,
+      deliveryIssuesOpen: 0,
+    });
   });
 
   it("degrades the nav counts to null when the API fails", async () => {

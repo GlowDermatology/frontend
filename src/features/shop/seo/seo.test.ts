@@ -62,6 +62,7 @@ const settings: ShopSettings = {
   termsUpdatedAt: null,
   onlineSalesEnabled: true,
   fulfilmentMethods: ["pickup"],
+  deliveryProviders: [],
   paymentProviders: [],
   storeUrls: { ios: null, android: null },
 };

@@ -22,7 +22,8 @@ export type PaymentProvider = "click" | "payme";
 export type FulfilmentMethod = "delivery" | "pickup";
 /** `web` = the customer website (backend B-W1). */
 export type OrderChannel = "ios" | "android" | "web";
-export type EventSource = "system" | "bts" | "admin";
+/** `yandex` = a Yandex Delivery status update (Yandex Delivery plan §3.1). */
+export type EventSource = "system" | "bts" | "admin" | "yandex";
 
 export type CancellationReason = "reservation_expired" | "admin" | "customer_request";
 
@@ -56,6 +57,89 @@ export interface CustomerRef {
   phone: string;
 }
 
+/* --- Carrier view (Yandex Delivery plan §3.10, admin `OrderDelivery`) --- */
+
+export const DELIVERY_PROVIDERS = ["bts", "yandex"] as const;
+export type DeliveryProvider = (typeof DELIVERY_PROVIDERS)[number];
+
+/** Yandex Standard = Yandex class `courier`, Express = `express` (owner decision). */
+export const DELIVERY_METHODS = ["standard", "express"] as const;
+export type DeliveryMethod = (typeof DELIVERY_METHODS)[number];
+
+/** The finer progress of a Yandex shipment; the order status stays the coarse one. */
+export const SHIPMENT_STAGES = [
+  "awaiting_dispatch",
+  "courier_requested",
+  "courier_assigned",
+  "courier_arrived",
+  "in_transit",
+  "at_destination",
+  "delivered",
+  "returning",
+  "returned",
+  "cancelled",
+  "failed",
+] as const;
+export type ShipmentStage = (typeof SHIPMENT_STAGES)[number];
+
+/** The exception queue's kinds (plan §3.9); staff open only `incident`. */
+export const DELIVERY_ISSUE_KINDS = [
+  "dispatch_failed",
+  "dispatch_unknown",
+  "dispatch_review",
+  "delivery_failed",
+  "return_pending",
+  "preparation_overdue",
+  "cancel_incomplete",
+  "parcel_unaccounted",
+  "incident",
+] as const;
+export type DeliveryIssueKind = (typeof DELIVERY_ISSUE_KINDS)[number];
+
+/** One open issue of the order (`DeliveryIssueRef`); the queue has the whole row. */
+export interface DeliveryIssueRef {
+  id: number;
+  kind: DeliveryIssueKind;
+  /** Free-form machine code (`performer_not_found`, `staff_report`, …). */
+  code: string;
+  urgent: boolean;
+  openedAt: string;
+}
+
+/**
+ * The order's carrier view (admin `delivery`). A BTS order carries only
+ * `provider` and `openIssues` (every other key `null`); amounts are the
+ * server's so‘m, never computed here; the courier's phone is never sent.
+ */
+export interface OrderDelivery {
+  provider: DeliveryProvider;
+  method: DeliveryMethod | null;
+  stage: ShipmentStage | null;
+  promisedFrom: string | null;
+  promisedTo: string | null;
+  /** The delivery fee the checkout quote charged the customer. */
+  quoteFee: number | null;
+  /** Yandex's estimate the quote was computed from. */
+  carrierPrice: number | null;
+  /** The binding offer of the current courier claim (VAT included). */
+  offerPrice: number | null;
+  approvedPrice: number | null;
+  /** Yandex's final prices of every claim of the shipment, summed. */
+  carrierCostTotal: number | null;
+  costDifference: number | null;
+  parcelWeightG: number | null;
+  preparedAt: string | null;
+  courierName: string | null;
+  courierVehicle: string | null;
+  trackingUrl: string | null;
+  /** Yandex's claim status, verbatim. */
+  claimStatus: string | null;
+  claimNumber: number | null;
+  failureCode: string | null;
+  /** Urgent first, then oldest first. */
+  openIssues: DeliveryIssueRef[];
+}
+
 export interface OrderSummary {
   id: number;
   customer: CustomerRef;
@@ -67,6 +151,11 @@ export interface OrderSummary {
   fulfilment: FulfilmentMethod;
   shipment: Shipment;
   cancellation?: { reason: CancellationReason; note?: string };
+  /**
+   * The carrier view: `null` for a pickup order; absent when the API
+   * predates Yandex Delivery (the screens then treat a delivery as BTS).
+   */
+  delivery?: OrderDelivery | null;
 }
 
 export interface OrderItem {
@@ -240,6 +329,18 @@ export interface OrderActions {
   transitions: OrderStatus[];
   cancel: boolean;
   retryShipment: boolean;
+  /**
+   * Yandex Delivery: `POST orders/{id}/dispatch/` would be accepted now.
+   * Absent when the API predates the key (phase 2 backends) and for BTS /
+   * pickup orders in the demo; the screen offers the dialog only on `true`.
+   */
+  dispatch?: boolean;
+  /**
+   * Yandex Delivery: the parcel is returning / returned and its return is
+   * not confirmed yet (`POST orders/{id}/confirm-return/`). Absent like
+   * `dispatch`.
+   */
+  confirmReturn?: boolean;
 }
 
 export interface Order extends OrderSummary {
@@ -294,14 +395,54 @@ export function canCancel(order: Pick<Order, "status">): boolean {
   return order.status !== "delivered" && order.status !== "cancelled";
 }
 
+/** Stages at which a Yandex shipment waits for staff to call a courier (again). */
+export const DISPATCHABLE_STAGES: ReadonlyArray<ShipmentStage> = [
+  "awaiting_dispatch",
+  "failed",
+  "returned",
+];
+
+/** Whether the order goes (or went) with a Yandex courier. */
+export function isYandexDelivery(order: Pick<OrderSummary, "delivery">): boolean {
+  return order.delivery?.provider === "yandex";
+}
+
+/** Stages of a parcel on its way back to, or back at, the warehouse. */
+export const RETURN_STAGES: ReadonlyArray<ShipmentStage> = ["returning", "returned"];
+
 /**
  * The contract's `available_actions` rules (§2.2), for the mock fixtures: the
  * manual transitions, cancel while the order is open, and a BTS retry for a
  * paid delivery order whose automatic hand-off failed and is not in flight.
+ * A Yandex order (plan decision 8, §3.8) has no BTS retry and no manual
+ * transition except `handed_to_courier → delivered` while a
+ * `parcel_unaccounted` issue is open; it can be cancelled while open (the
+ * cancel is carrier-aware on the server); `dispatch` says whether a courier
+ * could be called now and `confirmReturn` whether a returning / returned
+ * parcel can be confirmed back (the demo keeps no confirmation, so a
+ * returned parcel counts as unconfirmed).
  */
 export function orderActions(
-  order: Pick<Order, "status" | "fulfilment" | "shipment">,
+  order: Pick<Order, "status" | "fulfilment" | "shipment"> & Pick<OrderSummary, "delivery">,
 ): OrderActions {
+  const delivery = order.delivery;
+  if (delivery?.provider === "yandex") {
+    const waiting = delivery.stage !== null && DISPATCHABLE_STAGES.includes(delivery.stage);
+    const unaccounted = delivery.openIssues.some((issue) => issue.kind === "parcel_unaccounted");
+    return {
+      transitions:
+        unaccounted && order.status === "handed_to_courier" && order.fulfilment === "delivery"
+          ? ["delivered"]
+          : [],
+      cancel: canCancel(order),
+      retryShipment: false,
+      dispatch:
+        waiting &&
+        (order.status === "processing" ||
+          (order.status === "handed_to_courier" && delivery.stage === "returned")),
+      confirmReturn: delivery.stage !== null && RETURN_STAGES.includes(delivery.stage),
+    };
+  }
   return {
     transitions: manualTransitions(order),
     cancel: canCancel(order),
@@ -316,4 +457,59 @@ export function orderActions(
 /** Whether a BTS create message is queued or in flight for the order. */
 export function shipmentPending(shipment: Shipment): boolean {
   return (shipment.state === "failed" || shipment.state === "not_created") && !!shipment.pending;
+}
+
+/* --- Carrier labels (Uzbek, as the backend's enum labels) --- */
+
+export const DELIVERY_METHOD_LABEL: Record<DeliveryMethod, string> = {
+  standard: "Standard",
+  express: "Express",
+};
+
+export const SHIPMENT_STAGE_LABEL: Record<ShipmentStage, string> = {
+  awaiting_dispatch: "Kuryer chaqirilishini kutmoqda",
+  courier_requested: "Kuryer qidirilmoqda",
+  courier_assigned: "Kuryer biriktirildi",
+  courier_arrived: "Kuryer omborga keldi",
+  in_transit: "Yo‘lda",
+  at_destination: "Kuryer manzilda",
+  delivered: "Topshirildi",
+  returning: "Omborga qaytarilmoqda",
+  returned: "Omborga qaytdi",
+  cancelled: "Bekor qilindi",
+  failed: "Kuryer topilmadi yoki xato",
+};
+
+export const DELIVERY_ISSUE_KIND_LABEL: Record<DeliveryIssueKind, string> = {
+  dispatch_failed: "Kuryer chaqirilmadi",
+  dispatch_unknown: "Kuryer chaqiruvi noaniq",
+  dispatch_review: "Narxni tasdiqlash kerak",
+  delivery_failed: "Yetkazib bo‘lmadi",
+  return_pending: "Qaytish kutilmoqda",
+  preparation_overdue: "Tayyorlash kechikdi",
+  cancel_incomplete: "Bekor qilish tugallanmadi",
+  parcel_unaccounted: "Jo‘natma nazoratdan chiqdi",
+  incident: "Hodisa",
+};
+
+/** Kind of an API value this build may not know yet: shown as its code. */
+export function issueKindLabel(kind: string): string {
+  return (DELIVERY_ISSUE_KIND_LABEL as Record<string, string>)[kind] ?? kind;
+}
+
+/**
+ * Who carries the order, for the list and the cards: "Yandex Standard",
+ * "Yandex Express", "Yandex" (method unknown), "BTS", or "Olib ketish" for
+ * pickup. An order from an API without `delivery` is a BTS delivery.
+ */
+export function carrierLabel(order: Pick<OrderSummary, "fulfilment" | "delivery">): string {
+  if (order.fulfilment === "pickup") return "Olib ketish";
+  const delivery = order.delivery;
+  if (delivery?.provider !== "yandex") return "BTS";
+  return delivery.method ? `Yandex ${DELIVERY_METHOD_LABEL[delivery.method]}` : "Yandex";
+}
+
+/** The order's open urgent issues (the card and the list mark them in red). */
+export function urgentIssues(delivery: OrderDelivery | null | undefined): DeliveryIssueRef[] {
+  return delivery ? delivery.openIssues.filter((issue) => issue.urgent) : [];
 }

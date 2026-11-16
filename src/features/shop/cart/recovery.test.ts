@@ -27,6 +27,7 @@ const order: ShopOrder = {
   payment: { status: "pending", statusLabel: "Pending", provider: "click", inProgress: false },
   payBy: "2026-11-15T10:14:00+05:00",
   trackingNumber: null,
+  delivery: null,
   items: [
     {
       productId: 7,

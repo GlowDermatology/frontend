@@ -15,6 +15,7 @@ import type { SearchParams } from "../shared/url-state";
 import { AttentionList } from "./attention-list";
 import { parseDashboardQuery } from "./query";
 import { DashboardCharts } from "./charts";
+import { FulfilmentBoard } from "./fulfilment-board";
 import { RangeControl } from "./range-control";
 import { RecentOrders } from "./recent-orders";
 import { StatCard } from "./stat-card";
@@ -130,6 +131,8 @@ export async function DashboardContent({ searchParams }: { searchParams: Promise
           }
         />
       </div>
+
+      {data.fulfilment && <FulfilmentBoard counters={data.fulfilment} />}
 
       <DashboardCharts series={data.series} axisNote={data.axisNote} axisLabels={data.axisLabels} />
 

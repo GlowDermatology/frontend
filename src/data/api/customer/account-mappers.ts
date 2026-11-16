@@ -20,6 +20,7 @@ import type {
   ShopSlots,
   SocialProvider,
 } from "@/domain/shop-account";
+import { toPin } from "@/domain/geo-pin";
 import type { ShopPage } from "@/domain/shop";
 
 import type {
@@ -40,6 +41,13 @@ import type {
   ApiRegionCatalog,
   ApiSession,
 } from "./account-types";
+import {
+  deliveryMethodOf,
+  deliveryProviderOf,
+  mapDeliveryOptions,
+  mapOrderDelivery,
+  quoteIdOrNull,
+} from "./delivery-mappers";
 import { absoluteUrl, optimizable, variant } from "./mappers";
 
 /**
@@ -81,6 +89,8 @@ function httpsOnly(value: unknown): string | null {
 }
 
 export function mapAddress(api: ApiAddress): ShopAddress {
+  // A pin is a pair: half a pin or an out-of-range value reads as "no pin".
+  const pin = toPin(api.latitude, api.longitude);
   return {
     id: api.id,
     label: text(api.label),
@@ -89,6 +99,8 @@ export function mapAddress(api: ApiAddress): ShopAddress {
     cityCode: text(api.city_code),
     comment: text(api.comment),
     isDefault: Boolean(api.is_default),
+    latitude: pin?.latitude ?? null,
+    longitude: pin?.longitude ?? null,
   };
 }
 
@@ -172,15 +184,36 @@ export function mapRegions(api: ApiRegionCatalog): ShopRegion[] {
   }));
 }
 
+/**
+ * `delivery/calculate/`. With `with_options` the released keys describe the
+ * selected option and `provider`/`method`/`quote_id`/`options[]` say which
+ * one it is; an answer without them (pickup, an older API) has no options
+ * and checkout keeps the released BTS request.
+ */
 export function mapQuote(api: ApiDeliveryQuote): ShopQuote {
+  const fulfilment = api.fulfilment === "delivery" ? "delivery" : "pickup";
+  const options = fulfilment === "delivery" ? mapDeliveryOptions(api.options) : [];
+  const provider = fulfilment === "delivery" ? deliveryProviderOf(api.provider) : null;
+  const method = provider === "yandex" ? deliveryMethodOf(api.method) : null;
+  const quoteId = provider === "yandex" ? quoteIdOrNull(api.quote_id) : null;
   return {
-    fulfilment: api.fulfilment === "delivery" ? "delivery" : "pickup",
+    fulfilment,
     deliveryFee: nonNegative(api.delivery_fee),
     itemsSubtotal: nonNegative(api.items_subtotal),
     cashbackMax: nonNegative(api.cashback_max),
     cashbackToUse: nonNegative(api.cashback_to_use),
     expectedTotal: nonNegative(api.expected_total),
     pickupAddress: optionalText(api.pickup_address),
+    provider: provider === "yandex" && (!method || !quoteId) ? null : provider,
+    method: provider === "yandex" && quoteId ? method : null,
+    quoteId: method ? quoteId : null,
+    quoteExpiresAt:
+      method && quoteId && typeof api.quote_expires_at === "string" ? api.quote_expires_at : null,
+    quotedAt:
+      typeof api.quoted_at === "string" && !Number.isNaN(Date.parse(api.quoted_at))
+        ? api.quoted_at
+        : null,
+    options,
   };
 }
 
@@ -219,6 +252,7 @@ export function mapOrderSummary(
     },
     payBy: api.pay_by ?? null,
     trackingNumber: optionalText(api.tracking_number),
+    delivery: api.fulfilment === "delivery" ? mapOrderDelivery(api.delivery) : null,
   };
 }
 

@@ -48,7 +48,10 @@ export async function GET(request: Request) {
         PROVIDER_LABEL[o.payment.provider],
         FULFILMENT_LABEL[o.fulfilment],
         ORDER_STATUS_META[o.status].label,
-        o.shipment.state === "created" ? o.shipment.trackingNumber : "",
+        // A Yandex order's tracking number is the courier claim's id, not a BTS number.
+        o.shipment.state === "created" && o.delivery?.provider !== "yandex"
+          ? o.shipment.trackingNumber
+          : "",
       ]),
     }),
   });

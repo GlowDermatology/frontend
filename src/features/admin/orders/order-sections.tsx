@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { Route } from "next";
+import type { ReactNode } from "react";
 
 import { ProductArt } from "@/components/brand/product-art";
 import { ScrollRegion } from "@/components/ui/scroll-region";
@@ -9,6 +10,7 @@ import { Badge, type Tone } from "@/components/ui/badge";
 import { Card, CardTitle, DetailRow } from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
 import {
+  carrierLabel,
   itemsSubtotal,
   manualRefundNote,
   promoSubtotal,
@@ -100,7 +102,10 @@ export function OrderItemsCard({ order }: { order: Order }) {
         <dl className="flex w-full max-w-[360px] flex-col gap-2 text-[14px] leading-5 text-ink">
           <TotalRow label="Mahsulotlar" value={formatSom(subtotal)} />
           {order.fulfilment === "delivery" && (
-            <TotalRow label="Yetkazib berish (BTS)" value={formatSom(order.deliveryFee)} />
+            <TotalRow
+              label={`Yetkazib berish (${carrierLabel(order)})`}
+              value={formatSom(order.deliveryFee)}
+            />
           )}
           {order.cashbackUsed > 0 && (
             <TotalRow label="Cashback chegirmasi" value={formatSom(-order.cashbackUsed)} />
@@ -160,7 +165,12 @@ function TotalRow({
   );
 }
 
-const SOURCE_LABEL: Record<EventSource, string> = { system: "TIZIM", bts: "BTS", admin: "ADMIN" };
+const SOURCE_LABEL: Record<EventSource, string> = {
+  system: "TIZIM",
+  bts: "BTS",
+  admin: "ADMIN",
+  yandex: "YANDEX",
+};
 
 const STATUS_DOT: Record<OrderStatus, string> = {
   awaiting_payment: "bg-warning",
@@ -355,7 +365,8 @@ function shipmentBadge(order: Order): { label: string; tone: Tone } {
   return { label: "Yaratildi", tone: "gold" };
 }
 
-export function OrderShipmentCard({ order }: { order: Order }) {
+/** The BTS card; `children` (the open delivery issues) close it. */
+export function OrderShipmentCard({ order, children }: { order: Order; children?: ReactNode }) {
   const { shipment } = order;
   const badge = shipmentBadge(order);
   return (
@@ -410,6 +421,7 @@ export function OrderShipmentCard({ order }: { order: Order }) {
               : "To‘lov tasdiqlangach BTS buyurtmasi avtomatik yaratiladi."}
         </p>
       )}
+      {children}
     </Card>
   );
 }

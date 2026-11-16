@@ -6,6 +6,7 @@ import { Icon } from "@/components/ui/icon";
 import { ContentErrorBoundary } from "./content-error";
 import { DemoBadge } from "./demo-badge";
 import { GlobalSearch } from "./global-search";
+import { IssuesAlert, IssuesAlertFallback } from "./issues-alert";
 import { MobileNav } from "./mobile-nav";
 import type { AdminSection } from "./nav-items";
 import { SidebarContent } from "./sidebar";
@@ -44,6 +45,9 @@ export function AdminShell({ section, children }: AdminShellProps) {
           <span className="flex-1" />
           <Suspense fallback={null}>
             <DemoBadge />
+          </Suspense>
+          <Suspense fallback={<IssuesAlertFallback />}>
+            <IssuesAlert />
           </Suspense>
           <Link
             href="/admin/notifications"

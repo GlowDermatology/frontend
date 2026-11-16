@@ -6,20 +6,24 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Field, Select, TextArea, TextInput } from "@/components/ui/field";
 import { saveAddress } from "@/data/shop/account.actions";
-import type { ShopAddress, ShopRegion } from "@/domain/shop-account";
+import type { GeoPin } from "@/domain/geo-pin";
+import { hasPin, type ShopAddress, type ShopRegion } from "@/domain/shop-account";
 import { useIdempotencyKey } from "@/lib/actions/idempotency";
 import type { Locale } from "@/lib/i18n/locales";
 
 import { accountCopy } from "../copy/account";
 import { commonCopy } from "../copy/common";
+import { AddressMap } from "./address-map";
 import { FormAlert } from "./controls";
 import { failureText, useShopAction } from "./use-shop-action";
 
 /**
  * Add or edit a saved address (contract §2.2.7): a label, the BTS region and
- * city (the reference list of `delivery/regions/`, needed for delivery), the
- * street address and a note for the courier. Used by the account page and
- * by checkout ("Yangi manzil qo‘shish").
+ * city (the reference list of `delivery/regions/`, needed for BTS delivery),
+ * the street address, the map pin (Yandex Delivery routes the courier to it;
+ * it needs no BTS codes, so with no regions offered the pin alone makes the
+ * address deliverable) and a note for the courier. Used by the account page
+ * and by checkout ("Yangi manzil qo‘shish").
  */
 export function AddressDialog({
   locale,
@@ -46,6 +50,11 @@ export function AddressDialog({
   const [text, setText] = useState(address?.text ?? "");
   const [comment, setComment] = useState(address?.comment ?? "");
   const [isDefault, setIsDefault] = useState(address?.isDefault ?? false);
+  const [pin, setPin] = useState<GeoPin | null>(() =>
+    address && hasPin(address)
+      ? { latitude: address.latitude, longitude: address.longitude }
+      : null,
+  );
   const cities = regions.find((region) => region.code === regionCode)?.cities ?? [];
 
   const submit = async () => {
@@ -54,7 +63,16 @@ export function AddressDialog({
         saveAddress({
           locale,
           id: address?.id ?? null,
-          address: { label, text, regionCode, cityCode, comment, isDefault },
+          address: {
+            label,
+            text,
+            regionCode,
+            cityCode,
+            comment,
+            isDefault,
+            latitude: pin?.latitude ?? null,
+            longitude: pin?.longitude ?? null,
+          },
           idempotencyKey: key.key,
           csrf,
         }),
@@ -144,6 +162,13 @@ export function AddressDialog({
             />
           )}
         </Field>
+        <AddressMap
+          locale={locale}
+          value={pin}
+          onChange={setPin}
+          error={field("latitude") ?? field("longitude")}
+          needsPin={regions.length === 0}
+        />
         <Field label={copy.comment} error={field("comment")}>
           {(control) => (
             <TextInput

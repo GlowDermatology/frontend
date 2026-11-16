@@ -3,7 +3,9 @@ import "server-only";
 import { apiFetch, cachedGet, type QueryValue } from "./client";
 import type {
   ApiCancelOrder,
+  ApiConfirmReturn,
   ApiDashboard,
+  ApiDispatchRequest,
   ApiOrderDetail,
   ApiPaginatedOrders,
   ApiPaginatedPayments,
@@ -46,9 +48,11 @@ export function apiGetOrderFresh(token: string, orderId: number) {
 }
 
 /**
- * `cancel` runs the BTS cancel synchronously when a parcel exists (§2.2) and
- * may wait up to `ADMIN_LOCK_WAIT` (5 s) for a busy order row, so it gets a
- * longer deadline than the default 10 s.
+ * `cancel` runs the BTS cancel synchronously when a parcel exists (§2.2) —
+ * for a Yandex order the carrier-safe step (`cancel_at_carrier`: cancel or
+ * return request plus up to three 1 s re-reads, plan §3.8) — and may wait up
+ * to `ADMIN_LOCK_WAIT` (5 s) for a busy order row, so it gets a longer
+ * deadline than the default 10 s.
  */
 export function apiCancelOrder(
   token: string,
@@ -85,6 +89,42 @@ export function apiRetryShipment(token: string, orderId: number, idempotencyKey:
   return apiFetch<ApiOrderDetail>(`${BASE}/orders/${id(orderId)}/retry-shipment/`, {
     method: "POST",
     body: {},
+    token,
+    idempotencyKey,
+    timeoutMs: 20_000,
+  });
+}
+
+/**
+ * Yandex Delivery (plan §3.6): 202 with the order detail (`delivery.stage`
+ * `courier_requested`); nothing goes to Yandex in the request, the outbox
+ * calls it. Waits up to 5 s for a busy order row, hence the longer deadline.
+ */
+export function apiDispatchOrder(
+  token: string,
+  orderId: number,
+  body: ApiDispatchRequest,
+  idempotencyKey: string,
+) {
+  return apiFetch<ApiOrderDetail>(`${BASE}/orders/${id(orderId)}/dispatch/`, {
+    method: "POST",
+    body,
+    token,
+    idempotencyKey,
+    timeoutMs: 20_000,
+  });
+}
+
+/** Yandex Delivery (plan §3.8): 200 with the order detail; the parcel is back at the warehouse. */
+export function apiConfirmReturn(
+  token: string,
+  orderId: number,
+  body: ApiConfirmReturn,
+  idempotencyKey: string,
+) {
+  return apiFetch<ApiOrderDetail>(`${BASE}/orders/${id(orderId)}/confirm-return/`, {
+    method: "POST",
+    body,
     token,
     idempotencyKey,
     timeoutMs: 20_000,

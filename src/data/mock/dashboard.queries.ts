@@ -8,7 +8,7 @@ import type { ApiDashboard, ApiDashboardBucket } from "../api/types";
 import { referenceNow } from "../config";
 import { getPendingAppointments } from "./appointments.queries";
 import { CUSTOMER_TOTALS, DASHBOARD_SERIES } from "./dashboard";
-import { countFailedShipments } from "./orders.queries";
+import { countFailedShipments, getFulfilmentCounts } from "./orders.queries";
 import { isLateCapture, ORDER_SUMMARIES } from "./orders";
 import { PAYMENTS } from "./payments";
 import { getCatalogStats } from "./products.queries";
@@ -23,6 +23,12 @@ import { getCatalogStats } from "./products.queries";
 
 /** Demo value of `attention.bts_polling_failing` (M2): on, so the item can be seen. */
 export const MOCK_BTS_POLLING_FAILING = true;
+
+/**
+ * Demo value of `attention.yandex_failing` (Yandex Delivery plan §3.9): off,
+ * as the backend reports in fake mode (the item is covered by unit tests).
+ */
+export const MOCK_YANDEX_FAILING = false;
 
 const PREVIOUS_ORDERS: Record<DashboardRange, number> = { today: 41, week: 212, month: 905 };
 const SPAN_DAYS: Record<DashboardRange, number> = { today: 1, week: 7, month: 30 };
@@ -66,10 +72,11 @@ function countOrdersBetween(from: string, to: string): number {
 }
 
 export async function getDashboard(query: DashboardQuery): Promise<DashboardData> {
-  const [catalog, pending, btsFailed] = await Promise.all([
+  const [catalog, pending, btsFailed, fulfilment] = await Promise.all([
     getCatalogStats(),
     getPendingAppointments(),
     countFailedShipments(),
+    getFulfilmentCounts(),
   ]);
   const attention: DashboardData["attention"] = {
     btsFailed,
@@ -84,6 +91,7 @@ export async function getDashboard(query: DashboardQuery): Promise<DashboardData
     btsPollingFailing: MOCK_BTS_POLLING_FAILING,
     // The demo has a cashback policy in force (`MOCK_POLICY`).
     cashbackPolicyMissing: false,
+    yandexFailing: MOCK_YANDEX_FAILING,
   };
   const today = toLocalIsoDate(referenceNow());
 
@@ -116,6 +124,16 @@ export async function getDashboard(query: DashboardQuery): Promise<DashboardData
         refunds_needing_action: attention.refundsNeedingAction,
         bts_polling_failing: attention.btsPollingFailing,
         cashback_policy_missing: attention.cashbackPolicyMissing,
+        yandex_failing: attention.yandexFailing,
+      },
+      fulfilment: {
+        paid_to_prepare: fulfilment.paidToPrepare,
+        to_hand_to_courier: fulfilment.toHandToCourier,
+        in_delivery: fulfilment.inDelivery,
+        returning: fulfilment.returning,
+        completed_today: fulfilment.completedToday,
+        needs_action: fulfilment.needsAction,
+        urgent: fulfilment.urgent,
       },
       generated_at: referenceNow().toISOString(),
     };
@@ -142,5 +160,6 @@ export async function getDashboard(query: DashboardQuery): Promise<DashboardData
       outOfStock: catalog.outOfStock,
     },
     attention,
+    fulfilment,
   };
 }

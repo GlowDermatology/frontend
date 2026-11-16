@@ -39,6 +39,7 @@ import type {
 import { PHONE_PATTERN, normalizePhone } from "@/lib/phone";
 import { isLocale, type Locale } from "@/lib/i18n/locales";
 
+import { addressPinSchema, type AddressPin } from "./address.schema";
 import type { CodeSent } from "./auth.actions";
 import {
   SESSION_EXPIRED_FAILURE,
@@ -419,9 +420,13 @@ export interface AddressInput {
   cityCode: string;
   comment: string;
   isDefault: boolean;
+  /** The map pin: both numbers or both `null` (an update with `null` removes the pin). */
+  latitude: number | null;
+  longitude: number | null;
 }
 
-function addressBody(input: AddressInput): ApiAddressWrite {
+/** `pin` is `undefined` when the caller sent no coordinates at all: an update then keeps the saved pin. */
+function addressBody(input: AddressInput, pin: AddressPin | undefined): ApiAddressWrite {
   const code = (value: unknown) => {
     const trimmed = typeof value === "string" ? value.trim() : "";
     return /^\d{1,16}$/.test(trimmed) ? trimmed : "";
@@ -437,6 +442,7 @@ function addressBody(input: AddressInput): ApiAddressWrite {
       .trim()
       .slice(0, 200),
     is_default: Boolean(input.isDefault),
+    ...(pin ? { latitude: pin.latitude, longitude: pin.longitude } : {}),
   };
 }
 
@@ -450,8 +456,22 @@ export async function saveAddress(input: {
   const locale = localeOf(input.locale);
   const guard = await guardCustomerAction(input.csrf);
   if (!guard.ok) return guard;
+  const sent = input.address?.latitude !== undefined || input.address?.longitude !== undefined;
+  const pin = addressPinSchema(locale).safeParse({
+    latitude: input.address?.latitude ?? null,
+    longitude: input.address?.longitude ?? null,
+  });
+  if (sent && !pin.success) {
+    const message = pin.error.issues[0]?.message ?? shopMessage(locale, "invalid");
+    return {
+      ok: false,
+      error: message,
+      code: "validation_error",
+      fieldErrors: { latitude: message },
+    };
+  }
   try {
-    const body = addressBody(input.address);
+    const body = addressBody(input.address, sent ? pin.data : undefined);
     const { data } = input.id
       ? await apiUpdateAddress(locale, Number(input.id), body)
       : await apiCreateAddress(locale, body, String(input.idempotencyKey));

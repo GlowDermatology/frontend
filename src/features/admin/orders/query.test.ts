@@ -79,6 +79,20 @@ describe("parseOrderQuery / orderListHref", () => {
     expect(parseOrderQuery({ q: ["a", "b"] }).q).toBe("a");
   });
 
+  it("round-trips the carrier filters; a stage implies Yandex (plan §3.10)", () => {
+    const href = "/admin/orders?period=all&provider=yandex&stage=returning&attention=urgent";
+    const query = parseOrderQuery(params(href));
+    expect(query).toMatchObject({ provider: "yandex", stage: "returning", attention: "urgent" });
+    expect(orderListHref(query)).toBe(href);
+    expect(hasActiveFilters(parseOrderQuery({ attention: "open" }))).toBe(true);
+    expect(parseOrderQuery({ stage: "in_transit", provider: "bts" }).provider).toBe("yandex");
+    expect(parseOrderQuery({ provider: "dhl", stage: "lost", attention: "maybe" })).toMatchObject({
+      provider: undefined,
+      stage: undefined,
+      attention: undefined,
+    });
+  });
+
   it("accepts only the page sizes of the design", () => {
     for (const size of [6, 10, 25, 50]) {
       expect(parseOrderQuery({ size: String(size) }).pageSize).toBe(size);

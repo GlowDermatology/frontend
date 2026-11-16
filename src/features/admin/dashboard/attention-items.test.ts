@@ -6,6 +6,7 @@ import {
   attentionItems,
   BTS_POLLING_FAILING_TITLE,
   CASHBACK_POLICY_MISSING_TITLE,
+  YANDEX_FAILING_TITLE,
 } from "./attention-items";
 
 const calm: DashboardData["attention"] = {
@@ -16,6 +17,7 @@ const calm: DashboardData["attention"] = {
   refundsNeedingAction: 0,
   btsPollingFailing: false,
   cashbackPolicyMissing: false,
+  yandexFailing: false,
 };
 
 describe("attentionItems (contract §5.7)", () => {
@@ -46,16 +48,33 @@ describe("attentionItems (contract §5.7)", () => {
       refundsNeedingAction: 2,
       btsPollingFailing: true,
       cashbackPolicyMissing: true,
+      yandexFailing: true,
     });
     expect(items.map((item) => [item.key, item.href ?? null])).toEqual([
       ["bts-failed", "/admin/orders?status=processing&fulfilment=delivery&period=all"],
       ["bts-polling", null],
+      ["yandex-failing", "/admin/delivery-issues"],
       ["cashback-policy", "/admin/cashback"],
       ["appointments", "/admin/appointments"],
       ["refunds", "/admin/payments?refund=needs_action"],
       ["billz", "/admin/products?new=1"],
     ]);
-    expect(items[4]!.title).toBe("2 ta qaytarish tekshiruv kutmoqda");
+    expect(items[5]!.title).toBe("2 ta qaytarish tekshiruv kutmoqda");
+  });
+
+  it("words a failing Yandex account and links the issue queue (plan §3.9)", () => {
+    const items = attentionItems({ ...calm, yandexFailing: true });
+    expect(items).toEqual([
+      expect.objectContaining({
+        key: "yandex-failing",
+        href: "/admin/delivery-issues",
+        title: YANDEX_FAILING_TITLE,
+        tone: "danger",
+      }),
+    ]);
+    expect(YANDEX_FAILING_TITLE).toBe(
+      "Yandex Dostavka javob bermayapti · narxlar va holatlar yangilanmayapti",
+    );
   });
 
   it("links a missing cashback policy to the cashback settings (gap CB-9.2.4)", () => {

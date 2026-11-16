@@ -42,6 +42,7 @@ import { commonCopy } from "../copy/common";
 import { shopPath } from "../routing/routes";
 import { runShopAction } from "../shared/action-client";
 import { AddressDialog } from "./address-form";
+import { AddressPinNote } from "./address-pin-note";
 import { CodeField, FormAlert, FormNote, PasswordField } from "./controls";
 import { PhoneGate } from "./phone-gate";
 import { ReauthStep } from "./reauth";
@@ -735,6 +736,7 @@ function AddressesCard({
             {address.comment ? (
               <span className="text-caption text-ink-muted">{address.comment}</span>
             ) : null}
+            <AddressPinNote locale={locale} address={address} />
             <div className="mt-1 flex flex-wrap gap-1">
               <Button size="sm" variant="ghost" onClick={() => setEditing(address)}>
                 {copy.edit}

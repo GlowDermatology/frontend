@@ -556,6 +556,16 @@ describe("dashboard (§5.7)", () => {
         refunds_needing_action: 0,
         bts_polling_failing: false,
         cashback_policy_missing: false,
+        yandex_failing: false,
+      },
+      fulfilment: {
+        paid_to_prepare: 0,
+        to_hand_to_courier: 0,
+        in_delivery: 0,
+        returning: 0,
+        completed_today: 0,
+        needs_action: 0,
+        urgent: 0,
       },
       generated_at: "2026-10-24T12:05:00+05:00",
     });

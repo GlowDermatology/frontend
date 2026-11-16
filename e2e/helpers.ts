@@ -18,14 +18,20 @@ export async function signIn(
 /**
  * Collects uncaught page errors and 5xx responses of the app's own origin
  * while a test runs; `assertClean()` fails the test if any occurred.
+ * `ignorePaths` names app paths whose 5xx a spec expects (e.g. the shell's
+ * delivery-issue poll against a backend without the queue).
  */
-export function watchPage(page: Page): { assertClean: () => void } {
+export function watchPage(
+  page: Page,
+  options: { ignorePaths?: ReadonlyArray<string> } = {},
+): { assertClean: () => void } {
   const problems: string[] = [];
   page.on("pageerror", (error) => problems.push(`page error: ${error.message}`));
   const origin = new URL(BASE_URL).origin;
+  const ignored = new Set(options.ignorePaths ?? []);
   page.on("response", (response) => {
     const url = new URL(response.url());
-    if (response.status() >= 500 && url.origin === origin) {
+    if (response.status() >= 500 && url.origin === origin && !ignored.has(url.pathname)) {
       problems.push(`${response.status()} ${url.pathname}`);
     }
   });

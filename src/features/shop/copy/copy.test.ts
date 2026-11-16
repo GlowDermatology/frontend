@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { DELIVERY_UNAVAILABLE_REASONS } from "@/domain/shop-delivery";
+
 import { accountCopy } from "./account";
 import { authCopy } from "./auth";
 import { bookingCopy } from "./booking";
@@ -60,5 +62,16 @@ describe("interpolated copy", () => {
     expect(accountCopy.en.sessions.revokedOthers(1)).toBe("1 session signed out");
     expect(bookingCopy.ru.booking.experience(11)).toBe("Опыт 11 лет");
     expect(bookingCopy.ru.booking.experience(22)).toBe("Опыт 22 года");
+    expect(ordersCopy.uz.delivery.eta("Bugun, 14:30–16:00")).toBe(
+      "Yetkazib berish: Bugun, 14:30–16:00",
+    );
+    expect(ordersCopy.en.checkout.deliveryPriceChanged("A", "B")).toContain("now B (was A)");
+  });
+
+  it("explains every reason a delivery option can be refused", () => {
+    const reasons = [...DELIVERY_UNAVAILABLE_REASONS, "region_required"].sort();
+    for (const dict of [ordersCopy.uz, ordersCopy.ru, ordersCopy.en]) {
+      expect(Object.keys(dict.delivery.reasons).sort()).toEqual(reasons);
+    }
   });
 });

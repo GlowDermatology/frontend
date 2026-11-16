@@ -298,6 +298,14 @@ export function mapSettings(api: ApiPublicSettings): ShopSettings {
     fulfilmentMethods: (api.fulfilment_methods ?? []).filter(
       (method): method is "delivery" | "pickup" => method === "delivery" || method === "pickup",
     ),
+    // Older API answers have no `delivery` block: no Yandex, BTS as `fulfilment_methods` says.
+    deliveryProviders: [
+      ...new Set(
+        (api.delivery?.providers ?? []).filter(
+          (provider): provider is "yandex" | "bts" => provider === "yandex" || provider === "bts",
+        ),
+      ),
+    ],
     paymentProviders: (api.payment_providers ?? []).filter(
       (provider): provider is "click" | "payme" => provider === "click" || provider === "payme",
     ),

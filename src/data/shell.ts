@@ -6,6 +6,7 @@ import { apiNavCounts } from "./api/admin";
 import { isApiError } from "./api/errors";
 import { verifyStaff } from "./auth";
 import { getPendingAppointments } from "./appointments";
+import { getIssueAlerts as mockIssueAlerts } from "./mock/delivery-issues.queries";
 import { getOrderStatusCounts } from "./orders";
 import { dataSource } from "./source";
 
@@ -18,6 +19,11 @@ export interface NavCounts {
   ordersProcessing: number;
   /** Requests still ahead (= the pending summary's count). */
   appointmentsPending: number;
+  /**
+   * Open delivery issues (Yandex Delivery plan §3.10); `0` from a backend
+   * before Yandex Delivery. The shell polls it every 30 s from then on.
+   */
+  deliveryIssuesOpen: number;
 }
 
 /**
@@ -37,15 +43,21 @@ export const getNavCounts = cache(async (): Promise<NavCounts | null> => {
       return {
         ordersProcessing: data.orders_processing,
         appointmentsPending: data.appointments_pending,
+        deliveryIssuesOpen: data.delivery_issues_open ?? 0,
       };
     } catch (error) {
       if (isApiError(error)) return null;
       throw error;
     }
   }
-  const [orders, pending] = await Promise.all([
+  const [orders, pending, issues] = await Promise.all([
     getOrderStatusCounts({ period: "all" }),
     getPendingAppointments(),
+    mockIssueAlerts(),
   ]);
-  return { ordersProcessing: orders.processing, appointmentsPending: pending.count };
+  return {
+    ordersProcessing: orders.processing,
+    appointmentsPending: pending.count,
+    deliveryIssuesOpen: issues.open,
+  };
 });

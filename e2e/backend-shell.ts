@@ -408,3 +408,148 @@ export function clearCategorySeo(slug: string): void {
   ].join("\n");
   shellJson(code);
 }
+
+/* --- Yandex Delivery specs (test-only; INTERFACES-dispatch) --- */
+
+/** What `openYandexWarehouse` changed, for `restoreYandexWarehouse`. */
+export interface YandexWarehouseSnapshot {
+  settings: Record<string, string | number | boolean | null>;
+  hours: Array<[weekday: number, opensAt: string, closesAt: string]>;
+  closures: Array<[date: string, opensAt: string | null, closesAt: string | null, note: string]>;
+}
+
+const WAREHOUSE_FIELDS = {
+  warehouse_name: "GlowDerma ombori (e2e)",
+  warehouse_address: "Toshkent, Amir Temur shoh ko‘chasi, 1",
+  warehouse_latitude: "41.299496",
+  warehouse_longitude: "69.240073",
+  contact_name: "Ombor",
+  contact_phone: "+998901234567",
+  contact_email: "ombor@glowderma.uz",
+  courier_comment: "",
+  standard_enabled: true,
+  express_enabled: true,
+  prep_minutes: 0,
+  dispatch_cutoff_minutes: 0,
+  returns_accepted: true,
+  dispatch_suspended: false,
+  suspended_until: null,
+} as const;
+
+/**
+ * Makes the Yandex warehouse dispatchable right now, as the backend's own
+ * dispatch tests do (`commerce/tests/yandex_dispatch_support.open_warehouse`):
+ * point A complete, both methods on, open the whole day every day, no prep
+ * time or cutoff, no suspension and no closure today. Returns what it
+ * changed; `restoreYandexWarehouse` puts it back. Ops console data — the
+ * admin API has no endpoint for it (plan decision 13).
+ */
+export function openYandexWarehouse(): YandexWarehouseSnapshot {
+  const code = [
+    "import json",
+    "from datetime import time",
+    "from decimal import Decimal",
+    "from glowderma.core import timeutils",
+    "from glowderma.delivery.models import DeliverySettings, WarehouseClosure, WarehouseHours",
+    `values = json.loads(${JSON.stringify(JSON.stringify(WAREHOUSE_FIELDS))})`,
+    "row = DeliverySettings.objects.get(pk=1)",
+    "safe = lambda v: str(v) if isinstance(v, Decimal) else (v.isoformat() if hasattr(v, 'isoformat') else v)",
+    "before = {name: safe(getattr(row, name)) for name in values}",
+    "hours = [[h.weekday, h.opens_at.isoformat(), h.closes_at.isoformat()] for h in WarehouseHours.objects.all()]",
+    "today = timeutils.now().astimezone(timeutils.TASHKENT).date()",
+    "closed = WarehouseClosure.objects.filter(date=today)",
+    "closures = [[c.date.isoformat(), c.opens_at.isoformat() if c.opens_at else None, c.closes_at.isoformat() if c.closes_at else None, c.note] for c in closed]",
+    "closed.delete()",
+    "DeliverySettings.objects.filter(pk=1).update(**values)",
+    "for weekday in range(7):",
+    "    WarehouseHours.objects.update_or_create(weekday=weekday, defaults={'opens_at': time(0), 'closes_at': time(23, 59, 59)})",
+    "print(json.dumps({'settings': before, 'hours': hours, 'closures': closures}))",
+  ].join("\n");
+  const answer = shellJson<YandexWarehouseSnapshot>(code);
+  if (!answer || typeof answer.settings !== "object") {
+    throw new Error(`the backend did not open the Yandex warehouse: ${JSON.stringify(answer)}`);
+  }
+  return answer;
+}
+
+/** Puts back the warehouse settings, weekly hours and today's closure `openYandexWarehouse` changed. */
+export function restoreYandexWarehouse(snapshot: YandexWarehouseSnapshot): void {
+  const code = [
+    "import json",
+    "from datetime import date, time",
+    "from glowderma.delivery.models import DeliverySettings, WarehouseClosure, WarehouseHours",
+    `snapshot = json.loads(${JSON.stringify(JSON.stringify(snapshot))})`,
+    "DeliverySettings.objects.filter(pk=1).update(**snapshot['settings'])",
+    "WarehouseHours.objects.all().delete()",
+    "for weekday, opens, closes in snapshot['hours']:",
+    "    WarehouseHours.objects.create(weekday=weekday, opens_at=time.fromisoformat(opens), closes_at=time.fromisoformat(closes))",
+    "for day, opens, closes, note in snapshot['closures']:",
+    "    WarehouseClosure.objects.update_or_create(date=date.fromisoformat(day), defaults={'opens_at': time.fromisoformat(opens) if opens else None, 'closes_at': time.fromisoformat(closes) if closes else None, 'note': note})",
+    "print(json.dumps({'hours': WarehouseHours.objects.count()}))",
+  ].join("\n");
+  shellJson(code);
+}
+
+/**
+ * The fake Yandex's scenario of one order (`Order.metadata.fake.yandex`,
+ * INTERFACES-adapter): `offer_price` is the binding offer of the claims it
+ * creates (equal to the checkout estimate → accepted at once; well above it
+ * → `dispatch_review`).
+ */
+export interface FakeYandexScenario {
+  offer_price?: number;
+  statuses?: string[];
+}
+
+/** The checkout estimate and the fee the arranged order paid (so‘m), as the backend tests use. */
+export const YANDEX_E2E_ESTIMATE = 20_000;
+export const YANDEX_E2E_FEE = 22_000;
+
+/**
+ * A paid Yandex order ready for "Kuryer chaqirish", placed and paid through
+ * the backend's own services (no API exists to place one for a test): the
+ * first active customer with a +998 phone gets an `e2e Yandex` address with
+ * a map pin, a stored Yandex quote (estimate 20 000, fee 22 000 so‘m) and an
+ * order of one product through `commerce.services.create_order`
+ * (`delivery_provider="yandex"`), paid through `mark_paid` with the fake
+ * Click's ids — so `confirm_payment_effects` runs as after a real payment
+ * (stage `awaiting_dispatch`, nothing sent to Yandex). Needs the warehouse
+ * open (`openYandexWarehouse`). Returns the order id.
+ */
+export function createPaidYandexOrder(
+  options: { method?: "standard" | "express"; fake?: FakeYandexScenario } = {},
+): number {
+  const method = options.method ?? "standard";
+  const fake = options.fake ?? { offer_price: YANDEX_E2E_ESTIMATE };
+  const code = [
+    "import json",
+    "from datetime import timedelta",
+    "from decimal import Decimal",
+    "from glowderma.accounts.models import Address, Customer",
+    "from glowderma.catalog.models import Product",
+    "from glowderma.commerce import services",
+    "from glowderma.commerce.models import Order",
+    "from glowderma.core import timeutils",
+    "from glowderma.delivery.models import DeliveryQuote",
+    "from glowderma.integrations.click import fake as fake_click",
+    "from glowderma.payments import selectors as payment_selectors",
+    `method = json.loads(${JSON.stringify(JSON.stringify(method))})`,
+    `scenario = json.loads(${JSON.stringify(JSON.stringify(fake))})`,
+    "customer = Customer.objects.filter(status='active', phone__startswith='+998').order_by('pk').first()",
+    "product = Product.objects.filter(price__gt=0).order_by('pk').first()",
+    "address = Address.objects.create(customer=customer, label='e2e Yandex', text='Toshkent, Chilonzor tumani, 9-kvartal, 12-uy (e2e Yandex)', latitude=Decimal('41.311081'), longitude=Decimal('69.240562'))",
+    "now = timeutils.now()",
+    `quote = DeliveryQuote.objects.create(customer=customer, address_id=address.pk, address_text=address.text, latitude=address.latitude, longitude=address.longitude, provider='yandex', method=method, carrier_price=${YANDEX_E2E_ESTIMATE}, customer_fee=${YANDEX_E2E_FEE}, weight_g=500, eta_from=now + timedelta(minutes=90), eta_to=now + timedelta(minutes=210), expires_at=now + timedelta(minutes=15))`,
+    `order_id = services.create_order(customer.pk, [(product.pk, 1)], 'delivery', payment_provider='click', channel='web', delivery_fee=${YANDEX_E2E_FEE}, address_id=address.pk, metadata={'fake': {'yandex': scenario}}, enforce_stock=False, delivery_provider='yandex', delivery_method=method, delivery_quote_id=quote.pk)`,
+    "DeliveryQuote.objects.filter(pk=quote.pk).update(used_at=now, order_id=order_id)",
+    "pending = payment_selectors.active_payment(order_id, 'pending')",
+    "services.mark_paid(order_id, pending.id, 'click', fake_click.transaction_id(order_id), raw={'click_paydoc_id': fake_click.paydoc_id(order_id)})",
+    "order = Order.objects.get(pk=order_id)",
+    "print(json.dumps({'id': order_id, 'status': order.status}))",
+  ].join("\n");
+  const answer = shellJson<{ id: number; status: string }>(code);
+  if (!Number.isInteger(answer?.id) || answer.status !== "processing") {
+    throw new Error(`the backend did not create a paid Yandex order: ${JSON.stringify(answer)}`);
+  }
+  return answer.id;
+}

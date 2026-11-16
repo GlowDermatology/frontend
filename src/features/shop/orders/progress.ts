@@ -9,7 +9,10 @@ import type { ShopOrder, ShopProgressStep } from "@/domain/shop-account";
  *   its event (a payment confirmed before a cancellation stays done);
  * - an open order's first step not done is `current`, later ones `upcoming`;
  * - a cancelled order marks the steps not done `skipped` and ends with the
- *   API's `cancelled` step (`done`).
+ *   API's `cancelled` step (`done`);
+ * - for a Yandex order `shipment_created` means a courier was *requested*
+ *   (the claim was accepted), not that one has the parcel: only
+ *   `handed_to_courier` passes the courier step.
  *
  * Pure; unit-tested.
  */
@@ -39,11 +42,13 @@ const STEP_EVENTS: Record<string, ReadonlyArray<string>> = {
 };
 
 export function deriveProgress(
-  order: Pick<ShopOrder, "status" | "progress" | "timeline" | "fulfilment">,
+  order: Pick<ShopOrder, "status" | "progress" | "timeline" | "fulfilment"> &
+    Partial<Pick<ShopOrder, "delivery">>,
 ): ShopProgressStep[] {
   const steps = order.progress.filter((step) => step.step !== "cancelled");
   const cancelledStep = order.progress.find((step) => step.step === "cancelled");
   const events = new Set(order.timeline.map((entry) => entry.type));
+  if (order.delivery?.provider === "yandex") events.delete("shipment_created");
   const reached = RANK[order.status];
   const done = steps.map((step) => {
     const rank = STEP_RANK[step.step] ?? 99;

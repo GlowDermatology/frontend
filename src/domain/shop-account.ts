@@ -7,6 +7,13 @@
  * datetimes are ISO strings.
  */
 
+import type {
+  DeliveryMethod,
+  DeliveryProvider,
+  ShopDeliveryOption,
+  ShopOrderDelivery,
+} from "./shop-delivery";
+
 export type ShopLanguage = "uz" | "ru" | "en";
 export type SocialProvider = "google" | "facebook" | "apple";
 export const SOCIAL_PROVIDERS: ReadonlyArray<SocialProvider> = ["google", "facebook", "apple"];
@@ -15,10 +22,26 @@ export interface ShopAddress {
   id: number;
   label: string;
   text: string;
+  /** BTS region and city codes (`""` when not chosen). */
   regionCode: string;
   cityCode: string;
   comment: string;
   isDefault: boolean;
+  /** The map pin (Yandex Delivery): both set, rounded to 6 decimals, or both `null`. */
+  latitude: number | null;
+  longitude: number | null;
+}
+
+/** Whether the address carries a map pin, so courier delivery to the exact point can be offered. */
+export function hasPin<T extends Pick<ShopAddress, "latitude" | "longitude">>(
+  address: T,
+): address is T & { latitude: number; longitude: number } {
+  return (
+    typeof address.latitude === "number" &&
+    Number.isFinite(address.latitude) &&
+    typeof address.longitude === "number" &&
+    Number.isFinite(address.longitude)
+  );
 }
 
 export interface ShopMe {
@@ -88,12 +111,26 @@ export interface ShopRegion {
 
 export interface ShopQuote {
   fulfilment: Fulfilment;
+  /** The fee, the cashback and the total of the selected delivery option (server values). */
   deliveryFee: number;
   itemsSubtotal: number;
   cashbackMax: number;
   cashbackToUse: number;
   expectedTotal: number;
   pickupAddress: string | null;
+  /**
+   * The option the server selected (the requested one when available, else
+   * its default); `null` for pickup or an answer without options.
+   */
+  provider: DeliveryProvider | null;
+  method: DeliveryMethod | null;
+  /** The Yandex quote to send as `delivery_quote_id` (`null` for BTS). */
+  quoteId: string | null;
+  quoteExpiresAt: string | null;
+  /** The server's clock when it answered (`quoted_at`): the quote's lifetime is measured on it. */
+  quotedAt: string | null;
+  /** Every delivery option for the address (`[]` for pickup or an older API). */
+  options: ShopDeliveryOption[];
 }
 
 export type OrderStatus =
@@ -117,6 +154,8 @@ export interface ShopOrderSummary {
   };
   payBy: string | null;
   trackingNumber: string | null;
+  /** The carrier view of a delivery order (`null` for pickup or an older API). */
+  delivery: ShopOrderDelivery | null;
 }
 
 export interface ShopProgressStep {

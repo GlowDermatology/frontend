@@ -209,3 +209,23 @@ export type ApiLocationPatch = Omit<
   "name" | "address"
 > & { name?: I18nPartial; address?: I18nPartial };
 export type ApiConflicts = { results: ApiAppointmentItem[] };
+
+/* --- Yandex Delivery: carrier view, exception queue, dispatch switch (plan §3.9, §3.10) --- */
+
+export type ApiOrderDelivery = Schemas["OrderDelivery"];
+export type ApiDeliveryIssueRef = Schemas["DeliveryIssueRef"];
+export type ApiDeliveryIssue = Schemas["DeliveryIssue"];
+export type ApiPaginatedDeliveryIssues = Schemas["PaginatedDeliveryIssueList"];
+export type ApiDashboardFulfilment = Schemas["DashboardFulfilment"];
+export type ApiSuspension = Schemas["Suspension"];
+export type ApiSuspensionBody = Schemas["SuspensionBodyRequest"];
+/** `POST orders/{id}/issues/`: staff may open only `incident`. */
+export type ApiOpenIssue = Omit<Schemas["OpenIssueRequest"], "kind"> & { kind: "incident" };
+export type ApiResolveIssue = Schemas["ResolveIssueRequest"];
+/** `POST orders/{id}/dispatch/` (plan §3.6): staff checked the parcel and weighed it. */
+export type ApiDispatchRequest = Schemas["DispatchRequest"];
+/** `POST orders/{id}/confirm-return/` (plan §3.8): the parcel is back at the warehouse. */
+export type ApiConfirmReturn = Schemas["ConfirmReturnRequest"];
+export type ApiDeliveryIssuesQuery = NonNullable<
+  import("./schema").operations["admin_delivery_issues_list"]["parameters"]["query"]
+>;

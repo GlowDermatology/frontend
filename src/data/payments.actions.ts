@@ -7,6 +7,7 @@ import type { PaymentRecord } from "@/domain/payment";
 import {
   apiMutation,
   fieldErrorsFrom,
+  invalidFormMessage,
   guardAction,
   idempotencyKeySchema,
   sessionToken,
@@ -50,7 +51,7 @@ export async function retryRefund(
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
   const parsed = retrySchema.safeParse({ paymentId, refundId, key });
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, await invalidFormMessage());
   const input = parsed.data;
   if ((await dataSource()) === "api") {
     return apiMutation("retryRefund", async () => {
@@ -80,7 +81,7 @@ export async function resolveRefund(
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
   const parsed = resolveSchema.safeParse({ paymentId, refundId, state, key });
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, await invalidFormMessage());
   const input = parsed.data;
   if ((await dataSource()) === "api") {
     return apiMutation("resolveRefund", async () => {
@@ -107,9 +108,10 @@ export async function resolveRefund(
  * Click still reports it paid → 409 `click_not_reversed` (M3;
  * `invalid_transition` before) with `CLICK_STILL_PAID_MESSAGE` unless
  * `manualPayout` says staff paid the customer outside Click; a payment
- * without a Click payment id is not checked → 409 `conflict` with
- * `CLICK_NO_PAYDOC_MESSAGE` unless `manualPayout` (M3); Click unreachable →
- * 503 `provider_unavailable`. The two steps send different bodies, so the
+ * without a Click payment id is not checked → 409 `click_no_paydoc` unless
+ * `manualPayout` (M3); Click in test mode under the production settings →
+ * 409 `click_fake_mode`; the order locked by another write → 409
+ * `order_busy` (retry); Click unreachable → 503 `provider_unavailable`. The two steps send different bodies, so the
  * board keeps a key per step.
  */
 export async function closeFailedRefund(
@@ -122,7 +124,7 @@ export async function closeFailedRefund(
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
   const parsed = closeSchema.safeParse({ paymentId, refundId, manualPayout, key });
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, await invalidFormMessage());
   const input = parsed.data;
   if ((await dataSource()) === "api") {
     return apiMutation("closeFailedRefund", async () => {

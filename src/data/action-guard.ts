@@ -3,7 +3,12 @@ import "server-only";
 import { refresh } from "next/cache";
 import { z } from "zod";
 
+import { copyFor } from "@/lib/i18n/admin-locale";
+import { validationCopy } from "@/lib/i18n/validation-copy";
+import { localized } from "@/lib/i18n/localized";
+
 import { getMe, verifyStaff, type VerifiedStaff } from "./auth";
+import { dataCopy } from "./copy";
 import type { ActionFailure, ActionResult } from "./types";
 
 /**
@@ -27,15 +32,23 @@ import type { ActionFailure, ActionResult } from "./types";
  * export async functions, and these helpers are plain values.
  */
 
-export const SESSION_EXPIRED_MESSAGE = "Sessiya tugadi. Qayta kiring.";
-export const CSRF_MESSAGE = "Xavfsizlik tekshiruvi o‘tmadi. Sahifani yangilang.";
-export const NOT_WIRED_MESSAGE = "Bu amal API bilan hali ulanmagan.";
-export const INVALID_FORM_MESSAGE = "Maydonlarni tekshiring.";
-export const PERMISSION_DENIED_MESSAGE = "Ruxsat yo‘q.";
+/** The Uzbek texts (the backend's source language); the actions answer in the admin language. */
+export const SESSION_EXPIRED_MESSAGE = dataCopy.uz.sessionExpired;
+export const CSRF_MESSAGE = dataCopy.uz.csrf;
+export const NOT_WIRED_MESSAGE = dataCopy.uz.notWired;
+export const INVALID_FORM_MESSAGE = dataCopy.uz.invalidForm;
+export const PERMISSION_DENIED_MESSAGE = dataCopy.uz.permissionDenied;
 
 export type Guarded = { ok: true; session: VerifiedStaff } | ActionFailure;
 
-const CSRF_FAILURE: ActionFailure = { ok: false, error: CSRF_MESSAGE, code: "csrf" };
+async function csrfFailure(): Promise<ActionFailure> {
+  return { ok: false, error: (await copyFor(dataCopy)).csrf, code: "csrf" };
+}
+
+/** «Maydonlarni tekshiring.» in the admin language: the form-level text of `fieldErrorsFrom`. */
+export async function invalidFormMessage(): Promise<string> {
+  return (await copyFor(dataCopy)).invalidForm;
+}
 
 /**
  * A Server Action is a public POST endpoint whose arguments are attacker
@@ -45,11 +58,11 @@ const CSRF_FAILURE: ActionFailure = { ok: false, error: CSRF_MESSAGE, code: "csr
  * by leaving the argument out.
  */
 export async function guardAction(csrf: string): Promise<Guarded> {
-  if (typeof csrf !== "string" || csrf.length === 0) return CSRF_FAILURE;
+  if (typeof csrf !== "string" || csrf.length === 0) return csrfFailure();
   const session = await verifyStaff({ csrf });
   if (session.ok) return { ok: true, session };
-  if (session.reason === "csrf") return CSRF_FAILURE;
-  return { ok: false, error: SESSION_EXPIRED_MESSAGE, code: "session_expired" };
+  if (session.reason === "csrf") return csrfFailure();
+  return { ok: false, error: (await copyFor(dataCopy)).sessionExpired, code: "session_expired" };
 }
 
 /**
@@ -65,7 +78,11 @@ export async function requireSuperuser(guard: Guarded): Promise<Guarded> {
   if (!guard.ok) return guard;
   const me = await getMe();
   if (me?.is_superuser) return guard;
-  return { ok: false, error: PERMISSION_DENIED_MESSAGE, code: "permission_denied" };
+  return {
+    ok: false,
+    error: (await copyFor(dataCopy)).permissionDenied,
+    code: "permission_denied",
+  };
 }
 
 /**
@@ -79,8 +96,16 @@ export function sessionToken(session: VerifiedStaff): string {
   return session.token;
 }
 
-/** Client-generated idempotency key (contract §1.7): one UUID per dialog instance. */
-export const idempotencyKeySchema = z.uuid({ error: "Noto‘g‘ri so‘rov kaliti." });
+/** Client-generated idempotency key (contract §1.7): one UUID per dialog instance, per language. */
+export const idempotencyKeySchemas = localized(validationCopy, (m) =>
+  z.uuid({ error: m.requestKey }),
+);
+
+/**
+ * The Uzbek member of `idempotencyKeySchemas`, for the actions that only test `.success` (a bad
+ * key never comes from the panel's own dialogs: the message is never shown).
+ */
+export const idempotencyKeySchema = idempotencyKeySchemas.uz;
 
 export function fieldErrorsFrom(
   error: z.ZodError,
@@ -97,14 +122,14 @@ export function fieldErrorsFrom(
 const warned = new Set<string>();
 
 /** api mode, endpoint not wired yet (F2): a plain failure, warned once per action. */
-function notWiredYet(action: string): ActionFailure {
+async function notWiredYet(action: string): Promise<ActionFailure> {
   if (!warned.has(action)) {
     warned.add(action);
     console.warn(
       `[data] ${action}: GLOWDERMA_DATA_SOURCE=api but this mutation is not wired to Django yet.`,
     );
   }
-  return { ok: false, error: NOT_WIRED_MESSAGE };
+  return { ok: false, error: (await copyFor(dataCopy)).notWired };
 }
 
 /**

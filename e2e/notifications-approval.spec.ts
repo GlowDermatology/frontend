@@ -9,8 +9,11 @@ import {
   setCampaignState,
   startCampaignSendPartially,
 } from "./backend-shell";
+import { kitCopy } from "../src/components/ui/copy";
 import { historyRow, openPanel, removeLeftovers, saveDraft } from "./campaigns";
+import { saveAnyway } from "./catalog-helpers";
 import { heading, toast, watchPage } from "./helpers";
+import { pickerValue } from "./ui";
 
 /**
  * The campaign approval workflow as a superuser (contract §2.8): register
@@ -46,9 +49,10 @@ async function recipientPhone(page: Page): Promise<string> {
   await page.goto(`/admin/notifications?customer=${customerId}`);
   await expect(heading(page)).toHaveText("Bildirishnomalar");
   const phone = page.getByLabel("Mijoz telefoni").first();
-  // The customer card's prefill lands after hydration.
-  await expect(phone).toHaveValue(/^\+998/);
-  return `+${(await phone.inputValue()).replace(/\D/g, "")}`;
+  // The customer card's prefill lands after hydration; the field shows the national part and
+  // carries the whole `+998…` number as its form value.
+  await expect(phone).not.toHaveValue("");
+  return pickerValue(page.locator("#composer"), "Mijoz telefoni");
 }
 
 /** Registers the customer's device under `label` from the test devices card. */
@@ -67,6 +71,10 @@ async function testAndConfirm(page: Page, title: string, label: string): Promise
   const panel = await openPanel(page, title);
   await panel.getByRole("button", { name: "Test yuborish" }).click();
   const dialog = page.getByRole("dialog", { name: "Test yuborish" });
+  // A promotion without a tap destination is asked about before its test, not at draft save.
+  const question = page.getByRole("alertdialog", { name: kitCopy.uz.recommended.title });
+  await expect(question).toContainText("ilovaning bosh sahifasi ochiladi");
+  await saveAnyway(page, dialog);
   await expect(dialog).toContainText(title);
   // Every pushable device is picked by default (the seed registers one of
   // its own); only the spec's device gets the push.
@@ -93,6 +101,8 @@ async function approve(page: Page, title: string): Promise<void> {
   const panel = page.locator("#campaign-panel");
   await panel.getByRole("button", { name: "Yuborishni tasdiqlash" }).click();
   const dialog = page.getByRole("alertdialog", { name: "Yuborish tasdiqlansinmi?" });
+  // Answered «Baribir saqlash» before the test of this revision: asked again only if it changed.
+  await saveAnyway(page, dialog);
   await expect(dialog).toContainText(title);
   await expect(dialog).toContainText("Taxminiy qurilmalar");
   await expect(dialog).toContainText("Yuborilgan push xabarni qaytarib bo‘lmaydi.");

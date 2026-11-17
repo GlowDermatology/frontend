@@ -12,6 +12,8 @@ import type {
   ShipmentStage,
 } from "@/domain/order";
 
+import { getAdminLocale } from "@/lib/i18n/admin-locale";
+
 import { apiGetOrder, apiListOrders, apiOrderStatusCounts } from "./api/orders";
 import { isApiError } from "./api/errors";
 import { optimizableMediaUrl } from "./api/media";
@@ -94,16 +96,21 @@ export async function getOrderStatusCounts(
  */
 export const getOrder = cache(async (id: number): Promise<Order | null> => {
   if (!Number.isSafeInteger(id) || id <= 0) return null;
+  // The history rows and cashback labels are worded here, in the admin language.
+  const locale = await getAdminLocale();
   if ((await dataSource()) === "api") {
     const token = await requireApiToken();
     try {
-      return mapOrder((await apiGetOrder(token, id)).data, { imageUrl: optimizableMediaUrl });
+      return mapOrder((await apiGetOrder(token, id)).data, {
+        imageUrl: optimizableMediaUrl,
+        locale,
+      });
     } catch (error) {
       if (isApiError(error) && error.status === 404) return null;
       throw error;
     }
   }
-  return mock.getOrder(id);
+  return mock.getOrder(id, locale);
 });
 
 /** Newest orders for the dashboard (`orders/?page_size=6`, contract §5.7). */

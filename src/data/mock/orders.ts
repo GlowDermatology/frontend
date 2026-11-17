@@ -1,7 +1,7 @@
 import { calculateCashback } from "@/domain/cashback";
+import { orderHistoryCopy, orderLabelsCopy } from "@/domain/copy/orders";
 import {
   itemsSubtotal,
-  MANUAL_REFUND_NOTE,
   orderActions,
   promoSubtotal,
   type CancellationReason,
@@ -18,7 +18,8 @@ import {
   type RefundState,
   type Shipment,
 } from "@/domain/order";
-import { formatNumber, formatSom } from "@/lib/format";
+import { createFormatter } from "@/lib/format";
+import type { Locale } from "@/lib/i18n/locales";
 
 import type { DeliveryIssue } from "@/domain/delivery-issue";
 
@@ -634,8 +635,14 @@ const PROVIDER_NAME: Record<PaymentProvider, string> = { click: "Click", payme: 
 const plusMinutes = (iso: string, minutes: number) =>
   `${new Date(new Date(iso).getTime() + minutes * 60_000).toISOString().slice(0, 19)}Z`;
 
-/** Status history and cashback entries derived from the order's facts. */
-export function buildOrderDetail(seed: OrderSeed): Order {
+/**
+ * Status history and cashback entries derived from the order's facts, worded in `locale` like the
+ * API mapper words the backend's events (`foldOrderHistory`).
+ */
+export function orderDetailIn(seed: OrderSeed, locale: Locale): Order {
+  const h = orderHistoryCopy[locale];
+  const labels = orderLabelsCopy[locale];
+  const fmt = createFormatter(locale);
   const items = toItems(seed);
   const subtotal = itemsSubtotal(items);
   const promo = promoSubtotal(items);
@@ -663,19 +670,24 @@ export function buildOrderDetail(seed: OrderSeed): Order {
   const history: OrderEvent[] = [
     {
       at: seed.at,
-      title: "To‘lov kutilmoqda",
+      title: labels.status.awaiting_payment,
       source: "system",
       status: "awaiting_payment",
-      note: `Qoldiq qayta tekshirildi · ${items.length} ta mahsulot 15 daqiqaga band qilindi`,
+      note: h.reserved(items.length, 15),
     },
   ];
   if (paid && confirmedAt) {
     history.push({
       at: confirmedAt,
-      title: "Jarayonda",
+      title: labels.status.processing,
       source: "system",
       status: "processing",
-      note: `${PROVIDER_NAME[seed.provider]} to‘lovi tasdiqlandi · band qilish savdoga aylantirildi · Billz’ga yozildi · cashback +${formatNumber(creditAmount)}`,
+      note: [
+        h.paymentConfirmed(PROVIDER_NAME[seed.provider]),
+        h.reservationConverted,
+        h.billzRecorded,
+        h.cashbackCredited(fmt.number(creditAmount)),
+      ].join(" · "),
     });
   }
   const yandex = seed.yandex;
@@ -685,42 +697,42 @@ export function buildOrderDetail(seed: OrderSeed): Order {
     if (yandex.claimNumber !== null && yandex.claimStatus !== "ready_for_approval") {
       history.push({
         at: plusMinutes(seed.at, 41),
-        title: yandex.claimId ? "Kuryer chaqirildi" : "Kuryer chaqirilmadi",
+        title: yandex.claimId ? h.courierCalled : h.courierNotCalled,
         source: yandex.claimId ? "admin" : "yandex",
         note: yandex.claimId
-          ? `Yandex · buyurtma ${yandex.claimId}`
-          : `Yandex · ${yandex.failureCode ?? "xato"}`,
+          ? `Yandex · ${h.claim(yandex.claimId)}`
+          : `Yandex · ${yandex.failureCode ?? h.error}`,
       });
     }
   } else if (seed.shipment.state === "created") {
     history.push({
       at: plusMinutes(seed.at, 4),
-      title: "BTS buyurtmasi yaratildi",
+      title: h.btsCreated,
       source: "system",
-      note: `Yetkazish raqami ${seed.shipment.trackingNumber}`,
+      note: h.trackingNumber(seed.shipment.trackingNumber),
     });
   }
   if (seed.shipment.state === "failed") {
     history.push({
       at: seed.shipment.lastAttemptAt,
-      title: "BTS ga yuborilmadi",
+      title: h.btsFailed,
       source: "system",
-      note: "Avtomatik urinish muvaffaqiyatsiz · administratorga xabar berildi",
+      note: h.autoAttemptFailed,
     });
   }
   if (seed.status === "handed_to_courier" || seed.status === "delivered") {
     if (yandex) {
       history.push({
         at: plusMinutes(seed.at, 60),
-        title: "Kuryerga topshirildi",
+        title: labels.status.handed_to_courier,
         source: "yandex",
         status: "handed_to_courier",
-        note: "Polling · mijozga push yuborildi",
+        note: `Polling · ${h.pushSent}`,
       });
       if (yandex.stage === "returning") {
         history.push({
           at: plusMinutes(seed.at, 150),
-          title: "Yetkazib bo‘lmadi",
+          title: h.deliveryFailed,
           source: "yandex",
           note: "Yandex · returning · recipient_unreachable",
         });
@@ -732,10 +744,10 @@ export function buildOrderDetail(seed: OrderSeed): Order {
           : plusMinutes(seed.at, 158);
       history.push({
         at: handedAt,
-        title: "Kuryerga topshirildi",
+        title: labels.status.handed_to_courier,
         source: "bts",
         status: "handed_to_courier",
-        note: "Webhook · mijozga push yuborildi",
+        note: `Webhook · ${h.pushSent}`,
       });
     }
   }
@@ -744,70 +756,69 @@ export function buildOrderDetail(seed: OrderSeed): Order {
     const carrier = yandex ? "yandex" : seed.fulfilment === "delivery" ? "bts" : null;
     history.push({
       at: deliveredAt,
-      title: "Yetkazildi",
+      title: labels.status.delivered,
       source: carrier ?? "admin",
       status: "delivered",
       note: carrier
-        ? `${carrier === "yandex" ? "Polling" : "Webhook"} · mijozga push yuborildi`
-        : "Administrator · mijozga topshirildi",
+        ? `${carrier === "yandex" ? "Polling" : "Webhook"} · ${h.pushSent}`
+        : `${h.admin} · ${h.handedToCustomer}`,
     });
   }
   if (seed.status === "cancelled") {
     const expired = seed.cancellation?.reason === "reservation_expired";
     history.push({
       at: cancelledAt(seed),
-      title: "Bekor qilindi",
+      title: labels.status.cancelled,
       source: expired ? "system" : "admin",
       status: "cancelled",
       note: expired
-        ? "Band muddati tugadi · mahsulotlar bo‘shatildi"
-        : "Administrator · to‘lov qaytarish so‘rovi yuborildi, cashback yozuvlari qaytarildi",
+        ? h.reservationExpired
+        : `${h.admin} · ${h.refundRequestSent}, ${h.cashbackReversed}`,
     });
     const refund = refunds[0];
     if (refund && lateCapture) {
       // Not folded: no `cancelled` event names this refund (§4).
       history.push({
         at: refund.requestedAt,
-        title: "To‘lov qaytarish so‘raldi",
+        title: h.refundRequested,
         source: "system",
-        note: `${PROVIDER_NAME[seed.provider]} · ${formatSom(refund.amount)}${
-          openRefund?.reason ? ` · ${MANUAL_REFUND_NOTE[openRefund.reason]}` : ""
+        note: `${PROVIDER_NAME[seed.provider]} · ${fmt.som(refund.amount)}${
+          openRefund?.reason ? ` · ${labels.manualRefundNote[openRefund.reason]}` : ""
         }`,
       });
     } else if (refund && refund.state === "succeeded") {
       history.push({
         at: refund.updatedAt,
-        title: "To‘lov qaytarildi",
+        title: h.refundSucceeded,
         source: "system",
-        note: `${PROVIDER_NAME[seed.provider]} · ${formatSom(refund.amount)}`,
+        note: `${PROVIDER_NAME[seed.provider]} · ${fmt.som(refund.amount)}`,
       });
     } else if (refund && (refund.state === "failed" || refund.state === "unknown")) {
       history.push({
         at: refund.updatedAt,
-        title: "To‘lov qaytarilmadi",
+        title: h.refundFailed,
         source: "system",
-        note:
-          refund.state === "unknown"
-            ? `${PROVIDER_NAME[seed.provider]} · holat noma’lum, tekshirish kerak`
-            : `${PROVIDER_NAME[seed.provider]} · xato, administrator tekshiruvi kerak`,
+        note: `${PROVIDER_NAME[seed.provider]} · ${
+          refund.state === "unknown" ? h.refundUnknown : h.refundError
+        }`,
       });
     }
   }
 
   const cashback: Order["cashback"] = [];
   if (seed.cashbackUsed > 0) {
-    cashback.push({ kind: "debit", amount: -seed.cashbackUsed, label: "Ishlatildi" });
+    cashback.push({ kind: "debit", amount: -seed.cashbackUsed, label: h.cashbackUsed });
   }
   if (paid && creditAmount > 0) {
     cashback.push({
       kind: "credit",
       amount: creditAmount,
-      label: `1% × ${formatNumber(creditBase)}`,
+      label: `1% × ${fmt.number(creditBase)}`,
     });
   }
   if (seed.payment === "refunded" || (openRefund && !lateCapture)) {
     for (const entry of [...cashback]) {
-      cashback.push({ kind: "reversal", amount: -entry.amount, label: "Qarama-qarshi yozuv" });
+      cashback.push({ kind: "reversal", amount: -entry.amount, label: h.cashbackReversal });
     }
   }
 
@@ -838,6 +849,11 @@ export function buildOrderDetail(seed: OrderSeed): Order {
     delivery,
     availableActions: orderActions({ ...seed, delivery }),
   };
+}
+
+/** The order detail in Uzbek (one argument, so it also works as a `map` callback). */
+export function buildOrderDetail(seed: OrderSeed): Order {
+  return orderDetailIn(seed, "uz");
 }
 
 export function orderSeed(id: number): OrderSeed | undefined {

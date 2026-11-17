@@ -3,8 +3,8 @@
  * GENERATED FILE — do not edit by hand. Regenerate with `npm run gen:api`.
  *
  * Source: openapi/schema.yaml of the backend repository
- * Commit: 571a8d7d7ffe88349d70ae9e182ba19dcbcbc7ae
- * Generated: 2026-11-16T04:15:05.221Z (openapi-typescript)
+ * Commit: 041032c7f81771d8961ed1f74b9fd83447b96a1d
+ * Generated: 2026-11-17T07:26:05.909Z (openapi-typescript)
  */
 
 export interface paths {
@@ -109,6 +109,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/appointments/range/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The week and month boards: per Tashkent day of `from`…`to` (inclusive) the status counts of the appointments starting that day, whether any listed specialist works and their combined hours. `detail=counts` (default) allows up to 42 days; `detail=full` (up to 7 days) adds every specialist's day schedule and the appointments in the day-item shape. Specialists follow the day board's rule over the whole range (active ones, plus inactive ones with an appointment in it); `specialist_id` narrows specialists, counts and appointments to one. */
+        get: operations["admin_appointments_range"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/audit-log/": {
         parameters: {
             query?: never;
@@ -116,7 +133,34 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * @description ``?export=csv|xlsx`` of an admin list (contract 1.8).
+         *
+         *     ``export_name`` (the file name stem and the sheet title) and ``export_headers`` are Uzbek source texts:
+         *     they are rendered with ``core.uzsource.tr`` in the request's ``Accept-Language``
+         *     (``core.api.language.admin_language``), and ``get_export_rows`` runs with that language active, so the
+         *     values it takes from ``core.labels.text`` (and ``yes_no``, ``active_label``, ``refund_state_label``)
+         *     follow it. Data (names, ids, amounts, dates) is never translated; the ``export.downloaded`` audit row is
+         *     written in Uzbek outside that scope.
+         */
         get: operations["admin_audit_log_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/audit-log/facets/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description What the audit log shows the signed-in staff member: ordinary staff see business entries and their own sign-ins and exports, without IP addresses; managers add staff management and every staff sign-in, with IPs; superusers see everything. Entries outside the tier are simply absent from `audit-log/` and its export (a filter on them answers an empty list, never 403). */
+        get: operations["admin_audit_log_facets"];
         put?: never;
         post?: never;
         delete?: never;
@@ -150,6 +194,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** @description Email + password sign-in. With the admin panel MFA on (feat/admin-ux) a correct password opens no session: the answer is `{mfa_required: true, challenge, challenge_expires_at}` and `auth/mfa/verify/` opens it. */
         post: operations["admin_auth_login"];
         delete?: never;
         options?: never;
@@ -186,6 +231,109 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
+        /** @description Change the caller's admin panel language (`uz`, `ru`, `en`); returns Me. Allowed while a password change is pending. */
+        patch: operations["admin_auth_me_update"];
+        trace?: never;
+    };
+    "/api/v1/admin/auth/mfa/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The caller's admin panel MFA: on or off, and the unused recovery codes. */
+        get: operations["admin_auth_mfa_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/auth/mfa/confirm/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Confirm the pending device with its first code: MFA is on, the current session counts as verified, and the ten recovery codes are returned once. Wrong code or not the caller's pending device → 400 `mfa_code_invalid`; already on → 409; 429 while the code lockout runs. */
+        post: operations["admin_auth_mfa_confirm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/auth/mfa/disable/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Turn the admin panel MFA off: the current password plus a code or a recovery code. Wrong password → 400 `password_incorrect`; wrong code → 400 `mfa_code_invalid`; off → 409. */
+        post: operations["admin_auth_mfa_disable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/auth/mfa/recovery-codes/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Ten new recovery codes (the old ones stop working), returned once: the current password plus a TOTP code. Errors as `auth/mfa/disable/`. */
+        post: operations["admin_auth_mfa_recovery_codes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/auth/mfa/setup/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Start enabling the admin panel MFA (re-enter the current password): a new pending TOTP device (an earlier pending one is replaced) as an `otpauth://` URI for the QR code and a manual key. Wrong password → 400 `password_incorrect` on `current_password` (the change-password lockout); already on → 409 `conflict`. */
+        post: operations["admin_auth_mfa_setup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/auth/mfa/verify/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Public (no bearer): the sign-in's second step. The challenge of `auth/login/` or `auth/oauth/{provider}/` plus exactly one of `code` / `recovery_code` → the normal sign-in answer (session `auth_method` = the first step's). Wrong code → 400 `mfa_code_invalid` (5 attempts per challenge); unknown, expired (5 min), used or exhausted challenge, or a password change / deactivation / MFA reset since → 400 `mfa_challenge_invalid` (sign in again); 429 while the account's code lockout runs or for the per-IP limit. */
+        post: operations["admin_auth_mfa_verify"];
+        delete?: never;
+        options?: never;
+        head?: never;
         patch?: never;
         trace?: never;
     };
@@ -198,7 +346,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Staff social sign-in, allow-list only: Django exchanges the authorization code with the provider and signs in the staff member whose identity is already linked. Same response as auth/login/. */
+        /** @description Staff social sign-in, allow-list only: Django exchanges the authorization code with the provider and signs in the staff member whose identity is already linked. Same response as auth/login/ (with the admin panel MFA on: the challenge for auth/mfa/verify/). */
         post: operations["admin_auth_oauth_login"];
         /** @description Unlink the caller's identity for the provider. */
         delete: operations["admin_auth_oauth_unlink"];
@@ -218,6 +366,57 @@ export interface paths {
         put?: never;
         /** @description Link the provider identity to the signed-in staff member (same body as the sign-in); returns Me with the updated linked_providers. */
         post: operations["admin_auth_oauth_link"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/auth/password-link/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description E-mail the caller a single-use link to set their password, for an account that must change it but cannot type the current one (signed in with a social identity, an e-mail-link account). 409 `conflict` when no change is pending or e-mail links are not available (`capabilities.staff_email_invite`); 5/hour. */
+        post: operations["admin_auth_password_link"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/auth/password-token/check/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Public (no bearer): whose password link this is, for the set-password page. An unknown, used, revoked or expired link, or one of an inactive account → one uniform 400 `token_invalid`. */
+        post: operations["admin_auth_password_token_check"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/auth/password-token/set/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Public (no bearer): set the password with a link (single use). The password is validated for the link's account (the change-password codes, `password_unchanged` for the current one); every session of the account is revoked and no new one is opened — the person signs in next. A bad link → 400 `token_invalid`. */
+        post: operations["admin_auth_password_token_set"];
         delete?: never;
         options?: never;
         head?: never;
@@ -247,6 +446,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * @description ``?export=csv|xlsx`` of an admin list (contract 1.8).
+         *
+         *     ``export_name`` (the file name stem and the sheet title) and ``export_headers`` are Uzbek source texts:
+         *     they are rendered with ``core.uzsource.tr`` in the request's ``Accept-Language``
+         *     (``core.api.language.admin_language``), and ``get_export_rows`` runs with that language active, so the
+         *     values it takes from ``core.labels.text`` (and ``yes_no``, ``active_label``, ``refund_state_label``)
+         *     follow it. Data (names, ids, amounts, dates) is never translated; the ``export.downloaded`` audit row is
+         *     written in Uzbek outside that scope.
+         */
         get: operations["admin_banners_list"];
         put?: never;
         /** @description Multipart: `image` plus dotted keys `title.uz`, `link.kind`, … (BannerWriteSerializer). */
@@ -264,12 +473,42 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * @description ``?export=csv|xlsx`` of an admin list (contract 1.8).
+         *
+         *     ``export_name`` (the file name stem and the sheet title) and ``export_headers`` are Uzbek source texts:
+         *     they are rendered with ``core.uzsource.tr`` in the request's ``Accept-Language``
+         *     (``core.api.language.admin_language``), and ``get_export_rows`` runs with that language active, so the
+         *     values it takes from ``core.labels.text`` (and ``yes_no``, ``active_label``, ``refund_state_label``)
+         *     follow it. Data (names, ids, amounts, dates) is never translated; the ``export.downloaded`` audit row is
+         *     written in Uzbek outside that scope.
+         */
         get: operations["admin_banners_retrieve"];
         put?: never;
         post?: never;
+        /**
+         * @description ``?export=csv|xlsx`` of an admin list (contract 1.8).
+         *
+         *     ``export_name`` (the file name stem and the sheet title) and ``export_headers`` are Uzbek source texts:
+         *     they are rendered with ``core.uzsource.tr`` in the request's ``Accept-Language``
+         *     (``core.api.language.admin_language``), and ``get_export_rows`` runs with that language active, so the
+         *     values it takes from ``core.labels.text`` (and ``yes_no``, ``active_label``, ``refund_state_label``)
+         *     follow it. Data (names, ids, amounts, dates) is never translated; the ``export.downloaded`` audit row is
+         *     written in Uzbek outside that scope.
+         */
         delete: operations["admin_banners_destroy"];
         options?: never;
         head?: never;
+        /**
+         * @description ``?export=csv|xlsx`` of an admin list (contract 1.8).
+         *
+         *     ``export_name`` (the file name stem and the sheet title) and ``export_headers`` are Uzbek source texts:
+         *     they are rendered with ``core.uzsource.tr`` in the request's ``Accept-Language``
+         *     (``core.api.language.admin_language``), and ``get_export_rows`` runs with that language active, so the
+         *     values it takes from ``core.labels.text`` (and ``yes_no``, ``active_label``, ``refund_state_label``)
+         *     follow it. Data (names, ids, amounts, dates) is never translated; the ``export.downloaded`` audit row is
+         *     written in Uzbek outside that scope.
+         */
         patch: operations["admin_banners_partial_update"];
         trace?: never;
     };
@@ -281,6 +520,16 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
+        /**
+         * @description ``?export=csv|xlsx`` of an admin list (contract 1.8).
+         *
+         *     ``export_name`` (the file name stem and the sheet title) and ``export_headers`` are Uzbek source texts:
+         *     they are rendered with ``core.uzsource.tr`` in the request's ``Accept-Language``
+         *     (``core.api.language.admin_language``), and ``get_export_rows`` runs with that language active, so the
+         *     values it takes from ``core.labels.text`` (and ``yes_no``, ``active_label``, ``refund_state_label``)
+         *     follow it. Data (names, ids, amounts, dates) is never translated; the ``export.downloaded`` audit row is
+         *     written in Uzbek outside that scope.
+         */
         put: operations["admin_banners_reorder"];
         post?: never;
         delete?: never;
@@ -330,6 +579,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * @description ``?export=csv|xlsx`` of an admin list (contract 1.8).
+         *
+         *     ``export_name`` (the file name stem and the sheet title) and ``export_headers`` are Uzbek source texts:
+         *     they are rendered with ``core.uzsource.tr`` in the request's ``Accept-Language``
+         *     (``core.api.language.admin_language``), and ``get_export_rows`` runs with that language active, so the
+         *     values it takes from ``core.labels.text`` (and ``yes_no``, ``active_label``, ``refund_state_label``)
+         *     follow it. Data (names, ids, amounts, dates) is never translated; the ``export.downloaded`` audit row is
+         *     written in Uzbek outside that scope.
+         */
         get: operations["admin_categories_list"];
         put?: never;
         /** @description JSON, or multipart with dotted `name.uz`/`name.ru`/`name.en` and an optional `image` (JPEG, PNG or WebP, ≤ 5 MiB; re-encoded, EXIF stripped, ≤ 2400 px). */
@@ -347,9 +606,29 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * @description ``?export=csv|xlsx`` of an admin list (contract 1.8).
+         *
+         *     ``export_name`` (the file name stem and the sheet title) and ``export_headers`` are Uzbek source texts:
+         *     they are rendered with ``core.uzsource.tr`` in the request's ``Accept-Language``
+         *     (``core.api.language.admin_language``), and ``get_export_rows`` runs with that language active, so the
+         *     values it takes from ``core.labels.text`` (and ``yes_no``, ``active_label``, ``refund_state_label``)
+         *     follow it. Data (names, ids, amounts, dates) is never translated; the ``export.downloaded`` audit row is
+         *     written in Uzbek outside that scope.
+         */
         get: operations["admin_categories_retrieve"];
         put?: never;
         post?: never;
+        /**
+         * @description ``?export=csv|xlsx`` of an admin list (contract 1.8).
+         *
+         *     ``export_name`` (the file name stem and the sheet title) and ``export_headers`` are Uzbek source texts:
+         *     they are rendered with ``core.uzsource.tr`` in the request's ``Accept-Language``
+         *     (``core.api.language.admin_language``), and ``get_export_rows`` runs with that language active, so the
+         *     values it takes from ``core.labels.text`` (and ``yes_no``, ``active_label``, ``refund_state_label``)
+         *     follow it. Data (names, ids, amounts, dates) is never translated; the ``export.downloaded`` audit row is
+         *     written in Uzbek outside that scope.
+         */
         delete: operations["admin_categories_destroy"];
         options?: never;
         head?: never;
@@ -365,6 +644,16 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
+        /**
+         * @description ``?export=csv|xlsx`` of an admin list (contract 1.8).
+         *
+         *     ``export_name`` (the file name stem and the sheet title) and ``export_headers`` are Uzbek source texts:
+         *     they are rendered with ``core.uzsource.tr`` in the request's ``Accept-Language``
+         *     (``core.api.language.admin_language``), and ``get_export_rows`` runs with that language active, so the
+         *     values it takes from ``core.labels.text`` (and ``yes_no``, ``active_label``, ``refund_state_label``)
+         *     follow it. Data (names, ids, amounts, dates) is never translated; the ``export.downloaded`` audit row is
+         *     written in Uzbek outside that scope.
+         */
         put: operations["admin_categories_reorder"];
         post?: never;
         delete?: never;
@@ -616,6 +905,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * @description ``?export=csv|xlsx`` of an admin list (contract 1.8).
+         *
+         *     ``export_name`` (the file name stem and the sheet title) and ``export_headers`` are Uzbek source texts:
+         *     they are rendered with ``core.uzsource.tr`` in the request's ``Accept-Language``
+         *     (``core.api.language.admin_language``), and ``get_export_rows`` runs with that language active, so the
+         *     values it takes from ``core.labels.text`` (and ``yes_no``, ``active_label``, ``refund_state_label``)
+         *     follow it. Data (names, ids, amounts, dates) is never translated; the ``export.downloaded`` audit row is
+         *     written in Uzbek outside that scope.
+         */
         get: operations["admin_notifications_list"];
         put?: never;
         /** @description Multipart with dotted keys (`link.kind`, `audience.type`, …) and an optional `image` (JPEG, PNG or WebP, ≤ 5 MiB). Creates a `draft` (revision 1): nothing is sent until a superuser tested, confirmed and approved it. `scheduled_at` is the requested send time the dispatch waits for. */
@@ -633,6 +932,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * @description ``?export=csv|xlsx`` of an admin list (contract 1.8).
+         *
+         *     ``export_name`` (the file name stem and the sheet title) and ``export_headers`` are Uzbek source texts:
+         *     they are rendered with ``core.uzsource.tr`` in the request's ``Accept-Language``
+         *     (``core.api.language.admin_language``), and ``get_export_rows`` runs with that language active, so the
+         *     values it takes from ``core.labels.text`` (and ``yes_no``, ``active_label``, ``refund_state_label``)
+         *     follow it. Data (names, ids, amounts, dates) is never translated; the ``export.downloaded`` audit row is
+         *     written in Uzbek outside that scope.
+         */
         get: operations["admin_notifications_retrieve"];
         put?: never;
         post?: never;
@@ -807,6 +1116,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * @description ``?export=csv|xlsx`` of an admin list (contract 1.8).
+         *
+         *     ``export_name`` (the file name stem and the sheet title) and ``export_headers`` are Uzbek source texts:
+         *     they are rendered with ``core.uzsource.tr`` in the request's ``Accept-Language``
+         *     (``core.api.language.admin_language``), and ``get_export_rows`` runs with that language active, so the
+         *     values it takes from ``core.labels.text`` (and ``yes_no``, ``active_label``, ``refund_state_label``)
+         *     follow it. Data (names, ids, amounts, dates) is never translated; the ``export.downloaded`` audit row is
+         *     written in Uzbek outside that scope.
+         */
         get: operations["admin_orders_list"];
         put?: never;
         post?: never;
@@ -823,6 +1142,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * @description ``?export=csv|xlsx`` of an admin list (contract 1.8).
+         *
+         *     ``export_name`` (the file name stem and the sheet title) and ``export_headers`` are Uzbek source texts:
+         *     they are rendered with ``core.uzsource.tr`` in the request's ``Accept-Language``
+         *     (``core.api.language.admin_language``), and ``get_export_rows`` runs with that language active, so the
+         *     values it takes from ``core.labels.text`` (and ``yes_no``, ``active_label``, ``refund_state_label``)
+         *     follow it. Data (names, ids, amounts, dates) is never translated; the ``export.downloaded`` audit row is
+         *     written in Uzbek outside that scope.
+         */
         get: operations["admin_orders_retrieve"];
         put?: never;
         post?: never;
@@ -858,7 +1187,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Confirm that the parcel of a Yandex order whose delivery stage is `returning` / `returned` is physically back at the warehouse: stage `returned`, `returned_at`, the open `return_pending` issue resolved (the note is its resolution note), order event `shipment_returned`, audit `order.return_confirmed`. A cancelled order stays cancelled; an open order stays as it is (staff dispatch again or cancel). 409 `invalid_transition` (no returning parcel), 409 `conflict` (confirmed already, or the order is busy). */
+        /** @description Confirm that the parcel of a Yandex order whose delivery stage is `returning` / `returned` is physically back at the warehouse: stage `returned`, `returned_at`, the open `return_pending` issue resolved (the note is its resolution note), order event `shipment_returned`, audit `order.return_confirmed`. A cancelled order stays cancelled; an open order stays as it is (staff dispatch again or cancel). 409 `invalid_transition` (no returning parcel), 409 `conflict` (confirmed already), 409 `order_busy` (the order is busy). */
         post: operations["admin_orders_confirm_return"];
         delete?: never;
         options?: never;
@@ -955,6 +1284,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * @description ``?export=csv|xlsx`` of an admin list (contract 1.8).
+         *
+         *     ``export_name`` (the file name stem and the sheet title) and ``export_headers`` are Uzbek source texts:
+         *     they are rendered with ``core.uzsource.tr`` in the request's ``Accept-Language``
+         *     (``core.api.language.admin_language``), and ``get_export_rows`` runs with that language active, so the
+         *     values it takes from ``core.labels.text`` (and ``yes_no``, ``active_label``, ``refund_state_label``)
+         *     follow it. Data (names, ids, amounts, dates) is never translated; the ``export.downloaded`` audit row is
+         *     written in Uzbek outside that scope.
+         */
         get: operations["admin_payments_list"];
         put?: never;
         post?: never;
@@ -973,7 +1312,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Close an `unknown` / `manual_required` refund after a manual check, or a `failed` Click refund as `succeeded` after a fresh Click status check (`manual_payout: true` when Click still reports the payment paid and staff paid the customer by hand; 503 when Click does not answer). Audited `refund.state_changed` with the actor; order event `refund_succeeded` / `refund_failed`. */
+        /** @description Close an `unknown` / `manual_required` refund after a manual check, or a `failed` Click refund as `succeeded` after a fresh Click status check (`manual_payout: true` when Click still reports the payment paid and staff paid the customer by hand; 503 when Click does not answer). Audited `refund.state_changed` with the actor; order event `refund_succeeded` / `refund_failed`. 409 `click_not_reversed` (Click still shows the payment paid) / `click_no_paydoc` (no Click payment id): pay out by hand, then `manual_payout: true`; 409 `click_fake_mode` (Click fake under the production settings); 409 `order_busy` (the order is busy; retry). */
         post: operations["admin_payments_refund_resolve"];
         delete?: never;
         options?: never;
@@ -990,7 +1329,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Retry a `failed` refund: a new refund of the payment (Click `requested`, Payme `manual_required`) and its `refund_requested` order event. */
+        /** @description Retry a `failed` refund: a new refund of the payment (Click `requested`, Payme `manual_required`) and its `refund_requested` order event. 409 `click_fake_mode` (Click fake under the production settings), 409 `order_busy` (the order is busy; retry). */
         post: operations["admin_payments_refund_retry"];
         delete?: never;
         options?: never;
@@ -1005,8 +1344,28 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * @description ``?export=csv|xlsx`` of an admin list (contract 1.8).
+         *
+         *     ``export_name`` (the file name stem and the sheet title) and ``export_headers`` are Uzbek source texts:
+         *     they are rendered with ``core.uzsource.tr`` in the request's ``Accept-Language``
+         *     (``core.api.language.admin_language``), and ``get_export_rows`` runs with that language active, so the
+         *     values it takes from ``core.labels.text`` (and ``yes_no``, ``active_label``, ``refund_state_label``)
+         *     follow it. Data (names, ids, amounts, dates) is never translated; the ``export.downloaded`` audit row is
+         *     written in Uzbek outside that scope.
+         */
         get: operations["admin_products_list"];
         put?: never;
+        /**
+         * @description ``?export=csv|xlsx`` of an admin list (contract 1.8).
+         *
+         *     ``export_name`` (the file name stem and the sheet title) and ``export_headers`` are Uzbek source texts:
+         *     they are rendered with ``core.uzsource.tr`` in the request's ``Accept-Language``
+         *     (``core.api.language.admin_language``), and ``get_export_rows`` runs with that language active, so the
+         *     values it takes from ``core.labels.text`` (and ``yes_no``, ``active_label``, ``refund_state_label``)
+         *     follow it. Data (names, ids, amounts, dates) is never translated; the ``export.downloaded`` audit row is
+         *     written in Uzbek outside that scope.
+         */
         post: operations["admin_products_create"];
         delete?: never;
         options?: never;
@@ -1021,12 +1380,32 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * @description ``?export=csv|xlsx`` of an admin list (contract 1.8).
+         *
+         *     ``export_name`` (the file name stem and the sheet title) and ``export_headers`` are Uzbek source texts:
+         *     they are rendered with ``core.uzsource.tr`` in the request's ``Accept-Language``
+         *     (``core.api.language.admin_language``), and ``get_export_rows`` runs with that language active, so the
+         *     values it takes from ``core.labels.text`` (and ``yes_no``, ``active_label``, ``refund_state_label``)
+         *     follow it. Data (names, ids, amounts, dates) is never translated; the ``export.downloaded`` audit row is
+         *     written in Uzbek outside that scope.
+         */
         get: operations["admin_products_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
+        /**
+         * @description ``?export=csv|xlsx`` of an admin list (contract 1.8).
+         *
+         *     ``export_name`` (the file name stem and the sheet title) and ``export_headers`` are Uzbek source texts:
+         *     they are rendered with ``core.uzsource.tr`` in the request's ``Accept-Language``
+         *     (``core.api.language.admin_language``), and ``get_export_rows`` runs with that language active, so the
+         *     values it takes from ``core.labels.text`` (and ``yes_no``, ``active_label``, ``refund_state_label``)
+         *     follow it. Data (names, ids, amounts, dates) is never translated; the ``export.downloaded`` audit row is
+         *     written in Uzbek outside that scope.
+         */
         patch: operations["admin_products_partial_update"];
         trace?: never;
     };
@@ -1102,8 +1481,28 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * @description ``?export=csv|xlsx`` of an admin list (contract 1.8).
+         *
+         *     ``export_name`` (the file name stem and the sheet title) and ``export_headers`` are Uzbek source texts:
+         *     they are rendered with ``core.uzsource.tr`` in the request's ``Accept-Language``
+         *     (``core.api.language.admin_language``), and ``get_export_rows`` runs with that language active, so the
+         *     values it takes from ``core.labels.text`` (and ``yes_no``, ``active_label``, ``refund_state_label``)
+         *     follow it. Data (names, ids, amounts, dates) is never translated; the ``export.downloaded`` audit row is
+         *     written in Uzbek outside that scope.
+         */
         get: operations["admin_segments_list"];
         put?: never;
+        /**
+         * @description ``?export=csv|xlsx`` of an admin list (contract 1.8).
+         *
+         *     ``export_name`` (the file name stem and the sheet title) and ``export_headers`` are Uzbek source texts:
+         *     they are rendered with ``core.uzsource.tr`` in the request's ``Accept-Language``
+         *     (``core.api.language.admin_language``), and ``get_export_rows`` runs with that language active, so the
+         *     values it takes from ``core.labels.text`` (and ``yes_no``, ``active_label``, ``refund_state_label``)
+         *     follow it. Data (names, ids, amounts, dates) is never translated; the ``export.downloaded`` audit row is
+         *     written in Uzbek outside that scope.
+         */
         post: operations["admin_segments_create"];
         delete?: never;
         options?: never;
@@ -1118,9 +1517,29 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * @description ``?export=csv|xlsx`` of an admin list (contract 1.8).
+         *
+         *     ``export_name`` (the file name stem and the sheet title) and ``export_headers`` are Uzbek source texts:
+         *     they are rendered with ``core.uzsource.tr`` in the request's ``Accept-Language``
+         *     (``core.api.language.admin_language``), and ``get_export_rows`` runs with that language active, so the
+         *     values it takes from ``core.labels.text`` (and ``yes_no``, ``active_label``, ``refund_state_label``)
+         *     follow it. Data (names, ids, amounts, dates) is never translated; the ``export.downloaded`` audit row is
+         *     written in Uzbek outside that scope.
+         */
         get: operations["admin_segments_retrieve"];
         put?: never;
         post?: never;
+        /**
+         * @description ``?export=csv|xlsx`` of an admin list (contract 1.8).
+         *
+         *     ``export_name`` (the file name stem and the sheet title) and ``export_headers`` are Uzbek source texts:
+         *     they are rendered with ``core.uzsource.tr`` in the request's ``Accept-Language``
+         *     (``core.api.language.admin_language``), and ``get_export_rows`` runs with that language active, so the
+         *     values it takes from ``core.labels.text`` (and ``yes_no``, ``active_label``, ``refund_state_label``)
+         *     follow it. Data (names, ids, amounts, dates) is never translated; the ``export.downloaded`` audit row is
+         *     written in Uzbek outside that scope.
+         */
         delete: operations["admin_segments_destroy"];
         options?: never;
         head?: never;
@@ -1135,6 +1554,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * @description ``?export=csv|xlsx`` of an admin list (contract 1.8).
+         *
+         *     ``export_name`` (the file name stem and the sheet title) and ``export_headers`` are Uzbek source texts:
+         *     they are rendered with ``core.uzsource.tr`` in the request's ``Accept-Language``
+         *     (``core.api.language.admin_language``), and ``get_export_rows`` runs with that language active, so the
+         *     values it takes from ``core.labels.text`` (and ``yes_no``, ``active_label``, ``refund_state_label``)
+         *     follow it. Data (names, ids, amounts, dates) is never translated; the ``export.downloaded`` audit row is
+         *     written in Uzbek outside that scope.
+         */
         get: operations["admin_segment_members_list"];
         put?: never;
         /** @description 409 `conflict` while an approved `scheduled` notification targets the segment (its audience must not grow before the dispatch). */
@@ -1169,8 +1598,28 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * @description ``?export=csv|xlsx`` of an admin list (contract 1.8).
+         *
+         *     ``export_name`` (the file name stem and the sheet title) and ``export_headers`` are Uzbek source texts:
+         *     they are rendered with ``core.uzsource.tr`` in the request's ``Accept-Language``
+         *     (``core.api.language.admin_language``), and ``get_export_rows`` runs with that language active, so the
+         *     values it takes from ``core.labels.text`` (and ``yes_no``, ``active_label``, ``refund_state_label``)
+         *     follow it. Data (names, ids, amounts, dates) is never translated; the ``export.downloaded`` audit row is
+         *     written in Uzbek outside that scope.
+         */
         get: operations["admin_services_list"];
         put?: never;
+        /**
+         * @description ``?export=csv|xlsx`` of an admin list (contract 1.8).
+         *
+         *     ``export_name`` (the file name stem and the sheet title) and ``export_headers`` are Uzbek source texts:
+         *     they are rendered with ``core.uzsource.tr`` in the request's ``Accept-Language``
+         *     (``core.api.language.admin_language``), and ``get_export_rows`` runs with that language active, so the
+         *     values it takes from ``core.labels.text`` (and ``yes_no``, ``active_label``, ``refund_state_label``)
+         *     follow it. Data (names, ids, amounts, dates) is never translated; the ``export.downloaded`` audit row is
+         *     written in Uzbek outside that scope.
+         */
         post: operations["admin_services_create"];
         delete?: never;
         options?: never;
@@ -1185,6 +1634,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * @description ``?export=csv|xlsx`` of an admin list (contract 1.8).
+         *
+         *     ``export_name`` (the file name stem and the sheet title) and ``export_headers`` are Uzbek source texts:
+         *     they are rendered with ``core.uzsource.tr`` in the request's ``Accept-Language``
+         *     (``core.api.language.admin_language``), and ``get_export_rows`` runs with that language active, so the
+         *     values it takes from ``core.labels.text`` (and ``yes_no``, ``active_label``, ``refund_state_label``)
+         *     follow it. Data (names, ids, amounts, dates) is never translated; the ``export.downloaded`` audit row is
+         *     written in Uzbek outside that scope.
+         */
         get: operations["admin_services_retrieve"];
         put?: never;
         post?: never;
@@ -1202,6 +1661,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * @description ``?export=csv|xlsx`` of an admin list (contract 1.8).
+         *
+         *     ``export_name`` (the file name stem and the sheet title) and ``export_headers`` are Uzbek source texts:
+         *     they are rendered with ``core.uzsource.tr`` in the request's ``Accept-Language``
+         *     (``core.api.language.admin_language``), and ``get_export_rows`` runs with that language active, so the
+         *     values it takes from ``core.labels.text`` (and ``yes_no``, ``active_label``, ``refund_state_label``)
+         *     follow it. Data (names, ids, amounts, dates) is never translated; the ``export.downloaded`` audit row is
+         *     written in Uzbek outside that scope.
+         */
         get: operations["admin_specialists_list"];
         put?: never;
         /** @description Create a specialist (inactive unless `is_active: true`; the location defaults to the clinic). Add the offered services and the working hours, then activate. */
@@ -1219,6 +1688,16 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * @description ``?export=csv|xlsx`` of an admin list (contract 1.8).
+         *
+         *     ``export_name`` (the file name stem and the sheet title) and ``export_headers`` are Uzbek source texts:
+         *     they are rendered with ``core.uzsource.tr`` in the request's ``Accept-Language``
+         *     (``core.api.language.admin_language``), and ``get_export_rows`` runs with that language active, so the
+         *     values it takes from ``core.labels.text`` (and ``yes_no``, ``active_label``, ``refund_state_label``)
+         *     follow it. Data (names, ids, amounts, dates) is never translated; the ``export.downloaded`` audit row is
+         *     written in Uzbek outside that scope.
+         */
         get: operations["admin_specialists_retrieve"];
         put?: never;
         post?: never;
@@ -1372,10 +1851,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Every staff member: the directory behind the audit-log actor filter. A manager's rows also carry `full_name`, `is_manager`, `last_login_at`, `linked_providers` and `created_at`; for anyone else these keys are `null`. */
+        /** @description Every staff member: the directory behind the audit-log actor filter. A manager's rows also carry `full_name`, `is_manager`, `last_login_at`, `linked_providers`, `created_at` and (feat/admin-ux) `must_change_password`, `mfa_enabled` and `invite`; for anyone else these keys are `null`. */
         get: operations["admin_staff_list"];
         put?: never;
-        /** @description Manager only (403 `permission_denied` otherwise). Creates an active staff account with a generated temporary password, shown once in the answer. `email` already used by any account → `unique`. */
+        /** @description Manager only (403 `permission_denied` otherwise). Creates an active staff account. `delivery`: `temporary_password` (generated, shown once in the answer), `email_link` (an invite link e-mailed to the account; no usable password until it is used) or `both`; either way the person must set their own password first (`must_change_password`). `email` already used by any account → `unique`; an e-mail delivery while `capabilities.staff_email_invite` is false → `delivery` `invalid_choice`. */
         post: operations["admin_staff_create"];
         delete?: never;
         options?: never;
@@ -1435,6 +1914,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/staff/{id}/reset-mfa/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Manager only (403 `permission_denied` otherwise). A lost phone: removes the account's admin panel MFA (TOTP device and recovery codes; ops console devices stay) and revokes every open session (`admin_revoked`). The caller's own account, an account without panel MFA, or a superuser's account unless the caller is a superuser too (`manage.py resetstaffmfa` stays the break-glass path) → 409 `conflict`. Optional body `reason` (trimmed, at most 200 characters, blank allowed) is kept on the audit entry. Audited `auth.mfa_reset` and alerted. */
+        post: operations["admin_staff_reset_mfa"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/staff/{id}/reset-password/": {
         parameters: {
             query?: never;
@@ -1444,8 +1940,25 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Manager only (403 `permission_denied` otherwise). Replaces the password with a generated temporary one (shown once) and revokes every open session (`password_changed`); linked identities stay. The caller's own account → 409 `conflict` (use `auth/change-password/`). */
+        /** @description Manager only (403 `permission_denied` otherwise). Replaces the password and revokes every open session (`password_changed`) and every earlier link; linked identities stay. `delivery` (optional body, default `temporary_password`): a generated temporary password (shown once), `email_link` (the password becomes unusable and a reset link is e-mailed) or `both`; the person must then set their own password. The caller's own account → 409 `conflict` (use `auth/change-password/`); a superuser's account with `temporary_password` or `both`, unless the caller is a superuser too → 409 `conflict` (send `email_link`). */
         post: operations["admin_staff_reset_password"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/staff/{id}/send-password-link/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Manager only (403 `permission_denied` otherwise). E-mails the account a new single-use link to set its password (invite for an account that never signed in nor set one, else reset); the password and the sessions are not changed, earlier links are revoked. The caller's own account, an inactive account, or e-mail links not available → 409 `conflict`; 5/hour per manager and account. */
+        post: operations["admin_staff_send_password_link"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2686,6 +3199,13 @@ export interface components {
         AckRequestRequest: {
             inbox_ids: number[];
         };
+        /** @description An e-mailed password link: queued for the person's address (``sent``), valid until ``expires_at``. */
+        Activation: {
+            /** Format: date-time */
+            expires_at: string;
+            /** @description The e-mail was queued (delivered by the outbox). */
+            sent: boolean;
+        };
         /**
          * @description ``Actor = {"id", "display_name"}``: the staff full name, else the email (``null`` = system).
          *
@@ -2730,6 +3250,7 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
         };
+        AdminLoginResult: components["schemas"]["LoginResponse"] | components["schemas"]["MfaChallenge"];
         /**
          * @description * `customer` - customer
          *     * `admin` - admin
@@ -2747,6 +3268,7 @@ export interface components {
         AppointmentCreateRequest: {
             customer_id?: number;
             note?: string;
+            /** @description An Uzbek mobile number; separators and a missing +998 are accepted and the value is normalised to E.164 (+998XXXXXXXXX). */
             phone?: string;
             service_id: number;
             specialist_id: number;
@@ -2776,6 +3298,20 @@ export interface components {
             readonly address: string;
             readonly name: string;
             readonly phone: string | null;
+        };
+        /**
+         * @description ``GET appointments/range/``: ``schedules`` and ``appointments`` are present (non-null) only with
+         *     ``detail=full``.
+         */
+        AppointmentRange: {
+            appointments: components["schemas"]["AppointmentItem"][] | null;
+            days: components["schemas"]["RangeDay"][];
+            /** Format: date */
+            from: string;
+            schedules: components["schemas"]["RangeSchedule"][] | null;
+            specialists: components["schemas"]["RangeSpecialist"][];
+            /** Format: date */
+            to: string;
         };
         /** @description ``POST appointments/{id}/reschedule/``: ``start`` (same slot rules), optional ``specialist_id``. */
         AppointmentRescheduleRequest: {
@@ -2836,11 +3372,31 @@ export interface components {
             at: string;
             readonly data: unknown;
             id: number;
-            ip: string | null;
+            /** @description Client IP; null for system rows and always null for ordinary staff (managers and superusers see it). */
+            readonly ip: string | null;
             object_id: string;
             object_type: string;
             request_id: string;
         };
+        /** @description ``GET audit-log/facets/``: what the audit log shows the signed-in staff member. */
+        AuditFacets: {
+            /** @description Actions hidden although their prefix is visible (operator-only fixes). */
+            hidden_actions: string[];
+            /** @description Whether `ip` (and network keys in `data`) are shown. */
+            ip_visible: boolean;
+            /** @description The visible prefixes limited to the viewer's own entries (staff sign-ins, exports); `auth` entries written by customers stay visible to everyone. */
+            own_only_prefixes: string[];
+            tier: components["schemas"]["AuditViewerTierEnum"];
+            /** @description Action prefixes (the part before the first dot) this viewer sees entries of. */
+            visible_prefixes: string[];
+        };
+        /**
+         * @description * `staff` - staff
+         *     * `manager` - manager
+         *     * `superuser` - superuser
+         * @enum {string}
+         */
+        AuditViewerTierEnum: "staff" | "manager" | "superuser";
         /**
          * @description * `password` - password
          *     * `google` - google
@@ -3042,6 +3598,10 @@ export interface components {
         };
         CancelRequest: {
             reason?: string | null;
+        };
+        Capabilities: {
+            /** @description Password links can be e-mailed (`delivery` `email_link` / `both`, `staff/{id}/send-password-link/`, `auth/password-link/`); `false` when the admin panel URL is not configured or e-mail is not live under the production settings: the UI shows the option disabled. */
+            staff_email_invite: boolean;
         };
         /**
          * @description * `ok` - ok
@@ -4576,6 +5136,7 @@ export interface components {
              *     * `apple` - apple
              */
             auth_method: (components["schemas"]["AuthMethodEnum"] | components["schemas"]["NullEnum"]) | null;
+            capabilities: components["schemas"]["Capabilities"];
             display_name: string;
             /** Format: email */
             email: string;
@@ -4583,7 +5144,19 @@ export interface components {
             /** @description May manage staff (`staff/` writes, §2.16); the UI shows the staff screen only then. */
             is_manager: boolean;
             is_superuser: boolean;
+            /**
+             * @description The admin panel's language (`PATCH auth/me/`).
+             *
+             *     * `uz` - uz
+             *     * `ru` - ru
+             *     * `en` - en
+             */
+            language: components["schemas"]["ContentLanguageEnum"];
             linked_providers: components["schemas"]["SocialProviderEnum"][];
+            /** @description The account has a confirmed admin panel TOTP device. */
+            mfa_enabled: boolean;
+            /** @description The account must set its own password first: every admin route but `auth/me/`, `auth/change-password/`, `auth/password-link/` and `auth/logout/` answers 403 `password_change_required` until it does. */
+            must_change_password: boolean;
             /** Format: date-time */
             session_expires_at: string;
         };
@@ -4630,6 +5203,70 @@ export interface components {
             id: number;
             name: string;
             size: number;
+        };
+        /**
+         * @description The 200 of ``auth/login/`` and ``auth/oauth/{provider}/`` for an account with the panel MFA on: no
+         *     session yet, answer the challenge at ``auth/mfa/verify/``.
+         */
+        MfaChallenge: {
+            /** @description Opaque, single use; send it to `auth/mfa/verify/`. */
+            challenge: string;
+            /**
+             * Format: date-time
+             * @description 5 minutes after the first step.
+             */
+            challenge_expires_at: string;
+            /** @description Always `true` (tells this answer from a session). */
+            mfa_required: boolean;
+        };
+        /** @description ``POST auth/mfa/confirm/`` body. */
+        MfaConfirmRequest: {
+            /** @description The 6-digit code the authenticator shows now. */
+            code: string;
+            device_id: number;
+        };
+        /** @description ``POST auth/mfa/disable/`` body. */
+        MfaDisableRequest: {
+            /** @description The authenticator's 6-digit code or one unused recovery code. */
+            code_or_recovery: string;
+            current_password: string;
+        };
+        /** @description ``POST auth/mfa/setup/`` body. */
+        MfaPasswordRequest: {
+            current_password: string;
+        };
+        /** @description ``auth/mfa/confirm/`` and ``auth/mfa/recovery-codes/`` (200): shown once, never again. */
+        MfaRecoveryCodes: {
+            /** @description Ten `xxxxx-xxxxx` codes. */
+            recovery_codes: string[];
+        };
+        /** @description ``POST auth/mfa/recovery-codes/`` body. */
+        MfaRegenerateRequest: {
+            /** @description The 6-digit code the authenticator shows now. */
+            code: string;
+            current_password: string;
+        };
+        /** @description ``POST auth/mfa/setup/`` (200): the pending device to scan (QR of ``otpauth_uri``) or type. */
+        MfaSetup: {
+            device_id: number;
+            /** @description The secret in base32, in groups of four. */
+            manual_key: string;
+            /** @description `otpauth://totp/…`, issuer "Glow Derma Admin". */
+            otpauth_uri: string;
+        };
+        MfaStatus: {
+            /** @description A confirmed admin panel TOTP device (= `me.mfa_enabled`). */
+            enabled: boolean;
+            /** @description Unused recovery codes (0 while off). */
+            recovery_codes_left: number;
+        };
+        /** @description ``POST auth/mfa/verify/`` body: the challenge and exactly one of ``code`` / ``recovery_code``. */
+        MfaVerifyRequest: {
+            challenge: string;
+            /** @description The authenticator's 6-digit code. */
+            code?: string;
+            /** @description One unused recovery code instead of `code` (`xxxxx-xxxxx`; case and dashes are ignored). */
+            recovery_code?: string;
         };
         NavCounts: {
             appointments_pending: number;
@@ -5025,6 +5662,11 @@ export interface components {
          * @enum {string}
          */
         OtpPurposeEnum: "register" | "login_new_device" | "reset_password" | "link_social" | "verify_email" | "attach_phone";
+        /** @description ``POST auth/password-link/`` (200): where the link went (masked) and until when it is valid. */
+        OwnPasswordLink: {
+            activation: components["schemas"]["Activation"];
+            email_masked: string;
+        };
         PaginatedAdminCustomerSessionList: {
             count: number;
             page: number;
@@ -5180,6 +5822,24 @@ export interface components {
             page_size: number;
             results: components["schemas"]["StaffListItem"][];
         };
+        /** @description ``POST auth/password-token/check/`` (200): whose link it is, for the set-password page. */
+        PasswordTokenInfo: {
+            /** @description The account's e-mail, masked (`a***@glowderma.uz`). */
+            email_masked: string;
+            /** Format: date-time */
+            expires_at: string;
+            full_name: string;
+            purpose: components["schemas"]["StaffPasswordPurposeEnum"];
+        };
+        /** @description ``POST auth/password-token/check/`` body. */
+        PasswordTokenRequest: {
+            token: string;
+        };
+        /** @description ``POST auth/password-token/set/`` body (the password is validated for the link's account). */
+        PasswordTokenSetRequest: {
+            new_password: string;
+            token: string;
+        };
         /**
          * @description ``POST`` (``text`` required) and ``PATCH`` (``partial``) of ``me/addresses/`` (customer contract
          *     §2.2.7).
@@ -5267,6 +5927,7 @@ export interface components {
             /** Format: double */
             longitude?: number | null;
             name?: components["schemas"]["LocationNameRequest"];
+            /** @description An Uzbek mobile number; separators and a missing +998 are accepted and the value is normalised to E.164 (+998XXXXXXXXX). */
             phone?: string | null;
         };
         /** @description Body of ``POST services/`` and (``partial``) ``PATCH services/{id}/`` (texts merge leaf by leaf). */
@@ -5317,6 +5978,10 @@ export interface components {
             language?: components["schemas"]["ContentLanguageEnum"];
             name?: string;
             push_enabled?: boolean;
+        };
+        /** @description ``PATCH auth/me/`` body: ``language`` (uz, ru, en). */
+        PatchedMeUpdateRequest: {
+            language?: components["schemas"]["ContentLanguageEnum"];
         };
         PatchedNotificationPatchFormRequest: {
             "audience.phone"?: string;
@@ -5786,6 +6451,36 @@ export interface components {
             /** @description "GD1:" + base64url(16 random bytes); single use. */
             token: string;
             ttl_seconds: number;
+        };
+        RangeDay: {
+            counts: components["schemas"]["RangeStatusCounts"];
+            /** Format: date */
+            date: string;
+            /** @description Earliest start and latest end of the listed specialists working that day; null when nobody works. */
+            readonly hours: components["schemas"]["WorkingHours"] | null;
+            total: number;
+            /** @description At least one listed specialist works that day. */
+            working: boolean;
+        };
+        RangeSchedule: {
+            blocks: components["schemas"]["DayBlock"][];
+            /** Format: date */
+            date: string;
+            specialist_id: number;
+            readonly working_hours: components["schemas"]["WorkingHours"] | null;
+        };
+        RangeSpecialist: {
+            id: number;
+            is_active: boolean;
+            name: string;
+            role: components["schemas"]["SpecialistRoleEnum"];
+        };
+        RangeStatusCounts: {
+            attended: number;
+            cancelled: number;
+            confirmed: number;
+            rejected: number;
+            requested: number;
         };
         /**
          * @description * `before_purchase` - before_purchase
@@ -6269,23 +6964,71 @@ export interface components {
         };
         /**
          * @description ``POST staff/`` body: ``email`` (trimmed, lower-cased, unique), ``full_name`` (trimmed 2..150),
-         *     ``is_manager`` (default ``false``).
+         *     ``is_manager`` (default ``false``), ``delivery`` (default ``temporary_password``), ``language`` (the
+         *     person's panel and e-mail language, default ``uz``).
          */
         StaffCreateRequest: {
+            /**
+             * @description `temporary_password` (shown once in the answer), `email_link` (a single-use link to the account's e-mail; no usable password until it is used) or `both`. The e-mail options need `Me.capabilities.staff_email_invite` (else `invalid_choice`).
+             *
+             *     * `temporary_password` - temporary_password
+             *     * `email_link` - email_link
+             *     * `both` - both
+             * @default temporary_password
+             */
+            delivery: components["schemas"]["StaffPasswordDeliveryEnum"];
             /** Format: email */
             email: string;
             full_name: string;
             /** @default false */
             is_manager: boolean;
+            /** @default uz */
+            language: components["schemas"]["ContentLanguageEnum"];
         };
         /**
-         * @description ``POST staff/`` (201) and ``POST staff/{id}/reset-password/`` (200): the account and its temporary
-         *     password, shown once.
+         * @description ``POST staff/`` (201) and ``POST staff/{id}/reset-password/`` (200): the account, its temporary
+         *     password (shown once) and/or the e-mailed link.
          */
         StaffCredentials: {
+            /** @description The e-mailed link (`delivery` `email_link` or `both`), else `null`. */
+            activation: components["schemas"]["Activation"] | null;
             staff: components["schemas"]["StaffMember"];
-            /** @description Shown once; the person signs in with it and changes it under «Parolni o‘zgartirish». A replay of the same `Idempotency-Key` returns it again (stored sealed, §1.7). */
-            temporary_password: string;
+            /** @description Shown once (`delivery` `temporary_password` or `both`, else `null`); the person signs in with it and must then set their own password. A replay of the same `Idempotency-Key` returns it again (stored sealed, §1.7). */
+            temporary_password: string | null;
+        };
+        /** @description ``StaffMember.invite``: the newest password link (invite or reset) of the account. */
+        StaffInvite: {
+            /** Format: date-time */
+            expires_at: string | null;
+            /**
+             * Format: date-time
+             * @description When the e-mail went to the relay; `null` while queued or when not sent.
+             */
+            sent_at: string | null;
+            /**
+             * @description `none` (never e-mailed a link), `pending` (open: queued or sent), `expired`, `used` (the person set a password with it), `revoked` (replaced by a newer link, a password change, a temporary-password reset or a deactivation).
+             *
+             *     * `none` - none
+             *     * `pending` - pending
+             *     * `expired` - expired
+             *     * `used` - used
+             *     * `revoked` - revoked
+             */
+            state: components["schemas"]["StaffInviteStateEnum"];
+        };
+        /**
+         * @description * `none` - none
+         *     * `pending` - pending
+         *     * `expired` - expired
+         *     * `used` - used
+         *     * `revoked` - revoked
+         * @enum {string}
+         */
+        StaffInviteStateEnum: "none" | "pending" | "expired" | "used" | "revoked";
+        /** @description ``POST staff/{id}/send-password-link/`` (200). */
+        StaffLinkSent: {
+            activation: components["schemas"]["Activation"];
+            staff: components["schemas"]["StaffMember"];
         };
         /**
          * @description One ``GET staff/`` row: the ``Actor`` keys plus ``email`` and ``is_active`` for every caller (the
@@ -6304,6 +7047,8 @@ export interface components {
             /** @description Manager only, else `null`. */
             full_name: string | null;
             id: number;
+            /** @description Manager only, else `null`. */
+            readonly invite: components["schemas"]["StaffInvite"] | null;
             is_active: boolean;
             /** @description Manager only, else `null`. */
             is_manager: boolean | null;
@@ -6314,6 +7059,10 @@ export interface components {
             last_login_at: string | null;
             /** @description Manager only, else `null`. */
             readonly linked_providers: components["schemas"]["SocialProviderEnum"][] | null;
+            /** @description A confirmed admin panel TOTP device (the staff screen's badge and «MFA ni o‘chirish»). Manager only, else `null`. */
+            readonly mfa_enabled: boolean | null;
+            /** @description Manager only, else `null`. */
+            must_change_password: boolean | null;
         };
         /** @description ``StaffMember`` (§2.16): a staff account as managers see it; every write of ``staff/`` returns it. */
         StaffMember: {
@@ -6324,6 +7073,7 @@ export interface components {
             email: string;
             full_name: string;
             id: number;
+            readonly invite: components["schemas"]["StaffInvite"];
             is_active: boolean;
             is_manager: boolean;
             /**
@@ -6332,6 +7082,48 @@ export interface components {
              */
             last_login_at: string | null;
             readonly linked_providers: components["schemas"]["SocialProviderEnum"][];
+            /** @description A confirmed admin panel TOTP device. */
+            readonly mfa_enabled: boolean;
+            /** @description The person must set their own password before using the admin panel. */
+            must_change_password: boolean;
+            /**
+             * Format: date-time
+             * @description When the person last set their own password (a link or `auth/change-password/`); `null`: never since this was recorded.
+             */
+            password_changed_at: string | null;
+        };
+        /**
+         * @description * `temporary_password` - temporary_password
+         *     * `email_link` - email_link
+         *     * `both` - both
+         * @enum {string}
+         */
+        StaffPasswordDeliveryEnum: "temporary_password" | "email_link" | "both";
+        /**
+         * @description * `invite` - invite
+         *     * `reset` - reset
+         * @enum {string}
+         */
+        StaffPasswordPurposeEnum: "invite" | "reset";
+        /**
+         * @description ``POST staff/{id}/reset-mfa/`` body (optional): ``reason`` (trimmed, up to 200 characters), kept on
+         *     the ``auth.mfa_reset`` audit entry.
+         */
+        StaffResetMfaRequest: {
+            /** @default  */
+            reason: string;
+        };
+        /** @description ``POST staff/{id}/reset-password/`` body (optional): ``delivery`` (default ``temporary_password``). */
+        StaffResetPasswordRequest: {
+            /**
+             * @description `temporary_password` (shown once in the answer), `email_link` (a single-use link to the account's e-mail; no usable password until it is used) or `both`. The e-mail options need `Me.capabilities.staff_email_invite` (else `invalid_choice`).
+             *
+             *     * `temporary_password` - temporary_password
+             *     * `email_link` - email_link
+             *     * `both` - both
+             * @default temporary_password
+             */
+            delivery: components["schemas"]["StaffPasswordDeliveryEnum"];
         };
         StatusCounts: {
             all: number;
@@ -6408,6 +7200,7 @@ export interface components {
         /** @description ``POST notifications/test-devices/``: the customer's phone and a label for the registry. */
         TestDeviceCreateRequest: {
             label: string;
+            /** @description An Uzbek mobile number; separators and a missing +998 are accepted and the value is normalised to E.164 (+998XXXXXXXXX). */
             phone: string;
         };
         /** @description ``warnings[]``: ``gap`` = ``[from, to)`` uncovered; ``uncovered_above``: open top. */
@@ -7066,6 +7859,90 @@ export interface operations {
             };
         };
     };
+    admin_appointments_range: {
+        parameters: {
+            query: {
+                /**
+                 * @description * `counts` - counts
+                 *     * `full` - full
+                 */
+                detail?: "counts" | "full";
+                from: string;
+                specialist_id?: number;
+                to: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppointmentRange"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     admin_audit_log_list: {
         parameters: {
             query?: {
@@ -7084,6 +7961,8 @@ export interface operations {
                 ordering?: "-at" | "at";
                 page?: number;
                 page_size?: 20 | 50;
+                /** @description The start of a request id (8–64 characters `A-Z a-z 0-9 -`): entries whose stored request id begins with it. */
+                request_id?: string;
             };
             header?: never;
             path?: never;
@@ -7097,6 +7976,81 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaginatedAuditEntryList"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_audit_log_facets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditFacets"];
                 };
             };
             400: {
@@ -7221,7 +8175,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LoginResponse"];
+                    "application/json": components["schemas"]["AdminLoginResult"];
                 };
             };
             400: {
@@ -7339,6 +8293,523 @@ export interface operations {
             };
         };
     };
+    admin_auth_me_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedMeUpdateRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Me"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_auth_mfa_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MfaStatus"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_auth_mfa_confirm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MfaConfirmRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MfaRecoveryCodes"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_auth_mfa_disable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MfaDisableRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MfaStatus"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_auth_mfa_recovery_codes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MfaRegenerateRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MfaRecoveryCodes"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_auth_mfa_setup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MfaPasswordRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MfaSetup"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_auth_mfa_verify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MfaVerifyRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     admin_auth_oauth_login: {
         parameters: {
             query?: never;
@@ -7359,7 +8830,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LoginResponse"];
+                    "application/json": components["schemas"]["AdminLoginResult"];
                 };
             };
             400: {
@@ -7560,6 +9031,174 @@ export interface operations {
                 };
             };
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_auth_password_link: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnPasswordLink"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_auth_password_token_check: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordTokenRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordTokenInfo"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_auth_password_token_set: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordTokenSetRequest"];
+            };
+        };
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -15806,12 +17445,180 @@ export interface operations {
             };
         };
     };
+    admin_staff_reset_mfa: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional client-generated UUID; when sent, a retry with the same body returns the stored 2xx response with `Idempotent-Replayed: true` and another body answers 422 `idempotency_key_reused`. */
+                "Idempotency-Key"?: string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["StaffResetMfaRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffMember"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     admin_staff_reset_password: {
         parameters: {
             query?: never;
             header: {
                 /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
                 "Idempotency-Key": string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["StaffResetPasswordRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffCredentials"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_staff_send_password_link: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Optional client-generated UUID; when sent, a retry with the same body returns the stored 2xx response with `Idempotent-Replayed: true` and another body answers 422 `idempotency_key_reused`. */
+                "Idempotency-Key"?: string;
             };
             path: {
                 id: number;
@@ -15825,7 +17632,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["StaffCredentials"];
+                    "application/json": components["schemas"]["StaffLinkSent"];
                 };
             };
             400: {

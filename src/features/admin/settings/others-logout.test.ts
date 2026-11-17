@@ -14,7 +14,7 @@ describe("othersLogoutNotice", () => {
     expect(othersLogoutNotice("http://localhost:3105/admin/settings?others=failed&x=1")).toEqual({
       cleanUrl: "/admin/settings?x=1",
       toast: expect.objectContaining({
-        tone: "info",
+        tone: "warning",
         title: "Boshqa qurilmalardan chiqib bo‘lmadi",
       }),
     });

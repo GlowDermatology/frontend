@@ -1,8 +1,15 @@
 import type { BookingMeta, Specialist } from "@/domain/appointment";
+import { toLocalIsoDate } from "@/lib/format";
 
-import type { AppointmentDay, DayAppointment, PendingAppointments } from "../../appointments";
+import type {
+  AppointmentDay,
+  AppointmentRange,
+  DayAppointment,
+  PendingAppointments,
+} from "../../appointments";
 import type {
   ApiAppointmentItem,
+  ApiAppointmentRange,
   ApiAppointmentsMeta,
   ApiDaySchedule,
   ApiPendingSummary,
@@ -22,7 +29,21 @@ const ROLE_LABEL = { dermatologist: "Dermatolog", cosmetologist: "Kosmetolog" } 
 const VIA_LABEL = { app: "ilova", admin: "administrator" } as const;
 
 export const DEFAULT_HOURS = { start: "09:00", end: "18:00" } as const;
+/** A domain token the board shows in the admin language (`labels.ts customerName`). */
+// i18n-ignore
 export const DELETED_CUSTOMER_NAME = "O‘chirilgan mijoz";
+
+/**
+ * The Uzbek labels this mapper gives a block the API sends without one, and
+ * the whole-day block of a day off. The admin board shows them in the admin
+ * language (`appointmentsCopy.blocks`); a label the API did send is content
+ * and stays as it is.
+ */
+export const FALLBACK_BLOCK_LABEL = {
+  busy: "Band qilingan",
+  off: "Ish vaqti emas",
+  dayOff: "Ish kuni emas",
+} as const;
 
 export function roleLabel(role: string): Specialist["role"] {
   return role === "cosmetologist" ? ROLE_LABEL.cosmetologist : ROLE_LABEL.dermatologist;
@@ -35,7 +56,7 @@ export function mapSpecialistDay(api: ApiSpecialistDay): Specialist {
       name: api.name,
       role: roleLabel(api.role),
       workingHours: { ...DEFAULT_HOURS },
-      blocks: [{ ...DEFAULT_HOURS, kind: "off", label: "Ish kuni emas" }],
+      blocks: [{ ...DEFAULT_HOURS, kind: "off", label: FALLBACK_BLOCK_LABEL.dayOff }],
       working: false,
       ...(api.is_active === false ? { isActive: false } : {}),
     };
@@ -49,7 +70,7 @@ export function mapSpecialistDay(api: ApiSpecialistDay): Specialist {
       start: block.start,
       end: block.end,
       kind: block.kind,
-      label: block.label ?? (block.kind === "busy" ? "Band qilingan" : "Ish vaqti emas"),
+      label: block.label ?? FALLBACK_BLOCK_LABEL[block.kind === "busy" ? "busy" : "off"],
     })),
     working: true,
     ...(api.is_active === false ? { isActive: false } : {}),
@@ -83,6 +104,62 @@ export function mapAppointmentDay(api: ApiDaySchedule): AppointmentDay {
     date: api.date,
     specialists: api.specialists.map(mapSpecialistDay),
     appointments: api.appointments.map(mapDayAppointment),
+  };
+}
+
+/**
+ * `appointments/range/` → the week and month boards. With `detail=full` the
+ * specialists' schedules and the appointments become one `AppointmentDay` per
+ * date (the day board's shape, so the week grid and the booking dialog reuse
+ * it); a specialist without a schedule entry for a date is drawn as not
+ * working that day.
+ */
+export function mapAppointmentRange(api: ApiAppointmentRange): AppointmentRange {
+  const schedules =
+    api.schedules === null
+      ? null
+      : api.days.map(({ date }): AppointmentDay => {
+          const specialists = api.specialists.map((specialist) => {
+            const schedule = api.schedules?.find(
+              (s) => s.specialist_id === specialist.id && s.date === date,
+            );
+            return mapSpecialistDay({
+              ...specialist,
+              working_hours: schedule?.working_hours ?? null,
+              blocks: schedule?.blocks ?? [],
+            });
+          });
+          return {
+            date,
+            specialists,
+            appointments: (api.appointments ?? [])
+              .filter((item) => toLocalIsoDate(item.start) === date)
+              .map(mapDayAppointment),
+          };
+        });
+  return {
+    from: api.from,
+    to: api.to,
+    specialists: api.specialists.map((specialist) => ({
+      id: idString(specialist.id),
+      name: specialist.name,
+      role: roleLabel(specialist.role),
+      isActive: specialist.is_active,
+    })),
+    days: api.days.map((day) => ({
+      date: day.date,
+      counts: {
+        requested: day.counts.requested,
+        confirmed: day.counts.confirmed,
+        attended: day.counts.attended,
+        rejected: day.counts.rejected,
+        cancelled: day.counts.cancelled,
+      },
+      total: day.total,
+      working: day.working,
+      hours: day.hours ? { start: day.hours.start, end: day.hours.end } : null,
+    })),
+    schedules,
   };
 }
 

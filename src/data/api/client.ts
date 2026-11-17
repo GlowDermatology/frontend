@@ -4,7 +4,10 @@ import { headers } from "next/headers";
 import { cache } from "react";
 
 import { serverEnv } from "@/lib/env.server";
+import { adminLocaleFromCookieHeader } from "@/lib/i18n/admin-locale-cookie";
+import type { Locale } from "@/lib/i18n/locales";
 
+import { dataCopy } from "../copy";
 import { ApiError } from "./errors";
 
 export type QueryValue = string | number | boolean | undefined | null;
@@ -30,6 +33,11 @@ export interface ApiRequest {
   streamBody?: boolean;
   /** Extra cancellation (e.g. the incoming request's signal), combined with the deadline. */
   signal?: AbortSignal;
+  /**
+   * `Accept-Language` of the call (DESIGN §G: the admin API localizes its messages and exports).
+   * Default: the admin language of the incoming request (`gd_admin_language`, Uzbek without it).
+   */
+  locale?: Locale;
 }
 
 export interface ApiResponse<T> {
@@ -124,10 +132,14 @@ export async function apiFetchRaw(path: string, request: ApiRequest = {}): Promi
   const url = `${serverEnv.apiUrl()}${path}${buildQuery(request.query)}`;
   // Request-time data first: under Cache Components `headers()` marks the
   // render dynamic, and only then is a per-request random id appropriate.
-  const ip = await clientIp();
+  const incoming = await headers();
+  const ip = clientIpFrom(incoming);
   const requestHeaders = new Headers(request.headers);
   if (!requestHeaders.has("Accept")) requestHeaders.set("Accept", "application/json");
-  requestHeaders.set("Accept-Language", "uz");
+  // The admin language cookie, read from the request headers already at hand (no second request
+  // API); `getAdminLocale()` reads the same cookie through `cookies()`.
+  const locale = request.locale ?? adminLocaleFromCookieHeader(incoming.get("cookie"));
+  requestHeaders.set("Accept-Language", locale);
   requestHeaders.set("X-GD-Internal-Secret", serverEnv.internalSecret());
   requestHeaders.set("X-Request-ID", crypto.randomUUID());
   if (ip) requestHeaders.set("X-GD-Client-IP", ip);
@@ -174,15 +186,15 @@ export async function apiFetchRaw(path: string, request: ApiRequest = {}): Promi
       0,
       {
         code: isTimeout(cause) ? "timeout" : "network_error",
-        message: "API bilan bog‘lanib bo‘lmadi.",
+        message: dataCopy[locale].network,
         errors: [],
         request_id: "",
       },
-      { cause },
+      { cause, locale },
     );
   }
   try {
-    if (!response.ok) throw await ApiError.fromResponse(response);
+    if (!response.ok) throw await ApiError.fromResponse(response, locale);
   } finally {
     if (timer) clearTimeout(timer);
   }
@@ -206,15 +218,16 @@ export async function apiFetch<T>(path: string, request: ApiRequest = {}): Promi
   } catch (cause) {
     // A 2xx without a JSON body (empty, or an edge-proxy page) is not a
     // success the callers can use; surface it as an API error of that status.
+    const locale = request.locale ?? adminLocaleFromCookieHeader((await headers()).get("cookie"));
     throw new ApiError(
       response.status,
       {
         code: "invalid_json",
-        message: "Kutilmagan xato.",
+        message: dataCopy[locale].unexpected,
         errors: [],
         request_id: response.headers.get("x-request-id") ?? "",
       },
-      { cause },
+      { cause, locale },
     );
   }
   return { status: response.status, data, headers: response.headers };

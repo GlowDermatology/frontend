@@ -3,69 +3,91 @@ import type { Route } from "next";
 
 import { Badge } from "@/components/ui/badge";
 import { ScrollRegion } from "@/components/ui/scroll-region";
+import { customerDataCopy } from "@/domain/copy/customers";
 import type { CustomerListItem } from "@/domain/customer";
-import { formatNumber, formatPhone, formatSom } from "@/lib/format";
+import type { AdminFormatter } from "@/lib/format";
+import type { Locale } from "@/lib/i18n/locales";
 
-import { percentLabel, registeredLabel } from "./labels";
+import type { CustomersCopy } from "./copy";
+import { customerDisplayName, percentLabel, registeredLabel } from "./labels";
 
-/** Rows of the customers list (contract §2.6 `CustomerListItem`). */
-export function CustomersTable({ customers }: { customers: ReadonlyArray<CustomerListItem> }) {
+interface CustomersTableProps {
+  customers: ReadonlyArray<CustomerListItem>;
+  t: CustomersCopy;
+  fmt: AdminFormatter;
+  locale: Locale;
+}
+
+/** Rows of the customers list (contract §2.6 `CustomerListItem`), in the admin language. */
+export function CustomersTable({ customers, t, fmt, locale }: CustomersTableProps) {
+  const c = t.table;
+  const status = customerDataCopy[locale].status;
   return (
-    <ScrollRegion label="Mijozlar jadvali">
+    <ScrollRegion label={c.label}>
       <table className="data-table min-w-[960px] transition-opacity duration-150 group-data-[pending]:opacity-60">
-        <caption className="sr-only">Mijozlar</caption>
-        <thead>
+        <caption className="sr-only">{c.caption}</caption>
+        <thead className="uppercase">
           <tr>
-            <th scope="col">MIJOZ</th>
-            <th scope="col">TELEFON</th>
-            <th scope="col">RO‘YXATDAN O‘TGAN</th>
+            <th scope="col">{c.customer}</th>
+            <th scope="col">{c.phone}</th>
+            <th scope="col">{c.registered}</th>
             <th scope="col" className="text-right!">
-              JAMI XARIDLAR
+              {c.total}
             </th>
             <th scope="col" className="text-right!">
-              ONLAYN BUYURTMALAR
+              {c.online}
             </th>
             <th scope="col" className="text-right!">
-              CASHBACK
+              {c.cashback}
             </th>
             <th scope="col" className="text-right!">
-              BALANS
+              {c.balance}
             </th>
-            <th scope="col">HOLAT</th>
+            <th scope="col">{c.status}</th>
           </tr>
         </thead>
         <tbody>
-          {customers.map((customer) => (
-            <tr key={customer.id}>
-              <td>
-                <Link
-                  href={`/admin/customers/${customer.id}` as Route}
-                  className="font-bold text-ink no-underline hover:underline hover:decoration-gold hover:underline-offset-4"
-                >
-                  {customer.name}
-                </Link>
-              </td>
-              <td className="tabular-nums">{formatPhone(customer.phone)}</td>
-              <td className="text-ink-muted tabular-nums">
-                <time dateTime={customer.registeredAt}>
-                  {registeredLabel(customer.registeredAt)}
-                </time>
-              </td>
-              <td className="text-right tabular-nums">{formatSom(customer.lifetimeTotal)}</td>
-              <td className="text-right tabular-nums">
-                {formatNumber(customer.onlineOrdersCount)}
-              </td>
-              <td className="text-right tabular-nums">{percentLabel(customer.percent)}</td>
-              <td className="text-right tabular-nums">{formatSom(customer.balance)}</td>
-              <td>
-                {customer.status === "active" ? (
-                  <Badge tone="success">Faol</Badge>
-                ) : (
-                  <Badge tone="muted">O‘chirilgan</Badge>
-                )}
-              </td>
-            </tr>
-          ))}
+          {customers.map((customer) => {
+            const name = customerDisplayName(customer.name, locale);
+            return (
+              <tr key={customer.id}>
+                <td>
+                  <Link
+                    href={`/admin/customers/${customer.id}` as Route}
+                    title={name}
+                    className="line-clamp-2 max-w-[260px] font-bold break-words text-ink no-underline hover:underline hover:decoration-gold hover:underline-offset-4"
+                  >
+                    {name}
+                  </Link>
+                </td>
+                <td className="whitespace-nowrap tabular-nums">{fmt.phone(customer.phone)}</td>
+                <td className="text-ink-muted tabular-nums">
+                  <time dateTime={customer.registeredAt}>
+                    {registeredLabel(customer.registeredAt, fmt)}
+                  </time>
+                </td>
+                <td className="text-right whitespace-nowrap tabular-nums">
+                  {fmt.som(customer.lifetimeTotal)}
+                </td>
+                <td className="text-right tabular-nums">
+                  {fmt.number(customer.onlineOrdersCount)}
+                </td>
+                <td className="text-right tabular-nums">
+                  {percentLabel(customer.percent, locale)}
+                </td>
+                <td className="text-right whitespace-nowrap tabular-nums">
+                  {fmt.som(customer.balance)}
+                </td>
+                <td>
+                  {customer.status === "active" ? (
+                    <Badge tone="success">{status.active}</Badge>
+                  ) : (
+                    <Badge tone="muted">{status.deleted}</Badge>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </ScrollRegion>

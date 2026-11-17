@@ -8,6 +8,7 @@ import type {
   StatusTemplate,
   TestDevice,
 } from "@/domain/notification";
+import { notificationDataCopy } from "@/domain/copy/notifications";
 import { addDays, formatNumber, formatPhone, toLocalIsoDate } from "@/lib/format";
 
 import type { NotificationInput } from "../../notifications.actions";
@@ -28,16 +29,20 @@ import { TOP_LEVEL_ERROR } from "./errors";
  * composer input (§7.12: audience `group` → `segment`, `one` → `customer`).
  */
 
-/** "Barcha · 4 751", "Doimiy mijozlar · 612", "Bitta mijoz · +998 90 123 45 67". */
+/**
+ * The stored Uzbek audience words ("Barcha · 4 751", "Doimiy mijozlar · 612", "Bitta mijoz · +998
+ * 90 123 45 67"); the screens build the admin language's with `audienceText`.
+ */
 export function notificationAudienceLabel(api: ApiNotificationRecord): string {
   const { audience } = api;
+  const words = notificationDataCopy.uz.audience;
   if (audience.type === "segment") {
-    return `${audience.segment_name ?? "Guruh"} · ${formatNumber(api.recipient_count)}`;
+    return `${audience.segment_name ?? words.group} · ${formatNumber(api.recipient_count)}`;
   }
   if (audience.type === "customer") {
-    return `Bitta mijoz · ${audience.phone ? formatPhone(audience.phone) : "—"}`;
+    return `${words.one} · ${audience.phone ? formatPhone(audience.phone) : "—"}`;
   }
-  return `Barcha · ${formatNumber(api.recipient_count)}`;
+  return `${words.all} · ${formatNumber(api.recipient_count)}`;
 }
 
 function audienceOf(api: ApiNotificationRecord): NotificationAudience {
@@ -89,6 +94,7 @@ export function mapNotificationRecord(api: ApiNotificationRecord): NotificationR
     title: api.title,
     body: api.body,
     audienceLabel: notificationAudienceLabel(api),
+    audienceName: api.audience.type === "segment" ? (api.audience.segment_name ?? null) : null,
     recipientCount: api.recipient_count,
     audience: audienceOf(api),
     link,

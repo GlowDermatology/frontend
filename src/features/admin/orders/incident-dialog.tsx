@@ -3,9 +3,11 @@
 import { useState } from "react";
 
 import { openDeliveryIncident, type OpenedIncident } from "@/data/delivery-issues.actions";
+import { useCopy } from "@/lib/i18n/admin-context";
 
 import { runAction } from "../shared/action-client";
 import { NoteDialog } from "../issues/note-dialog";
+import { ordersCopy } from "./copy";
 
 interface IncidentDialogProps {
   orderId: number;
@@ -29,6 +31,7 @@ export function IncidentDialog({
   onOpened,
   onStale,
 }: IncidentDialogProps) {
+  const t = useCopy(ordersCopy).incident;
   const [urgent, setUrgent] = useState(false);
   return (
     <NoteDialog<OpenedIncident>
@@ -37,12 +40,12 @@ export function IncidentDialog({
         if (!next) setUrgent(false);
         onOpenChange(next);
       }}
-      title={`Buyurtma №${orderId}: hodisa qayd etish`}
-      description="Noto‘g‘ri yoki yetishmayotgan mahsulot, shikastlangan qadoq va boshqalar. Hodisa muammolar ro‘yxatiga tushadi."
-      label="Nima bo‘ldi? (majburiy)"
-      placeholder="Masalan: mijoz qadoqda bitta krem yo‘qligini aytdi"
-      submitLabel="Qayd etish"
-      pendingLabel="Saqlanmoqda…"
+      title={t.title(orderId)}
+      description={t.description}
+      label={t.label}
+      placeholder={t.placeholder}
+      submitLabel={t.submit}
+      pendingLabel={t.saving}
       submit={(note, key) =>
         runAction((csrf) => openDeliveryIncident(orderId, note, urgent, key, csrf))
       }
@@ -60,10 +63,8 @@ export function IncidentDialog({
           className="mt-0.5 size-4 shrink-0 accent-gold-ink"
         />
         <span className="flex flex-col gap-0.5">
-          Shoshilinch
-          <span className="text-caption font-normal text-ink-muted">
-            Xodimlarga darhol xabar beriladi (panel va Telegram).
-          </span>
+          {t.urgent}
+          <span className="text-caption font-normal text-ink-muted">{t.urgentHint}</span>
         </span>
       </label>
     </NoteDialog>

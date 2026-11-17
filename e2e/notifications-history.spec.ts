@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { BACKEND_DIR, createCancelledCampaigns, deleteCampaigns } from "./backend-shell";
 import { heading, watchPage } from "./helpers";
+import { selectOption, selectValue } from "./ui";
 
 /**
  * The notifications history (gap X-NOTIF-HISTORY, contract §2.8): pages,
@@ -47,17 +48,16 @@ test("the history pages, filters by state and kind, and exports what it shows", 
   await expect(rows.first()).toBeVisible();
 
   // State filter: only the cancelled ones, back on page 1.
-  await page.getByRole("button", { name: /^Holat: / }).click();
-  await page.getByRole("menuitemradio", { name: "Bekor qilindi" }).click();
+  await selectOption(page, "Holat", "Bekor qilindi");
   await expect(page).toHaveURL(/state=cancelled/);
+  expect(await selectValue(page, "Holat")).toBe("cancelled");
   await expect(page).not.toHaveURL(/page=2/);
   await expect(rows.first()).toBeVisible();
   for (const text of await rows.locator("td:nth-child(7)").allInnerTexts()) {
     expect(text).toMatch(/bekor qilindi/i);
   }
   // Kind filter on top: promo has no cancelled e2e row.
-  await page.getByRole("button", { name: /^Turi: / }).click();
-  await page.getByRole("menuitemradio", { name: "Umumiy" }).click();
+  await selectOption(page, "Turi", "Umumiy");
   await expect(page).toHaveURL(/kind=general/);
   await expect(rows.filter({ hasText: PREFIX }).first()).toBeVisible();
 

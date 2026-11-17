@@ -5,8 +5,6 @@
  * are shown as they come.
  */
 
-export const LINK_URL_MESSAGE = "Havolani https:// bilan to‘liq kiriting.";
-
 /** Banner and campaign destinations (§1.4): ≤500. */
 export const LINK_URL_MAX = 500;
 

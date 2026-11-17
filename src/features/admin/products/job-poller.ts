@@ -1,6 +1,8 @@
 import type { ActionResult } from "@/data/types";
 import { isJobDone, type Job } from "@/domain/job";
 
+import { productsCopy } from "./copy";
+
 /**
  * Polls a background job until it is `succeeded` or `failed` (contract
  * §2.14): one `fetchJob` every `intervalMs` (1.5 s), never two in flight,
@@ -18,7 +20,8 @@ export const JOB_POLL_INTERVAL_MS = 1500;
 export const JOB_POLL_MAX_ATTEMPTS = 400;
 /** Consecutive transport failures tolerated before `onError` (1.5 + 3 + 6 + 12 s of backoff). */
 export const JOB_POLL_MAX_RETRIES = 4;
-export const JOB_POLL_TIMEOUT_MESSAGE = "Jarayon javob bermayapti. Sahifani yangilab ko‘ring.";
+/** The default (Uzbek) give-up message; `BillzImport` passes the admin language's one. */
+export const JOB_POLL_TIMEOUT_MESSAGE = productsCopy.uz.import.timeout;
 
 /** Failure codes worth retrying: the request never reached the API, or the API never answered. */
 const TRANSIENT_CODES: ReadonlySet<string> = new Set(["network_error", "timeout"]);
@@ -42,6 +45,11 @@ export interface JobPollerOptions {
   intervalMs?: number;
   maxAttempts?: number;
   maxRetries?: number;
+  /**
+   * The message `onError` gets when the attempt limit is reached; a function is read at that
+   * moment (the admin language may have changed since the poller was created).
+   */
+  timeoutMessage?: string | (() => string);
 }
 
 export interface JobPoller {
@@ -88,7 +96,8 @@ export function createJobPoller(options: JobPollerOptions): JobPoller {
 
   const schedule = (job: Job, current: number, delay: number) => {
     if (attempts >= maxAttempts) {
-      fail(JOB_POLL_TIMEOUT_MESSAGE);
+      const timeout = options.timeoutMessage;
+      fail((typeof timeout === "function" ? timeout() : timeout) ?? JOB_POLL_TIMEOUT_MESSAGE);
       return;
     }
     timer = setTimeout(async () => {

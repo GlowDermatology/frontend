@@ -2,6 +2,8 @@ import "server-only";
 
 import type { CustomRangeErrors, DashboardData, DashboardQuery } from "@/domain/dashboard";
 
+import { getAdminLocale } from "@/lib/i18n/admin-locale";
+
 import { apiDashboard } from "./api/orders";
 import { isApiError } from "./api/errors";
 import { dashboardParams, mapDashboard } from "./api/mappers/dashboard";
@@ -25,12 +27,14 @@ export type DashboardResult =
 
 /** `GET /api/v1/admin/dashboard/?range=&from=&to=` */
 export async function getDashboard(query: DashboardQuery): Promise<DashboardResult> {
+  // Bucket labels and notes are built here, in the admin language.
+  const locale = await getAdminLocale();
   if ((await dataSource()) === "api") {
     const token = await requireApiToken();
     try {
       return {
         ok: true,
-        data: mapDashboard((await apiDashboard(token, dashboardParams(query))).data),
+        data: mapDashboard((await apiDashboard(token, dashboardParams(query))).data, locale),
       };
     } catch (error) {
       if (isApiError(error) && error.status === 400 && error.code === "validation_error") {
@@ -43,5 +47,5 @@ export async function getDashboard(query: DashboardQuery): Promise<DashboardResu
       throw error;
     }
   }
-  return { ok: true, data: await mock.getDashboard(query) };
+  return { ok: true, data: await mock.getDashboard(query, locale) };
 }

@@ -3,12 +3,14 @@
 import { z } from "zod";
 
 import type { Banner } from "@/domain/banner";
+import { catalogDataCopy } from "@/domain/copy/catalog";
+import { getAdminLocale } from "@/lib/i18n/admin-locale";
 
 import {
   apiMutation,
   fieldErrorsFrom,
   guardAction,
-  idempotencyKeySchema,
+  idempotencyKeySchemas,
   sessionToken,
 } from "./action-guard";
 import {
@@ -19,13 +21,7 @@ import {
   apiReorderBanners,
 } from "./api/catalog";
 import { bannerFormData, bannerPatchBody, mapBanner, toActionResult } from "./api/mappers";
-import {
-  bannerBaselineSchema,
-  bannerFormSchema,
-  bannerImageSchema,
-  bannerValuesFromFormData,
-  type BannerFormValues,
-} from "./banners.schema";
+import { bannerSchemas, bannerValuesFromFormData, type BannerFormValues } from "./banners.schema";
 import * as mock from "./mock/banners.actions";
 import { dataSource } from "./source";
 import type { ActionResult } from "./types";
@@ -53,33 +49,32 @@ export async function saveBanner(
 ): Promise<ActionResult<Banner>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
+  const locale = await getAdminLocale();
+  const m = catalogDataCopy[locale];
+  const schemas = bannerSchemas[locale];
   const parsedId = z.union([bannerIdSchema, z.null()]).safeParse(id);
-  if (!parsedId.success) return { ok: false, error: "Banner topilmadi.", code: "not_found" };
-  const parsedKey = z.object({ key: idempotencyKeySchema }).safeParse({ key });
-  if (!parsedKey.success) return fieldErrorsFrom(parsedKey.error);
-  const parsed = bannerFormSchema.safeParse(bannerValuesFromFormData(formData));
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
-  const parsedBaseline = bannerBaselineSchema.nullable().safeParse(baseline);
-  if (!parsedBaseline.success) return fieldErrorsFrom(parsedBaseline.error);
+  if (!parsedId.success) return { ok: false, error: m.bannerNotFound, code: "not_found" };
+  const parsedKey = z.object({ key: idempotencyKeySchemas[locale] }).safeParse({ key });
+  if (!parsedKey.success) return fieldErrorsFrom(parsedKey.error, m.checkFields);
+  const parsed = schemas.form.safeParse(bannerValuesFromFormData(formData));
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, m.checkFields);
+  const parsedBaseline = schemas.baseline.nullable().safeParse(baseline);
+  if (!parsedBaseline.success) return fieldErrorsFrom(parsedBaseline.error, m.checkFields);
   const picked = formData.get("image");
-  const parsedImage = bannerImageSchema.safeParse(
+  const parsedImage = schemas.image.safeParse(
     picked instanceof File && picked.size > 0 ? picked : undefined,
   );
   if (!parsedImage.success) {
     return {
       ok: false,
-      error: "Rasmni tekshiring.",
-      fieldErrors: { image: parsedImage.error.issues[0]?.message ?? "Rasmni tekshiring." },
+      error: m.checkImage,
+      fieldErrors: { image: parsedImage.error.issues[0]?.message ?? m.checkImage },
     };
   }
   const values: BannerFormValues = parsed.data;
   const image = parsedImage.data ?? null;
   if (parsedId.data === null && !image) {
-    return {
-      ok: false,
-      error: "Rasmni tekshiring.",
-      fieldErrors: { image: "Banner rasmini tanlang." },
-    };
+    return { ok: false, error: m.checkImage, fieldErrors: { image: m.bannerImageRequired } };
   }
 
   if ((await dataSource()) === "api") {
@@ -95,7 +90,7 @@ export async function saveBanner(
           return { ok: true, data: mapBanner(data) };
         }
         if (!apiIdSchema.safeParse(parsedId.data).success) {
-          return { ok: false, error: "Banner topilmadi.", code: "not_found" };
+          return { ok: false, error: m.bannerNotFound, code: "not_found" };
         }
         const before = parsedBaseline.data;
         if (image) {
@@ -134,12 +129,13 @@ export async function deleteBanner(
 ): Promise<ActionResult<{ id: string }>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
+  const m = catalogDataCopy[await getAdminLocale()];
   const parsedId = bannerIdSchema.safeParse(id);
-  if (!parsedId.success) return { ok: false, error: "Banner topilmadi.", code: "not_found" };
+  if (!parsedId.success) return { ok: false, error: m.bannerNotFound, code: "not_found" };
   if ((await dataSource()) === "api") {
     return apiMutation("deleteBanner", async () => {
       if (!apiIdSchema.safeParse(parsedId.data).success) {
-        return { ok: false, error: "Banner topilmadi.", code: "not_found" };
+        return { ok: false, error: m.bannerNotFound, code: "not_found" };
       }
       try {
         await apiDeleteBanner(sessionToken(guard.session), parsedId.data);
@@ -156,17 +152,18 @@ export async function deleteBanner(
 export async function reorderBanners(ids: string[], csrf: string): Promise<ActionResult<Banner[]>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
+  const m = catalogDataCopy[await getAdminLocale()];
   const parsed = z
     .array(bannerIdSchema)
     .max(200)
-    .refine((list) => new Set(list).size === list.length, { error: "Bannerlar takrorlanmoqda." })
+    .refine((list) => new Set(list).size === list.length, { error: m.bannersRepeated })
     .safeParse(ids);
-  if (!parsed.success) return fieldErrorsFrom(parsed.error, "Tartibni tekshiring.");
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, m.checkOrder);
   if ((await dataSource()) === "api") {
     return apiMutation("reorderBanners", async () => {
       const numeric = parsed.data.map((id) => Number(id));
       if (numeric.some((id) => !Number.isInteger(id))) {
-        return { ok: false, error: "Tartibni tekshiring.", code: "mismatch" };
+        return { ok: false, error: m.checkOrder, code: "mismatch" };
       }
       try {
         const { data } = await apiReorderBanners(sessionToken(guard.session), numeric);

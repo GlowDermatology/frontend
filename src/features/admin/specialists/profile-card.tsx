@@ -3,29 +3,37 @@
 import Image from "next/image";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
-import { Button, buttonStyles } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import { AlertDialog, AlertDialogCancel } from "@/components/ui/dialog";
+import { FormErrorSummary } from "@/components/ui/form-errors";
 import { Icon } from "@/components/ui/icon";
 import { useToast } from "@/components/ui/toast";
 import { setSpecialistPhoto, updateSpecialist } from "@/data/clinic.actions";
-import { specialistFormSchema, type SpecialistFormValues } from "@/data/clinic.schema";
-import {
-  IMAGE_TOO_LARGE_MESSAGE,
-  IMAGE_TYPE_MESSAGE,
-  IMAGE_TYPES,
-  MAX_IMAGE_BYTES,
-} from "@/data/products.schema";
-import type { ClinicSpecialist } from "@/domain/clinic";
+import { clinicSchemas, type SpecialistFormValues } from "@/data/clinic.schema";
+import { imageFileProblem, IMAGE_TYPES } from "@/data/products.schema";
+import { specialistRecommendedToAsk, type ClinicSpecialist } from "@/domain/clinic";
+import type { ContentLanguage } from "@/domain/product";
 import { cn } from "@/lib/cn";
+import { useErrorReveal } from "@/lib/forms/reveal";
+import { useRecommendedConfirm } from "@/lib/forms/recommended";
+import { useAdminLocale, useCopy } from "@/lib/i18n/admin-context";
+import { useFormat, useLocalized } from "@/lib/i18n/admin-hooks";
 
+import { afterDialogsClose } from "../products/form-reveal";
 import { runAction } from "../shared/action-client";
 import { partitionFieldErrors } from "../shared/field-errors";
 import { useIdempotencyKey } from "../shared/idempotency";
+import { specialistsCopy } from "./copy";
+import { errorItems, issuesToErrors } from "./form-kit";
 import {
   experienceValue,
+  firstTextErrorLanguage,
   PROFILE_FIELDS,
+  PROFILE_ORDER,
+  profileFieldLabel,
   SpecialistProfileFields,
+  specialistRecommendedFields,
   type StaffOption,
 } from "./profile-fields";
 
@@ -49,6 +57,9 @@ function toValues(specialist: ClinicSpecialist): SpecialistFormValues {
  * `PUT|DELETE …/photo/`). Switching «Faol» off with appointments ahead is
  * refused with the server's count (409); «Baribir nofaol qilish» repeats
  * the save with `force`, after which the appointments stay as they are.
+ * Invalid fields are listed and the first one revealed (also in another
+ * language's tab); an active profile without qualifications, bio or photo
+ * asks "save anyway?".
  */
 export function ProfileCard({
   specialist,
@@ -59,12 +70,17 @@ export function ProfileCard({
   staffOptions: ReadonlyArray<StaffOption>;
   onUpdated: (specialist: ClinicSpecialist) => void;
 }) {
+  const copy = useCopy(specialistsCopy);
+  const t = copy.profile;
+  const fmt = useFormat();
+  const schemas = useLocalized(clinicSchemas);
   const toast = useToast();
   const [source, setSource] = useState(specialist);
   const [values, setValues] = useState(() => toValues(specialist));
   const [experience, setExperience] = useState(
     specialist.experienceYears === null ? "" : String(specialist.experienceYears),
   );
+  const [language, setLanguage] = useState<ContentLanguage>("uz");
   const baseline = toValues(specialist);
   const current = { ...values, experienceYears: experienceValue(experience) };
   const dirty = JSON.stringify(current) !== JSON.stringify(baseline);
@@ -80,23 +96,46 @@ export function ProfileCard({
   const [busy, setBusy] = useState(false);
   const [conflict, setConflict] = useState<string | null>(null);
   const inFlight = useRef(false);
-  const formRef = useRef<HTMLFormElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const reveal = useErrorReveal(cardRef);
+  const recommended = useRecommendedConfirm();
   const idempotency = useIdempotencyKey();
+  const summary = errorItems(errors, (name) => profileFieldLabel(name, copy), PROFILE_ORDER);
+
+  const showErrors = (next: Record<string, string>, message: string | null) => {
+    const failing = firstTextErrorLanguage(next);
+    if (failing && !next[`qualifications.${language}`] && !next[`bio.${language}`]) {
+      setLanguage(failing);
+    }
+    setErrors(next);
+    setFormError(message);
+    reveal();
+  };
 
   const save = async (force: boolean) => {
     if (inFlight.current) return;
-    const local = specialistFormSchema.safeParse(current);
+    const local = schemas.specialist.safeParse(current);
     if (!local.success) {
-      const next: Record<string, string> = {};
-      for (const issue of local.error.issues) next[issue.path.join(".")] ??= issue.message;
-      setErrors(next);
-      setFormError(null);
-      requestAnimationFrame(() =>
-        formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(),
-      );
+      showErrors(issuesToErrors(local.error), null);
       return;
     }
     inFlight.current = true;
+    if (!force) {
+      // Asked only when it is news: the save that makes the profile bookable (photo included),
+      // a text just emptied; an inactive profile never asks.
+      const missing = specialistRecommendedFields(
+        specialistRecommendedToAsk(local.data, baseline, Boolean(specialist.photoUrl)),
+        copy,
+      );
+      const remember = { kind: "specialist", id: specialist.id };
+      if ((await recommended.confirm(missing, { remember })) === "fix") {
+        inFlight.current = false;
+        setLanguage("uz");
+        await afterDialogsClose();
+        reveal({ name: missing[0]!.name, shake: false });
+        return;
+      }
+    }
     setBusy(true);
     setErrors({});
     setFormError(null);
@@ -114,15 +153,19 @@ export function ProfileCard({
       }
       setConflict(null);
       const split = partitionFieldErrors(result, PROFILE_FIELDS);
-      setErrors(split.fieldErrors);
-      setFormError(split.formError);
+      showErrors(split.fieldErrors, split.formError);
+      toast({
+        tone: "danger",
+        title: copy.saveFailed,
+        description: split.formError ?? result.error,
+      });
       return;
     }
     setConflict(null);
     onUpdated(result.data);
     setValues(toValues(result.data));
     setExperience(result.data.experienceYears === null ? "" : String(result.data.experienceYears));
-    toast({ title: "Profil saqlandi", description: result.data.name });
+    toast({ tone: "success", title: t.saved, description: result.data.name });
   };
 
   const onSubmit = (event: FormEvent) => {
@@ -132,42 +175,58 @@ export function ProfileCard({
 
   return (
     <Card aria-labelledby="profile-title" className="flex flex-col gap-4">
-      <CardTitle id="profile-title" className="text-heading">
-        Profil
-      </CardTitle>
-      <PhotoField specialist={specialist} onUpdated={onUpdated} />
-      <form ref={formRef} noValidate onSubmit={onSubmit} className="flex flex-col gap-4">
-        <SpecialistProfileFields
-          values={values}
-          onChange={setValues}
-          experience={experience}
-          onExperienceChange={setExperience}
-          errors={errors}
-          staffOptions={staffOptions}
-          linkedStaff={specialist.staffUser}
-          activeHint={
-            specialist.upcomingAppointments > 0
-              ? `Nofaol mutaxassis ilovadan yo‘qoladi. ${specialist.upcomingAppointments} ta kelgusi qabul o‘zgarmaydi.`
-              : "Faol mutaxassis ilovada ko‘rinadi va unga yozilish mumkin."
-          }
-          savedSlug={specialist.slug}
+      <div ref={cardRef} className="flex flex-col gap-4">
+        <CardTitle id="profile-title" className="text-heading">
+          {t.title}
+        </CardTitle>
+        <FormErrorSummary
+          errors={summary}
+          onSelect={(name) => {
+            const failing = firstTextErrorLanguage({ [name]: "x" });
+            if (failing) setLanguage(failing);
+            reveal({ name });
+          }}
         />
-        {formError && (
-          <p
-            role="alert"
-            className="m-0 flex items-start gap-1.5 text-body-sm font-semibold text-ink"
-          >
-            <Icon name="alert-circle" size={16} className="mt-px shrink-0 text-danger" />
-            {formError}
-          </p>
-        )}
-        <div className="flex justify-end">
-          <Button type="submit" disabled={busy || !dirty} aria-busy={busy}>
-            <Icon name="check" size={18} />
-            {busy ? "Saqlanmoqda…" : "Saqlash"}
-          </Button>
-        </div>
-      </form>
+        <PhotoField specialist={specialist} onUpdated={onUpdated} />
+        <form noValidate onSubmit={onSubmit} className="flex flex-col gap-4">
+          <SpecialistProfileFields
+            values={values}
+            onChange={setValues}
+            experience={experience}
+            onExperienceChange={setExperience}
+            errors={errors}
+            staffOptions={staffOptions}
+            linkedStaff={specialist.staffUser}
+            activeHint={
+              specialist.upcomingAppointments > 0
+                ? t.inactiveHint(
+                    specialist.upcomingAppointments,
+                    fmt.number(specialist.upcomingAppointments),
+                  )
+                : t.activeHint
+            }
+            savedSlug={specialist.slug}
+            language={language}
+            onLanguageChange={setLanguage}
+          />
+          {formError && (
+            <p
+              role="alert"
+              className="m-0 flex items-start gap-1.5 text-body-sm font-semibold text-ink"
+            >
+              <Icon name="alert-circle" size={16} className="mt-px shrink-0 text-danger" />
+              {formError}
+            </p>
+          )}
+          <div className="flex justify-end">
+            <Button type="submit" busy={busy} disabledReason={!busy && !dirty && copy.noChanges}>
+              <Icon name="check" size={18} />
+              {busy ? copy.saving : copy.save}
+            </Button>
+          </div>
+        </form>
+      </div>
+      {recommended.dialog}
 
       <AlertDialog
         open={conflict !== null}
@@ -175,23 +234,22 @@ export function ProfileCard({
           if (busy) return;
           if (!open) setConflict(null);
         }}
-        title="Mutaxassisni baribir nofaol qilasizmi?"
+        title={t.conflictTitle}
         description={
           <span className="flex flex-col gap-2 text-[14px] leading-5 text-ink">
             <span>{conflict}</span>
-            <span className="font-semibold">
-              Mutaxassis ilovadan va yozilish oynalaridan darhol yo‘qoladi; uning qabullari qabullar
-              jadvalida qoladi.
-            </span>
+            <span className="font-semibold">{t.conflictText}</span>
           </span>
         }
       >
         <div className="mt-1.5 flex flex-wrap justify-end gap-2">
-          <AlertDialogCancel disabled={busy} className={buttonStyles({ variant: "outline" })}>
-            Bekor qilish
+          <AlertDialogCancel asChild>
+            <Button variant="outline" disabledReason={busy && copy.busyReason}>
+              {copy.cancel}
+            </Button>
           </AlertDialogCancel>
-          <Button variant="destructive" onClick={() => save(true)} disabled={busy} aria-busy={busy}>
-            {busy ? "Saqlanmoqda…" : "Baribir nofaol qilish"}
+          <Button variant="destructive" onClick={() => save(true)} busy={busy}>
+            {busy ? copy.saving : t.force}
           </Button>
         </div>
       </AlertDialog>
@@ -207,6 +265,9 @@ function PhotoField({
   specialist: ClinicSpecialist;
   onUpdated: (specialist: ClinicSpecialist) => void;
 }) {
+  const copy = useCopy(specialistsCopy);
+  const t = copy.photo;
+  const locale = useAdminLocale();
   const toast = useToast();
   const fileInput = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -222,12 +283,15 @@ function PhotoField({
   );
 
   const shown = preview ?? specialist.photoUrl ?? null;
+  const fail = (message: string) => {
+    setError(message);
+    toast({ tone: "danger", title: t.failed, description: message });
+  };
 
   const upload = async (file: File | undefined) => {
     if (!file || busy) return;
-    if (!(IMAGE_TYPES as ReadonlyArray<string>).includes(file.type))
-      return setError(IMAGE_TYPE_MESSAGE);
-    if (file.size > MAX_IMAGE_BYTES) return setError(IMAGE_TOO_LARGE_MESSAGE);
+    const problem = imageFileProblem(file, locale);
+    if (problem) return fail(problem);
     setError(null);
     setBusy(true);
     const form = new FormData();
@@ -236,32 +300,39 @@ function PhotoField({
       await runAction((csrf) => setSpecialistPhoto(specialist.id, form, idempotency.key, csrf)),
     );
     setBusy(false);
-    if (!result.ok) return setError(result.fieldErrors?.photo ?? result.error);
+    if (!result.ok) return fail(result.fieldErrors?.photo ?? result.error);
     if (result.data) {
       // The demo stores no bytes (`photoUrl` ""): keep the local preview.
       if (!result.data.photoUrl) setPreview(URL.createObjectURL(file));
       else setPreview(null);
       onUpdated(result.data.photoUrl ? result.data : { ...result.data, photoUrl: null });
     }
-    toast({ title: "Rasm saqlandi" });
+    toast({ tone: "success", title: t.saved });
   };
 
   const remove = async () => {
+    if (busy) return;
     setBusy(true);
     const result = idempotency.settle(
       await runAction((csrf) => setSpecialistPhoto(specialist.id, null, idempotency.key, csrf)),
     );
     setBusy(false);
     setConfirmRemove(false);
-    if (!result.ok) return setError(result.error);
+    if (!result.ok) return fail(result.error);
     setPreview(null);
     onUpdated({ ...specialist, photoUrl: null });
-    toast({ title: "Rasm olib tashlandi" });
+    toast({ tone: "success", title: t.removed });
   };
 
   return (
-    <div className="flex flex-col gap-2">
-      <span className="text-label text-ink">Rasm</span>
+    <div
+      className="flex flex-col gap-2 rounded-md"
+      data-field="photo"
+      data-invalid={error ? "true" : undefined}
+      tabIndex={-1}
+      aria-describedby={error ? "specialist-photo-error" : undefined}
+    >
+      <span className="text-label text-ink">{t.label}</span>
       <div className="flex flex-wrap items-center gap-3">
         <span
           className={cn(
@@ -272,15 +343,11 @@ function PhotoField({
           {shown ? (
             shown.startsWith("blob:") ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={shown}
-                alt={`${specialist.name} rasmi`}
-                className="size-full object-cover"
-              />
+              <img src={shown} alt={t.alt(specialist.name)} className="size-full object-cover" />
             ) : (
               <Image
                 src={shown}
-                alt={`${specialist.name} rasmi`}
+                alt={t.alt(specialist.name)}
                 fill
                 sizes="80px"
                 className="object-cover"
@@ -292,30 +359,28 @@ function PhotoField({
         </span>
         <span className="flex flex-col gap-2">
           <span className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              disabled={busy}
+            <Button
+              variant="dashed"
+              size="sm"
+              busy={busy}
               onClick={() => fileInput.current?.click()}
-              className={buttonStyles({ variant: "dashed", size: "sm" })}
             >
               <Icon name="upload" size={16} className="text-gold-ink" />
-              {busy ? "Yuklanmoqda…" : shown ? "Rasmni almashtirish" : "Rasm yuklash"}
-            </button>
+              {busy ? t.uploading : shown ? t.replace : t.upload}
+            </Button>
             {shown && (
-              <button
-                type="button"
-                disabled={busy}
+              <Button
+                variant="ghost"
+                size="sm"
+                disabledReason={busy && t.busyReason}
                 onClick={() => setConfirmRemove(true)}
-                className={buttonStyles({ variant: "ghost", size: "sm" })}
               >
                 <Icon name="trash" size={16} />
-                Olib tashlash
-              </button>
+                {t.remove}
+              </Button>
             )}
           </span>
-          <span className="text-caption font-normal text-ink-muted">
-            JPEG, PNG yoki WebP, 5 MB gacha · darhol saqlanadi
-          </span>
+          <span className="text-caption font-normal text-ink-muted">{t.hint}</span>
         </span>
         <input
           ref={fileInput}
@@ -332,6 +397,7 @@ function PhotoField({
       </div>
       {error && (
         <p
+          id="specialist-photo-error"
           role="alert"
           className="m-0 flex items-start gap-1.5 text-body-sm font-semibold text-ink"
         >
@@ -344,20 +410,17 @@ function PhotoField({
         onOpenChange={(open) => {
           if (!busy) setConfirmRemove(open);
         }}
-        title="Rasmni olib tashlaysizmi?"
-        description={
-          <p className="m-0 text-[14px] leading-5 text-ink">
-            Rasm ilovadan ham yo‘qoladi. Bu amalni qaytarib bo‘lmaydi: kerak bo‘lsa, rasmni qayta
-            yuklang.
-          </p>
-        }
+        title={t.removeTitle}
+        description={<p className="m-0 text-[14px] leading-5 text-ink">{t.removeText}</p>}
       >
         <div className="mt-1.5 flex flex-wrap justify-end gap-2">
-          <AlertDialogCancel disabled={busy} className={buttonStyles({ variant: "outline" })}>
-            Bekor qilish
+          <AlertDialogCancel asChild>
+            <Button variant="outline" disabledReason={busy && t.busyReason}>
+              {copy.cancel}
+            </Button>
           </AlertDialogCancel>
-          <Button variant="destructive" onClick={remove} disabled={busy} aria-busy={busy}>
-            Olib tashlash
+          <Button variant="destructive" onClick={remove} busy={busy}>
+            {busy ? t.removing : t.remove}
           </Button>
         </div>
       </AlertDialog>

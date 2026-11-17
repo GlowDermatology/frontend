@@ -1,72 +1,79 @@
 "use client";
 
 import type { Route } from "next";
-import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonStyles } from "@/components/ui/button";
-import { AlertDialog, AlertDialogCancel, Dialog, DialogClose } from "@/components/ui/dialog";
-import { Field, SearchInput, TextInput } from "@/components/ui/field";
+import { Button } from "@/components/ui/button";
+import { AlertDialog } from "@/components/ui/dialog";
+import { SearchInput } from "@/components/ui/field";
 import { Icon } from "@/components/ui/icon";
-import { ActionMenu, SelectMenu } from "@/components/ui/menu";
+import { ActionMenu, SelectMenu, type ActionMenuItem } from "@/components/ui/menu";
 import { ScrollRegion } from "@/components/ui/scroll-region";
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/toast";
-import { inviteStaff, resetStaffPassword, setStaffActive, updateStaff } from "@/data/staff.actions";
-import { inviteStaffSchema, updateStaffSchema } from "@/data/staff.schema";
-import type { Page } from "@/data/types";
+import { sendStaffPasswordLink, setStaffActive } from "@/data/staff.actions";
+import type { ActionResult, Page } from "@/data/types";
 import {
   STAFF_PAGE_SIZES,
-  STAFF_ROLE_LABEL,
-  TEMPORARY_PASSWORD_HINT,
+  resendBlock,
   type StaffAccountRow,
   type StaffCredentials,
   type StaffListQuery,
   type StaffStatus,
 } from "@/domain/staff";
-import { formatDateTimeShort } from "@/lib/format";
+import { useCopy } from "@/lib/i18n/admin-context";
+import { useFormat } from "@/lib/i18n/admin-hooks";
 
 import { runAction } from "../shared/action-client";
-import { partitionFieldErrors } from "../shared/field-errors";
 import { useIdempotencyKey } from "../shared/idempotency";
 import { ListTransition, useListNavigation } from "../shared/list-transition";
 import { PageHeader } from "../shared/page-header";
-import { Pagination, rangeLabel } from "../shared/pagination";
+import { Pagination } from "../shared/pagination";
+import { staffCopy } from "./copy";
+import { CredentialsDialog, type ShownCredentials } from "./credentials-dialog";
+import type { ResetStaffMfaAction } from "./mfa-hook";
+import { resetMfaCopy } from "./reset-mfa-copy";
+import { ResetMfaDialog } from "./reset-mfa-dialog";
 import { staffListHref } from "./query";
+import { StaffBadges } from "./staff-badges";
+import { EditDialog, InviteDialog, ResetDialog } from "./staff-dialogs";
 
 const PROVIDER_LABEL: Record<string, string> = { google: "Google", facebook: "Facebook" };
 
-type Confirm =
-  | { kind: "deactivate"; row: StaffAccountRow }
-  | { kind: "reactivate"; row: StaffAccountRow }
-  | { kind: "reset"; row: StaffAccountRow };
+type ConfirmKind = "deactivate" | "reactivate" | "resend" | "resetMfa";
+type Confirm = { kind: ConfirmKind; row: StaffAccountRow };
 
 interface StaffViewProps {
   page: Page<StaffAccountRow>;
   query: StaffListQuery;
-  /** The signed-in manager: their own row offers no role, deactivate or reset action. */
+  /** The signed-in manager: their own row offers no role, deactivate, reset or link action. */
   selfId: string;
+  /** `capabilities.staff_email_invite`: the e-mailed link options work. */
+  emailInvite: boolean;
+  /** "Now" of the data source (the demo's fixed instant in mock mode), for the link badges. */
+  nowMs: number;
   eyebrow: string;
+  /**
+   * «MFA ni o‘chirish» (`POST staff/{id}/reset-mfa/`): wired by the MFA work. Without it the menu
+   * item is not shown.
+   */
+  resetMfa?: ResetStaffMfaAction;
 }
 
 /**
- * Xodimlar (gap FND-4, contract §2.16, §7 item 20): the staff accounts
- * with search and the «Faol» / «Nofaol» tabs; «Yangi xodim» invites one and
- * shows the temporary password once; each row edits the name and manager
- * role, deactivates or reactivates, or resets the password, every
- * irreversible step behind a confirmation. The server's refusals (own
- * account, last active manager, superuser) show as they come.
+ * Xodimlar (gap FND-4, contract §2.16, §7 item 20, DESIGN §E): the staff accounts with search and
+ * the «Faol» / «Nofaol» tabs, badges for the password and MFA state; «Yangi xodim» invites one
+ * with a «Kirish usuli» (temporary password, e-mailed link or both) and shows the temporary
+ * password once; each row edits the name and manager role, resets the password (same choice),
+ * resends the link, deactivates or reactivates — every irreversible step behind a confirmation.
+ * The server's refusals (own account, last active manager, superuser, no e-mail) show as they come.
  */
-export function StaffView({ page, query, selfId, eyebrow }: StaffViewProps) {
-  return (
-    <>
-      <StaffBoard page={page} query={query} selfId={selfId} eyebrow={eyebrow} />
-    </>
-  );
-}
-
-function StaffBoard({ page, query, selfId, eyebrow }: StaffViewProps) {
+export function StaffView(props: StaffViewProps) {
+  const { page, query, selfId, emailInvite, nowMs, eyebrow, resetMfa } = props;
+  const t = useCopy(staffCopy);
+  const resetMfaText = useCopy(resetMfaCopy);
+  const fmt = useFormat();
   const toast = useToast();
   const [source, setSource] = useState(page);
   const [rows, setRows] = useState(page.items);
@@ -83,6 +90,10 @@ function StaffBoard({ page, query, selfId, eyebrow }: StaffViewProps) {
   const [editing, setEditing] = useState<StaffAccountRow | null>(null);
   const [editInstance, setEditInstance] = useState(0);
   const editKey = useIdempotencyKey();
+  const [resetting, setResetting] = useState<StaffAccountRow | null>(null);
+  const resetKey = useIdempotencyKey();
+  const [lastReset, setLastReset] = useState<string | null>(null);
+  const [resetInstance, setResetInstance] = useState(0);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const [confirmShown, setConfirmShown] = useState<Confirm | null>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
@@ -90,11 +101,11 @@ function StaffBoard({ page, query, selfId, eyebrow }: StaffViewProps) {
   const confirmInFlight = useRef(false);
   const confirmKey = useIdempotencyKey();
   // The one-time password: kept in memory only while its dialog is open.
-  const [credentials, setCredentials] = useState<{
-    title: string;
-    data: StaffCredentials;
-  } | null>(null);
+  const [credentials, setCredentials] = useState<ShownCredentials | null>(null);
   const addButton = useRef<HTMLButtonElement>(null);
+  // «MFA ni o‘chirish»: its own dialog (optional reason), one instance per opening.
+  const [resettingMfa, setResettingMfa] = useState<StaffAccountRow | null>(null);
+  const [resetMfaInstance, setResetMfaInstance] = useState(0);
 
   const openConfirm = (next: Confirm) => {
     // A different action or account needs a key of its own.
@@ -106,72 +117,109 @@ function StaffBoard({ page, query, selfId, eyebrow }: StaffViewProps) {
     setConfirm(next);
   };
 
+  const openReset = (row: StaffAccountRow) => {
+    // A reset of another account (or after a finished one) needs a key of its own.
+    if (lastReset !== row.id) resetKey.renew();
+    setLastReset(row.id);
+    setResetInstance((n) => n + 1);
+    setResetting(row);
+  };
+
   const runConfirm = async () => {
     const target = confirm;
     if (!target || confirmInFlight.current) return;
     confirmInFlight.current = true;
     setConfirmBusy(true);
     setConfirmError(null);
-    if (target.kind === "reset") {
-      const result = confirmKey.settle(
-        await runAction((csrf) =>
-          resetStaffPassword(target.row.id, confirmKey.key, csrf, target.row),
-        ),
-      );
-      confirmInFlight.current = false;
-      setConfirmBusy(false);
-      if (!result.ok) return setConfirmError(result.error);
-      setConfirm(null);
-      replace(result.data.staff);
-      setCredentials({ title: "Yangi vaqtinchalik parol", data: result.data });
-      return;
+    const { row } = target;
+    let result: ActionResult<StaffAccountRow | StaffCredentials>;
+    if (target.kind === "resend") {
+      result = await runAction((csrf) => sendStaffPasswordLink(row.id, confirmKey.key, csrf, row));
+    } else if (target.kind === "resetMfa" && resetMfa) {
+      result = await runAction((csrf) => resetMfa(row.id, confirmKey.key, csrf, row));
+    } else {
+      const active = target.kind === "reactivate";
+      result = await runAction((csrf) => setStaffActive(row.id, active, confirmKey.key, csrf, row));
     }
-    const active = target.kind === "reactivate";
-    const result = confirmKey.settle(
-      await runAction((csrf) =>
-        setStaffActive(target.row.id, active, confirmKey.key, csrf, target.row),
-      ),
-    );
+    result = confirmKey.settle(result);
     confirmInFlight.current = false;
     setConfirmBusy(false);
     if (!result.ok) return setConfirmError(result.error);
     setConfirm(null);
-    // The row leaves this tab (it is listed under the other one now).
-    setRows((current) => current.filter((r) => r.id !== result.data.id));
+    if (target.kind === "resend") {
+      const data = result.data as StaffCredentials;
+      replace(data.staff);
+      setCredentials({ kind: "resent", data });
+      return;
+    }
+    const updated = result.data as StaffAccountRow;
+    if (target.kind === "resetMfa") {
+      replace(updated);
+    } else {
+      // The row leaves this tab (it is listed under the other one now).
+      setRows((current) => current.filter((r) => r.id !== updated.id));
+    }
     toast({
-      title: active ? "Xodim qayta faollashtirildi" : "Xodim faolsizlantirildi",
-      description: result.data.displayName,
+      tone: "success",
+      title: t.confirm[target.kind].done,
+      description: updated.displayName,
     });
   };
 
-  const menuItems = (row: StaffAccountRow) => {
+  const menuItems = (row: StaffAccountRow): ActionMenuItem[] => {
     const self = row.id === selfId;
-    const items = [
+    const items: ActionMenuItem[] = [
       {
         key: "edit",
-        label: "Tahrirlash",
+        label: t.menu.edit,
         onSelect: () => {
           setEditInstance((n) => n + 1);
           setEditing(row);
         },
       },
     ];
-    if (self) return items;
-    items.push({
-      key: "reset",
-      label: "Parolni tiklash",
-      onSelect: () => openConfirm({ kind: "reset", row }),
-    });
+    if (self) {
+      // One's own MFA is turned off in Settings (the backend refuses it here with 409).
+      if (resetMfa && row.mfaEnabled) {
+        items.push({
+          key: "reset-mfa",
+          label: t.menu.resetMfa,
+          disabledReason: resetMfaText.selfReason,
+          onSelect: () => undefined,
+        });
+      }
+      return items;
+    }
+    items.push({ key: "reset", label: t.menu.resetPassword, onSelect: () => openReset(row) });
+    if (row.isActive && (row.mustChangePassword || row.invite?.state === "pending")) {
+      const block = resendBlock(row, selfId, emailInvite);
+      items.push({
+        key: "resend",
+        label: t.menu.resendLink,
+        disabledReason: block ? t.resendBlocked[block] : null,
+        onSelect: () => openConfirm({ kind: "resend", row }),
+      });
+    }
+    if (resetMfa && row.mfaEnabled) {
+      items.push({
+        key: "reset-mfa",
+        label: t.menu.resetMfa,
+        onSelect: () => {
+          setResetMfaInstance((n) => n + 1);
+          setResettingMfa(row);
+        },
+      });
+    }
     items.push(
       row.isActive
         ? {
             key: "deactivate",
-            label: "Faolsizlantirish",
+            label: t.menu.deactivate,
             onSelect: () => openConfirm({ kind: "deactivate", row }),
           }
         : {
             key: "reactivate",
-            label: "Qayta faollashtirish",
+            label: t.menu.reactivate,
             onSelect: () => openConfirm({ kind: "reactivate", row }),
           },
     );
@@ -179,118 +227,108 @@ function StaffBoard({ page, query, selfId, eyebrow }: StaffViewProps) {
   };
 
   const shown = confirm ?? confirmShown;
-  const confirmText: Record<Confirm["kind"], { title: string; body: string; action: string }> = {
-    deactivate: {
-      title: "Xodimni faolsizlantirasizmi?",
-      body: "Uning barcha sessiyalari darhol tugatiladi va u tizimga kira olmaydi (parol ham, Google/Facebook ham). Hisob, menejerlik va bog‘langan kirishlar qayta faollashtirish uchun saqlanadi.",
-      action: "Faolsizlantirish",
-    },
-    reactivate: {
-      title: "Xodimni qayta faollashtirasizmi?",
-      body: "Xodim yana o‘z paroli yoki bog‘langan hisobi bilan kira oladi.",
-      action: "Qayta faollashtirish",
-    },
-    reset: {
-      title: "Parolni tiklaysizmi?",
-      body: "Joriy parol yangi vaqtinchalik parol bilan almashtiriladi va xodimning barcha sessiyalari tugatiladi. Yangi parol bir marta ko‘rsatiladi. Bu amalni qaytarib bo‘lmaydi.",
-      action: "Parolni tiklash",
-    },
-  };
+  const range =
+    page.total === 0
+      ? "0 / 0"
+      : `${fmt.number((page.page - 1) * page.pageSize + 1)}–${fmt.number(
+          Math.min(page.total, page.page * page.pageSize),
+        )} / ${fmt.number(page.total)}`;
 
   return (
     <>
       <PageHeader
         eyebrow={eyebrow}
-        title="Xodimlar"
+        title={t.title}
         actions={
-          <button
-            type="button"
+          <Button
             ref={addButton}
             onClick={() => {
               setInviteInstance((n) => n + 1);
               setInviteOpen(true);
             }}
-            className={buttonStyles()}
           >
             <Icon name="plus" size={18} />
-            Yangi xodim
-          </button>
+            {t.add}
+          </Button>
         }
       />
 
       <ListTransition className="group">
         <section
-          aria-label="Xodimlar ro‘yxati"
+          aria-label={t.list}
           className="overflow-hidden rounded-lg bg-surface-raised shadow-sm"
         >
           <StaffToolbar query={query} />
           {rows.length > 0 ? (
-            <ScrollRegion label="Xodimlar jadvali">
-              <table className="data-table min-w-[880px] transition-opacity duration-150 group-data-[pending]:opacity-60">
-                <caption className="sr-only">Xodimlar</caption>
+            <ScrollRegion label={t.table}>
+              <table className="data-table min-w-[960px] transition-opacity duration-150 group-data-[pending]:opacity-60">
+                <caption className="sr-only">{t.title}</caption>
                 <thead>
                   <tr>
-                    <th scope="col">XODIM</th>
-                    <th scope="col">ROL</th>
-                    <th scope="col">OXIRGI KIRISH</th>
-                    <th scope="col">IJTIMOIY KIRISH</th>
-                    <th scope="col">YARATILGAN</th>
-                    <th scope="col">HOLAT</th>
+                    <th scope="col">{t.columns.staff}</th>
+                    <th scope="col">{t.columns.role}</th>
+                    <th scope="col">{t.columns.lastLogin}</th>
+                    <th scope="col">{t.columns.social}</th>
+                    <th scope="col">{t.columns.created}</th>
+                    <th scope="col">{t.columns.status}</th>
                     <th scope="col">
-                      <span className="sr-only">Amallar</span>
+                      <span className="sr-only">{t.columns.actions}</span>
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((row) => (
-                    <tr key={row.id}>
+                    <tr key={row.id} data-staff-row={row.id}>
                       <td>
-                        <span className="flex flex-col">
-                          <span className="font-bold text-ink">
-                            {row.displayName}
-                            {row.id === selfId && (
-                              <span className="font-normal text-ink-muted"> (siz)</span>
-                            )}
+                        <span className="flex flex-col gap-1.5">
+                          <span className="flex flex-col">
+                            <span className="font-bold text-ink">
+                              {row.displayName}
+                              {row.id === selfId && (
+                                <span className="font-normal text-ink-muted"> {t.you}</span>
+                              )}
+                            </span>
+                            <span className="text-[12px] text-ink-muted">{row.email}</span>
                           </span>
-                          <span className="text-[12px] text-ink-muted">{row.email}</span>
+                          <StaffBadges row={row} nowMs={nowMs} />
                         </span>
                       </td>
                       <td>
                         <Badge tone={row.isManager ? "gold" : "neutral"} dot={false}>
-                          {row.isManager ? STAFF_ROLE_LABEL.manager : STAFF_ROLE_LABEL.staff}
+                          {row.isManager ? t.roles.manager : t.roles.staff}
                         </Badge>
                       </td>
                       <td className="text-ink-muted tabular-nums">
                         {row.lastLoginAt ? (
                           <time dateTime={row.lastLoginAt}>
-                            {formatDateTimeShort(row.lastLoginAt)}
+                            {fmt.dateTimeShort(row.lastLoginAt)}
                           </time>
                         ) : (
-                          "Hali kirmagan"
+                          t.neverSignedIn
                         )}
                       </td>
                       <td>
                         {row.linkedProviders.length > 0
                           ? row.linkedProviders.map((p) => PROVIDER_LABEL[p] ?? p).join(", ")
-                          : "—"}
+                          : t.none}
                       </td>
                       <td className="text-ink-muted tabular-nums">
-                        {row.createdAt ? formatDateTimeShort(row.createdAt) : "—"}
+                        {row.createdAt ? fmt.dateTimeShort(row.createdAt) : t.none}
                       </td>
                       <td>
                         {row.isActive ? (
-                          <Badge tone="success">Faol</Badge>
+                          <Badge tone="success">{t.status.active}</Badge>
                         ) : (
-                          <Badge tone="muted">Nofaol</Badge>
+                          <Badge tone="muted">{t.status.inactive}</Badge>
                         )}
                       </td>
                       <td className="text-right">
                         <ActionMenu
-                          label={`${row.displayName} — amallar`}
+                          label={t.menu.label(row.displayName)}
                           triggerClassName="inline-flex size-9 items-center justify-center rounded-md text-ink-muted transition-colors duration-150 hover:bg-gold-soft hover:text-ink"
                           trigger={
                             <>
-                              <span className="sr-only">{`${row.displayName} — amallar`}</span>
+                              <span className="sr-only">{t.menu.label(row.displayName)}</span>
                               <Icon name="sliders" size={18} />
                             </>
                           }
@@ -305,20 +343,18 @@ function StaffBoard({ page, query, selfId, eyebrow }: StaffViewProps) {
           ) : (
             <div className="flex flex-col items-center gap-2 px-6 py-16 text-center">
               <Icon name="users" size={28} className="text-ink-muted" />
-              <p className="m-0 text-subheading text-ink">Xodim topilmadi</p>
+              <p className="m-0 text-subheading text-ink">{t.empty.title}</p>
               <p className="m-0 text-body-sm text-ink-muted">
                 {query.q
-                  ? "Qidiruvni o‘zgartirib ko‘ring."
+                  ? t.empty.search
                   : query.status === "inactive"
-                    ? "Faolsizlantirilgan xodimlar shu yerda ko‘rinadi."
-                    : "«Yangi xodim» bilan birinchi hisobni yarating."}
+                    ? t.empty.inactive
+                    : t.empty.first}
               </p>
             </div>
           )}
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3">
-            <span className="text-body-sm text-ink-muted tabular-nums">
-              {rangeLabel(page.page, page.pageSize, page.total)}
-            </span>
+            <span className="text-body-sm text-ink-muted tabular-nums">{range}</span>
             <Pagination
               page={page.page}
               pageCount={page.pageCount}
@@ -334,6 +370,7 @@ function StaffBoard({ page, query, selfId, eyebrow }: StaffViewProps) {
         open={inviteOpen}
         onOpenChange={setInviteOpen}
         idempotency={inviteKey}
+        emailInvite={emailInvite}
         onInvited={(data) => {
           if (query.status === "active" && query.page === 1) {
             setRows((current) =>
@@ -342,7 +379,7 @@ function StaffBoard({ page, query, selfId, eyebrow }: StaffViewProps) {
               ),
             );
           }
-          setCredentials({ title: "Xodim qo‘shildi", data });
+          setCredentials({ kind: "invited", data });
         }}
       />
 
@@ -355,7 +392,23 @@ function StaffBoard({ page, query, selfId, eyebrow }: StaffViewProps) {
           onClose={() => setEditing(null)}
           onSaved={(row) => {
             replace(row);
-            toast({ title: "Xodim saqlandi", description: row.displayName });
+            toast({ tone: "success", title: t.edit.saved, description: row.displayName });
+          }}
+        />
+      )}
+
+      {resetting && (
+        <ResetDialog
+          key={`reset-${resetInstance}`}
+          row={resetting}
+          idempotency={resetKey}
+          emailInvite={emailInvite}
+          onClose={() => setResetting(null)}
+          onDone={(data) => {
+            // The next reset of this account is a new request.
+            setLastReset(null);
+            replace(data.staff);
+            setCredentials({ kind: "reset", data });
           }}
         />
       )}
@@ -373,14 +426,14 @@ function StaffBoard({ page, query, selfId, eyebrow }: StaffViewProps) {
             addButton.current?.focus();
           }
         }}
-        title={shown ? confirmText[shown.kind].title : ""}
+        title={shown ? t.confirm[shown.kind].title : ""}
         description={
           shown && (
             <span className="flex flex-col gap-1.5 text-[14px] leading-5 text-ink">
               <span className="font-semibold">
                 {shown.row.displayName} · {shown.row.email}
               </span>
-              <span>{confirmText[shown.kind].body}</span>
+              <span>{t.confirm[shown.kind].body}</span>
             </span>
           )
         }
@@ -391,34 +444,53 @@ function StaffBoard({ page, query, selfId, eyebrow }: StaffViewProps) {
             className="m-0 flex items-start gap-1.5 text-body-sm font-semibold text-ink"
           >
             <Icon name="alert-circle" size={16} className="mt-px shrink-0 text-danger" />
-            {confirmError}
+            <span>
+              <span className="sr-only">{`${t.common.failed}: `}</span>
+              {confirmError}
+            </span>
           </p>
         )}
-        <div className="mt-1.5 flex flex-wrap justify-end gap-2">
-          <AlertDialogCancel
-            disabled={confirmBusy}
-            className={buttonStyles({ variant: "outline" })}
-          >
-            Bekor qilish
-          </AlertDialogCancel>
+        <div className="mt-1.5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button
-            variant={shown?.kind === "reactivate" ? "primary" : "destructive"}
-            onClick={runConfirm}
-            disabled={confirmBusy}
-            aria-busy={confirmBusy}
+            variant="outline"
+            disabledReason={confirmBusy && t.common.busy}
+            onClick={() => setConfirm(null)}
           >
-            {confirmBusy ? "Bajarilmoqda…" : shown ? confirmText[shown.kind].action : ""}
+            {t.common.cancel}
+          </Button>
+          <Button
+            variant={
+              shown?.kind === "reactivate" || shown?.kind === "resend" ? "primary" : "destructive"
+            }
+            onClick={runConfirm}
+            busy={confirmBusy}
+          >
+            {confirmBusy ? t.common.working : shown ? t.confirm[shown.kind].action : ""}
           </Button>
         </div>
       </AlertDialog>
 
-      <PasswordDialog credentials={credentials} onClose={() => setCredentials(null)} />
+      {resettingMfa && resetMfa ? (
+        <ResetMfaDialog
+          key={`reset-mfa-${resetMfaInstance}`}
+          row={resettingMfa}
+          action={resetMfa}
+          onClose={() => setResettingMfa(null)}
+          onDone={(row) => {
+            replace(row);
+            setResettingMfa(null);
+          }}
+        />
+      ) : null}
+
+      <CredentialsDialog shown={credentials} onClose={() => setCredentials(null)} />
     </>
   );
 }
 
 /** Search (full name or email, debounced) and the «Faol» / «Nofaol» tabs. */
 function StaffToolbar({ query }: { query: StaffListQuery }) {
+  const t = useCopy(staffCopy);
   const { navigate } = useListNavigation();
   const [search, setSearch] = useState(query.q ?? "");
   const lastSubmitted = useRef(query.q ?? "");
@@ -436,17 +508,17 @@ function StaffToolbar({ query }: { query: StaffListQuery }) {
   return (
     <div className="flex flex-wrap items-center gap-2.5 border-b border-line p-4">
       <SegmentedControl<StaffStatus>
-        label="Holat"
+        label={t.status.label}
         value={query.status}
         onChange={(status) => navigate(staffListHref({ ...query, status, page: 1 }))}
         options={[
-          { value: "active", label: "Faol" },
-          { value: "inactive", label: "Nofaol" },
+          { value: "active", label: t.status.active },
+          { value: "inactive", label: t.status.inactive },
         ]}
       />
       <SearchInput
-        label="Ism yoki email"
-        placeholder="Ism yoki email"
+        label={t.search}
+        placeholder={t.search}
         value={search}
         maxLength={64}
         onChange={(event) => setSearch(event.target.value)}
@@ -457,12 +529,13 @@ function StaffToolbar({ query }: { query: StaffListQuery }) {
 }
 
 function StaffPageSizeMenu({ query }: { query: StaffListQuery }) {
+  const t = useCopy(staffCopy);
   const { navigate } = useListNavigation();
   return (
     <SelectMenu<string>
-      label="Sahifadagi qatorlar"
+      label={t.pageSize}
       align="end"
-      trigger={`${query.pageSize} ta qator`}
+      trigger={t.rows(query.pageSize)}
       triggerClassName="h-9 gap-1.5 px-3 text-[13px] leading-[18px] font-semibold"
       value={String(query.pageSize)}
       onValueChange={(value) =>
@@ -474,349 +547,7 @@ function StaffPageSizeMenu({ query }: { query: StaffListQuery }) {
           }),
         )
       }
-      options={STAFF_PAGE_SIZES.map((size) => ({ value: String(size), label: `${size} ta qator` }))}
+      options={STAFF_PAGE_SIZES.map((size) => ({ value: String(size), label: t.rows(size) }))}
     />
-  );
-}
-
-function FormError({ message }: { message: string | null }) {
-  if (!message) return null;
-  return (
-    <p role="alert" className="m-0 flex items-start gap-1.5 text-body-sm font-semibold text-ink">
-      <Icon name="alert-circle" size={16} className="mt-px shrink-0 text-danger" />
-      {message}
-    </p>
-  );
-}
-
-function ManagerSwitch({
-  checked,
-  onChange,
-  disabled,
-  hint,
-}: {
-  checked: boolean;
-  onChange: (value: boolean) => void;
-  disabled?: boolean;
-  hint: string;
-}) {
-  const id = useId();
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-md bg-surface px-3.5 py-3">
-      <span className="flex flex-col gap-0.5">
-        <span className="text-label text-ink" aria-hidden="true">
-          Menejer
-        </span>
-        <span id={`${id}-hint`} className="text-caption font-normal text-ink-muted">
-          {hint}
-        </span>
-      </span>
-      <Switch
-        checked={checked}
-        onCheckedChange={onChange}
-        disabled={disabled}
-        aria-label="Menejer"
-        aria-describedby={`${id}-hint`}
-      />
-    </div>
-  );
-}
-
-const MANAGER_HINT = "Menejer xodimlarni qo‘shadi, faolsizlantiradi va parolini tiklaydi.";
-
-function InviteDialog({
-  open,
-  onOpenChange,
-  idempotency,
-  onInvited,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  idempotency: ReturnType<typeof useIdempotencyKey>;
-  onInvited: (data: StaffCredentials) => void;
-}) {
-  const [email, setEmail] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [isManager, setIsManager] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [formError, setFormError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const inFlight = useRef(false);
-  const formRef = useRef<HTMLFormElement>(null);
-
-  const focusInvalid = () =>
-    requestAnimationFrame(() =>
-      formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(),
-    );
-
-  const onSubmit = async (event: FormEvent) => {
-    event.preventDefault();
-    if (inFlight.current) return;
-    const values = { email, fullName, isManager };
-    const local = inviteStaffSchema.safeParse(values);
-    if (!local.success) {
-      const next: Record<string, string> = {};
-      for (const issue of local.error.issues) next[issue.path.join(".")] ??= issue.message;
-      setErrors(next);
-      setFormError(null);
-      focusInvalid();
-      return;
-    }
-    inFlight.current = true;
-    setBusy(true);
-    setErrors({});
-    setFormError(null);
-    const result = idempotency.settle(
-      await runAction((csrf) => inviteStaff(values, idempotency.key, csrf)),
-    );
-    inFlight.current = false;
-    setBusy(false);
-    if (!result.ok) {
-      const split = partitionFieldErrors(result, ["email", "fullName", "isManager"]);
-      setErrors(split.fieldErrors);
-      setFormError(split.formError);
-      focusInvalid();
-      return;
-    }
-    onOpenChange(false);
-    onInvited(result.data);
-  };
-
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (busy) return;
-        onOpenChange(next);
-      }}
-      title="Yangi xodim"
-      description="Hisob darhol faol bo‘ladi. Vaqtinchalik parol bir marta ko‘rsatiladi."
-      className="max-w-[520px]"
-    >
-      <form ref={formRef} noValidate onSubmit={onSubmit} className="flex flex-col gap-4">
-        <Field label="Email" error={errors.email} hint="Xodim shu email bilan tizimga kiradi.">
-          {(c) => (
-            <TextInput
-              {...c}
-              type="email"
-              inputMode="email"
-              autoComplete="off"
-              spellCheck={false}
-              maxLength={254}
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-            />
-          )}
-        </Field>
-        <Field label="To‘liq ism" error={errors.fullName}>
-          {(c) => (
-            <TextInput
-              {...c}
-              autoComplete="off"
-              maxLength={150}
-              value={fullName}
-              onChange={(event) => setFullName(event.target.value)}
-            />
-          )}
-        </Field>
-        <ManagerSwitch checked={isManager} onChange={setIsManager} hint={MANAGER_HINT} />
-        <FormError message={formError ?? errors.isManager ?? null} />
-        <div className="flex flex-wrap justify-end gap-2">
-          <DialogClose disabled={busy} className={buttonStyles({ variant: "outline" })}>
-            Bekor qilish
-          </DialogClose>
-          <Button type="submit" disabled={busy} aria-busy={busy}>
-            <Icon name="plus" size={18} />
-            {busy ? "Qo‘shilmoqda…" : "Xodim qo‘shish"}
-          </Button>
-        </div>
-      </form>
-    </Dialog>
-  );
-}
-
-function EditDialog({
-  row,
-  self,
-  idempotency,
-  onClose,
-  onSaved,
-}: {
-  row: StaffAccountRow;
-  self: boolean;
-  idempotency: ReturnType<typeof useIdempotencyKey>;
-  onClose: () => void;
-  onSaved: (row: StaffAccountRow) => void;
-}) {
-  const baseline = { fullName: row.fullName, isManager: row.isManager };
-  const [fullName, setFullName] = useState(row.fullName);
-  const [isManager, setIsManager] = useState(row.isManager);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [formError, setFormError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [open, setOpen] = useState(true);
-  const inFlight = useRef(false);
-
-  const onSubmit = async (event: FormEvent) => {
-    event.preventDefault();
-    if (inFlight.current) return;
-    const values = { fullName, isManager };
-    const local = updateStaffSchema.safeParse(values);
-    if (!local.success) {
-      const next: Record<string, string> = {};
-      for (const issue of local.error.issues) next[issue.path.join(".")] ??= issue.message;
-      setErrors(next);
-      setFormError(null);
-      return;
-    }
-    inFlight.current = true;
-    setBusy(true);
-    setErrors({});
-    setFormError(null);
-    const result = idempotency.settle(
-      await runAction((csrf) =>
-        updateStaff(row.id, local.data, baseline, idempotency.key, csrf, row),
-      ),
-    );
-    inFlight.current = false;
-    setBusy(false);
-    if (!result.ok) {
-      const split = partitionFieldErrors(result, ["fullName"]);
-      setErrors(split.fieldErrors);
-      setFormError(split.formError);
-      return;
-    }
-    onSaved(result.data);
-    setOpen(false);
-  };
-
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (busy) return;
-        setOpen(next);
-      }}
-      onCloseAutoFocus={() => onClose()}
-      title="Xodimni tahrirlash"
-      description={row.email}
-      className="max-w-[520px]"
-    >
-      <form noValidate onSubmit={onSubmit} className="flex flex-col gap-4">
-        <Field label="To‘liq ism" error={errors.fullName}>
-          {(c) => (
-            <TextInput
-              {...c}
-              autoComplete="off"
-              maxLength={150}
-              value={fullName}
-              onChange={(event) => setFullName(event.target.value)}
-            />
-          )}
-        </Field>
-        <ManagerSwitch
-          checked={isManager}
-          onChange={setIsManager}
-          disabled={self}
-          hint={self ? "O‘zingizni menejerlikdan chiqara olmaysiz." : MANAGER_HINT}
-        />
-        <p className="m-0 flex items-start gap-1.5 text-caption font-normal text-ink-muted">
-          <Icon name="lock" size={14} className="mt-px shrink-0" />
-          Emailni o‘zgartirib bo‘lmaydi: kerak bo‘lsa, yangi xodim qo‘shing.
-        </p>
-        <FormError message={formError} />
-        <div className="flex flex-wrap justify-end gap-2">
-          <DialogClose disabled={busy} className={buttonStyles({ variant: "outline" })}>
-            Bekor qilish
-          </DialogClose>
-          <Button type="submit" disabled={busy} aria-busy={busy}>
-            <Icon name="check" size={18} />
-            {busy ? "Saqlanmoqda…" : "Saqlash"}
-          </Button>
-        </div>
-      </form>
-    </Dialog>
-  );
-}
-
-/**
- * The temporary password, shown once with a copy button (contract §7 item
- * 20). It lives in this dialog's props only and is dropped on close.
- */
-function PasswordDialog({
-  credentials,
-  onClose,
-}: {
-  credentials: { title: string; data: StaffCredentials } | null;
-  onClose: () => void;
-}) {
-  const toast = useToast();
-  const [copied, setCopied] = useState(false);
-  const password = credentials?.data.temporaryPassword ?? null;
-
-  const copy = async () => {
-    if (!password) return;
-    try {
-      await navigator.clipboard.writeText(password);
-      setCopied(true);
-      toast({ title: "Parol nusxalandi" });
-    } catch {
-      toast({
-        tone: "info",
-        title: "Nusxa olib bo‘lmadi",
-        description: "Parolni belgilab, qo‘lda nusxalang.",
-      });
-    }
-  };
-
-  return (
-    <Dialog
-      open={credentials !== null}
-      onOpenChange={(open) => {
-        if (!open) {
-          setCopied(false);
-          onClose();
-        }
-      }}
-      title={credentials?.title ?? ""}
-      description={
-        credentials
-          ? `${credentials.data.staff.displayName} · ${credentials.data.staff.email}`
-          : undefined
-      }
-      className="max-w-[520px]"
-    >
-      {password ? (
-        <div className="flex flex-col gap-3">
-          <span className="text-label text-ink" id="temporary-password-label">
-            Vaqtinchalik parol
-          </span>
-          <div className="flex flex-wrap items-center gap-2">
-            <output
-              aria-labelledby="temporary-password-label"
-              data-testid="temporary-password"
-              className="flex min-h-11 min-w-[200px] flex-1 items-center rounded-md bg-surface px-3.5 py-2 font-mono text-[16px] tracking-wide break-all text-ink select-all"
-            >
-              {password}
-            </output>
-            <Button variant="secondary" onClick={copy}>
-              <Icon name={copied ? "check" : "receipt"} size={18} />
-              {copied ? "Nusxalandi" : "Nusxa olish"}
-            </Button>
-          </div>
-          <p className="m-0 flex items-start gap-1.5 text-body-sm text-ink">
-            <Icon name="info" size={16} className="mt-0.5 shrink-0 text-gold-ink" />
-            {TEMPORARY_PASSWORD_HINT} Bu parol qayta ko‘rsatilmaydi.
-          </p>
-        </div>
-      ) : (
-        <p className="m-0 text-body-sm text-ink">
-          Parolni ko‘rsatib bo‘lmadi. Parolni qayta tiklang.
-        </p>
-      )}
-      <div className="flex justify-end">
-        <DialogClose className={buttonStyles()}>Tayyor</DialogClose>
-      </div>
-    </Dialog>
   );
 }

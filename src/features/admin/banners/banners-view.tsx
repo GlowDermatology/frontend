@@ -4,20 +4,22 @@ import Image from "next/image";
 import { useRef, useState } from "react";
 
 import { Badge, type Tone } from "@/components/ui/badge";
-import { Button, buttonStyles } from "@/components/ui/button";
+import { Button, buttonStyles, IconButton } from "@/components/ui/button";
 import { AlertDialog, AlertDialogCancel } from "@/components/ui/dialog";
 import { Icon } from "@/components/ui/icon";
 import { ScrollRegion } from "@/components/ui/scroll-region";
 import { useToast } from "@/components/ui/toast";
 import { deleteBanner, reorderBanners } from "@/data/banners.actions";
 import {
-  BANNER_LINK_LABEL,
+  bannerLinkText,
   bannerScheduleState,
   type Banner,
   type BannerScheduleState,
 } from "@/domain/banner";
 import { categoryLabel, type Category } from "@/domain/category";
-import { formatDateTimeShort, formatNumber } from "@/lib/format";
+import type { AdminFormatter } from "@/lib/format";
+import { useAdminLocale, useCopy } from "@/lib/i18n/admin-context";
+import { useFormat } from "@/lib/i18n/admin-hooks";
 
 import { runAction } from "../shared/action-client";
 import { ExportMenu } from "../shared/export-menu";
@@ -28,6 +30,7 @@ import { ListFilterBar, useListFilter } from "../shared/list-filter";
 import { useRowDrag } from "../shared/row-drag";
 import { upsertRow, useOrderedList } from "../shared/use-ordered-list";
 import { BannerDialog } from "./banner-dialog";
+import { bannersCopy, type BannersCopy } from "./copy";
 
 interface BannersViewProps {
   banners: Banner[];
@@ -39,15 +42,12 @@ interface BannersViewProps {
 
 type DialogState = { mode: "create" } | { mode: "edit"; banner: Banner } | null;
 
-const SCHEDULE_META: Record<BannerScheduleState, { label: string; tone: Tone }> = {
-  live: { label: "Ko‘rsatilmoqda", tone: "success" },
-  scheduled: { label: "Rejalashtirilgan", tone: "warning" },
-  ended: { label: "Tugagan", tone: "neutral" },
-  inactive: { label: "Faol emas", tone: "neutral" },
+const SCHEDULE_TONE: Record<BannerScheduleState, Tone> = {
+  live: "success",
+  scheduled: "warning",
+  ended: "neutral",
+  inactive: "neutral",
 };
-
-const iconButtonClass =
-  "flex size-9 items-center justify-center rounded-md text-ink-muted transition-colors duration-150 hover:bg-gold-soft hover:text-ink";
 
 /** 72×40 box in every state (photo, local preview or placeholder), so rows never shift. */
 function BannerThumb({ src, alt }: { src: string; alt: string }) {
@@ -66,10 +66,15 @@ function BannerThumb({ src, alt }: { src: string; alt: string }) {
   );
 }
 
-function windowLabel(banner: Banner): string {
-  if (!banner.startsAt && !banner.endsAt) return "Doimiy";
-  const from = banner.startsAt ? formatDateTimeShort(banner.startsAt) : "…";
-  const to = banner.endsAt ? formatDateTimeShort(banner.endsAt) : "…";
+/** "24-okt, 09:00 → …" (Tashkent), or «Doimiy» without a window. */
+export function windowLabel(
+  banner: Pick<Banner, "startsAt" | "endsAt">,
+  t: BannersCopy["list"],
+  fmt: AdminFormatter,
+): string {
+  if (!banner.startsAt && !banner.endsAt) return t.always;
+  const from = banner.startsAt ? fmt.dateTimeShort(banner.startsAt) : "…";
+  const to = banner.endsAt ? fmt.dateTimeShort(banner.endsAt) : "…";
   return `${from} → ${to}`;
 }
 
@@ -91,12 +96,17 @@ function keepPreviews(server: Banner[], local: Banner[]): Banner[] {
   );
 }
 export function BannersView({ banners, categories, now, exportHref }: BannersViewProps) {
+  const copy = useCopy(bannersCopy);
+  const t = copy.list;
+  const fmt = useFormat();
+  const locale = useAdminLocale();
   const toast = useToast();
   const { items, move, apply, announcement } = useOrderedList(banners, {
     keyOf: idOf,
     label: (banner) => `«${banner.title.uz}»`,
     send: (ids) => runAction((csrf) => reorderBanners(ids, csrf)),
-    onError: (message) => toast({ tone: "info", title: "Amal bajarilmadi", description: message }),
+    onError: (message) =>
+      toast({ tone: "danger", title: copy.toast.orderFailed, description: message }),
     merge: keepPreviews,
   });
   const { rowProps } = useRowDrag(move);
@@ -131,7 +141,8 @@ export function BannersView({ banners, categories, now, exportHref }: BannersVie
         };
     apply((rows) => upsertRow(rows, saved, idOf));
     toast({
-      title: mode === "create" ? "Banner qo‘shildi" : "Banner saqlandi",
+      tone: "success",
+      title: mode === "create" ? copy.toast.created : copy.toast.saved,
       description: saved.title.uz,
     });
   };
@@ -147,32 +158,27 @@ export function BannersView({ banners, categories, now, exportHref }: BannersVie
     setDeleteBusy(false);
     if (!result.ok) {
       setDeleteError(result.error);
+      toast({ tone: "danger", title: copy.toast.failed, description: result.error });
       return;
     }
     deleted.current = true;
     const id = deleting.id;
     apply((rows) => rows.filter((item) => item.id !== id));
     setDeleting(null);
-    toast({ title: "Banner o‘chirildi", description: deleting.title.uz });
+    toast({ tone: "success", title: copy.toast.deleted, description: deleting.title.uz });
   };
 
-  const linkText = (banner: Banner) => {
-    if (banner.link.kind === "product") return `Mahsulot #${banner.link.productId}`;
-    if (banner.link.kind === "category") {
-      return `Kategoriya: ${categoryLabel(categories, banner.link.category ?? "")}`;
-    }
-    if (banner.link.kind === "url") return banner.link.url ?? BANNER_LINK_LABEL.url;
-    return BANNER_LINK_LABEL.none;
-  };
+  const linkText = (banner: Banner) =>
+    bannerLinkText(banner.link, locale, (slug) => categoryLabel(categories, slug));
 
   return (
     <>
       <PageHeader
-        eyebrow={`${formatNumber(items.length)} ta banner`}
-        title="Bannerlar"
+        eyebrow={t.eyebrow(fmt.number(items.length))}
+        title={t.title}
         actions={
           <>
-            <ExportMenu href={exportHref} />
+            <ExportMenu href={exportHref} label={t.export} />
             <button
               type="button"
               ref={addButton}
@@ -180,7 +186,7 @@ export function BannersView({ banners, categories, now, exportHref }: BannersVie
               className={buttonStyles()}
             >
               <Icon name="plus" size={18} />
-              Banner qo‘shish
+              {t.add}
             </button>
           </>
         }
@@ -191,30 +197,30 @@ export function BannersView({ banners, categories, now, exportHref }: BannersVie
       </p>
 
       <section
-        aria-label="Bannerlar ro‘yxati"
+        aria-label={t.region}
         className="overflow-hidden rounded-lg bg-surface-raised shadow-sm"
       >
-        {items.length > 0 && <ListFilterBar label="Sarlavha bo‘yicha qidirish" filter={filter} />}
+        {items.length > 0 && <ListFilterBar label={t.filter} filter={filter} />}
         {items.length > 0 ? (
-          <ScrollRegion label="Bannerlar jadvali">
+          <ScrollRegion label={t.table}>
             <table className="data-table min-w-[900px]">
               <thead>
                 <tr>
-                  <th scope="col">TARTIB</th>
-                  <th scope="col">RASM</th>
-                  <th scope="col">SARLAVHA</th>
-                  <th scope="col">HAVOLA</th>
-                  <th scope="col">MUDDAT</th>
-                  <th scope="col">HOLAT</th>
+                  <th scope="col">{t.order}</th>
+                  <th scope="col">{t.image}</th>
+                  <th scope="col">{t.heading}</th>
+                  <th scope="col">{t.link}</th>
+                  <th scope="col">{t.window}</th>
+                  <th scope="col">{t.status}</th>
                   <th scope="col">
-                    <span className="sr-only">Amallar</span>
+                    <span className="sr-only">{t.actions}</span>
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {items.map((banner, index) => {
                   if (!filter.matches(banner)) return null;
-                  const state = SCHEDULE_META[bannerScheduleState(banner, nowDate)];
+                  const schedule = bannerScheduleState(banner, nowDate);
                   return (
                     <tr key={banner.id} {...(filter.filtered ? {} : rowProps(index))}>
                       <td>
@@ -226,7 +232,7 @@ export function BannersView({ banners, categories, now, exportHref }: BannersVie
                             </span>
                           ) : (
                             <ReorderButtons
-                              subject={`«${banner.title.uz}»`}
+                              subject={banner.title.uz}
                               index={index}
                               count={items.length}
                               onMove={move}
@@ -238,11 +244,13 @@ export function BannersView({ banners, categories, now, exportHref }: BannersVie
                         <BannerThumb src={banner.imageUrl} alt="" />
                       </td>
                       <td>
-                        <span className="flex flex-col">
-                          <span className="font-bold text-ink">{banner.title.uz}</span>
-                          <span className="text-[12px] text-ink-muted">
+                        <span className="flex max-w-[300px] min-w-0 flex-col">
+                          <span lang="uz" className="font-bold break-words text-ink">
+                            {banner.title.uz}
+                          </span>
+                          <span className="truncate text-[12px] text-ink-muted">
                             {[banner.title.ru, banner.title.en].filter(Boolean).join(" · ") ||
-                              "Tarjimalar to‘ldirilmagan"}
+                              t.noTranslations}
                           </span>
                         </span>
                       </td>
@@ -256,40 +264,41 @@ export function BannersView({ banners, categories, now, exportHref }: BannersVie
                           {linkText(banner)}
                         </span>
                       </td>
-                      <td className="tabular-nums">{windowLabel(banner)}</td>
+                      <td className="whitespace-nowrap tabular-nums">
+                        {windowLabel(banner, t, fmt)}
+                      </td>
                       <td>
                         <span className="flex flex-col items-start gap-1">
                           <Badge tone={banner.isActive ? "success" : "neutral"}>
-                            {banner.isActive ? "Faol" : "Faol emas"}
+                            {banner.isActive ? t.active : t.inactive}
                           </Badge>
                           {banner.isActive && (
-                            <Badge tone={state.tone} dot={false}>
-                              {state.label}
+                            <Badge tone={SCHEDULE_TONE[schedule]} dot={false}>
+                              {t.schedule[schedule]}
                             </Badge>
                           )}
                         </span>
                       </td>
                       <td>
                         <span className="flex justify-end gap-0.5">
-                          <button
-                            type="button"
-                            aria-label={`«${banner.title.uz}» — tahrirlash`}
+                          <IconButton
+                            size="sm"
+                            aria-label={t.edit(banner.title.uz)}
                             onClick={() => openDialog({ mode: "edit", banner })}
-                            className={iconButtonClass}
                           >
                             <Icon name="pencil" size={18} />
-                          </button>
-                          <button
-                            type="button"
-                            aria-label={`«${banner.title.uz}» — o‘chirish`}
+                          </IconButton>
+                          <IconButton
+                            size="sm"
+                            aria-label={t.remove(banner.title.uz)}
                             onClick={() => {
                               setDeleteError(null);
                               setDeleting(banner);
                             }}
-                            className={`${iconButtonClass} hover:text-danger`}
+                            className="hover:text-danger"
                           >
                             <Icon name="trash" size={18} />
-                          </button>
+                          </IconButton>
                         </span>
                       </td>
                     </tr>
@@ -299,7 +308,7 @@ export function BannersView({ banners, categories, now, exportHref }: BannersVie
             </table>
             {shown === 0 && (
               <p className="m-0 px-6 py-10 text-center text-body-sm text-ink-muted">
-                Hech narsa topilmadi. Qidiruv yoki holatni o‘zgartirib ko‘ring.
+                {t.nothingFound}
               </p>
             )}
           </ScrollRegion>
@@ -308,21 +317,17 @@ export function BannersView({ banners, categories, now, exportHref }: BannersVie
             <span className="flex size-12 items-center justify-center rounded-full bg-gold-soft text-gold-ink">
               <Icon name="image" size={22} />
             </span>
-            <p className="m-0 text-subheading text-ink">Hali banner yo‘q</p>
-            <p className="m-0 max-w-[420px] text-body-sm text-ink-muted">
-              Ilova bosh sahifasida aksiya yoki yangilikni ko‘rsatish uchun banner qo‘shing. Rasm
-              2:1 nisbatda yaxshi ko‘rinadi.
-            </p>
+            <p className="m-0 text-subheading text-ink">{t.emptyTitle}</p>
+            <p className="m-0 max-w-[420px] text-body-sm text-ink-muted">{t.emptyLead}</p>
             <Button variant="secondary" onClick={() => openDialog({ mode: "create" })}>
               <Icon name="plus" size={18} />
-              Banner qo‘shish
+              {t.add}
             </Button>
           </div>
         )}
         <div className="flex flex-wrap items-center gap-2 border-t border-line px-4 py-3 text-caption font-normal text-ink-muted">
-          <Icon name="info" size={14} />
-          Tartibni qatorni sudrab yoki strelkalar bilan o‘zgartiring. Muddat Toshkent vaqti
-          bo‘yicha.
+          <Icon name="info" size={14} className="shrink-0" />
+          <span className="min-w-0 flex-1">{t.footer}</span>
         </div>
       </section>
 
@@ -351,12 +356,8 @@ export function BannersView({ banners, categories, now, exportHref }: BannersVie
             addButton.current?.focus();
           }
         }}
-        title={deleting ? `«${deleting.title.uz}» bannerini o‘chirasizmi?` : ""}
-        description={
-          <p className="m-0 text-[14px] leading-5 text-ink">
-            Banner ilovadan darhol yo‘qoladi. Bu amalni qaytarib bo‘lmaydi.
-          </p>
-        }
+        title={deleting ? copy.remove.title(deleting.title.uz) : ""}
+        description={<p className="m-0 text-[14px] leading-5 text-ink">{copy.remove.lead}</p>}
       >
         {deleteError && (
           <p
@@ -368,16 +369,13 @@ export function BannersView({ banners, categories, now, exportHref }: BannersVie
           </p>
         )}
         <div className="mt-1.5 flex flex-wrap justify-end gap-2">
-          <AlertDialogCancel disabled={deleteBusy} className={buttonStyles({ variant: "outline" })}>
-            Bekor qilish
+          <AlertDialogCancel asChild>
+            <Button variant="outline" disabledReason={deleteBusy && copy.remove.cancelBusy}>
+              {copy.remove.cancel}
+            </Button>
           </AlertDialogCancel>
-          <Button
-            variant="destructive"
-            onClick={confirmDelete}
-            disabled={deleteBusy}
-            aria-busy={deleteBusy}
-          >
-            {deleteBusy ? "O‘chirilmoqda…" : "O‘chirish"}
+          <Button variant="destructive" onClick={confirmDelete} busy={deleteBusy}>
+            {deleteBusy ? copy.remove.busy : copy.remove.confirm}
           </Button>
         </div>
       </AlertDialog>

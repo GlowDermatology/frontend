@@ -5,28 +5,35 @@ import Link from "next/link";
 import { useId, useRef, useState, type FormEvent } from "react";
 
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonStyles } from "@/components/ui/button";
-import { Dialog, DialogClose } from "@/components/ui/dialog";
-import { AffixInput, Field, Select, TextArea, TextInput } from "@/components/ui/field";
+import { Button, buttonStyles, IconButton } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
+import { AffixInput, Field, TextArea, TextInput } from "@/components/ui/field";
+import { FormErrorSummary } from "@/components/ui/form-errors";
 import { Icon } from "@/components/ui/icon";
 import { ScrollRegion } from "@/components/ui/scroll-region";
+import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/toast";
 import { saveService } from "@/data/clinic.actions";
-import { EMPTY_SERVICE, serviceFormSchema, type ServiceFormValues } from "@/data/clinic.schema";
+import { clinicSchemas, EMPTY_SERVICE, type ServiceFormValues } from "@/data/clinic.schema";
 import type { Page } from "@/data/types";
 import {
   SERVICE_CATEGORIES,
-  SERVICE_CATEGORY_LABEL,
   SERVICE_NAME_MAX,
   SERVICE_SHORT_MAX,
+  serviceRecommendedToAsk,
   TEXT_MAX,
   type ClinicService,
   type ServiceListQuery,
 } from "@/domain/clinic";
+import { clinicDataCopy } from "@/domain/copy/clinic";
 import type { ContentLanguage } from "@/domain/product";
-import { formatNumber, formatSom } from "@/lib/format";
+import { useErrorReveal } from "@/lib/forms/reveal";
+import { useRecommendedConfirm } from "@/lib/forms/recommended";
+import { useAdminLocale, useCopy } from "@/lib/i18n/admin-context";
+import { useFormat, useLocalized } from "@/lib/i18n/admin-hooks";
 
+import { afterDialogsClose } from "../products/form-reveal";
 import { LanguageTabs } from "../products/language-tabs";
 import { runAction } from "../shared/action-client";
 import { ExportMenu } from "../shared/export-menu";
@@ -34,9 +41,12 @@ import { partitionFieldErrors } from "../shared/field-errors";
 import { useIdempotencyKey } from "../shared/idempotency";
 import { ListTransition } from "../shared/list-transition";
 import { PageHeader } from "../shared/page-header";
-import { Pagination, rangeLabel } from "../shared/pagination";
+import { Pagination } from "../shared/pagination";
 import { DirectoryPageSizeMenu, DirectoryToolbar } from "../specialists/directory-toolbar";
+import { errorItems, issuesToErrors, pageRangeText } from "../specialists/form-kit";
+import { serviceName } from "../specialists/offers-card";
 import { hasDirectoryFilters, serviceListHref } from "../specialists/query";
+import { servicesCopy, type ServicesCopy } from "./copy";
 
 const LANGUAGES: ReadonlyArray<ContentLanguage> = ["uz", "ru", "en"];
 
@@ -53,6 +63,28 @@ function toValues(service: ClinicService | null): ServiceFormValues {
   };
 }
 
+/** The summary label of a service field ("Nomi (ruscha)" for `name.ru`). */
+export function serviceFieldLabel(name: string, t: ServicesCopy): string | undefined {
+  const d = t.dialog;
+  const [field, language] = name.split(".") as [string, ContentLanguage | undefined];
+  const texts: Record<string, string> = {
+    name: d.name,
+    shortName: d.shortName,
+    description: d.description,
+  };
+  if (texts[field] && language && language in d.language) {
+    return d.inLanguage(texts[field]!, d.language[language]);
+  }
+  return (
+    {
+      category: d.category,
+      defaultDurationMin: d.duration,
+      defaultPrice: d.price,
+      isActive: d.active,
+    } as Record<string, string>
+  )[field];
+}
+
 /**
  * Xizmatlar (gap FND-7, contract §2.17): bookable services with search,
  * status, category, ordering, pages and the `xizmatlar` export, created and
@@ -66,6 +98,10 @@ export function ServicesView({
   page: Page<ClinicService>;
   query: ServiceListQuery;
 }) {
+  const t = useCopy(servicesCopy);
+  const m = useCopy(clinicDataCopy);
+  const locale = useAdminLocale();
+  const fmt = useFormat();
   const toast = useToast();
   const [source, setSource] = useState(page);
   const [rows, setRows] = useState(page.items);
@@ -86,8 +122,8 @@ export function ServicesView({
   return (
     <>
       <PageHeader
-        eyebrow={`${formatNumber(page.total)} ta xizmat${filtered ? " topildi" : ""}`}
-        title="Xizmatlar"
+        eyebrow={(filtered ? t.found : t.count)(page.total, fmt.number(page.total))}
+        title={t.title}
         actions={
           <>
             <ExportMenu
@@ -95,105 +131,108 @@ export function ServicesView({
                 { ...query, page: undefined, pageSize: undefined },
                 "/admin/services/export",
               )}
+              label={t.export}
             />
             <Link href="/admin/specialists" className={buttonStyles({ variant: "secondary" })}>
               <Icon name="user" size={18} />
-              Mutaxassislar
+              {t.specialists}
             </Link>
-            <button type="button" onClick={() => open(null)} className={buttonStyles()}>
+            <Button onClick={() => open(null)}>
               <Icon name="plus" size={18} />
-              Yangi xizmat
-            </button>
+              {t.create}
+            </Button>
           </>
         }
       />
 
       <ListTransition className="group">
         <section
-          aria-label="Xizmatlar ro‘yxati"
+          aria-label={t.listLabel}
           className="overflow-hidden rounded-lg bg-surface-raised shadow-sm"
         >
           <DirectoryToolbar kind="services" query={query} />
           {rows.length > 0 ? (
-            <ScrollRegion label="Xizmatlar jadvali">
+            <ScrollRegion label={t.tableLabel}>
               <table className="data-table min-w-[900px] transition-opacity duration-150 group-data-[pending]:opacity-60">
-                <caption className="sr-only">Xizmatlar</caption>
-                <thead>
+                <caption className="sr-only">{t.caption}</caption>
+                <thead className="uppercase">
                   <tr>
-                    <th scope="col">XIZMAT</th>
-                    <th scope="col">KATEGORIYA</th>
+                    <th scope="col">{t.service}</th>
+                    <th scope="col">{t.category}</th>
                     <th scope="col" className="text-right!">
-                      DAVOMIYLIGI
+                      {t.duration}
                     </th>
                     <th scope="col" className="text-right!">
-                      TAVSIYA NARX
+                      {t.price}
                     </th>
                     <th scope="col" className="text-right!">
-                      MUTAXASSISLAR
+                      {t.specialistCount}
                     </th>
-                    <th scope="col">HOLAT</th>
+                    <th scope="col">{t.status}</th>
                     <th scope="col">
-                      <span className="sr-only">Amallar</span>
+                      <span className="sr-only">{t.actions}</span>
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row) => (
-                    <tr key={row.id}>
-                      <td>
-                        <span className="flex flex-col">
-                          <span className="font-bold text-ink">{row.name.uz}</span>
-                          <span className="text-[12px] text-ink-muted">
-                            {row.shortName.uz !== row.name.uz ? `${row.shortName.uz} · ` : ""}
-                            {[row.name.ru, row.name.en].filter(Boolean).join(" · ") ||
-                              "Tarjimalar to‘ldirilmagan"}
+                  {rows.map((row) => {
+                    const name = serviceName(row, locale);
+                    const others = (["uz", "ru", "en"] as const)
+                      .filter((language) => language !== locale && row.name[language].trim())
+                      .map((language) => row.name[language])
+                      .filter((other) => other !== name);
+                    const short = row.shortName[locale]?.trim() || row.shortName.uz;
+                    return (
+                      <tr key={row.id}>
+                        <td>
+                          <span className="flex max-w-[360px] min-w-0 flex-col">
+                            <span className="font-bold break-words text-ink">{name}</span>
+                            <span className="truncate text-[12px] text-ink-muted">
+                              {short && short !== name ? `${short} · ` : ""}
+                              {others.join(" · ") || t.noTranslations}
+                            </span>
                           </span>
-                        </span>
-                      </td>
-                      <td>{SERVICE_CATEGORY_LABEL[row.category]}</td>
-                      <td className="text-right tabular-nums">{row.defaultDurationMin} daq.</td>
-                      <td className="text-right tabular-nums">
-                        {row.defaultPrice === null ? "—" : formatSom(row.defaultPrice)}
-                      </td>
-                      <td className="text-right tabular-nums">
-                        {formatNumber(row.specialistCount)}
-                      </td>
-                      <td>
-                        {row.isActive ? (
-                          <Badge tone="success">Faol</Badge>
-                        ) : (
-                          <Badge tone="muted">Nofaol</Badge>
-                        )}
-                      </td>
-                      <td className="text-right">
-                        <button
-                          type="button"
-                          aria-label={`«${row.name.uz}» — tahrirlash`}
-                          onClick={() => open(row)}
-                          className="inline-flex size-9 items-center justify-center rounded-md text-ink-muted transition-colors duration-150 hover:bg-gold-soft hover:text-ink"
-                        >
-                          <Icon name="pencil" size={18} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td>{m.category[row.category]}</td>
+                        <td className="text-right whitespace-nowrap tabular-nums">
+                          {fmt.duration(row.defaultDurationMin)}
+                        </td>
+                        <td className="text-right whitespace-nowrap tabular-nums">
+                          {row.defaultPrice === null ? "—" : fmt.som(row.defaultPrice)}
+                        </td>
+                        <td className="text-right tabular-nums">
+                          {fmt.number(row.specialistCount)}
+                        </td>
+                        <td>
+                          {row.isActive ? (
+                            <Badge tone="success">{m.status.active}</Badge>
+                          ) : (
+                            <Badge tone="muted">{m.status.inactive}</Badge>
+                          )}
+                        </td>
+                        <td className="text-right">
+                          <IconButton size="sm" aria-label={t.edit(name)} onClick={() => open(row)}>
+                            <Icon name="pencil" size={18} />
+                          </IconButton>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </ScrollRegion>
           ) : (
             <div className="flex flex-col items-center gap-2 px-6 py-16 text-center">
               <Icon name="sparkle" size={28} className="text-ink-muted" />
-              <p className="m-0 text-subheading text-ink">Xizmat topilmadi</p>
+              <p className="m-0 text-subheading text-ink">{t.emptyTitle}</p>
               <p className="m-0 text-body-sm text-ink-muted">
-                {filtered
-                  ? "Qidiruv yoki filtrlarni o‘zgartirib ko‘ring."
-                  : "«Yangi xizmat» bilan birinchi xizmatni qo‘shing."}
+                {filtered ? t.emptyFiltered : t.emptyAll}
               </p>
             </div>
           )}
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3">
             <span className="text-body-sm text-ink-muted tabular-nums">
-              {rangeLabel(page.page, page.pageSize, page.total)}
+              {pageRangeText(fmt, page.page, page.pageSize, page.total)}
             </span>
             <Pagination
               page={page.page}
@@ -220,8 +259,9 @@ export function ServicesView({
               : current.map((row) => (row.id === service.id ? service : row)),
           );
           toast({
-            title: created ? "Xizmat qo‘shildi" : "Xizmat saqlandi",
-            description: service.name.uz,
+            tone: "success",
+            title: created ? t.created : t.saved,
+            description: serviceName(service, locale),
           });
         }}
       />
@@ -229,13 +269,26 @@ export function ServicesView({
   );
 }
 
+const TEXT_KEYS = ["name", "shortName", "description"] as const;
+
 const FIELDS = [
+  ...LANGUAGES.flatMap((l) => TEXT_KEYS.map((k) => `${k}.${l}`)),
   "category",
   "defaultDurationMin",
   "defaultPrice",
   "isActive",
-  ...LANGUAGES.flatMap((l) => [`name.${l}`, `shortName.${l}`, `description.${l}`]),
 ];
+
+/** The first language whose texts hold an error, keeping `current` when it has one. */
+function errorLanguage(
+  errors: Readonly<Record<string, string>>,
+  current: ContentLanguage,
+): ContentLanguage | null {
+  const failing = (language: ContentLanguage) =>
+    TEXT_KEYS.some((key) => errors[`${key}.${language}`]);
+  if (failing(current)) return current;
+  return LANGUAGES.find(failing) ?? null;
+}
 
 function ServiceDialog({
   open,
@@ -250,6 +303,11 @@ function ServiceDialog({
   onOpenChange: (open: boolean) => void;
   onSaved: (service: ClinicService, created: boolean) => void;
 }) {
+  const copy = useCopy(servicesCopy);
+  const t = copy.dialog;
+  const m = useCopy(clinicDataCopy);
+  const schemas = useLocalized(clinicSchemas);
+  const toast = useToast();
   const idBase = useId();
   const baseline = toValues(service);
   const [values, setValues] = useState(baseline);
@@ -263,35 +321,50 @@ function ServiceDialog({
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
   const formRef = useRef<HTMLFormElement>(null);
+  const reveal = useErrorReveal(formRef);
+  const recommended = useRecommendedConfirm();
+  const summary = errorItems(errors, (name) => serviceFieldLabel(name, copy), FIELDS);
 
-  const setText = (key: "name" | "shortName" | "description", value: string) =>
+  const setText = (key: (typeof TEXT_KEYS)[number], value: string) =>
     setValues((current) => ({ ...current, [key]: { ...current[key], [language]: value } }));
+
+  const show = (next: Record<string, string>, message: string | null) => {
+    setErrors(next);
+    setFormError(message);
+    const lang = errorLanguage(next, language);
+    if (lang) setLanguage(lang);
+    reveal();
+  };
+
+  /** A summary link or "fill in": show the field's language tab first. */
+  const goTo = (name: string, shake = true) => {
+    const lang = name.split(".")[1] as ContentLanguage | undefined;
+    if (lang && LANGUAGES.includes(lang)) setLanguage(lang);
+    reveal({ name, shake });
+  };
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (inFlight.current) return;
-    const local = serviceFormSchema.safeParse({
+    const local = schemas.service.safeParse({
       ...values,
       defaultDurationMin: duration.trim() === "" ? Number.NaN : Number(duration),
       defaultPrice: price.trim() === "" ? null : Number(price.replace(/\s/g, "")),
     });
-    const show = (next: Record<string, string>, message: string | null) => {
-      setErrors(next);
-      setFormError(message);
-      const first = LANGUAGES.find((l) =>
-        ["name", "shortName", "description"].some((k) => next[`${k}.${l}`]),
-      );
-      if (first) setLanguage(first);
-      requestAnimationFrame(() =>
-        formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(),
-      );
-    };
-    if (!local.success) {
-      const next: Record<string, string> = {};
-      for (const issue of local.error.issues) next[issue.path.join(".")] ??= issue.message;
-      return show(next, null);
-    }
+    if (!local.success) return show(issuesToErrors(local.error), null);
     inFlight.current = true;
+    // Asked only when it is news: a create, the save that activates, a field just emptied.
+    const missing = serviceRecommendedToAsk(local.data, service ? baseline : null).map((name) => ({
+      name,
+      label: serviceFieldLabel(name, copy) ?? name,
+    }));
+    const remember = service ? { kind: "service", id: service.id } : null;
+    if ((await recommended.confirm(missing, { remember })) === "fix") {
+      inFlight.current = false;
+      await afterDialogsClose();
+      goTo(missing[0]!.name, false);
+      return;
+    }
     setBusy(true);
     setErrors({});
     setFormError(null);
@@ -310,11 +383,21 @@ function ServiceDialog({
     setBusy(false);
     if (!result.ok) {
       const split = partitionFieldErrors(result, FIELDS);
+      toast({
+        tone: "danger",
+        title: copy.saveFailed,
+        description: split.formError ?? result.error,
+      });
       return show(split.fieldErrors, split.formError);
     }
     onSaved(result.data, service === null);
     onOpenChange(false);
   };
+
+  const languageName = t.language[language];
+  const invalid = Object.fromEntries(
+    LANGUAGES.map((l) => [l, TEXT_KEYS.some((key) => Boolean(errors[`${key}.${l}`]))]),
+  ) as Record<ContentLanguage, boolean>;
 
   return (
     <Dialog
@@ -323,10 +406,11 @@ function ServiceDialog({
         if (busy) return;
         onOpenChange(next);
       }}
-      title={service ? "Xizmatni tahrirlash" : "Yangi xizmat"}
+      title={service ? t.editTitle : t.createTitle}
       className="max-w-[640px]"
     >
       <form ref={formRef} noValidate onSubmit={onSubmit} className="flex flex-col gap-4">
+        <FormErrorSummary errors={summary} onSelect={(name) => goTo(name)} />
         <LanguageTabs
           languages={LANGUAGES}
           value={language}
@@ -336,15 +420,21 @@ function ServiceDialog({
             ru: Boolean(values.name.ru.trim()),
             en: Boolean(values.name.en.trim()),
           }}
+          invalid={invalid}
           idBase={idBase}
         />
         <div
           role="tabpanel"
           id={`${idBase}-panel`}
           aria-labelledby={`${idBase}-tab-${language}`}
+          data-lang={language}
           className="flex flex-col gap-4"
         >
-          <Field label={`Nomi (${language})`} error={errors[`name.${language}`]}>
+          <Field
+            label={t.inLanguage(t.name, languageName)}
+            name={`name.${language}`}
+            error={errors[`name.${language}`]}
+          >
             {(c) => (
               <TextInput
                 {...c}
@@ -356,9 +446,10 @@ function ServiceDialog({
             )}
           </Field>
           <Field
-            label={`Qisqa nomi (${language})`}
+            label={t.inLanguage(t.shortName, languageName)}
+            name={`shortName.${language}`}
             error={errors[`shortName.${language}`]}
-            hint="Qabullar jadvali va ilova tugmalarida. Bo‘sh qolsa, nomidan olinadi."
+            hint={t.shortNameHint}
           >
             {(c) => (
               <TextInput
@@ -370,7 +461,11 @@ function ServiceDialog({
               />
             )}
           </Field>
-          <Field label={`Tavsif (${language})`} error={errors[`description.${language}`]}>
+          <Field
+            label={t.inLanguage(t.description, languageName)}
+            name={`description.${language}`}
+            error={errors[`description.${language}`]}
+          >
             {(c) => (
               <TextArea
                 {...c}
@@ -383,31 +478,29 @@ function ServiceDialog({
           </Field>
         </div>
         <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Kategoriya" error={errors.category}>
+          <Field label={t.category} name="category" error={errors.category}>
             {(c) => (
-              <Select
+              <Select<ServiceFormValues["category"]>
                 {...c}
                 value={values.category}
-                onChange={(event) =>
-                  setValues((current) => ({
-                    ...current,
-                    category: event.target.value as ServiceFormValues["category"],
-                  }))
-                }
-              >
-                {SERVICE_CATEGORIES.map((category) => (
-                  <option key={category} value={category}>
-                    {SERVICE_CATEGORY_LABEL[category]}
-                  </option>
-                ))}
-              </Select>
+                onValueChange={(category) => setValues((current) => ({ ...current, category }))}
+                options={SERVICE_CATEGORIES.map((category) => ({
+                  value: category,
+                  label: m.category[category],
+                }))}
+              />
             )}
           </Field>
-          <Field label="Davomiyligi" error={errors.defaultDurationMin} hint="5 daqiqaga karrali.">
+          <Field
+            label={t.duration}
+            name="defaultDurationMin"
+            error={errors.defaultDurationMin}
+            hint={t.durationHint}
+          >
             {(c) => (
               <AffixInput
                 {...c}
-                suffix="daq."
+                suffix={t.minutes}
                 inputMode="numeric"
                 autoComplete="off"
                 value={duration}
@@ -415,11 +508,11 @@ function ServiceDialog({
               />
             )}
           </Field>
-          <Field label="Tavsiya narx" error={errors.defaultPrice} hint="Ixtiyoriy.">
+          <Field label={t.price} name="defaultPrice" error={errors.defaultPrice} hint={t.priceHint}>
             {(c) => (
               <AffixInput
                 {...c}
-                suffix="so‘m"
+                suffix={t.currency}
                 inputMode="numeric"
                 autoComplete="off"
                 value={price}
@@ -430,18 +523,15 @@ function ServiceDialog({
         </div>
         <div className="flex items-center justify-between gap-3 rounded-md bg-surface px-3.5 py-3">
           <span className="flex flex-col gap-0.5">
-            <span className="text-label text-ink">Faol</span>
-            <span className="text-caption font-normal text-ink-muted">
-              Nofaol xizmat ilovadan va yozilish oynasidan darhol yo‘qoladi; mavjud qabullar
-              saqlanadi.
-            </span>
+            <span className="text-label text-ink">{t.active}</span>
+            <span className="text-caption font-normal text-ink-muted">{t.activeText}</span>
           </span>
           <Switch
             checked={values.isActive}
             onCheckedChange={(checked) =>
               setValues((current) => ({ ...current, isActive: checked }))
             }
-            aria-label="Xizmat faol"
+            aria-label={t.activeSwitch}
           />
         </div>
         {formError && (
@@ -454,14 +544,20 @@ function ServiceDialog({
           </p>
         )}
         <div className="flex flex-wrap justify-end gap-2">
-          <DialogClose disabled={busy} className={buttonStyles({ variant: "outline" })}>
-            Bekor qilish
-          </DialogClose>
-          <Button type="submit" disabled={busy} aria-busy={busy}>
+          <Button
+            type="button"
+            variant="outline"
+            disabledReason={busy && t.busyReason}
+            onClick={() => onOpenChange(false)}
+          >
+            {t.cancel}
+          </Button>
+          <Button type="submit" busy={busy}>
             <Icon name="check" size={18} />
-            {busy ? "Saqlanmoqda…" : "Saqlash"}
+            {busy ? t.saving : t.save}
           </Button>
         </div>
+        {recommended.dialog}
       </form>
     </Dialog>
   );

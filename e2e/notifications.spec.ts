@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 
+import { saveAnyway } from "./catalog-helpers";
 import { historyRow, openPanel, removeLeftovers, saveDraft, TITLE_PREFIX } from "./campaigns";
 import { BASE_URL, STAFF_STORAGE_STATE, staffCredentials } from "./env";
 import { heading, toast, watchPage } from "./helpers";
@@ -45,6 +46,7 @@ test("a draft is saved, listed with its body, edited and deleted by its author",
   await expect(page.getByLabel("Sarlavha")).toHaveValue(title);
   await page.getByLabel("Matn").fill("E2E: qoralama o‘zgartirildi, yuborilmaydi.");
   await page.getByRole("button", { name: "Saqlash" }).click();
+  await saveAnyway(page, toast(page, "Qoralama yangilandi"));
   await expect(toast(page, "Qoralama yangilandi")).toBeVisible();
   await expect(historyRow(page, title)).toContainText("o‘zgartirildi");
   await expect(page.locator("#campaign-panel")).toContainText("2-tahrir");

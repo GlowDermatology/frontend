@@ -1,3 +1,5 @@
+import { isFilled, recommendedToAsk, textChanged } from "@/lib/forms/recommended-rules";
+
 import type { ContentLanguage } from "./product";
 import type { SeoStatus, SeoTexts } from "./seo";
 
@@ -42,6 +44,41 @@ export function categoryLabel(categories: ReadonlyArray<Category>, slug: string)
 /** Whether a category can be removed: only an empty one (409 `conflict` otherwise). */
 export function canDeleteCategory(category: Pick<Category, "productCount">): boolean {
   return category.productCount === 0;
+}
+
+/**
+ * Fields the dialog recommends but does not require: the Russian and English names (the
+ * website and the app fall back to Uzbek). The image is not asked: the storefront card has a
+ * fallback and the «SEO holati» checklist already reports a missing one.
+ */
+export type CategoryRecommendedField = "name.ru" | "name.en";
+
+export function categoryRecommendedMissing(values: {
+  name: CategoryName;
+}): CategoryRecommendedField[] {
+  const missing: CategoryRecommendedField[] = [];
+  if (!values.name.ru.trim()) missing.push("name.ru");
+  if (!values.name.en.trim()) missing.push("name.en");
+  return missing;
+}
+
+/**
+ * The empty names worth asking about on this save (`recommendedToAsk`): an inactive category
+ * never asks; a new one, or the save that activates it, asks about both; else only a name the
+ * admin just emptied, or both empty ones when the Uzbek name changed. `saved` = the stored
+ * category (`null` = create).
+ */
+export function categoryRecommendedToAsk(
+  values: { name: CategoryName; isActive: boolean },
+  saved: { name: CategoryName; isActive: boolean } | null,
+): CategoryRecommendedField[] {
+  return recommendedToAsk(categoryRecommendedMissing(values), {
+    isNew: saved === null,
+    active: values.isActive,
+    wasActive: saved?.isActive,
+    filledBefore: (field) => isFilled(field === "name.ru" ? saved?.name.ru : saved?.name.en),
+    sourceChanged: () => textChanged(saved?.name.uz, values.name.uz),
+  });
 }
 
 /** Moves the item at `from` to `to`, returning a new array (no-op when out of range). */

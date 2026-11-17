@@ -4,6 +4,7 @@ import type { IconName } from "@/components/ui/icon";
 import type { FulfilmentCounters } from "@/domain/dashboard";
 
 import { orderListHref } from "../orders/query";
+import { dashboardCopy, type DashboardCopy } from "./copy";
 
 /**
  * The dashboard's order-state tiles (`dashboard.fulfilment`, Yandex
@@ -29,67 +30,71 @@ export interface FulfilmentTile {
 
 const ALL = { period: "all" } as const;
 
-export function fulfilmentTiles(counters: FulfilmentCounters): FulfilmentTile[] {
+/** The tiles in the admin language (`t` = `dashboardCopy[locale].fulfilment.tiles`). */
+export function fulfilmentTiles(
+  counters: FulfilmentCounters,
+  t: DashboardCopy["fulfilment"]["tiles"] = dashboardCopy.uz.fulfilment.tiles,
+): FulfilmentTile[] {
   return [
     {
       key: "paidToPrepare",
-      label: "To‘langan · tayyorlash",
+      label: t.paidToPrepare.label,
       value: counters.paidToPrepare,
-      note: "to‘langan, hali yig‘ilmagan",
+      note: t.paidToPrepare.note,
       href: orderListHref({ ...ALL, status: "processing" }),
       icon: "bag",
       tone: "neutral",
     },
     {
       key: "toHandToCourier",
-      label: "Kuryerga berish kerak",
+      label: t.toHandToCourier.label,
       value: counters.toHandToCourier,
-      note: "Yandex kuryeri chaqirilgan",
+      note: t.toHandToCourier.note,
       href: orderListHref({ ...ALL, status: "processing", provider: "yandex" }),
       icon: "truck",
       tone: counters.toHandToCourier > 0 ? "warning" : "neutral",
     },
     {
       key: "inDelivery",
-      label: "Yetkazilmoqda",
+      label: t.inDelivery.label,
       value: counters.inDelivery,
-      note: "kuryerda, yo‘lda",
+      note: t.inDelivery.note,
       href: orderListHref({ ...ALL, status: "handed_to_courier" }),
       icon: "map-pin",
       tone: "neutral",
     },
     {
       key: "returning",
-      label: "Qaytarilmoqda",
+      label: t.returning.label,
       value: counters.returning,
-      note: "omborga qaytayotgan jo‘natmalar",
+      note: t.returning.note,
       href: orderListHref({ ...ALL, provider: "yandex", stage: "returning" }),
       icon: "refresh",
       tone: counters.returning > 0 ? "warning" : "neutral",
     },
     {
       key: "completedToday",
-      label: "Bugun yakunlangan",
+      label: t.completedToday.label,
       value: counters.completedToday,
-      note: "bugun topshirilgan",
+      note: t.completedToday.note,
       href: orderListHref({ ...ALL, status: "delivered" }),
       icon: "check",
       tone: "neutral",
     },
     {
       key: "needsAction",
-      label: "Harakat kerak",
+      label: t.needsAction.label,
       value: counters.needsAction,
-      note: "ochiq yetkazish muammolari",
+      note: t.needsAction.note,
       href: orderListHref({ ...ALL, attention: "open" }),
       icon: "alert-circle",
       tone: counters.needsAction > 0 ? "warning" : "neutral",
     },
     {
       key: "urgent",
-      label: "Shoshilinch",
+      label: t.urgent.label,
       value: counters.urgent,
-      note: "darhol ko‘rib chiqing",
+      note: t.urgent.note,
       href: orderListHref({ ...ALL, attention: "urgent" }),
       icon: "alert-triangle",
       tone: counters.urgent > 0 ? "danger" : "neutral",

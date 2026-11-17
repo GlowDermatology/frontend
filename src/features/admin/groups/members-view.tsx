@@ -2,47 +2,38 @@
 
 import Link from "next/link";
 import type { Route } from "next";
-import { useId, useRef, useState, type ClipboardEvent, type FormEvent } from "react";
+import { useId, useRef, useState } from "react";
 
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
-import { Button, buttonStyles } from "@/components/ui/button";
+import { Button, IconButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { AlertDialog, AlertDialogCancel, Dialog, DialogClose } from "@/components/ui/dialog";
-import { TextInput } from "@/components/ui/field";
+import { AlertDialog, AlertDialogCancel } from "@/components/ui/dialog";
 import { Icon } from "@/components/ui/icon";
 import { ScrollRegion } from "@/components/ui/scroll-region";
 import { useToast } from "@/components/ui/toast";
-import { addSegmentMembers, removeSegmentMember } from "@/data/segments.actions";
+import { removeSegmentMember } from "@/data/segments.actions";
 import type { Page } from "@/data/types";
-import {
-  droppedLinesMessage,
-  pasteMemberLines,
-  SEGMENT_MEMBERS_MAX,
-  segmentRulesSummary,
-  splitMemberList,
-  type Segment,
-  type SegmentMember,
-} from "@/domain/segment";
-import { cn } from "@/lib/cn";
-import { formatNumber, formatPhone, formatSom } from "@/lib/format";
+import { segmentRulesSummary, type Segment, type SegmentMember } from "@/domain/segment";
+import { tashkentParts } from "@/lib/format";
+import { useAdminLocale, useCopy } from "@/lib/i18n/admin-context";
+import { useFormat } from "@/lib/i18n/admin-hooks";
 
-import { percentLabel, registeredLabel as registered } from "../customers/labels";
 import { runAction } from "../shared/action-client";
 import { ExportMenu } from "../shared/export-menu";
-import { partitionFieldErrors } from "../shared/field-errors";
 import { useIdempotencyKey } from "../shared/idempotency";
 import { PageHeader } from "../shared/page-header";
 import { Pagination, rangeLabel } from "../shared/pagination";
+import { AddMembersDialog } from "./add-members-dialog";
+import { groupsCopy } from "./copy";
 
-const iconButtonClass =
-  "flex size-9 items-center justify-center rounded-md text-ink-muted transition-colors duration-150 hover:bg-danger-soft hover:text-danger";
+const headClass = "uppercase";
+const numericHead = "text-right! uppercase";
 
 /**
- * One group's members (contract §2.8 `segments/{id}/members/`, customer
- * rows): add customers by id or phone (≤500, manual membership), remove a
- * manual member (409 "Mijoz guruhga qoida orqali kiradi." for a rule-only
- * member) and export `guruh-azolari`. Members are customer list rows
- * (contract §2.6 `CustomerListItem`): balance and rate come from the server.
+ * One group's members (contract §2.8 `segments/{id}/members/`, customer rows): add customers
+ * through the search-and-pick dialog (or a pasted list), remove a manual member (409 for a
+ * rule-only member) and export `guruh-azolari`. Members are customer list rows (contract §2.6
+ * `CustomerListItem`): balance and rate come from the server.
  */
 export function MembersView({
   segment: initialSegment,
@@ -51,6 +42,10 @@ export function MembersView({
   segment: Segment;
   page: Page<SegmentMember>;
 }) {
+  const t = useCopy(groupsCopy);
+  const m = t.members;
+  const locale = useAdminLocale();
+  const fmt = useFormat();
   const toast = useToast();
   const [source, setSource] = useState({ initialSegment, page });
   const [segment, setSegment] = useState(initialSegment);
@@ -74,6 +69,9 @@ export function MembersView({
 
   const base = `/admin/customers/groups/${segment.id}`;
   const pageHref = (n: number) => (n > 1 ? `${base}?page=${n}` : base) as Route;
+  const registered = (iso: string) => `${fmt.dayMonthShort(iso)} ${tashkentParts(iso).year}`;
+  const percent = (value: string | null) =>
+    value === null || !Number.isFinite(Number(value)) ? m.none : fmt.percent(Number(value));
 
   const confirmRemove = async () => {
     if (!removing || removeInFlight.current) return;
@@ -85,6 +83,7 @@ export function MembersView({
     setRemoveBusy(false);
     if (!result.ok) {
       setRemoveError(result.error);
+      toast({ tone: "danger", title: m.removeFailed, description: result.error });
       return;
     }
     const { id, name } = removing;
@@ -96,7 +95,7 @@ export function MembersView({
       manualMemberCount: Math.max(0, current.manualMemberCount - 1),
     }));
     setRemoving(null);
-    toast({ title: "Mijoz guruhdan chiqarildi", description: name });
+    toast({ tone: "success", title: m.removed, description: name });
   };
 
   return (
@@ -104,13 +103,13 @@ export function MembersView({
       <div className="flex flex-col gap-3">
         <Breadcrumbs
           items={[
-            { label: "Mijozlar", href: "/admin/customers" },
-            { label: "Guruhlar", href: "/admin/customers/groups" },
+            { label: t.crumbs.customers, href: "/admin/customers" },
+            { label: t.crumbs.groups, href: "/admin/customers/groups" },
             { label: segment.name },
           ]}
         />
         <PageHeader
-          eyebrow={`${formatNumber(segment.memberCount)} ta a’zo · ${formatNumber(segment.size)} ta push qurilma`}
+          eyebrow={m.count(segment.memberCount, segment.size)}
           title={segment.name}
           actions={
             <>
@@ -123,7 +122,7 @@ export function MembersView({
                 }}
               >
                 <Icon name="plus" size={18} />
-                Mijoz qo‘shish
+                {m.add}
               </Button>
             </>
           }
@@ -133,39 +132,45 @@ export function MembersView({
       <Card className="flex flex-wrap items-center gap-x-6 gap-y-2 text-body-sm">
         <span className="flex items-center gap-2 text-ink">
           <Icon name="sliders" size={18} className="text-gold-ink" />
-          {segmentRulesSummary(segment.rules)}
+          {segmentRulesSummary(segment.rules, locale)}
         </span>
         <span className="text-ink-muted tabular-nums">
-          Qo‘lda qo‘shilgan: {formatNumber(segment.manualMemberCount)}
+          {m.manual(fmt.number(segment.manualMemberCount))}
         </span>
       </Card>
 
       <section
-        aria-label="Guruh a’zolari"
+        aria-label={m.sectionLabel}
         className="overflow-hidden rounded-lg bg-surface-raised shadow-sm"
       >
         {rows.length > 0 ? (
-          <ScrollRegion ref={tableRef} label="Guruh a’zolari jadvali">
+          <ScrollRegion ref={tableRef} label={m.tableLabel}>
             <table className="data-table min-w-[900px]">
               <thead>
                 <tr>
-                  <th scope="col">MIJOZ</th>
-                  <th scope="col">TELEFON</th>
-                  <th scope="col">RO‘YXATDAN O‘TGAN</th>
-                  <th scope="col" className="text-right!">
-                    JAMI XARIDLAR
+                  <th scope="col" className={headClass}>
+                    {m.columns.customer}
                   </th>
-                  <th scope="col" className="text-right!">
-                    ONLAYN BUYURTMALAR
+                  <th scope="col" className={headClass}>
+                    {m.columns.phone}
                   </th>
-                  <th scope="col" className="text-right!">
-                    CASHBACK
+                  <th scope="col" className={headClass}>
+                    {m.columns.registered}
                   </th>
-                  <th scope="col" className="text-right!">
-                    BALANS
+                  <th scope="col" className={numericHead}>
+                    {m.columns.total}
+                  </th>
+                  <th scope="col" className={numericHead}>
+                    {m.columns.online}
+                  </th>
+                  <th scope="col" className={numericHead}>
+                    {m.columns.cashback}
+                  </th>
+                  <th scope="col" className={numericHead}>
+                    {m.columns.balance}
                   </th>
                   <th scope="col">
-                    <span className="sr-only">Amallar</span>
+                    <span className="sr-only">{m.columns.actions}</span>
                   </th>
                 </tr>
               </thead>
@@ -180,32 +185,32 @@ export function MembersView({
                         {member.name}
                       </Link>
                       {member.status === "deleted" && (
-                        <span className="block text-[12px] text-ink-muted">O‘chirilgan</span>
+                        <span className="block text-[12px] text-ink-muted">{m.deletedBadge}</span>
                       )}
                     </td>
-                    <td className="tabular-nums">{formatPhone(member.phone)}</td>
+                    <td className="tabular-nums">{fmt.phone(member.phone)}</td>
                     <td className="text-ink-muted tabular-nums">
                       {registered(member.registeredAt)}
                     </td>
-                    <td className="text-right tabular-nums">{formatSom(member.lifetimeTotal)}</td>
+                    <td className="text-right tabular-nums">{fmt.som(member.lifetimeTotal)}</td>
                     <td className="text-right tabular-nums">
-                      {formatNumber(member.onlineOrdersCount)}
+                      {fmt.number(member.onlineOrdersCount)}
                     </td>
-                    <td className="text-right tabular-nums">{percentLabel(member.percent)}</td>
-                    <td className="text-right tabular-nums">{formatSom(member.balance)}</td>
+                    <td className="text-right tabular-nums">{percent(member.percent)}</td>
+                    <td className="text-right tabular-nums">{fmt.som(member.balance)}</td>
                     <td>
                       <span className="flex justify-end">
-                        <button
-                          type="button"
-                          aria-label={`${member.name} — guruhdan chiqarish`}
+                        <IconButton
+                          size="sm"
+                          aria-label={m.removeOf(member.name)}
                           onClick={() => {
                             setRemoveError(null);
                             setRemoving(member);
                           }}
-                          className={iconButtonClass}
+                          className="hover:bg-danger-soft hover:text-danger"
                         >
                           <Icon name="trash" size={18} />
-                        </button>
+                        </IconButton>
                       </span>
                     </td>
                   </tr>
@@ -214,15 +219,27 @@ export function MembersView({
             </table>
           </ScrollRegion>
         ) : (
-          <p className="m-0 px-5 py-10 text-center text-body-sm text-ink-muted">
-            Guruhda hali mijoz yo‘q. Qoidaga mos mijozlar avtomatik kiradi yoki ularni qo‘lda
-            qo‘shing.
-          </p>
+          <div className="flex flex-col items-center gap-3 px-6 py-14 text-center">
+            <span className="flex size-12 items-center justify-center rounded-full bg-gold-soft text-gold-ink">
+              <Icon name="users" size={22} />
+            </span>
+            <p className="m-0 max-w-[460px] text-body-sm text-ink-muted">{m.empty}</p>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setAddInstance((current) => current + 1);
+                setAdding(true);
+              }}
+            >
+              <Icon name="plus" size={18} />
+              {m.add}
+            </Button>
+          </div>
         )}
         {page.pageCount > 1 && (
           <div className="flex flex-wrap items-center justify-end gap-3 border-t border-line px-4 py-3">
             <span className="text-body-sm text-ink-muted tabular-nums">
-              {rangeLabel(page.page, page.pageSize, page.total)}
+              {rangeLabel(page.page, page.pageSize, page.total, fmt)}
             </span>
             <Pagination page={page.page} pageCount={page.pageCount} hrefFor={pageHref} />
           </div>
@@ -239,9 +256,9 @@ export function MembersView({
             const added = updated.memberCount - segment.memberCount;
             setSegment(updated);
             toast({
-              title: "Mijozlar qo‘shildi",
-              description:
-                added > 0 ? `${formatNumber(added)} ta yangi a’zo` : "Ular allaqachon guruhda edi",
+              tone: "success",
+              title: m.added,
+              description: added > 0 ? m.addedCount(added) : m.addedNone,
             });
           }}
         />
@@ -262,13 +279,8 @@ export function MembersView({
             target.focus();
           }
         }}
-        title={removing ? `${removing.name}ni guruhdan chiqarasizmi?` : ""}
-        description={
-          <p className="m-0 text-[14px] leading-5 text-ink">
-            Faqat qo‘lda qo‘shilgan a’zolik olib tashlanadi. Mijoz qoida orqali kirsa, u guruhda
-            qoladi.
-          </p>
-        }
+        title={removing ? m.removeTitle(removing.name) : ""}
+        description={<p className="m-0 text-[14px] leading-5 text-ink">{m.removeText}</p>}
       >
         {removeError && (
           <p
@@ -280,209 +292,17 @@ export function MembersView({
           </p>
         )}
         <div className="mt-1.5 flex flex-wrap justify-end gap-2">
-          <AlertDialogCancel disabled={removeBusy} className={buttonStyles({ variant: "outline" })}>
-            Bekor qilish
+          {/* Radix starts focus on the cancel control (least destructive). */}
+          <AlertDialogCancel asChild>
+            <Button variant="outline" disabledReason={removeBusy && t.busyReason}>
+              {t.cancel}
+            </Button>
           </AlertDialogCancel>
-          <Button
-            variant="destructive"
-            onClick={confirmRemove}
-            disabled={removeBusy}
-            aria-busy={removeBusy}
-          >
-            {removeBusy ? "Chiqarilmoqda…" : "Guruhdan chiqarish"}
+          <Button variant="destructive" onClick={confirmRemove} busy={removeBusy}>
+            {removeBusy ? m.removing : m.remove}
           </Button>
         </div>
       </AlertDialog>
     </>
-  );
-}
-
-/** Blank input lines the dialog opens with. */
-const INITIAL_ROWS = 3;
-
-function AddMembersDialog({
-  segment,
-  idempotencyKey,
-  onClose,
-  onAdded,
-}: {
-  segment: Segment;
-  idempotencyKey: ReturnType<typeof useIdempotencyKey>;
-  onClose: () => void;
-  onAdded: (segment: Segment) => void;
-}) {
-  const idBase = useId();
-  // One customer id or phone per line; a pasted list is split into lines.
-  const [rows, setRows] = useState<string[]>(() => Array.from({ length: INITIAL_ROWS }, () => ""));
-  const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const inFlight = useRef(false);
-  const listRef = useRef<HTMLOListElement>(null);
-
-  const focusRow = (index: number) =>
-    window.requestAnimationFrame(() =>
-      listRef.current?.querySelectorAll<HTMLInputElement>("input")[index]?.focus(),
-    );
-
-  const clearErrors = () => {
-    setRowErrors({});
-    setError(null);
-  };
-
-  const setRow = (index: number, value: string) => {
-    clearErrors();
-    setRows((current) => current.map((row, i) => (i === index ? value : row)));
-  };
-
-  const onPaste = (index: number, event: ClipboardEvent<HTMLInputElement>) => {
-    const text = event.clipboardData.getData("text");
-    if (!/[,;\n\r]/.test(text)) return; // one entry: the browser pastes it
-    event.preventDefault();
-    if (splitMemberList(text).length === 0) return;
-    const input = event.currentTarget;
-    const value = rows[index] ?? "";
-    const pasted = pasteMemberLines(rows, index, text, {
-      start: input.selectionStart ?? value.length,
-      end: input.selectionEnd ?? value.length,
-    });
-    clearErrors();
-    setRows(pasted.rows);
-    // Lines over the limit are not added; the form message says how many.
-    if (pasted.dropped > 0) setError(droppedLinesMessage(pasted.dropped));
-    focusRow(pasted.focus);
-  };
-
-  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (inFlight.current) return;
-    inFlight.current = true;
-    setBusy(true);
-    clearErrors();
-    const entries = rows;
-    const result = idempotencyKey.settle(
-      await runAction((csrf) => addSegmentMembers(segment.id, entries, idempotencyKey.key, csrf)),
-    );
-    inFlight.current = false;
-    setBusy(false);
-    if (!result.ok) {
-      // `entries.{i}` → the line that named that id or phone; the rest is the form message.
-      const lines: Record<number, string> = {};
-      for (const [key, message] of Object.entries(result.fieldErrors ?? {})) {
-        const match = /^entries\.(\d+)$/.exec(key);
-        if (match) lines[Number(match[1])] = message;
-      }
-      setRowErrors(lines);
-      const firstLine = Object.keys(lines)
-        .map(Number)
-        .sort((a, b) => a - b)[0];
-      if (firstLine !== undefined) focusRow(firstLine);
-      // Nothing typed yet: the list-level message is about the empty list, so start at line 1.
-      else if (entries.every((entry) => entry.trim() === "")) focusRow(0);
-      const rest = partitionFieldErrors(
-        result,
-        Object.keys(result.fieldErrors ?? {}).filter((key) => key.startsWith("entries.")),
-      ).formError;
-      setError(rest);
-      return;
-    }
-    onAdded(result.data);
-    onClose();
-  };
-
-  const errorCount = Object.keys(rowErrors).length;
-
-  return (
-    <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open && !busy) onClose();
-      }}
-      title={`«${segment.name}» guruhiga qo‘shish`}
-      description={`Har qatorga bitta mijoz ID raqami yoki telefoni (masalan 5, +998 90 123 45 67 yoki 90 123 45 67). Vergul yoki yangi qator bilan ajratilgan ro‘yxatni joylashtirsangiz, u qatorlarga bo‘linadi. Ko‘pi bilan ${SEGMENT_MEMBERS_MAX} ta.`}
-      className="max-w-[520px]"
-    >
-      <form noValidate onSubmit={onSubmit} className="flex flex-col gap-4">
-        <fieldset className="m-0 flex min-w-0 flex-col gap-2 border-0 p-0">
-          <legend className="mb-2 p-0 text-label font-bold text-ink">Mijozlar</legend>
-          <ol
-            ref={listRef}
-            className="m-0 flex max-h-[min(50vh,360px)] list-none flex-col gap-2 overflow-y-auto p-0.5"
-          >
-            {rows.map((row, index) => {
-              const rowError = rowErrors[index];
-              const errorId = `${idBase}-row-${index}-error`;
-              return (
-                <li key={index} className="flex flex-col gap-1">
-                  <span className="flex items-center gap-2">
-                    <TextInput
-                      name={`entries.${index}`}
-                      aria-label={`${index + 1}-mijoz: ID yoki telefon`}
-                      aria-invalid={rowError ? true : undefined}
-                      aria-describedby={rowError ? errorId : undefined}
-                      placeholder="ID yoki telefon"
-                      autoComplete="off"
-                      maxLength={64}
-                      value={row}
-                      onChange={(event) => setRow(index, event.target.value)}
-                      onPaste={(event) => onPaste(index, event)}
-                      className="font-mono text-[14px]"
-                    />
-                    <button
-                      type="button"
-                      aria-label={`${index + 1}-qatorni o‘chirish`}
-                      disabled={rows.length === 1}
-                      onClick={() => {
-                        clearErrors();
-                        setRows((current) => current.filter((_, i) => i !== index));
-                      }}
-                      className={cn(iconButtonClass, "shrink-0 disabled:opacity-40")}
-                    >
-                      <Icon name="close" size={18} />
-                    </button>
-                  </span>
-                  {rowError && (
-                    <span id={errorId} className="text-body-sm font-semibold text-danger">
-                      {rowError}
-                    </span>
-                  )}
-                </li>
-              );
-            })}
-          </ol>
-          {rows.length < SEGMENT_MEMBERS_MAX && (
-            <button
-              type="button"
-              onClick={() => {
-                setRows((current) => [...current, ""]);
-                focusRow(rows.length);
-              }}
-              className="inline-flex h-10 items-center gap-2 self-start rounded-md px-2 text-label font-bold text-ink transition-colors duration-150 hover:bg-gold-soft"
-            >
-              <Icon name="plus" size={18} />
-              Yana qator
-            </button>
-          )}
-        </fieldset>
-        {(error || errorCount > 0) && (
-          <p
-            role="alert"
-            className="m-0 flex items-start gap-1.5 text-body-sm font-semibold text-ink"
-          >
-            <Icon name="alert-circle" size={16} className="mt-px shrink-0 text-danger" />
-            {error ?? `${errorCount} ta qatorni tekshiring.`}
-          </p>
-        )}
-        <div className="flex flex-wrap justify-end gap-2">
-          <DialogClose disabled={busy} className={buttonStyles({ variant: "outline" })}>
-            Bekor qilish
-          </DialogClose>
-          <Button type="submit" disabled={busy} aria-busy={busy}>
-            <Icon name="plus" size={18} />
-            {busy ? "Qo‘shilmoqda…" : "Qo‘shish"}
-          </Button>
-        </div>
-      </form>
-    </Dialog>
   );
 }

@@ -1,5 +1,4 @@
 import {
-  deactivationConflictMessage,
   type BlockedPeriod,
   type ClinicLocation,
   type ClinicService,
@@ -8,6 +7,8 @@ import {
 } from "@/domain/clinic";
 import { addDays, toLocalIsoDate } from "@/lib/format";
 import { SPECIALIST_SLUG_MAX, slugifyName } from "@/domain/seo";
+import { clinicDataCopy } from "@/domain/copy/clinic";
+import { copyFor } from "@/lib/i18n/admin-locale";
 
 import { blockEnd, blockStart } from "../clinic.schema";
 import type {
@@ -36,11 +37,16 @@ import { delay } from "./delay";
  * The demo's "today" is the reference day (2026-10-24, Tashkent).
  */
 
-const INVALID = "Maydonlarni tekshiring.";
-const notFound = { ok: false as const, error: "Mutaxassis topilmadi.", code: "not_found" };
-const fields = (fieldErrors: Record<string, string>) => ({
+/** The backend's messages in the admin language (the API answers in `Accept-Language`). */
+const messages = () => copyFor(clinicDataCopy);
+const specialistMissing = async () => ({
   ok: false as const,
-  error: INVALID,
+  error: (await messages()).specialistNotFound,
+  code: "not_found",
+});
+const fields = async (fieldErrors: Record<string, string>) => ({
+  ok: false as const,
+  error: (await messages()).checkFields,
   code: "validation_error",
   fieldErrors,
 });
@@ -49,8 +55,8 @@ const byId = (id: string) => MOCK_SPECIALISTS.find((s) => s.id === id) ?? null;
 const now = () => referenceNow().toISOString();
 const today = () => toLocalIsoDate(referenceNow());
 
-/** The API's `unique` message for a specialist slug (contract §2.17). */
-export const SPECIALIST_SLUG_TAKEN_MESSAGE = "Bu manzil (slug) boshqa mutaxassisda bor.";
+/** The API's `unique` message for a specialist slug (contract §2.17), in Uzbek. */
+export const SPECIALIST_SLUG_TAKEN_MESSAGE = clinicDataCopy.uz.slugTaken;
 
 const slugTaken = (slug: string, id: string | null) =>
   slug !== "" && MOCK_SPECIALISTS.some((s) => s.slug === slug && s.id !== id);
@@ -98,7 +104,7 @@ export async function createSpecialist(
     createdAt: now(),
     updatedAt: now(),
   };
-  if (slugTaken(values.slug, null)) return fields({ slug: SPECIALIST_SLUG_TAKEN_MESSAGE });
+  if (slugTaken(values.slug, null)) return fields({ slug: (await messages()).slugTaken });
   return { ok: true, data: profile(blank, values) };
 }
 
@@ -109,12 +115,12 @@ export async function updateSpecialist(
 ): Promise<ActionResult<ClinicSpecialist>> {
   await delay(400);
   const before = byId(id);
-  if (!before) return notFound;
-  if (slugTaken(values.slug, id)) return fields({ slug: SPECIALIST_SLUG_TAKEN_MESSAGE });
+  if (!before) return specialistMissing();
+  if (slugTaken(values.slug, id)) return fields({ slug: (await messages()).slugTaken });
   if (before.isActive && !values.isActive && before.upcomingAppointments > 0 && !force) {
     return {
       ok: false,
-      error: deactivationConflictMessage(before.upcomingAppointments),
+      error: (await messages()).deactivationConflict(before.upcomingAppointments),
       code: "conflict",
     };
   }
@@ -128,7 +134,7 @@ export async function setSpecialistPhoto(
 ): Promise<ActionResult<ClinicSpecialist>> {
   await delay(400);
   const before = byId(id);
-  if (!before) return notFound;
+  if (!before) return specialistMissing();
   return { ok: true, data: { ...before, photoUrl: photo ? "" : null, updatedAt: now() } };
 }
 
@@ -138,12 +144,13 @@ export async function saveOfferedServices(
 ): Promise<ActionResult<ClinicSpecialist>> {
   await delay(400);
   const before = byId(id);
-  if (!before) return notFound;
+  if (!before) return specialistMissing();
+  const m = await messages();
   const errors: Record<string, string> = {};
   const services = values.services.flatMap((row, index) => {
     const service = MOCK_SERVICES.find((s) => s.id === row.serviceId);
     if (!service) {
-      errors[`services.${index}.serviceId`] = "Xizmat topilmadi.";
+      errors[`services.${index}.serviceId`] = m.serviceNotFound;
       return [];
     }
     return [
@@ -172,7 +179,7 @@ export async function saveWorkingHours(
 ): Promise<ActionResult<ClinicSpecialist>> {
   await delay(400);
   const before = byId(id);
-  if (!before) return notFound;
+  if (!before) return specialistMissing();
   return {
     ok: true,
     data: {
@@ -188,13 +195,12 @@ export async function createOverride(
   values: OverrideFormValues,
 ): Promise<ActionResult<HoursOverride>> {
   await delay(300);
-  if (!byId(id)) return notFound;
-  if (values.date < today()) return fields({ date: "O‘tgan sanani tanlab bo‘lmaydi." });
-  if (values.date > addDays(today(), 365)) {
-    return fields({ date: "Ko‘pi bilan bir yil oldinga kiritish mumkin." });
-  }
+  if (!byId(id)) return specialistMissing();
+  const m = await messages();
+  if (values.date < today()) return fields({ date: m.pastDate });
+  if (values.date > addDays(today(), 365)) return fields({ date: m.yearAhead });
   if ((MOCK_OVERRIDES[id] ?? []).some((o) => o.date === values.date)) {
-    return fields({ date: "Bu sana uchun alohida jadval allaqachon bor." });
+    return fields({ date: m.overrideExists });
   }
   return {
     ok: true,
@@ -216,16 +222,16 @@ export async function createBlock(
   values: BlockFormValues,
 ): Promise<ActionResult<BlockedPeriod>> {
   await delay(300);
-  if (!byId(id)) return notFound;
+  if (!byId(id)) return specialistMissing();
   const start = Date.parse(blockStart(values));
   const end = Date.parse(blockEnd(values));
-  if (end <= referenceNow().getTime())
-    return fields({ endTime: "Tugagan vaqtni band qilib bo‘lmaydi." });
-  if (end - start > 366 * 86_400_000) return fields({ endTime: "Ko‘pi bilan 366 kunlik davr." });
+  const m = await messages();
+  if (end <= referenceNow().getTime()) return fields({ endTime: m.blockEnded });
+  if (end - start > 366 * 86_400_000) return fields({ endTime: m.blockTooLong });
   const overlaps = (MOCK_BLOCKS[id] ?? []).some(
     (b) => Date.parse(b.start) < end && Date.parse(b.end) > start,
   );
-  if (overlaps) return fields({ startTime: "Bu vaqt boshqa band vaqt bilan kesishadi." });
+  if (overlaps) return fields({ startTime: m.blockOverlap });
   return {
     ok: true,
     data: {
@@ -247,10 +253,10 @@ export async function deleteScheduleEntry(
   entryId: string,
 ): Promise<ActionResult<{ id: string }>> {
   await delay(250);
-  if (!byId(id)) return notFound;
+  if (!byId(id)) return specialistMissing();
   const rows = kind === "override" ? MOCK_OVERRIDES[id] : MOCK_BLOCKS[id];
   if (!entryId.startsWith("draft-") && !(rows ?? []).some((row) => row.id === entryId)) {
-    return { ok: false, error: "Topilmadi.", code: "not_found" };
+    return { ok: false, error: (await messages()).notFound, code: "not_found" };
   }
   return { ok: true, data: { id: entryId } };
 }
@@ -282,7 +288,7 @@ export async function saveService(
   await delay(400);
   if (id === null) return { ok: true, data: serviceFrom(null, values) };
   const before = MOCK_SERVICES.find((s) => s.id === id) ?? null;
-  if (!before) return { ok: false, error: "Xizmat topilmadi.", code: "not_found" };
+  if (!before) return { ok: false, error: (await messages()).serviceNotFound, code: "not_found" };
   return { ok: true, data: serviceFrom(before, values) };
 }
 

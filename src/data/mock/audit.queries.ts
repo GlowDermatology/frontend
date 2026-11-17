@@ -1,4 +1,9 @@
-import type { AuditEntry, AuditFilters } from "@/domain/audit";
+import {
+  fullAuditFacets,
+  type AuditEntry,
+  type AuditFacets,
+  type AuditFilters,
+} from "@/domain/audit";
 import { toLocalIsoDate } from "@/lib/format";
 
 import { paginate, type Page } from "../types";
@@ -12,6 +17,10 @@ export function filterAudit(filters: AuditFilters): AuditEntry[] {
     if (filters.action && entry.action !== filters.action) return false;
     if (filters.objectType && entry.objectType !== filters.objectType) return false;
     if (filters.objectId && entry.objectId !== filters.objectId) return false;
+    // The backend matches a request id prefix (case-sensitive), never the empty id.
+    if (filters.requestId && !(entry.requestId && entry.requestId.startsWith(filters.requestId))) {
+      return false;
+    }
     const day = toLocalIsoDate(entry.at);
     if (filters.dateFrom && day < filters.dateFrom) return false;
     if (filters.dateTo && day > filters.dateTo) return false;
@@ -25,4 +34,9 @@ export async function listAuditLog(
   pageSize: number,
 ): Promise<Page<AuditEntry>> {
   return paginate(filterAudit(filters), filters.page, pageSize);
+}
+
+/** The demo signs in as the superuser: every prefix, IPs shown. */
+export async function getAuditFacets(): Promise<AuditFacets> {
+  return fullAuditFacets();
 }

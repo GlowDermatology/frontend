@@ -15,6 +15,17 @@ const apiFetch = vi.fn();
 const cachedGet = vi.fn();
 
 vi.mock("next/server", () => ({ connection: vi.fn(async () => undefined) }));
+// The admin language comes from the `gd_admin_language` cookie (unset → Uzbek).
+const adminLanguage: { value?: string } = {};
+vi.mock("next/headers", () => ({
+  cookies: async () => ({
+    get: (name: string) =>
+      name === "gd_admin_language" && adminLanguage.value
+        ? { value: adminLanguage.value }
+        : undefined,
+  }),
+  headers: async () => new Headers(),
+}));
 vi.mock("next/cache", () => ({ refresh: () => refresh() }));
 vi.mock("./auth", () => ({
   verifyStaff: (options?: VerifyStaffOptions) => verifyStaff(options),
@@ -266,6 +277,25 @@ describe("the mock bodies (demo mode)", () => {
   beforeEach(() => {
     delete process.env.GLOWDERMA_DATA_SOURCE;
     verifyStaff.mockResolvedValue({ ok: true, mode: "mock" });
+    delete adminLanguage.value;
+  });
+
+  it("answers and validates in the admin language (gd_admin_language)", async () => {
+    adminLanguage.value = "en";
+    const id = ORDER_SEEDS.find((s) => s.yandex?.stage === "in_transit")!.id;
+    expect(await cancelOrder(id, "Customer asked", KEY, CSRF)).toMatchObject({
+      ok: false,
+      code: "return_requested",
+      error: expect.stringMatching(/^Yandex was asked to bring the parcel back/),
+    });
+    expect(await cancelOrder(id, "x", KEY, CSRF)).toEqual({
+      ok: false,
+      error: "Enter a reason.",
+      fieldErrors: { reason: "Enter at least 3 characters." },
+    });
+    adminLanguage.value = "ru";
+    const dispatched = await dispatchOrder(id, { contentsVerified: true, weightG: 0 }, KEY, CSRF);
+    expect(dispatched).toMatchObject({ ok: false, fieldErrors: { weightG: "Не менее 1 г." } });
   });
 
   const seedWhere = (pick: (s: (typeof ORDER_SEEDS)[number]) => boolean) =>

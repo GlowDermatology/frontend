@@ -43,6 +43,10 @@ describe("safeNext", () => {
     expect(safeNext("/admin/login?next=/admin/orders")).toBe("/admin");
     expect(safeNext("/admin/auth/refresh?next=/admin")).toBe("/admin");
     expect(safeNext("/admin/auth")).toBe("/admin");
+    // Nor at the own-password pages (DESIGN §E): the forced change would loop on itself.
+    expect(safeNext("/admin/change-password?next=/admin/staff")).toBe("/admin");
+    expect(safeNext("/admin/set-password")).toBe("/admin");
+    expect(safeNext("/admin/change-passwords")).toBe("/admin/change-passwords");
   });
 
   it("drops fragments", () => {

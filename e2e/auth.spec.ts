@@ -38,3 +38,27 @@ test("sign in, then sign out ends the session", async ({ page }) => {
   await page.goto("/admin");
   await expect(page).toHaveURL(/\/admin\/login/);
 });
+
+test("the sign-in page's language switch re-renders the page and keeps the typed email", async ({
+  page,
+}) => {
+  await page.goto("/admin/login");
+  await expect(page.getByRole("heading", { level: 1, name: "Tizimga kirish" })).toBeVisible();
+  await page.getByLabel("Email").fill("someone@glowderma.uz");
+  const languages = page.getByRole("group", { name: "Interfeys tili" });
+  await languages.getByRole("button", { name: "English" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Sign in" })).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(page.getByLabel("Email")).toHaveValue("someone@glowderma.uz");
+  await expect(
+    page
+      .getByRole("group", { name: "Interface language" })
+      .getByRole("button", { name: "English" }),
+  ).toHaveAttribute("aria-pressed", "true");
+
+  // An empty password is caught before the post: the field is marked and focused.
+  await page.locator('button[type="submit"]').click();
+  await expect(page.getByLabel("Password")).toBeFocused();
+  await expect(page.getByLabel("Password")).toHaveAttribute("aria-invalid", "true");
+  await expect(page.getByText("Enter your password.")).toBeVisible();
+});

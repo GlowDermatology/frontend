@@ -30,6 +30,11 @@ import paymentsPageFixture from "./api/__fixtures__/payments-page.json";
  * documented empty shapes.
  */
 vi.mock("next/server", () => ({ connection: vi.fn(async () => undefined) }));
+// The admin language comes from the `gd_admin_language` cookie (none here → Uzbek).
+vi.mock("next/headers", () => ({
+  cookies: async () => ({ get: () => undefined }),
+  headers: async () => new Headers(),
+}));
 
 const cachedGet = vi.fn();
 const apiFetch = vi.fn();

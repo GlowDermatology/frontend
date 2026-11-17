@@ -322,13 +322,18 @@ export function deleteClinicRows(prefix: string): { specialists: number; service
   return shellJson(code);
 }
 
-/** Removes the staff accounts a spec invited (emails starting with `prefix`; never the seeded admin). */
+/**
+ * Removes the staff accounts a spec invited (emails starting with `prefix`; never the seeded
+ * admin). An account that signed in keeps its sessions (`AuthSession.staff` is PROTECT, so the
+ * audit trail never loses a session's owner): those go first.
+ */
 export function deleteStaffAccounts(prefix: string): number {
   if (!prefix.startsWith("e2e")) throw new Error("only e2e accounts are deleted");
   const code = [
     "import json",
-    "from glowderma.accounts.models import StaffUser",
+    "from glowderma.accounts.models import AuthSession, StaffUser",
     `prefix = json.loads(${JSON.stringify(JSON.stringify(prefix))})`,
+    "AuthSession.objects.filter(staff__email__startswith=prefix).delete()",
     "print(json.dumps(StaffUser.objects.filter(email__startswith=prefix).delete()[0]))",
   ].join("\n");
   return shellJson<number>(code);
@@ -552,4 +557,65 @@ export function createPaidYandexOrder(
     throw new Error(`the backend did not create a paid Yandex order: ${JSON.stringify(answer)}`);
   }
   return answer.id;
+}
+
+/**
+ * A staff account that must set its own password at the next sign-in (DESIGN §E, the forced
+ * change): created or updated to `password`, active, not a manager, `must_change_password` on, as
+ * if a manager had just handed over a temporary password. Deleted with `deleteStaffAccounts`.
+ */
+export function ensureMustChangeStaffAccount(email: string, password: string): void {
+  if (!email.startsWith("e2e")) throw new Error("only e2e accounts are created");
+  const code = [
+    "import json",
+    "from glowderma.accounts.models import StaffUser",
+    `email = json.loads(${JSON.stringify(JSON.stringify(email))})`,
+    `password = json.loads(${JSON.stringify(JSON.stringify(password))})`,
+    "user, _ = StaffUser.objects.get_or_create(email=email, defaults={'full_name': 'E2E majburiy'})",
+    "user.is_active = True",
+    "user.is_superuser = False",
+    "user.is_manager = False",
+    "user.must_change_password = True",
+    "user.set_password(password)",
+    "user.save()",
+    "print(json.dumps({'id': user.pk, 'must_change': user.must_change_password}))",
+  ].join("\n");
+  const answer = shellJson<{ id: number; must_change: boolean }>(code);
+  if (!answer.id || !answer.must_change) {
+    throw new Error(`the backend did not prepare the account: ${JSON.stringify(answer)}`);
+  }
+}
+
+/** Whether the e2e staff account `email` still has to set its own password. */
+export function staffMustChangePassword(email: string): boolean {
+  if (!email.startsWith("e2e")) throw new Error("only e2e accounts are read");
+  const code = [
+    "import json",
+    "from glowderma.accounts.models import StaffUser",
+    `email = json.loads(${JSON.stringify(JSON.stringify(email))})`,
+    "print(json.dumps(StaffUser.objects.get(email=email).must_change_password))",
+  ].join("\n");
+  return shellJson<boolean>(code);
+}
+
+/**
+ * A fresh single-use password link token of the e2e account `email` (`invite` or `reset`), the
+ * raw value the e-mail would carry (`{ADMIN_PANEL_URL}/set-password?token=…`); earlier links of
+ * the account are revoked. No e-mail is sent.
+ */
+export function issueStaffPasswordToken(
+  email: string,
+  purpose: "invite" | "reset" = "invite",
+): string {
+  if (!email.startsWith("e2e")) throw new Error("only e2e accounts get links");
+  const code = [
+    "import json",
+    "from glowderma.accounts.models import StaffUser",
+    "from glowderma.accounts.services import issue_password_token",
+    `email = json.loads(${JSON.stringify(JSON.stringify(email))})`,
+    `purpose = json.loads(${JSON.stringify(JSON.stringify(purpose))})`,
+    "_, raw = issue_password_token(StaffUser.objects.get(email=email), purpose, actor=None)",
+    "print(json.dumps(raw))",
+  ].join("\n");
+  return shellJson<string>(code);
 }

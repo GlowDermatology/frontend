@@ -1,3 +1,7 @@
+import type { Locale } from "@/lib/i18n/locales";
+
+import { jobCopy } from "./copy/jobs";
+
 /**
  * Background jobs (contract §2.14). M1 has one kind, the Billz import; the
  * admin polls `GET jobs/{id}/` until the job is `succeeded` or `failed`.
@@ -31,16 +35,17 @@ export interface BillzImportResult {
  * happened.
  */
 export const BILLZ_LISTING_INCOMPLETE = "billz_listing_incomplete";
-export const BILLZ_LISTING_INCOMPLETE_MESSAGE =
-  "Billz’dan mahsulotlar ro‘yxati to‘liq kelmadi (yoki shubhali darajada qisqa), shuning uchun hech narsa o‘zgartirilmadi va yashirilmadi. Birozdan so‘ng qayta urinib ko‘ring.";
+export const BILLZ_LISTING_INCOMPLETE_MESSAGE = jobCopy.uz.listingIncomplete;
 
 /**
  * `Job.error.code` when Billz refused the API key (M3): retrying cannot
  * help, the administrator has to check the Billz key in the settings.
  */
 export const BILLZ_AUTH_FAILED = "billz_auth_failed";
-export const BILLZ_AUTH_FAILED_MESSAGE =
-  "Billz API kalitni qabul qilmadi, shuning uchun import bajarilmadi. Qayta urinish yordam bermaydi: administrator Billz kalitini tekshirishi kerak.";
+export const BILLZ_AUTH_FAILED_MESSAGE = jobCopy.uz.authFailed;
+
+/** A failed job without a message of its own (Uzbek, the stored source text). */
+export const JOB_UNEXPECTED_MESSAGE = jobCopy.uz.unexpected;
 
 export interface Job {
   id: string;
@@ -59,14 +64,15 @@ export function isJobDone(state: JobState): boolean {
 }
 
 /**
- * Uzbek summary of a finished import: "3 ta yangi · 245 ta yangilandi · 0 ta
+ * Summary of a finished import in the admin language: "3 ta yangi · 245 ta yangilandi · 0 ta
  * o‘zgarmadi", plus "· 2 ta yashirildi" after a full run.
  */
-export function billzImportSummary(result: BillzImportResult): string {
+export function billzImportSummary(result: BillzImportResult, locale: Locale = "uz"): string {
+  const m = jobCopy[locale].summary;
   return [
-    `${result.created} ta yangi`,
-    `${result.updated} ta yangilandi`,
-    `${result.unchanged} ta o‘zgarmadi`,
-    ...(result.hidden === undefined ? [] : [`${result.hidden} ta yashirildi`]),
+    m.created(result.created),
+    m.updated(result.updated),
+    m.unchanged(result.unchanged),
+    ...(result.hidden === undefined ? [] : [m.hidden(result.hidden)]),
   ].join(" · ");
 }

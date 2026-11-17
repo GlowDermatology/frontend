@@ -1,17 +1,16 @@
+import { catalogDataCopy } from "@/domain/copy/catalog";
 import type { Job } from "@/domain/job";
-import { BILLZ_UNAVAILABLE_MESSAGE, type Product, type ProductImage } from "@/domain/product";
+import {
+  lastChangeText,
+  type Product,
+  type ProductImage,
+  type ProductLastChange,
+} from "@/domain/product";
 import { slugifyName } from "@/domain/seo";
-import { formatNumber } from "@/lib/format";
+import { copyFor, getAdminLocale } from "@/lib/i18n/admin-locale";
 
 import { referenceNow } from "../config";
-import {
-  IMAGE_TOO_LARGE_MESSAGE,
-  IMAGE_TYPE_MESSAGE,
-  IMAGE_TYPES,
-  MAX_IMAGE_BYTES,
-  MAX_IMAGES,
-  type ProductFormValues,
-} from "../products.schema";
+import { imageFileProblem, MAX_IMAGES, type ProductFormValues } from "../products.schema";
 import type { ActionResult } from "../types";
 import { delay } from "./delay";
 import { PRODUCTS, withSeoStatus } from "./catalog";
@@ -25,17 +24,21 @@ import { getProduct } from "./products.queries";
  * the shapes the editor's orchestration expects. Nothing is persisted.
  */
 
-function changeNote(before: Product | null, values: ProductFormValues): string {
-  if (!before) return "mahsulot yaratildi";
+/** The `last_change` the server would record for this save (contract §5.2). */
+export function changeOf(
+  before: Product | null,
+  values: ProductFormValues,
+): Pick<ProductLastChange, "kind" | "oldPrice" | "newPrice"> {
+  if (!before) return { kind: "created" };
   if (before.price !== values.price) {
-    return `narx ${formatNumber(before.price)} → ${formatNumber(values.price)}`;
+    return { kind: "price_changed", oldPrice: before.price, newPrice: values.price };
   }
   if (before.status !== values.status) {
-    return values.status === "active" ? "faollashtirildi" : "yashirildi";
+    return { kind: values.status === "active" ? "activated" : "hidden" };
   }
   if (before.promo !== values.promo)
-    return values.promo ? "aksiyaga qo‘shildi" : "aksiyadan olindi";
-  return "ma’lumotlar yangilandi";
+    return { kind: values.promo ? "promo_added" : "promo_removed" };
+  return { kind: "updated" };
 }
 
 /**
@@ -46,8 +49,8 @@ function changeNote(before: Product | null, values: ProductFormValues): string {
  */
 export const MOCK_BILLZ_DOWN_SUFFIX = "9999";
 
-/** The API's `unique` message for a product slug (contract §2.3). */
-export const PRODUCT_SLUG_TAKEN_MESSAGE = "Bu manzil (slug) boshqa mahsulotda bor.";
+/** The API's `unique` message for a product slug (contract §2.3), in Uzbek. */
+export const PRODUCT_SLUG_TAKEN_MESSAGE = catalogDataCopy.uz.productSlugTaken;
 
 /** The slug the save keeps: the typed one, else the stored one, else one derived like the server's. */
 function savedSlug(before: Product | null, data: ProductFormValues): string {
@@ -61,21 +64,18 @@ export async function saveProduct(
   data: ProductFormValues,
 ): Promise<ActionResult<Product>> {
   await delay(600);
+  const m = await copyFor(catalogDataCopy);
   const before = id === null ? null : await getProduct(id);
   if (id !== null && !before && !id.startsWith("draft-")) {
-    return { ok: false, error: "Mahsulot topilmadi.", code: "not_found" };
+    return { ok: false, error: m.productNotFound, code: "not_found" };
   }
   const billzChanged = !before || before.billzId !== data.billzId;
   if (billzChanged && data.billzId.endsWith(MOCK_BILLZ_DOWN_SUFFIX)) {
-    return { ok: false, error: BILLZ_UNAVAILABLE_MESSAGE, code: "provider_unavailable" };
+    return { ok: false, error: m.billzUnavailable, code: "provider_unavailable" };
   }
   const slug = savedSlug(before, data);
   if (data.slug && PRODUCTS.some((p) => p.slug === slug && p.id !== before?.id)) {
-    return {
-      ok: false,
-      error: "Maydonlarni tekshiring.",
-      fieldErrors: { slug: PRODUCT_SLUG_TAKEN_MESSAGE },
-    };
+    return { ok: false, error: m.checkFields, fieldErrors: { slug: m.productSlugTaken } };
   }
   return {
     ok: true,
@@ -97,7 +97,8 @@ export async function saveProduct(
       lastChange: {
         by: "Administrator",
         at: referenceNow().toISOString(),
-        note: changeNote(before, data),
+        ...changeOf(before, data),
+        note: lastChangeText(changeOf(before, data), "uz"),
       },
       slug,
       seo: data.seo,
@@ -115,16 +116,8 @@ export async function uploadProductImage(
 ): Promise<ActionResult<ProductImage>> {
   await delay(300);
   void productId;
-  if (!(IMAGE_TYPES as ReadonlyArray<string>).includes(file.type)) {
-    return { ok: false, error: IMAGE_TYPE_MESSAGE, fieldErrors: { file: IMAGE_TYPE_MESSAGE } };
-  }
-  if (file.size > MAX_IMAGE_BYTES) {
-    return {
-      ok: false,
-      error: IMAGE_TOO_LARGE_MESSAGE,
-      fieldErrors: { file: IMAGE_TOO_LARGE_MESSAGE },
-    };
-  }
+  const problem = imageFileProblem(file, await getAdminLocale());
+  if (problem) return { ok: false, error: problem, fieldErrors: { file: problem } };
   return { ok: true, data: { id: `img-${crypto.randomUUID()}`, label: file.name } };
 }
 
@@ -144,7 +137,7 @@ export async function reorderProductImages(
   await delay(150);
   void productId;
   if (imageIds.length > MAX_IMAGES) {
-    return { ok: false, error: `Ko‘pi bilan ${MAX_IMAGES} ta rasm qo‘shish mumkin.` };
+    return { ok: false, error: (await copyFor(catalogDataCopy)).tooManyImages(MAX_IMAGES) };
   }
   return { ok: true, data: { imageIds } };
 }

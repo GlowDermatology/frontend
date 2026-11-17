@@ -35,6 +35,7 @@ export function campaignRecord(
 ): NotificationRecord {
   return {
     audienceLabel: `Barcha · ${formatNumber(TOTAL_DEVICES)}`,
+    audienceName: null,
     recipientCount: TOTAL_DEVICES,
     audience: ALL_AUDIENCE,
     link: { kind: "none" },
@@ -146,6 +147,7 @@ const DESIGN_HISTORY: ReadonlyArray<NotificationRecord> = [
     title: "Yangi dermatolog qabuli ochildi",
     body: "Yangi dermatolog qabuliga yozilish ochildi. Ilova orqali qulay vaqtni band qiling.",
     audienceLabel: "Doimiy mijozlar · 612",
+    audienceName: "Doimiy mijozlar",
     recipientCount: 612,
     audience: { type: "group", segmentId: "1" },
     state: "scheduled",
@@ -297,6 +299,7 @@ const DESIGN_HISTORY: ReadonlyArray<NotificationRecord> = [
     title: "Quyoshdan himoya: 15% chegirma",
     body: "SPF 50 kremlarga 15% chegirma — 10 mln+ xarid qilgan mijozlar uchun.",
     audienceLabel: "10 mln+ xarid · 318",
+    audienceName: "10 mln+ xarid",
     recipientCount: 318,
     audience: { type: "group", segmentId: "2" },
     state: "sent",

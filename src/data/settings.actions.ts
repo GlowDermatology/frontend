@@ -2,13 +2,17 @@
 
 import { z } from "zod";
 
+import { passwordDataCopy } from "@/domain/copy/password";
+import { settingsDataCopy } from "@/domain/copy/settings";
+import { copyFor, getLocalized } from "@/lib/i18n/admin-locale";
+
 import { apiMutation, fieldErrorsFrom, guardAction, sessionToken } from "./action-guard";
 import { apiChangePassword } from "./api/admin";
 import { apiOAuthUnlink } from "./api/auth";
 import { toActionResult } from "./api/mappers/errors";
 import { OAUTH_PROVIDERS, type OAuthProvider } from "./auth/oauth";
 import * as mock from "./mock/settings.actions";
-import { changePasswordSchema, type ChangePasswordValues } from "./settings.schema";
+import { changePasswordSchemas, type ChangePasswordValues } from "./settings.schema";
 import { dataSource } from "./source";
 import type { ActionResult } from "./types";
 
@@ -28,8 +32,10 @@ export async function changePassword(
 ): Promise<ActionResult<{ changed: true }>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
-  const parsed = changePasswordSchema.safeParse(values);
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  const parsed = (await getLocalized(changePasswordSchemas)).safeParse(values);
+  if (!parsed.success) {
+    return fieldErrorsFrom(parsed.error, (await copyFor(passwordDataCopy)).checkFields);
+  }
   if ((await dataSource()) === "api") {
     try {
       await apiChangePassword(sessionToken(guard.session), {
@@ -44,7 +50,7 @@ export async function changePassword(
   return mock.changePassword(parsed.data);
 }
 
-const providerSchema = z.enum(OAUTH_PROVIDERS, { error: "Ruxsat etilmagan qiymat." });
+const providerSchema = z.enum(OAUTH_PROVIDERS);
 
 /**
  * Unlinks the caller's Google or Facebook identity (contract §2.1
@@ -60,7 +66,10 @@ export async function unlinkSocialAccount(
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
   const parsed = providerSchema.safeParse(provider);
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  if (!parsed.success) {
+    const m = await copyFor(settingsDataCopy);
+    return { ok: false, error: m.notAllowed, fieldErrors: { "": m.notAllowed } };
+  }
   if ((await dataSource()) === "api") {
     return apiMutation("unlinkSocialAccount", async () => {
       try {

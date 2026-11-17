@@ -1,4 +1,6 @@
 import type { LedgerEntry } from "@/domain/cashback";
+import { customerDataCopy } from "@/domain/copy/customers";
+import { copyFor } from "@/lib/i18n/admin-locale";
 
 import { referenceNow } from "../config";
 import type { CashbackAdjustmentInput } from "../customers.actions";
@@ -20,14 +22,15 @@ export async function adjustCashback(
   input: CashbackAdjustmentInput,
 ): Promise<ActionResult<{ entry: LedgerEntry; balance?: number }>> {
   await delay(500);
+  const m = await copyFor(customerDataCopy);
   const customer = await getCustomer(customerId);
-  if (!customer) return { ok: false, error: "Mijoz topilmadi.", code: "not_found" };
+  if (!customer) return { ok: false, error: m.customerNotFound, code: "not_found" };
   const signed = input.direction === "add" ? input.amount : -input.amount;
   if (input.direction === "subtract" && input.amount > customer.available) {
     return {
       ok: false,
-      error: "Balans manfiy bo‘lib qoladi.",
-      fieldErrors: { amount: "Balansdan ko‘p ayirib bo‘lmaydi." },
+      error: m.balanceNegative,
+      fieldErrors: { amount: m.subtractTooMuch },
     };
   }
   return {
@@ -39,6 +42,14 @@ export async function adjustCashback(
         kind: "adjustment",
         source: "Administrator",
         note: input.reason,
+        origin: {
+          type: "admin",
+          ref: "",
+          actor: "Administrator",
+          base: null,
+          percent: null,
+          reason: input.reason,
+        },
         amount: signed,
       },
     },

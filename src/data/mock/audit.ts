@@ -11,6 +11,29 @@ const ADMIN = { actor: "Administrator", actorId: "1" } as const;
 const SYSTEM = { actor: null, actorId: null } as const;
 
 export const MOCK_AUDIT: ReadonlyArray<AuditEntry> = [
+  // One request, two entries (staff invite): the request id links them.
+  {
+    id: "9014",
+    at: t("2026-10-24T12:10:00"),
+    ...ADMIN,
+    action: "staff.password_link_sent",
+    objectType: "staff",
+    objectId: "4",
+    data: { purpose: "invite", expires_at: "2026-10-27T12:10:00+05:00" },
+    ip: "203.0.113.7",
+    requestId: "7c1f0e2a-4b5d-4e8f-9a6b-3c2d1e0f9a8b",
+  },
+  {
+    id: "9013",
+    at: t("2026-10-24T12:10:00"),
+    ...ADMIN,
+    action: "staff.created",
+    objectType: "staff",
+    objectId: "4",
+    data: { email: "dilnoza@glowderma.uz", is_manager: false, delivery: "email_link" },
+    ip: "203.0.113.7",
+    requestId: "7c1f0e2a-4b5d-4e8f-9a6b-3c2d1e0f9a8b",
+  },
   {
     id: "9012",
     at: t("2026-10-24T11:58:00"),

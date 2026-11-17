@@ -1,3 +1,8 @@
+import { createFormatter } from "@/lib/format";
+import { isFilled, recommendedToAsk } from "@/lib/forms/recommended-rules";
+import type { Locale } from "@/lib/i18n/locales";
+
+import { catalogDataCopy } from "./copy/catalog";
 import type { SeoStatus, SeoTexts } from "./seo";
 
 /**
@@ -58,13 +63,83 @@ export interface Product {
   images: ProductImage[];
   /** First photo (`main_image_url`), rendered before `art` in lists and pickers. */
   mainImageUrl?: string;
-  lastChange?: { by: string; at: string; note: string };
+  /** The latest change of the product (§5.2), rendered in the admin language by `lastChangeText`. */
+  lastChange?: ProductLastChange;
   /** The website URL segment (`/mahsulotlar/{slug}`, B-W1): unique, never only digits. */
   slug: string;
   /** Page title / meta description per language; `""` = the website builds one (B-W1). */
   seo: SeoTexts;
   /** The server's «SEO holati» checklist (B-W1). */
   seoStatus: SeoStatus;
+}
+
+/** `last_change.kind` (contract §5.2). */
+export type ProductChangeKind =
+  | "created"
+  | "price_changed"
+  | "activated"
+  | "hidden"
+  | "promo_added"
+  | "promo_removed"
+  | "updated";
+
+export interface ProductLastChange {
+  /** The staff member's display name; `null` = the system (e.g. the Billz full sync). */
+  by: string | null;
+  at: string;
+  kind: ProductChangeKind;
+  /** `price_changed` only. */
+  oldPrice?: number;
+  newPrice?: number;
+  /**
+   * @deprecated The Uzbek text of the change (`lastChangeText(change, "uz")`), kept for older
+   * readers; screens render `lastChangeText(change, locale)`.
+   */
+  note?: string;
+}
+
+/** "narx 175 000 → 185 000" · "цена 175 000 → 185 000" · "price 175,000 → 185,000". */
+export function lastChangeText(
+  change: Pick<ProductLastChange, "kind" | "oldPrice" | "newPrice">,
+  locale: Locale = "uz",
+): string {
+  const t = catalogDataCopy[locale].lastChange;
+  switch (change.kind) {
+    case "created":
+      return t.created;
+    case "price_changed": {
+      const fmt = createFormatter(locale);
+      return t.priceChanged(fmt.number(change.oldPrice ?? 0), fmt.number(change.newPrice ?? 0));
+    }
+    case "activated":
+      return t.activated;
+    case "hidden":
+      return t.hidden;
+    case "promo_added":
+      return t.promoAdded;
+    case "promo_removed":
+      return t.promoRemoved;
+    case "updated":
+      return t.updated;
+  }
+}
+
+/** Who made the change, in the admin language (`null` = the system). */
+export function lastChangeActor(change: Pick<ProductLastChange, "by">, locale: Locale = "uz") {
+  return change.by ?? catalogDataCopy[locale].systemActor;
+}
+
+/**
+ * The label the API mapper gives an uploaded photo («Rasm 2»: the API stores no name). A data
+ * token, not UI text: the editor shows such a photo by its place in the admin language.
+ */
+export function defaultImageLabel(position: number): string {
+  return `Rasm ${position}`;
+}
+
+/** Whether `label` is the mapper's token (`defaultImageLabel`), not a name someone gave. */
+export function isDefaultImageLabel(label: string): boolean {
+  return /^Rasm \d+$/.test(label);
 }
 
 export const LOW_STOCK_THRESHOLD = 3;
@@ -75,8 +150,7 @@ export const LOW_STOCK_THRESHOLD = 3;
  * `provider_unavailable` and writes nothing. The editor keeps every value
  * and shows this on the form.
  */
-export const BILLZ_UNAVAILABLE_MESSAGE =
-  "Billz javob bermadi: mahsulot saqlanmadi. Kiritilgan ma’lumotlar joyida — birozdan so‘ng «Saqlash»ni qayta bosing.";
+export const BILLZ_UNAVAILABLE_MESSAGE = catalogDataCopy.uz.billzUnavailable;
 
 export type StockLevel = "out" | "low" | "ok";
 
@@ -99,4 +173,48 @@ export function incompleteLanguages(
 /** Uzbek name, or the raw Billz name while the product is not filled in yet. */
 export function productDisplayName(product: Pick<Product, "texts" | "billzName">): string {
   return product.texts.uz.name || product.billzName;
+}
+
+/**
+ * Fields the editor recommends but does not require (DESIGN §A "save anyway?"): photos and the
+ * Uzbek description. Names are the form paths the editor reveals. The SEO title / description
+ * are not asked: the website builds its own when they are empty, and the «SEO holati» checklist
+ * already reports them.
+ */
+export type ProductRecommendedField = "images" | "texts.uz.description";
+
+export function productRecommendedMissing(values: {
+  images: ReadonlyArray<unknown>;
+  texts: { uz: { description: string } };
+}): ProductRecommendedField[] {
+  const missing: ProductRecommendedField[] = [];
+  if (values.images.length === 0) missing.push("images");
+  if (!values.texts.uz.description.trim()) missing.push("texts.uz.description");
+  return missing;
+}
+
+/**
+ * The empty recommended fields worth asking about on this save (`recommendedToAsk`): a hidden
+ * product never asks; a new one, or the save that shows it, asks about every empty field; else
+ * only about a field the admin just emptied. `saved` is the editor's baseline (`null` = create).
+ */
+export function productRecommendedToAsk(
+  values: {
+    images: ReadonlyArray<unknown>;
+    texts: { uz: { description: string } };
+    status: ProductStatus;
+  },
+  saved: {
+    images: ReadonlyArray<unknown>;
+    texts: { uz: { description: string } };
+    status: ProductStatus;
+  } | null,
+): ProductRecommendedField[] {
+  return recommendedToAsk(productRecommendedMissing(values), {
+    isNew: saved === null,
+    active: values.status === "active",
+    wasActive: saved ? saved.status === "active" : undefined,
+    filledBefore: (field) =>
+      field === "images" ? (saved?.images.length ?? 0) > 0 : isFilled(saved?.texts.uz.description),
+  });
 }

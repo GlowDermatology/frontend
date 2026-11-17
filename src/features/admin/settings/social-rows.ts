@@ -1,3 +1,4 @@
+import { authDataCopy, type AuthDataCopy } from "@/domain/copy/auth";
 import { linkBlockedMessage, type StaffAuthMethod } from "@/domain/settings";
 
 /**
@@ -63,15 +64,17 @@ export type SocialBlock =
  * otherwise): any other session gets no «Bog‘lash» and, while a provider is
  * left to link, the password-first hint instead. A backend that does not
  * report the method (`undefined`, before M3) keeps «Bog‘lash». Unlinking is
- * not affected. `authMethod` has no default: every caller states what it knows.
+ * not affected. `authMethod` has no default: every caller states what it knows. `m` picks the
+ * hint's language (Uzbek by default).
  */
 export function socialBlock(
   enabled: readonly SocialProviderOption[],
   linked: readonly string[] | null,
   authMethod: StaffAuthMethod | null | undefined,
+  m: AuthDataCopy = authDataCopy.uz,
 ): SocialBlock {
   if (linked === null) return enabled.length > 0 ? { kind: "unknown" } : { kind: "off" };
-  const hint = linkBlockedMessage(authMethod);
+  const hint = linkBlockedMessage(authMethod, m);
   const rows = socialRows(enabled, linked, hint === null);
   if (rows.length === 0) return { kind: "off" };
   const linkable = enabled.some((provider) => !linked.includes(provider.id));

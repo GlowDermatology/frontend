@@ -1,8 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import { BACKEND_DIR, deleteClinicRows } from "./backend-shell";
+import { saveAnyway } from "./catalog-helpers";
 import { API_URL } from "./env";
 import { heading, toast, watchPage } from "./helpers";
+import { fillDate, fillTime, selectOption, selectValue } from "./ui";
 
 /**
  * Specialists and services (gap FND-1 / FND-7, contract §2.17): a service
@@ -51,13 +53,19 @@ test("a specialist with a service and hours made in the admin is bookable", asyn
   await expect(heading(page)).toHaveText("Xizmatlar");
   await page.getByRole("button", { name: "Yangi xizmat" }).click();
   const serviceDialog = page.getByRole("dialog", { name: "Yangi xizmat" });
-  await serviceDialog.getByLabel("Nomi (uz)", { exact: true }).fill(serviceName);
+  await serviceDialog.getByLabel("Nomi (o‘zbekcha)", { exact: true }).fill(serviceName);
   await serviceDialog.getByLabel("Davomiyligi").fill("45");
   await serviceDialog.getByLabel("Davomiyligi").fill("43");
   await serviceDialog.getByRole("button", { name: "Saqlash" }).click();
-  await expect(serviceDialog.getByText("Davomiylik 5 daqiqaga karrali bo‘lsin.")).toBeVisible();
+  // The error is listed above the form and shown under the field, which gets the focus.
+  await expect(
+    serviceDialog.getByText("Davomiylik 5 daqiqaga karrali bo‘lsin.").first(),
+  ).toBeVisible();
+  await expect(serviceDialog.getByLabel("Davomiyligi")).toBeFocused();
   await serviceDialog.getByLabel("Davomiyligi").fill("45");
   await serviceDialog.getByRole("button", { name: "Saqlash" }).click();
+  // No Russian/English name or description yet: "save anyway?".
+  await saveAnyway(page, toast(page, "Xizmat qo‘shildi"));
   await expect(toast(page, "Xizmat qo‘shildi")).toBeVisible();
 
   // 2. A specialist (created inactive), opened on its page.
@@ -65,9 +73,12 @@ test("a specialist with a service and hours made in the admin is bookable", asyn
   await page.getByRole("button", { name: "Yangi mutaxassis" }).click();
   const create = page.getByRole("dialog", { name: "Yangi mutaxassis" });
   await create.getByLabel("Ism familiya").fill(specialistName);
-  await create.getByLabel("Mutaxassislik").selectOption("cosmetologist");
+  await selectOption(create, "Mutaxassislik", "Kosmetolog");
+  expect(await selectValue(create, "Mutaxassislik")).toBe("cosmetologist");
   await create.getByLabel("Tajriba (yil)").fill("6");
   await create.getByRole("button", { name: "Qo‘shish" }).click();
+  // No qualifications or bio yet: "save anyway?".
+  await saveAnyway(page, toast(page, "Mutaxassis qo‘shildi"));
   await expect(page).toHaveURL(/\/admin\/specialists\/\d+$/);
   await expect(heading(page)).toHaveText(specialistName);
   const specialistId = page.url().split("/").at(-1)!;
@@ -76,12 +87,12 @@ test("a specialist with a service and hours made in the admin is bookable", asyn
   const offers = page.getByRole("region", { name: "Xizmatlar va narxlar" });
   await offers.getByRole("button", { name: "Xizmat qo‘shish" }).click();
   const row = offers.locator("fieldset").last();
-  const option = row.getByLabel("Xizmat").locator("option", { hasText: serviceName });
-  await row.getByLabel("Xizmat").selectOption((await option.getAttribute("value"))!);
+  await selectOption(row, "Xizmat", serviceName);
   await row.getByLabel("Narx").fill("55000");
   await offers.getByRole("button", { name: "Saqlash" }).click();
   await expect(toast(page, "Xizmatlar saqlandi")).toBeVisible();
-  const serviceId = await row.locator("select").inputValue();
+  const serviceId = await selectValue(row, "Xizmat");
+  expect(serviceId).toMatch(/^\d+$/);
 
   // 4. Every day 09:00–18:00, a 13:00–14:00 break.
   const hours = page.getByRole("region", { name: "Haftalik ish vaqti" });
@@ -96,13 +107,14 @@ test("a specialist with a service and hours made in the admin is bookable", asyn
   ]) {
     const toggle = hours.getByRole("switch", { name: `${day} — ish kuni`, exact: true });
     if ((await toggle.getAttribute("aria-checked")) !== "true") await toggle.click();
-    await hours.getByLabel(`${day}: tanaffus boshi`, { exact: true }).fill("13:00");
-    await hours.getByLabel(`${day}: tanaffus oxiri`, { exact: true }).fill("14:00");
+    await fillTime(hours, `${day}: tanaffus boshi`, "13:00");
+    await fillTime(hours, `${day}: tanaffus oxiri`, "14:00");
   }
-  await hours.getByLabel("Dushanba: tugashi").fill("18:03");
+  await fillTime(hours, "Dushanba: tugashi", "18:03");
   await hours.getByRole("button", { name: "Saqlash" }).click();
-  await expect(hours.getByText("Vaqt 5 daqiqalik qadamda bo‘lsin.")).toBeVisible();
-  await hours.getByLabel("Dushanba: tugashi").fill("18:00");
+  await expect(hours.getByText("Vaqt 5 daqiqalik qadamda bo‘lsin.").first()).toBeVisible();
+  await expect(hours.getByLabel("Dushanba: tugashi", { exact: true })).toBeFocused();
+  await fillTime(hours, "Dushanba: tugashi", "18:00");
   await hours.getByRole("button", { name: "Saqlash" }).click();
   await expect(toast(page, "Ish vaqti saqlandi")).toBeVisible();
 
@@ -117,6 +129,8 @@ test("a specialist with a service and hours made in the admin is bookable", asyn
   const profile = page.getByRole("region", { name: "Profil" });
   await profile.getByRole("switch", { name: "Mutaxassis faol" }).click();
   await profile.getByRole("button", { name: "Saqlash" }).click();
+  // Active without a photo, qualifications or bio: "save anyway?".
+  await saveAnyway(page, toast(page, "Profil saqlandi"));
   await expect(toast(page, "Profil saqlandi")).toBeVisible();
 
   const open = await slots(page, specialistId, serviceId, tomorrow);
@@ -133,10 +147,10 @@ test("a specialist with a service and hours made in the admin is bookable", asyn
 
   // 6. A blocked period 10:00–11:00 tomorrow takes those slots away; deleting it gives them back.
   const blocks = page.getByRole("region", { name: "Band vaqtlar" });
-  await blocks.getByLabel("Boshlanish sanasi").fill(tomorrow);
-  await blocks.getByLabel("Boshlanish vaqti").fill("10:00");
-  await blocks.getByLabel("Tugash sanasi").fill(tomorrow);
-  await blocks.getByLabel("Tugash vaqti").fill("11:00");
+  await fillDate(blocks, "Boshlanish sanasi", tomorrow);
+  await fillTime(blocks, "Boshlanish vaqti", "10:00");
+  await fillDate(blocks, "Tugash sanasi", tomorrow);
+  await fillTime(blocks, "Tugash vaqti", "11:00");
   await blocks.getByLabel("Izoh (ixtiyoriy)").fill("E2E yig‘ilish");
   await blocks.getByRole("button", { name: "Band vaqtni qo‘shish" }).click();
   await expect(toast(page, "Band vaqt qo‘shildi")).toBeVisible();
@@ -157,7 +171,7 @@ test("a specialist with a service and hours made in the admin is bookable", asyn
   // 7. A day off the day after tomorrow: no hours, no slots.
   const later = tashkentDay(2);
   const overrides = page.getByRole("region", { name: "Alohida kunlar" });
-  await overrides.getByLabel("Sana").fill(later);
+  await fillDate(overrides, "Sana", later);
   await overrides.getByLabel("Izoh (ixtiyoriy)").fill("E2E dam olish");
   await overrides.getByRole("button", { name: "Kunni qo‘shish" }).click();
   await expect(toast(page, "Alohida kun qo‘shildi")).toBeVisible();
@@ -167,7 +181,9 @@ test("a specialist with a service and hours made in the admin is bookable", asyn
   });
   // The same date again is the server's `unique`.
   await overrides.getByRole("button", { name: "Kunni qo‘shish" }).click();
-  await expect(overrides.getByText("Bu sana uchun alohida jadval allaqachon bor.")).toBeVisible();
+  await expect(
+    overrides.getByText("Bu sana uchun alohida jadval allaqachon bor.").first(),
+  ).toBeVisible();
 
   // 8. The list finds it by a folded search and exports it.
   await page.goto(`/admin/specialists?q=${encodeURIComponent(specialistName.toUpperCase())}`);
@@ -179,7 +195,7 @@ test("a specialist with a service and hours made in the admin is bookable", asyn
 test("the services list filters by category and status from the URL", async ({ page }) => {
   await page.goto("/admin/services?category=cosmetology&status=active&sort=name");
   await expect(heading(page)).toHaveText("Xizmatlar");
-  await expect(page.getByRole("button", { name: "Kategoriya: Kosmetologiya" })).toBeVisible();
+  expect(await selectValue(page, "Kategoriya")).toBe("cosmetology");
   const rows = page.locator("table tbody tr");
   await expect(rows.first()).toBeVisible();
   for (const text of await rows.locator("td:nth-child(2)").allInnerTexts()) {

@@ -1,5 +1,7 @@
 import { cn } from "@/lib/cn";
 
+import { LoadingLabel } from "./loading-label";
+
 /** Neutral placeholder block shown while a data boundary streams in. */
 export function Skeleton({ className }: { className?: string }) {
   return (
@@ -7,11 +9,14 @@ export function Skeleton({ className }: { className?: string }) {
   );
 }
 
-/** Generic page-body placeholder: header row, a band of cards and a table. */
-export function PageSkeleton({ label = "Yuklanmoqda…" }: { label?: string }) {
+/**
+ * Generic page-body placeholder: header row, a band of cards and a table. The read-out text is
+ * «Yuklanmoqda…» in the admin language unless `label` is given.
+ */
+export function PageSkeleton({ label }: { label?: string }) {
   return (
     <div role="status" aria-live="polite" className="flex flex-col gap-6">
-      <span className="sr-only">{label}</span>
+      <span className="sr-only">{label ?? <LoadingLabel />}</span>
       <div className="flex items-end justify-between gap-4">
         <div className="flex flex-col gap-2">
           <Skeleton className="h-4 w-40 rounded-sm" />

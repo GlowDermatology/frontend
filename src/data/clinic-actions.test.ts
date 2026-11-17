@@ -14,6 +14,17 @@ const apiFetch = vi.fn();
 const cachedGet = vi.fn();
 
 vi.mock("next/server", () => ({ connection: vi.fn(async () => undefined) }));
+/** The admin language the requests carry (cookie `gd_admin_language`; unset = Uzbek). */
+const adminLanguage = vi.hoisted(() => ({ value: undefined as string | undefined }));
+vi.mock("next/headers", () => ({
+  cookies: async () => ({
+    get: (name: string) =>
+      name === "gd_admin_language" && adminLanguage.value
+        ? { name, value: adminLanguage.value }
+        : undefined,
+  }),
+  headers: async () => new Headers(),
+}));
 vi.mock("next/cache", () => ({ refresh: () => refresh() }));
 vi.mock("./auth", () => ({
   verifyStaff: (options?: VerifyStaffOptions) => verifyStaff(options),
@@ -63,6 +74,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  adminLanguage.value = undefined;
   if (originalSource === undefined) delete process.env.GLOWDERMA_DATA_SOURCE;
   else process.env.GLOWDERMA_DATA_SOURCE = originalSource;
 });
@@ -165,6 +177,38 @@ describe("clinic actions in mock mode", () => {
       ok: true,
       data: { isActive: false },
     });
+  });
+
+  it("answers in the admin language like the backend (Accept-Language)", async () => {
+    const base = specialistFormValues(jasur);
+    adminLanguage.value = "ru";
+    const refused = await updateSpecialist(
+      "2",
+      { ...base, isActive: false },
+      base,
+      false,
+      KEY,
+      CSRF,
+    );
+    if (!refused.ok) {
+      expect(refused.error).toMatch(/^У специалиста 10 предстоящих приёмов/);
+    } else {
+      expect.unreachable("the deactivation must be refused");
+    }
+    adminLanguage.value = "en";
+    const override = { date: "2026-10-20", dayOff: true, start: "", end: "", note: "" };
+    expect(await createOverride("2", override, KEY, CSRF)).toMatchObject({
+      error: "Check the fields.",
+      fieldErrors: { date: "A past date cannot be chosen." },
+    });
+    expect(
+      await createOverride(
+        "2",
+        { ...override, dayOff: false, date: "2026-10-30", start: "9", end: "10:00" },
+        KEY,
+        CSRF,
+      ),
+    ).toMatchObject({ ok: false, fieldErrors: { start: "Enter the time as HH:MM." } });
   });
 
   it("answers the schedule rules: past dates, a taken date, overlapping blocks", async () => {

@@ -1,3 +1,7 @@
+import { isFilled, recommendedToAsk, textChanged } from "@/lib/forms/recommended-rules";
+import type { Locale } from "@/lib/i18n/locales";
+
+import { clinicDataCopy } from "./copy/clinic";
 import type { ContentLanguage } from "./product";
 
 /**
@@ -11,17 +15,12 @@ export type I18n = Record<ContentLanguage, string>;
 
 export const SPECIALIST_ROLES = ["dermatologist", "cosmetologist"] as const;
 export type SpecialistRole = (typeof SPECIALIST_ROLES)[number];
-export const SPECIALIST_ROLE_LABEL: Record<SpecialistRole, string> = {
-  dermatologist: "Dermatolog",
-  cosmetologist: "Kosmetolog",
-};
+/** Uzbek names (kept for older callers); `clinicDataCopy[locale].role` in the admin language. */
+export const SPECIALIST_ROLE_LABEL: Record<SpecialistRole, string> = clinicDataCopy.uz.role;
 
 export const SERVICE_CATEGORIES = ["dermatology", "cosmetology"] as const;
 export type ServiceCategory = (typeof SERVICE_CATEGORIES)[number];
-export const SERVICE_CATEGORY_LABEL: Record<ServiceCategory, string> = {
-  dermatology: "Dermatologiya",
-  cosmetology: "Kosmetologiya",
-};
+export const SERVICE_CATEGORY_LABEL: Record<ServiceCategory, string> = clinicDataCopy.uz.category;
 
 /** `ordering` of `specialists/` and `services/` (DirectoryOrdering). */
 export const DIRECTORY_ORDERINGS = [
@@ -32,29 +31,16 @@ export const DIRECTORY_ORDERINGS = [
   "-created_at",
 ] as const;
 export type DirectoryOrdering = (typeof DIRECTORY_ORDERINGS)[number];
-export const DIRECTORY_ORDERING_LABEL: Record<DirectoryOrdering, string> = {
-  position: "Tartib bo‘yicha",
-  name: "Nomi (A–Z)",
-  "-name": "Nomi (Z–A)",
-  created_at: "Avval qo‘shilgan",
-  "-created_at": "Oxirgi qo‘shilgan",
-};
+export const DIRECTORY_ORDERING_LABEL: Record<DirectoryOrdering, string> =
+  clinicDataCopy.uz.ordering;
 
 export const SLOT_STEPS = [10, 15, 20, 30, 60] as const;
 export type SlotStep = (typeof SLOT_STEPS)[number];
 
 /** 0 = Monday … 6 = Sunday; the short names of the export (`Du, Se, …`). */
 export const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6] as const;
-export const WEEKDAY_LABEL = [
-  "Dushanba",
-  "Seshanba",
-  "Chorshanba",
-  "Payshanba",
-  "Juma",
-  "Shanba",
-  "Yakshanba",
-] as const;
-export const WEEKDAY_SHORT = ["Du", "Se", "Ch", "Pa", "Ju", "Sh", "Ya"] as const;
+export const WEEKDAY_LABEL: ReadonlyArray<string> = clinicDataCopy.uz.weekday;
+export const WEEKDAY_SHORT: ReadonlyArray<string> = clinicDataCopy.uz.weekdayShort;
 
 export interface OfferedService {
   serviceId: string;
@@ -131,10 +117,7 @@ export interface HoursOverride {
 }
 
 export type BlockKind = "busy" | "off";
-export const BLOCK_KIND_LABEL: Record<BlockKind, string> = {
-  busy: "Band",
-  off: "Ish vaqti emas",
-};
+export const BLOCK_KIND_LABEL: Record<BlockKind, string> = clinicDataCopy.uz.blockKind;
 
 export interface BlockedPeriod {
   id: string;
@@ -193,10 +176,10 @@ export const SERVICE_SHORT_MAX = 40;
 export const LOCATION_ADDRESS_MAX = 300;
 
 export const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
-export const TIME_FORMAT_MESSAGE = "Vaqtni SS:DD ko‘rinishida kiriting.";
-export const GRID_MESSAGE = "Vaqt 5 daqiqalik qadamda bo‘lsin.";
-export const END_AFTER_START_MESSAGE = "Tugash vaqti boshlanishidan keyin bo‘lsin.";
-export const DURATION_GRID_MESSAGE = "Davomiylik 5 daqiqaga karrali bo‘lsin.";
+export const TIME_FORMAT_MESSAGE = clinicDataCopy.uz.timeFormat;
+export const GRID_MESSAGE = clinicDataCopy.uz.grid;
+export const END_AFTER_START_MESSAGE = clinicDataCopy.uz.endAfterStart;
+export const DURATION_GRID_MESSAGE = clinicDataCopy.uz.durationGrid;
 
 /** Minutes after midnight of `HH:MM`. */
 export function minutesOf(time: string): number {
@@ -209,25 +192,123 @@ export function onGrid(time: string): boolean {
 }
 
 /** "09:00–18:00" or "Dam olish"; the break appended. */
-export function workingDayLabel(day: WorkingDay | undefined): string {
-  if (!day) return "Dam olish";
+export function workingDayLabel(day: WorkingDay | undefined, locale: Locale = "uz"): string {
+  const m = clinicDataCopy[locale];
+  if (!day) return m.dayOff;
   const base = `${day.start}–${day.end}`;
-  return day.breakStart && day.breakEnd
-    ? `${base} (tanaffus ${day.breakStart}–${day.breakEnd})`
-    : base;
+  return day.breakStart && day.breakEnd ? m.withBreak(base, day.breakStart, day.breakEnd) : base;
 }
 
 /** The working weekdays as the export writes them ("Du, Se, Ch"). */
-export function workingDaysShort(days: ReadonlyArray<WorkingDay>): string {
+export function workingDaysShort(days: ReadonlyArray<WorkingDay>, locale: Locale = "uz"): string {
+  const names = clinicDataCopy[locale].weekdayShort;
   return [...days]
     .sort((a, b) => a.weekday - b.weekday)
-    .map((day) => WEEKDAY_SHORT[day.weekday] ?? "")
+    .map((day) => names[day.weekday] ?? "")
     .join(", ");
 }
 
 /** The 409 on a deactivation with appointments ahead (§2.17); `force` confirms it. */
-export function deactivationConflictMessage(count: number): string {
-  return `Mutaxassisda ${count} ta kelgusi qabul bor (kutilayotgan yoki tasdiqlangan). Qabullar o‘zgarmaydi: avval ularni boshqa vaqtga yoki mutaxassisga ko‘chiring yoki bekor qiling, yoki baribir nofaol qiling.`;
+export function deactivationConflictMessage(count: number, locale: Locale = "uz"): string {
+  return clinicDataCopy[locale].deactivationConflict(count);
 }
 
-export const NO_CLINIC_MESSAGE = "Avval klinika manzilini kiriting.";
+export const NO_CLINIC_MESSAGE = clinicDataCopy.uz.noClinic;
+
+/* --- Recommended (not required) fields: the forms ask "save anyway?" when they are empty --- */
+
+/** A service without a Russian / English name or an Uzbek description is hard to find in the app. */
+export function serviceRecommendedMissing(values: {
+  name: I18n;
+  description: I18n;
+}): Array<"name.ru" | "name.en" | "description.uz"> {
+  const missing: Array<"name.ru" | "name.en" | "description.uz"> = [];
+  if (!values.name.ru.trim()) missing.push("name.ru");
+  if (!values.name.en.trim()) missing.push("name.en");
+  if (!values.description.uz.trim()) missing.push("description.uz");
+  return missing;
+}
+
+/** Customers choose a specialist by the qualifications, the short bio and (on the card) the photo. */
+export function specialistRecommendedMissing(
+  values: { qualifications: I18n; bio: I18n },
+  hasPhoto?: boolean,
+): Array<"qualifications.uz" | "bio.uz" | "photo"> {
+  const missing: Array<"qualifications.uz" | "bio.uz" | "photo"> = [];
+  if (hasPhoto === false) missing.push("photo");
+  if (!values.qualifications.uz.trim()) missing.push("qualifications.uz");
+  if (!values.bio.uz.trim()) missing.push("bio.uz");
+  return missing;
+}
+
+/** The clinic card: without an address or a phone customers cannot find or call the clinic. */
+export function locationRecommendedMissing(values: {
+  address: I18n;
+  phone: string;
+}): Array<"address.uz" | "phone"> {
+  const missing: Array<"address.uz" | "phone"> = [];
+  if (!values.address.uz.trim()) missing.push("address.uz");
+  if (!values.phone.trim()) missing.push("phone");
+  return missing;
+}
+
+/**
+ * The empty service fields worth asking about on this save (`recommendedToAsk`): an inactive
+ * service never asks; a new one, or the save that activates it, asks about every empty field;
+ * else only a field just emptied, or the empty names when the Uzbek name changed.
+ */
+export function serviceRecommendedToAsk(
+  values: { name: I18n; description: I18n; isActive: boolean },
+  saved: { name: I18n; description: I18n; isActive: boolean } | null,
+): Array<"name.ru" | "name.en" | "description.uz"> {
+  return recommendedToAsk(serviceRecommendedMissing(values), {
+    isNew: saved === null,
+    active: values.isActive,
+    wasActive: saved?.isActive,
+    filledBefore: (field) =>
+      isFilled(
+        field === "name.ru"
+          ? saved?.name.ru
+          : field === "name.en"
+            ? saved?.name.en
+            : saved?.description.uz,
+      ),
+    sourceChanged: (field) =>
+      field !== "description.uz" && textChanged(saved?.name.uz, values.name.uz),
+  });
+}
+
+/**
+ * The empty profile fields worth asking about on this save: an inactive specialist never asks;
+ * the save that activates one asks about every empty field (the photo included); else only a
+ * text just emptied. `hasPhoto` as for `specialistRecommendedMissing`.
+ */
+export function specialistRecommendedToAsk(
+  values: { qualifications: I18n; bio: I18n; isActive: boolean },
+  saved: { qualifications: I18n; bio: I18n; isActive: boolean },
+  hasPhoto?: boolean,
+): Array<"qualifications.uz" | "bio.uz" | "photo"> {
+  return recommendedToAsk(specialistRecommendedMissing(values, hasPhoto), {
+    isNew: false,
+    active: values.isActive,
+    wasActive: saved.isActive,
+    filledBefore: (field) =>
+      field === "qualifications.uz"
+        ? isFilled(saved.qualifications.uz)
+        : field === "bio.uz" && isFilled(saved.bio.uz),
+  });
+}
+
+/**
+ * The empty clinic-card fields worth asking about on this save: every empty one while nothing is
+ * saved yet, else only a field just emptied. `saved` = the stored card (`null` = none yet).
+ */
+export function locationRecommendedToAsk(
+  values: { address: I18n; phone: string },
+  saved: { address: I18n; phone: string | null } | null,
+): Array<"address.uz" | "phone"> {
+  return recommendedToAsk(locationRecommendedMissing(values), {
+    isNew: saved === null,
+    filledBefore: (field) => isFilled(field === "phone" ? saved?.phone : saved?.address.uz),
+  });
+}

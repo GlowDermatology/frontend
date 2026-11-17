@@ -2,23 +2,28 @@
 
 import { useRef, useState, type FormEvent } from "react";
 
-import { Button, buttonStyles } from "@/components/ui/button";
-import { Dialog, DialogClose } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
 import { AffixInput, Field, TextInput } from "@/components/ui/field";
+import { FormErrorSummary } from "@/components/ui/form-errors";
 import { Icon } from "@/components/ui/icon";
 import { Switch } from "@/components/ui/switch";
+import { useToast } from "@/components/ui/toast";
 import { createSegment, updateSegment } from "@/data/segments.actions";
-import { EMPTY_SEGMENT, segmentFormSchema, type SegmentFormValues } from "@/data/segments.schema";
+import { EMPTY_SEGMENT, segmentFormSchemas, type SegmentFormValues } from "@/data/segments.schema";
 import { SEGMENT_NAME_MAX, segmentRulesSummary, type Segment } from "@/domain/segment";
-import { formatNumber, parseAmount } from "@/lib/format";
+import { parseAmount } from "@/lib/format";
+import { revealFirstError, useErrorReveal } from "@/lib/forms/reveal";
+import { useAdminLocale, useCopy } from "@/lib/i18n/admin-context";
+import { useFormat, useLocalized } from "@/lib/i18n/admin-hooks";
 
 import { runAction } from "../shared/action-client";
-import { useFocusFirstInvalid } from "../shared/focus-invalid";
 import { partitionFieldErrors } from "../shared/field-errors";
 import type { IdempotencyKey } from "../shared/idempotency";
+import { groupsCopy, type GroupsCopy } from "./copy";
 
-/** Fields with an error slot; `rules` is shown above the buttons. */
-const SEGMENT_FIELDS = ["name", "rules", "rules.minOnlineOrders", "rules.minLifetimeAmount"];
+/** Fields with an error slot; `rules` is the rules box as a whole. */
+export const SEGMENT_FIELDS = ["name", "rules", "rules.minOnlineOrders", "rules.minLifetimeAmount"];
 
 interface SegmentDialogProps {
   open: boolean;
@@ -35,21 +40,32 @@ export function segmentValues(segment: Segment | null): SegmentFormValues {
   return { name: segment.name, rules: { ...segment.rules } };
 }
 
+/** The error summary rows of the dialog, in its order (pure, for tests). */
+export function segmentErrorSummary(
+  errors: Readonly<Record<string, string>>,
+  t: GroupsCopy["dialog"],
+): Array<{ name: string; label: string; message: string }> {
+  const labels: Record<string, string> = {
+    name: t.name,
+    rules: t.rules,
+    "rules.minOnlineOrders": t.orders,
+    "rules.minLifetimeAmount": t.amount,
+  };
+  return SEGMENT_FIELDS.flatMap((name) =>
+    errors[name] ? [{ name, label: labels[name]!, message: errors[name]! }] : [],
+  );
+}
+
 interface RuleDraft {
   on: boolean;
   text: string;
 }
 
-const ruleDraft = (value: number | null): RuleDraft => ({
-  on: value !== null,
-  text: value === null ? "" : formatNumber(value),
-});
-
 /**
- * Create / edit dialog of a customer group (contract §2.8): the name (2..60,
- * unique) and two optional rules, each with an on/off switch (off = `null`;
- * set rules are ANDed). An update sends only what changed against the group
- * the dialog opened with.
+ * Create / edit dialog of a customer group (contract §2.8): the name (2..60, unique) and two
+ * optional rules, each with an on/off switch (off = `null`; set rules are ANDed). An update
+ * sends only what changed against the group the dialog opened with. Errors show next to their
+ * field and in a summary; the first one is revealed (scrolled to, focused, marked).
  */
 export function SegmentDialog({
   open,
@@ -58,7 +74,17 @@ export function SegmentDialog({
   idempotency,
   onSaved,
 }: SegmentDialogProps) {
+  const copy = useCopy(groupsCopy);
+  const t = copy.dialog;
+  const locale = useAdminLocale();
+  const fmt = useFormat();
+  const schema = useLocalized(segmentFormSchemas);
+  const toast = useToast();
   const baseline = segmentValues(segment);
+  const ruleDraft = (value: number | null): RuleDraft => ({
+    on: value !== null,
+    text: value === null ? "" : fmt.number(value),
+  });
   const [name, setName] = useState(baseline.name);
   const [orders, setOrders] = useState(() => ruleDraft(baseline.rules.minOnlineOrders));
   const [amount, setAmount] = useState(() => ruleDraft(baseline.rules.minLifetimeAmount));
@@ -66,6 +92,8 @@ export function SegmentDialog({
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const reveal = useErrorReveal(formRef);
 
   const numberOf = (draft: RuleDraft): number | null =>
     draft.on ? (parseAmount(draft.text) ?? Number.NaN) : null;
@@ -76,21 +104,19 @@ export function SegmentDialog({
   const preview =
     Number.isNaN(values.rules.minOnlineOrders) || Number.isNaN(values.rules.minLifetimeAmount)
       ? null
-      : segmentRulesSummary(values.rules);
+      : segmentRulesSummary(values.rules, locale);
 
-  const focusFirstInvalid = useFocusFirstInvalid();
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (inFlight.current) return;
-    const form = event.currentTarget;
-    const local = segmentFormSchema.safeParse(values);
+    const local = schema.safeParse(values);
     if (!local.success) {
       const next: Record<string, string> = {};
       for (const issue of local.error.issues) next[issue.path.join(".")] ??= issue.message;
       setErrors(next);
       // A server message from the previous attempt no longer applies.
       setFormError(null);
-      focusFirstInvalid(form);
+      reveal();
       return;
     }
     inFlight.current = true;
@@ -110,7 +136,8 @@ export function SegmentDialog({
       const { fieldErrors, formError: message } = partitionFieldErrors(result, SEGMENT_FIELDS);
       setErrors(fieldErrors);
       setFormError(message);
-      focusFirstInvalid(form);
+      toast({ tone: "danger", title: t.saveFailed, description: message ?? result.error });
+      reveal();
       return;
     }
     onSaved(result.data, segment ? "edit" : "create");
@@ -123,22 +150,20 @@ export function SegmentDialog({
     setDraft: (draft: RuleDraft) => void,
   ) => {
     const isOrders = key === "minOnlineOrders";
-    const label = isOrders ? "Onlayn buyurtmalar soni, kamida" : "Jami xaridlar, kamida";
+    const label = isOrders ? t.orders : t.amount;
     return (
       <div className="flex flex-col gap-2 rounded-md bg-surface px-3.5 py-3">
         <div className="flex items-center justify-between gap-3">
           <span className="flex flex-col gap-0.5">
             <span className="text-label text-ink">{label}</span>
             <span className="text-caption font-normal text-ink-muted">
-              {isOrders
-                ? "To‘langan va qaytarilmagan onlayn buyurtmalar."
-                : "Do‘kon va onlayn xaridlar jami (so‘m)."}
+              {isOrders ? t.ordersHint : t.amountHint}
             </span>
           </span>
           <Switch
             checked={draft.on}
             onCheckedChange={(on) => setDraft({ ...draft, on })}
-            aria-label={`Qoida: ${label}`}
+            aria-label={t.ruleSwitch(label)}
           />
         </div>
         {draft.on && (
@@ -146,13 +171,14 @@ export function SegmentDialog({
             {(c) => (
               <AffixInput
                 {...c}
-                suffix={isOrders ? "ta" : "so‘m"}
+                name={`rules.${key}`}
+                suffix={isOrders ? t.ordersSuffix : t.amountSuffix}
                 inputMode="numeric"
                 autoComplete="off"
                 value={draft.text}
                 onChange={(event) => {
                   const parsed = parseAmount(event.target.value);
-                  setDraft({ ...draft, text: parsed === null ? "" : formatNumber(parsed) });
+                  setDraft({ ...draft, text: parsed === null ? "" : fmt.number(parsed) });
                 }}
               />
             )}
@@ -162,6 +188,8 @@ export function SegmentDialog({
     );
   };
 
+  const summary = segmentErrorSummary(errors, t);
+
   return (
     <Dialog
       open={open}
@@ -169,12 +197,18 @@ export function SegmentDialog({
         if (busy) return;
         onOpenChange(next);
       }}
-      title={segment ? "Guruhni tahrirlash" : "Yangi guruh"}
-      description="Qoidalar yoqilgan bo‘lsa, ularning hammasiga mos faol mijozlar va qo‘lda qo‘shilganlar guruhga kiradi."
+      title={segment ? t.editTitle : t.createTitle}
+      description={t.description}
       className="max-w-[520px]"
     >
-      <form noValidate onSubmit={onSubmit} className="flex flex-col gap-4">
-        <Field label="Nomi" error={errors.name}>
+      <form ref={formRef} noValidate onSubmit={onSubmit} className="flex flex-col gap-4">
+        {summary.length > 1 && (
+          <FormErrorSummary
+            errors={summary}
+            onSelect={(field) => void revealFirstError(formRef.current, { name: field })}
+          />
+        )}
+        <Field label={t.name} error={errors.name}>
           {(c) => (
             <TextInput
               {...c}
@@ -186,8 +220,15 @@ export function SegmentDialog({
             />
           )}
         </Field>
-        {ruleRow("minOnlineOrders", orders, setOrders)}
-        {ruleRow("minLifetimeAmount", amount, setAmount)}
+        <div
+          data-field="rules"
+          data-invalid={errors.rules ? "true" : undefined}
+          tabIndex={errors.rules ? -1 : undefined}
+          className="flex flex-col gap-4 rounded-md"
+        >
+          {ruleRow("minOnlineOrders", orders, setOrders)}
+          {ruleRow("minLifetimeAmount", amount, setAmount)}
+        </div>
         {preview && (
           <p className="m-0 flex items-start gap-1.5 text-body-sm text-ink-muted">
             <Icon name="users" size={16} className="mt-px shrink-0" />
@@ -204,12 +245,16 @@ export function SegmentDialog({
           </p>
         )}
         <div className="flex flex-wrap justify-end gap-2">
-          <DialogClose disabled={busy} className={buttonStyles({ variant: "outline" })}>
-            Bekor qilish
-          </DialogClose>
-          <Button type="submit" disabled={busy} aria-busy={busy}>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabledReason={busy && copy.busyReason}
+          >
+            {copy.cancel}
+          </Button>
+          <Button type="submit" busy={busy}>
             <Icon name="check" size={18} />
-            {busy ? "Saqlanmoqda…" : "Saqlash"}
+            {busy ? t.saving : t.save}
           </Button>
         </div>
       </form>

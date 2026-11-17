@@ -34,7 +34,7 @@ export function LandingPage({ locale }: { locale: Locale }) {
         <DeliverySection dict={dict.delivery} />
         <DownloadCta dict={dict.download} />
       </main>
-      <SiteFooter dict={dict} />
+      <SiteFooter dict={dict} locale={locale} />
     </div>
   );
 }

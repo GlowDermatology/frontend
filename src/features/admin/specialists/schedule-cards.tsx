@@ -1,62 +1,38 @@
 "use client";
 
-import { useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useRef, useState, type FormEvent } from "react";
 
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonStyles } from "@/components/ui/button";
+import { Button, IconButton } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
+import { DatePicker } from "@/components/ui/date-picker";
 import { AlertDialog, AlertDialogCancel } from "@/components/ui/dialog";
+import { Field, TextInput } from "@/components/ui/field";
+import { FormErrorSummary } from "@/components/ui/form-errors";
 import { Icon } from "@/components/ui/icon";
+import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { TimePicker } from "@/components/ui/time-picker";
 import { useToast } from "@/components/ui/toast";
 import { createBlock, createOverride, deleteScheduleEntry } from "@/data/clinic.actions";
-import { blockFormSchema, overrideFormSchema } from "@/data/clinic.schema";
+import { clinicSchemas } from "@/data/clinic.schema";
 import {
-  BLOCK_KIND_LABEL,
   BLOCK_LABEL_MAX,
   OVERRIDE_NOTE_MAX,
   type BlockedPeriod,
   type BlockKind,
   type HoursOverride,
 } from "@/domain/clinic";
-import {
-  addDays,
-  formatDateLong,
-  formatDateTimeShort,
-  formatTime,
-  toLocalIsoDate,
-} from "@/lib/format";
+import { clinicDataCopy } from "@/domain/copy/clinic";
+import { addDays, toLocalIsoDate, type AdminFormatter } from "@/lib/format";
+import { useErrorReveal } from "@/lib/forms/reveal";
+import { useCopy } from "@/lib/i18n/admin-context";
+import { useFormat, useLocalized } from "@/lib/i18n/admin-hooks";
 
 import { runAction } from "../shared/action-client";
 import { useIdempotencyKey } from "../shared/idempotency";
-
-const inputClass =
-  "h-10 w-full min-w-0 rounded-md border-[1.5px] border-line-strong bg-surface-raised px-2.5 text-body-sm text-ink tabular-nums aria-invalid:border-danger";
-
-function Labelled({
-  label,
-  error,
-  children,
-  className,
-}: {
-  label: string;
-  error?: string;
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <label className={`flex flex-col gap-1 ${className ?? ""}`}>
-      <span className="text-caption font-semibold text-ink-muted">{label}</span>
-      {children}
-      {error && (
-        <span className="flex items-start gap-1.5 text-body-sm font-semibold text-ink">
-          <Icon name="alert-circle" size={16} className="mt-px shrink-0 text-danger" />
-          {error}
-        </span>
-      )}
-    </label>
-  );
-}
+import { specialistsCopy } from "./copy";
+import { errorItems, issuesToErrors } from "./form-kit";
 
 function FormError({ message }: { message: string | null }) {
   if (!message) return null;
@@ -74,6 +50,7 @@ function useDeleteEntry<T extends { id: string }>(
   kind: "override" | "block",
   onDeleted: (id: string) => void,
 ) {
+  const copy = useCopy(specialistsCopy);
   const toast = useToast();
   const [target, setTarget] = useState<T | null>(null);
   const [busy, setBusy] = useState(false);
@@ -86,10 +63,17 @@ function useDeleteEntry<T extends { id: string }>(
       deleteScheduleEntry(specialistId, kind, target.id, csrf),
     );
     setBusy(false);
-    if (!result.ok && result.code !== "not_found") return setError(result.error);
+    if (!result.ok && result.code !== "not_found") {
+      setError(result.error);
+      toast({ tone: "danger", title: copy.remove.failed, description: result.error });
+      return;
+    }
     onDeleted(target.id);
     setTarget(null);
-    toast({ title: kind === "override" ? "Alohida kun o‘chirildi" : "Band vaqt o‘chirildi" });
+    toast({
+      tone: "success",
+      title: kind === "override" ? copy.overrides.removed : copy.blocks.removed,
+    });
   };
   return { target, setTarget, busy, error, setError, confirm };
 }
@@ -111,6 +95,7 @@ function DeleteDialog({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const copy = useCopy(specialistsCopy);
   return (
     <AlertDialog
       open={open}
@@ -122,16 +107,21 @@ function DeleteDialog({
     >
       <FormError message={error} />
       <div className="mt-1.5 flex flex-wrap justify-end gap-2">
-        <AlertDialogCancel disabled={busy} className={buttonStyles({ variant: "outline" })}>
-          Bekor qilish
+        <AlertDialogCancel asChild>
+          <Button variant="outline" disabledReason={busy && copy.remove.busyReason}>
+            {copy.cancel}
+          </Button>
         </AlertDialogCancel>
-        <Button variant="destructive" onClick={onConfirm} disabled={busy} aria-busy={busy}>
-          {busy ? "O‘chirilmoqda…" : "O‘chirish"}
+        <Button variant="destructive" onClick={onConfirm} busy={busy}>
+          {busy ? copy.remove.removing : copy.remove.confirm}
         </Button>
       </div>
     </AlertDialog>
   );
 }
+
+/** A date of an override as the list shows it ("26-oktabr 2026"). */
+const overrideDay = (fmt: AdminFormatter, date: string) => fmt.dateLong(`${date}T12:00:00+05:00`);
 
 /**
  * Alohida kunlar (contract §2.17 date overrides): one date's own hours or a
@@ -146,6 +136,11 @@ export function OverridesCard({
   overrides: ReadonlyArray<HoursOverride>;
   today: string;
 }) {
+  const copy = useCopy(specialistsCopy);
+  const t = copy.overrides;
+  const m = useCopy(clinicDataCopy);
+  const fmt = useFormat();
+  const schemas = useLocalized(clinicSchemas);
   const toast = useToast();
   const [source, setSource] = useState(overrides);
   const [rows, setRows] = useState<ReadonlyArray<HoursOverride>>(overrides);
@@ -162,20 +157,28 @@ export function OverridesCard({
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const reveal = useErrorReveal(formRef);
   const idempotency = useIdempotencyKey();
   const remove = useDeleteEntry<HoursOverride>(specialistId, "override", (id) =>
     setRows((current) => current.filter((row) => row.id !== id)),
   );
+  const labels: Record<string, string> = {
+    date: t.date,
+    start: t.start,
+    end: t.end,
+    note: t.noteLabel,
+  };
+  const summary = errorItems(errors, (name) => labels[name], ["date", "start", "end", "note"]);
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (inFlight.current) return;
-    const local = overrideFormSchema.safeParse({ date, dayOff, start, end, note });
+    const local = schemas.override.safeParse({ date, dayOff, start, end, note });
     if (!local.success) {
-      const next: Record<string, string> = {};
-      for (const issue of local.error.issues) next[issue.path.join(".")] ??= issue.message;
-      setErrors(next);
+      setErrors(issuesToErrors(local.error));
       setFormError(null);
+      reveal();
       return;
     }
     inFlight.current = true;
@@ -191,125 +194,109 @@ export function OverridesCard({
       const next = result.fieldErrors ?? {};
       setErrors(next);
       setFormError(Object.keys(next).length > 0 ? null : result.error);
+      toast({ tone: "danger", title: t.addFailed, description: result.error });
+      reveal();
       return;
     }
     setRows((current) => [...current, result.data].sort((a, b) => a.date.localeCompare(b.date)));
     setNote("");
-    toast({
-      title: "Alohida kun qo‘shildi",
-      description: formatDateLong(`${result.data.date}T12:00:00+05:00`),
-    });
+    toast({ tone: "success", title: t.added, description: overrideDay(fmt, result.data.date) });
   };
 
   return (
     <Card aria-labelledby="overrides-title" className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
         <CardTitle id="overrides-title" className="text-heading">
-          Alohida kunlar
+          {t.title}
         </CardTitle>
-        <p className="m-0 text-body-sm text-ink-muted">
-          Bir kunlik boshqa ish vaqti yoki dam olish kuni; haftalik jadvaldan ustun turadi.
-        </p>
+        <p className="m-0 text-body-sm text-ink-muted">{t.text}</p>
       </div>
       {rows.length > 0 ? (
-        <ul aria-label="Alohida kunlar" className="m-0 flex list-none flex-col gap-1.5 p-0">
+        <ul aria-label={t.listLabel} className="m-0 flex list-none flex-col gap-1.5 p-0">
           {rows.map((row) => (
             <li
               key={row.id}
               className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-surface px-3.5 py-2.5"
             >
-              <span className="flex flex-col">
+              <span className="flex min-w-0 flex-col">
                 <span className="font-semibold text-ink tabular-nums">
-                  {formatDateLong(`${row.date}T12:00:00+05:00`)} ·{" "}
-                  {row.dayOff ? "Dam olish" : `${row.start}–${row.end}`}
+                  {overrideDay(fmt, row.date)} · {row.dayOff ? m.dayOff : `${row.start}–${row.end}`}
                 </span>
                 {(row.note || row.createdBy) && (
-                  <span className="text-caption font-normal text-ink-muted">
+                  <span className="text-caption font-normal break-words text-ink-muted">
                     {[row.note, row.createdBy].filter(Boolean).join(" · ")}
                   </span>
                 )}
               </span>
-              <button
-                type="button"
-                aria-label={`${formatDateLong(`${row.date}T12:00:00+05:00`)} — o‘chirish`}
+              <IconButton
+                size="sm"
+                aria-label={t.removeOf(overrideDay(fmt, row.date))}
                 onClick={() => {
                   remove.setError(null);
                   remove.setTarget(row);
                 }}
-                className="flex size-9 items-center justify-center rounded-md text-ink-muted transition-colors duration-150 hover:bg-gold-soft hover:text-danger"
+                className="hover:text-danger"
               >
                 <Icon name="trash" size={18} />
-              </button>
+              </IconButton>
             </li>
           ))}
         </ul>
       ) : (
         <p className="m-0 rounded-md bg-surface px-3.5 py-3 text-body-sm text-ink-muted">
-          Kelgusi alohida kunlar yo‘q.
+          {t.empty}
         </p>
       )}
       <form
+        ref={formRef}
         noValidate
         onSubmit={onSubmit}
         className="flex flex-col gap-3 border-t border-line pt-4"
       >
-        <span className="text-label text-ink">Kun qo‘shish</span>
+        <span className="text-label text-ink">{t.add}</span>
+        <FormErrorSummary errors={summary} onSelect={(name) => reveal({ name })} />
         <div className="grid gap-3 sm:grid-cols-2">
-          <Labelled label="Sana" error={errors.date}>
-            <input
-              type="date"
-              min={today}
-              max={addDays(today, 365)}
-              value={date}
-              aria-invalid={errors.date ? true : undefined}
-              onChange={(event) => setDate(event.target.value)}
-              className={inputClass}
-            />
-          </Labelled>
-          <div className="flex items-center justify-between gap-2 rounded-md bg-surface px-3 py-2 sm:mt-5">
-            <span className="text-body-sm text-ink">Dam olish kuni</span>
-            <Switch checked={dayOff} onCheckedChange={setDayOff} aria-label="Dam olish kuni" />
+          <Field label={t.date} name="date" error={errors.date}>
+            {(c) => (
+              <DatePicker
+                {...c}
+                value={date}
+                onValueChange={setDate}
+                min={today}
+                max={addDays(today, 365)}
+              />
+            )}
+          </Field>
+          <div className="flex items-center justify-between gap-2 self-end rounded-md bg-surface px-3 py-2.5">
+            <span className="text-body-sm text-ink">{t.dayOff}</span>
+            <Switch checked={dayOff} onCheckedChange={setDayOff} aria-label={t.dayOff} />
           </div>
           {!dayOff && (
             <>
-              <Labelled label="Boshlanishi" error={errors.start}>
-                <input
-                  type="time"
-                  step={300}
-                  value={start}
-                  aria-invalid={errors.start ? true : undefined}
-                  onChange={(event) => setStart(event.target.value)}
-                  className={inputClass}
-                />
-              </Labelled>
-              <Labelled label="Tugashi" error={errors.end}>
-                <input
-                  type="time"
-                  step={300}
-                  value={end}
-                  aria-invalid={errors.end ? true : undefined}
-                  onChange={(event) => setEnd(event.target.value)}
-                  className={inputClass}
-                />
-              </Labelled>
+              <Field label={t.start} name="start" error={errors.start}>
+                {(c) => <TimePicker {...c} value={start} onValueChange={setStart} step={5} />}
+              </Field>
+              <Field label={t.end} name="end" error={errors.end}>
+                {(c) => <TimePicker {...c} value={end} onValueChange={setEnd} step={5} />}
+              </Field>
             </>
           )}
-          <Labelled label="Izoh (ixtiyoriy)" error={errors.note} className="sm:col-span-2">
-            <input
-              type="text"
-              maxLength={OVERRIDE_NOTE_MAX}
-              value={note}
-              aria-invalid={errors.note ? true : undefined}
-              onChange={(event) => setNote(event.target.value)}
-              className={inputClass}
-            />
-          </Labelled>
+          <Field label={t.note} name="note" error={errors.note} className="sm:col-span-2">
+            {(c) => (
+              <TextInput
+                {...c}
+                maxLength={OVERRIDE_NOTE_MAX}
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+              />
+            )}
+          </Field>
         </div>
         <FormError message={formError} />
         <div className="flex justify-end">
-          <Button type="submit" variant="secondary" disabled={busy} aria-busy={busy}>
+          <Button type="submit" variant="secondary" busy={busy}>
             <Icon name="plus" size={18} />
-            {busy ? "Qo‘shilmoqda…" : "Kunni qo‘shish"}
+            {busy ? t.submitting : t.submit}
           </Button>
         </div>
       </form>
@@ -317,8 +304,8 @@ export function OverridesCard({
         open={remove.target !== null}
         busy={remove.busy}
         error={remove.error}
-        title="Alohida kunni o‘chirasizmi?"
-        body="Bu sana yana haftalik ish vaqti bo‘yicha ishlaydi. Mavjud qabullar o‘zgarmaydi."
+        title={t.removeTitle}
+        body={t.removeText}
         onCancel={() => remove.setTarget(null)}
         onConfirm={remove.confirm}
       />
@@ -327,9 +314,12 @@ export function OverridesCard({
 }
 
 /** "26-okt, 16:00 – 16:30" or across days "26-okt, 16:00 – 27-okt, 10:00". */
-function periodLabel(block: BlockedPeriod): string {
+export function periodLabel(
+  block: Pick<BlockedPeriod, "start" | "end">,
+  fmt: Pick<AdminFormatter, "dateTimeShort" | "time">,
+): string {
   const sameDay = toLocalIsoDate(block.start) === toLocalIsoDate(block.end);
-  return `${formatDateTimeShort(block.start)} – ${sameDay ? formatTime(block.end) : formatDateTimeShort(block.end)}`;
+  return `${fmt.dateTimeShort(block.start)} – ${sameDay ? fmt.time(block.end) : fmt.dateTimeShort(block.end)}`;
 }
 
 /**
@@ -346,6 +336,11 @@ export function BlocksCard({
   blocks: ReadonlyArray<BlockedPeriod>;
   today: string;
 }) {
+  const copy = useCopy(specialistsCopy);
+  const t = copy.blocks;
+  const m = useCopy(clinicDataCopy);
+  const fmt = useFormat();
+  const schemas = useLocalized(clinicSchemas);
   const toast = useToast();
   const [source, setSource] = useState(blocks);
   const [rows, setRows] = useState<ReadonlyArray<BlockedPeriod>>(blocks);
@@ -363,27 +358,30 @@ export function BlocksCard({
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const reveal = useErrorReveal(formRef);
   const idempotency = useIdempotencyKey();
   const remove = useDeleteEntry<BlockedPeriod>(specialistId, "block", (id) =>
     setRows((current) => current.filter((row) => row.id !== id)),
   );
+  const labels: Record<string, string> = {
+    startDate: t.startDate,
+    startTime: t.startTime,
+    endDate: t.endDate,
+    endTime: t.endTime,
+    kind: t.kind,
+    label: t.noteLabel,
+  };
+  const summary = errorItems(errors, (name) => labels[name], Object.keys(labels));
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (inFlight.current) return;
-    const local = blockFormSchema.safeParse({
-      startDate,
-      startTime,
-      endDate,
-      endTime,
-      kind,
-      label,
-    });
+    const local = schemas.block.safeParse({ startDate, startTime, endDate, endTime, kind, label });
     if (!local.success) {
-      const next: Record<string, string> = {};
-      for (const issue of local.error.issues) next[issue.path.join(".")] ??= issue.message;
-      setErrors(next);
+      setErrors(issuesToErrors(local.error));
       setFormError(null);
+      reveal();
       return;
     }
     inFlight.current = true;
@@ -399,134 +397,126 @@ export function BlocksCard({
       const next = result.fieldErrors ?? {};
       setErrors(next);
       setFormError(Object.keys(next).length > 0 ? null : result.error);
+      toast({ tone: "danger", title: t.addFailed, description: result.error });
+      reveal();
       return;
     }
     setRows((current) => [...current, result.data].sort((a, b) => a.start.localeCompare(b.start)));
     setLabel("");
-    toast({ title: "Band vaqt qo‘shildi", description: periodLabel(result.data) });
+    toast({ tone: "success", title: t.added, description: periodLabel(result.data, fmt) });
   };
 
   return (
     <Card aria-labelledby="blocks-title" className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
         <CardTitle id="blocks-title" className="text-heading">
-          Band vaqtlar
+          {t.title}
         </CardTitle>
-        <p className="m-0 text-body-sm text-ink-muted">
-          Uchrashuv, ta’til va boshqalar: bu oraliqda yozilib bo‘lmaydi. Toshkent vaqti.
-        </p>
+        <p className="m-0 text-body-sm text-ink-muted">{t.text}</p>
       </div>
       {rows.length > 0 ? (
-        <ul aria-label="Band vaqtlar" className="m-0 flex list-none flex-col gap-1.5 p-0">
+        <ul aria-label={t.listLabel} className="m-0 flex list-none flex-col gap-1.5 p-0">
           {rows.map((row) => (
             <li
               key={row.id}
               className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-surface px-3.5 py-2.5"
             >
-              <span className="flex flex-col gap-0.5">
-                <span className="font-semibold text-ink tabular-nums">{periodLabel(row)}</span>
-                <span className="flex flex-wrap items-center gap-1.5 text-caption font-normal text-ink-muted">
+              <span className="flex min-w-0 flex-col gap-0.5">
+                <span className="font-semibold text-ink tabular-nums">{periodLabel(row, fmt)}</span>
+                <span className="flex flex-wrap items-center gap-1.5 text-caption font-normal break-words text-ink-muted">
                   <Badge tone={row.kind === "busy" ? "warning" : "neutral"} dot={false}>
-                    {BLOCK_KIND_LABEL[row.kind]}
+                    {m.blockKind[row.kind]}
                   </Badge>
                   {[row.label, row.createdBy].filter(Boolean).join(" · ")}
                 </span>
               </span>
-              <button
-                type="button"
-                aria-label={`${periodLabel(row)} — o‘chirish`}
+              <IconButton
+                size="sm"
+                aria-label={t.removeOf(periodLabel(row, fmt))}
                 onClick={() => {
                   remove.setError(null);
                   remove.setTarget(row);
                 }}
-                className="flex size-9 items-center justify-center rounded-md text-ink-muted transition-colors duration-150 hover:bg-gold-soft hover:text-danger"
+                className="hover:text-danger"
               >
                 <Icon name="trash" size={18} />
-              </button>
+              </IconButton>
             </li>
           ))}
         </ul>
       ) : (
         <p className="m-0 rounded-md bg-surface px-3.5 py-3 text-body-sm text-ink-muted">
-          Kelgusi band vaqtlar yo‘q.
+          {t.empty}
         </p>
       )}
       <form
+        ref={formRef}
         noValidate
         onSubmit={onSubmit}
         className="flex flex-col gap-3 border-t border-line pt-4"
       >
-        <span className="text-label text-ink">Band vaqt qo‘shish</span>
-        <div className="grid grid-cols-2 gap-3">
-          <Labelled label="Boshlanish sanasi" error={errors.startDate}>
-            <input
-              type="date"
-              min={today}
-              value={startDate}
-              aria-invalid={errors.startDate ? true : undefined}
-              onChange={(event) => {
-                setStartDate(event.target.value);
-                if (endDate < event.target.value) setEndDate(event.target.value);
-              }}
-              className={inputClass}
-            />
-          </Labelled>
-          <Labelled label="Boshlanish vaqti" error={errors.startTime}>
-            <input
-              type="time"
-              step={300}
-              value={startTime}
-              aria-invalid={errors.startTime ? true : undefined}
-              onChange={(event) => setStartTime(event.target.value)}
-              className={inputClass}
-            />
-          </Labelled>
-          <Labelled label="Tugash sanasi" error={errors.endDate}>
-            <input
-              type="date"
-              min={startDate || today}
-              value={endDate}
-              aria-invalid={errors.endDate ? true : undefined}
-              onChange={(event) => setEndDate(event.target.value)}
-              className={inputClass}
-            />
-          </Labelled>
-          <Labelled label="Tugash vaqti" error={errors.endTime}>
-            <input
-              type="time"
-              step={300}
-              value={endTime}
-              aria-invalid={errors.endTime ? true : undefined}
-              onChange={(event) => setEndTime(event.target.value)}
-              className={inputClass}
-            />
-          </Labelled>
-          <Labelled label="Turi" error={errors.kind}>
-            <select
-              value={kind}
-              onChange={(event) => setKind(event.target.value as BlockKind)}
-              className={inputClass}
-            >
-              <option value="busy">{BLOCK_KIND_LABEL.busy}</option>
-              <option value="off">{BLOCK_KIND_LABEL.off}</option>
-            </select>
-          </Labelled>
-          <Labelled label="Izoh (ixtiyoriy)" error={errors.label}>
-            <input
-              type="text"
-              maxLength={BLOCK_LABEL_MAX}
-              value={label}
-              aria-invalid={errors.label ? true : undefined}
-              onChange={(event) => setLabel(event.target.value)}
-              className={inputClass}
-            />
-          </Labelled>
+        <span className="text-label text-ink">{t.add}</span>
+        <FormErrorSummary errors={summary} onSelect={(name) => reveal({ name })} />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label={t.startDate} name="startDate" error={errors.startDate}>
+            {(c) => (
+              <DatePicker
+                {...c}
+                value={startDate}
+                min={today}
+                onValueChange={(value) => {
+                  setStartDate(value);
+                  // Keep the range forward: an end before the new start follows it.
+                  if (value && endDate < value) setEndDate(value);
+                }}
+              />
+            )}
+          </Field>
+          <Field label={t.startTime} name="startTime" error={errors.startTime}>
+            {(c) => <TimePicker {...c} value={startTime} onValueChange={setStartTime} step={5} />}
+          </Field>
+          <Field label={t.endDate} name="endDate" error={errors.endDate}>
+            {(c) => (
+              <DatePicker
+                {...c}
+                value={endDate}
+                min={startDate || today}
+                onValueChange={setEndDate}
+              />
+            )}
+          </Field>
+          <Field label={t.endTime} name="endTime" error={errors.endTime}>
+            {(c) => <TimePicker {...c} value={endTime} onValueChange={setEndTime} step={5} />}
+          </Field>
+          <Field label={t.kind} name="kind" error={errors.kind}>
+            {(c) => (
+              <Select<BlockKind>
+                {...c}
+                value={kind}
+                onValueChange={setKind}
+                options={[
+                  { value: "busy", label: m.blockKind.busy },
+                  { value: "off", label: m.blockKind.off },
+                ]}
+              />
+            )}
+          </Field>
+          <Field label={t.note} name="label" error={errors.label}>
+            {(c) => (
+              <TextInput
+                {...c}
+                maxLength={BLOCK_LABEL_MAX}
+                value={label}
+                onChange={(event) => setLabel(event.target.value)}
+              />
+            )}
+          </Field>
         </div>
         <FormError message={formError} />
         <div className="flex justify-end">
-          <Button type="submit" variant="secondary" disabled={busy} aria-busy={busy}>
+          <Button type="submit" variant="secondary" busy={busy}>
             <Icon name="plus" size={18} />
-            {busy ? "Qo‘shilmoqda…" : "Band vaqtni qo‘shish"}
+            {busy ? t.submitting : t.submit}
           </Button>
         </div>
       </form>
@@ -534,8 +524,8 @@ export function BlocksCard({
         open={remove.target !== null}
         busy={remove.busy}
         error={remove.error}
-        title="Band vaqtni o‘chirasizmi?"
-        body="Bu oraliq yana yozilish uchun ochiladi (ish vaqti ichida bo‘lsa)."
+        title={t.removeTitle}
+        body={t.removeText}
         onCancel={() => remove.setTarget(null)}
         onConfirm={remove.confirm}
       />

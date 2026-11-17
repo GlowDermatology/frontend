@@ -1,12 +1,15 @@
 import { z } from "zod";
 
+import { segmentCopy } from "@/domain/copy/segments";
 import { SEGMENT_NAME_MAX, SEGMENT_NAME_MIN } from "@/domain/segment";
-import { formatNumber } from "@/lib/format";
+import { createFormatter } from "@/lib/format";
+import { localized, type LocalizedOf } from "@/lib/i18n/localized";
+import { validationCopy } from "@/lib/i18n/validation-copy";
 
 /**
  * Validation of the group dialog (contract §2.8 `POST/PATCH segments/`),
- * shared by the form and the Server Actions. A rule that is switched off is
- * `null`; a switched-on rule is a positive integer.
+ * shared by the form and the Server Actions, one schema per admin language. A
+ * rule that is switched off is `null`; a switched-on rule is a positive integer.
  */
 
 /**
@@ -17,24 +20,31 @@ import { formatNumber } from "@/lib/format";
 export const SEGMENT_ORDERS_MAX = 100_000;
 export const SEGMENT_AMOUNT_MAX = 1_000_000_000_000;
 
-const maxMessage = (max: number) => `Qiymat ${formatNumber(max)} dan oshmasin.`;
-
-const rule = (message: string, max: number) =>
-  z.number({ error: message }).int(message).min(1, message).max(max, maxMessage(max)).nullable();
-
-export const segmentFormSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(SEGMENT_NAME_MIN, `Kamida ${SEGMENT_NAME_MIN} ta belgi kiriting.`)
-    .max(SEGMENT_NAME_MAX, `${SEGMENT_NAME_MAX} belgidan oshmasin.`),
-  rules: z.object({
-    minOnlineOrders: rule("Buyurtmalar sonini kiriting (1 yoki ko‘p).", SEGMENT_ORDERS_MAX),
-    minLifetimeAmount: rule("Summani kiriting (1 so‘mdan ko‘p).", SEGMENT_AMOUNT_MAX),
-  }),
+export const segmentFormSchemas = localized((locale) => {
+  const m = validationCopy[locale];
+  const s = segmentCopy[locale].schema;
+  const fmt = createFormatter(locale);
+  const rule = (message: string, max: number) =>
+    z
+      .number({ error: message })
+      .int(message)
+      .min(1, message)
+      .max(max, s.max(fmt.number(max)))
+      .nullable();
+  return z.object({
+    name: z
+      .string()
+      .trim()
+      .min(SEGMENT_NAME_MIN, m.minChars(SEGMENT_NAME_MIN))
+      .max(SEGMENT_NAME_MAX, m.maxChars(SEGMENT_NAME_MAX)),
+    rules: z.object({
+      minOnlineOrders: rule(s.orders, SEGMENT_ORDERS_MAX),
+      minLifetimeAmount: rule(s.amount, SEGMENT_AMOUNT_MAX),
+    }),
+  });
 });
 
-export type SegmentFormValues = z.infer<typeof segmentFormSchema>;
+export type SegmentFormValues = z.infer<LocalizedOf<typeof segmentFormSchemas>>;
 
 export const EMPTY_SEGMENT: SegmentFormValues = {
   name: "",

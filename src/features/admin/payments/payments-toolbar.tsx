@@ -4,38 +4,27 @@ import { useEffect, useRef, useState } from "react";
 
 import { SearchInput } from "@/components/ui/field";
 import { Icon } from "@/components/ui/icon";
-import { SelectMenu } from "@/components/ui/menu";
-import {
-  REFUND_STATE_LABEL,
-  REFUND_STATES,
-  type PaymentProvider,
-  type PaymentStatus,
-} from "@/domain/order";
+import { Select } from "@/components/ui/select";
+import { orderLabelsCopy } from "@/domain/copy/orders";
+import { REFUND_STATES, type PaymentProvider, type PaymentStatus } from "@/domain/order";
 import {
   PAYMENT_PAGE_SIZES,
   type PaymentListQuery,
   type PaymentPeriod,
   type RefundFilter,
 } from "@/domain/payment";
+import { useCopy } from "@/lib/i18n/admin-context";
 
 import { DateRangeFields } from "../shared/date-range-fields";
 import { useListNavigation } from "../shared/list-transition";
-import { PAYMENT_STATUS_META, PROVIDER_LABEL } from "../shared/status";
+import { PROVIDER_LABEL } from "../shared/status";
+import { paymentsCopy } from "./copy";
 import { DEFAULT_PAYMENT_PERIOD, hasActivePaymentFilters, paymentListHref } from "./query";
 
 type All = "all";
 
-export const PAYMENT_PERIOD_LABEL: Record<PaymentPeriod, string> = {
-  today: "Bugun",
-  week: "Oxirgi 7 kun",
-  month: "Shu oy",
-  all: "Barcha sana",
-};
-
-export const REFUND_FILTER_LABEL: Record<RefundFilter, string> = {
-  needs_action: "Harakat kerak",
-  ...REFUND_STATE_LABEL,
-};
+const STATUSES: ReadonlyArray<PaymentStatus> = ["pending", "paid", "failed", "refunded"];
+const PERIODS: ReadonlyArray<PaymentPeriod> = ["today", "week", "month", "all"];
 
 /**
  * Filters of the payments board (contract §2.12); every change is a URL
@@ -44,6 +33,9 @@ export const REFUND_FILTER_LABEL: Record<RefundFilter, string> = {
  * to "Barcha sana" (the API ANDs both), a period picked clears the days.
  */
 export function PaymentsToolbar({ query }: { query: PaymentListQuery }) {
+  const t = useCopy(paymentsCopy).toolbar;
+  const clear = useCopy(paymentsCopy).clearFilters;
+  const labels = useCopy(orderLabelsCopy);
   const { navigate } = useListNavigation();
   const [search, setSearch] = useState(query.q ?? "");
   const lastSubmitted = useRef(query.q ?? "");
@@ -65,62 +57,55 @@ export function PaymentsToolbar({ query }: { query: PaymentListQuery }) {
   return (
     <div className="flex flex-wrap items-center gap-2.5 border-b border-line p-4">
       <SearchInput
-        label="Buyurtma №, tranzaksiya yoki telefon"
-        placeholder="№, tranzaksiya yoki telefon"
+        label={t.search}
+        placeholder={t.searchPlaceholder}
         value={search}
         maxLength={64}
         onChange={(event) => setSearch(event.target.value)}
         wrapperClassName="max-w-[320px] flex-[1_1_240px] gap-2 bg-transparent px-3"
       />
-      <SelectMenu<PaymentStatus | All>
-        label="To‘lov holati"
-        trigger={`Holat: ${query.status ? PAYMENT_STATUS_META[query.status].label : "Hammasi"}`}
+      <Select<PaymentStatus | All>
+        variant="filter"
+        aria-label={t.status}
+        prefix={t.statusPrefix}
         value={query.status ?? "all"}
         onValueChange={(value) => update({ status: value === "all" ? undefined : value })}
         options={[
-          { value: "all", label: "Hammasi" },
-          ...(["pending", "paid", "failed", "refunded"] as const).map((value) => ({
-            value,
-            label: PAYMENT_STATUS_META[value].label,
-          })),
+          { value: "all", label: t.all },
+          ...STATUSES.map((value) => ({ value, label: labels.paymentStatus[value] })),
         ]}
       />
-      <SelectMenu<PaymentProvider | All>
-        label="To‘lov usuli"
-        trigger={`Usul: ${query.provider ? PROVIDER_LABEL[query.provider] : "Hammasi"}`}
+      <Select<PaymentProvider | All>
+        variant="filter"
+        aria-label={t.provider}
+        prefix={t.providerPrefix}
         value={query.provider ?? "all"}
         onValueChange={(value) => update({ provider: value === "all" ? undefined : value })}
         options={[
-          { value: "all", label: "Hammasi" },
-          { value: "click", label: "Click" },
-          { value: "payme", label: "Payme" },
+          { value: "all", label: t.all },
+          { value: "click", label: PROVIDER_LABEL.click },
+          { value: "payme", label: PROVIDER_LABEL.payme },
         ]}
       />
-      <SelectMenu<RefundFilter | All>
-        label="Qaytarish holati"
-        trigger={`Qaytarish: ${query.refund ? REFUND_FILTER_LABEL[query.refund] : "Hammasi"}`}
+      <Select<RefundFilter | All>
+        variant="filter"
+        aria-label={t.refund}
+        prefix={t.refundPrefix}
         value={query.refund ?? "all"}
         onValueChange={(value) => update({ refund: value === "all" ? undefined : value })}
         options={[
-          { value: "all", label: "Hammasi" },
-          { value: "needs_action", label: REFUND_FILTER_LABEL.needs_action },
-          ...REFUND_STATES.map((value) => ({ value, label: REFUND_STATE_LABEL[value] })),
+          { value: "all", label: t.all },
+          { value: "needs_action", label: t.needsAction },
+          ...REFUND_STATES.map((value) => ({ value, label: labels.refundState[value] })),
         ]}
       />
-      <SelectMenu<PaymentPeriod>
-        label="Davr"
-        trigger={
-          <>
-            <Icon name="calendar" size={18} />
-            {PAYMENT_PERIOD_LABEL[query.period]}
-          </>
-        }
+      <Select<PaymentPeriod>
+        variant="filter"
+        aria-label={t.period}
+        prefix={<Icon name="calendar" size={18} />}
         value={query.period}
         onValueChange={(period) => update({ period, dateFrom: undefined, dateTo: undefined })}
-        options={(["today", "week", "month", "all"] as const).map((value) => ({
-          value,
-          label: PAYMENT_PERIOD_LABEL[value],
-        }))}
+        options={PERIODS.map((value) => ({ value, label: t.periods[value] }))}
       />
       <DateRangeFields
         from={query.dateFrom}
@@ -128,39 +113,42 @@ export function PaymentsToolbar({ query }: { query: PaymentListQuery }) {
         onCommit={(patch) => update({ ...patch, period: DEFAULT_PAYMENT_PERIOD })}
       />
       <span className="flex-1" />
-      <button
-        type="button"
-        disabled={!hasActivePaymentFilters(query)}
-        onClick={() => {
-          setSearch("");
-          lastSubmitted.current = "";
-          navigate(paymentListHref({ pageSize: query.pageSize, sort: query.sort }));
-        }}
-        className="inline-flex h-11 items-center gap-2 rounded-md px-[18px] text-label font-bold whitespace-nowrap text-ink transition-colors duration-150 hover:bg-gold-soft disabled:cursor-default disabled:text-ink-muted disabled:hover:bg-transparent"
-      >
-        <Icon name="close" size={18} />
-        Filtrlarni tozalash
-      </button>
+      {hasActivePaymentFilters(query) && (
+        <button
+          type="button"
+          onClick={() => {
+            setSearch("");
+            lastSubmitted.current = "";
+            navigate(paymentListHref({ pageSize: query.pageSize, sort: query.sort }));
+          }}
+          className="inline-flex h-11 items-center gap-2 rounded-md px-[18px] text-label font-bold whitespace-nowrap text-ink transition-colors duration-150 hover:bg-gold-soft"
+        >
+          <Icon name="close" size={18} />
+          {clear}
+        </button>
+      )}
     </div>
   );
 }
 
 export function PaymentPageSizeMenu({ query }: { query: PaymentListQuery }) {
+  const t = useCopy(paymentsCopy).toolbar;
   const { navigate } = useListNavigation();
   return (
-    <SelectMenu<string>
-      label="Sahifadagi qatorlar"
+    <Select<string>
+      variant="filter"
+      size="sm"
       align="end"
-      trigger={`${query.pageSize} ta qator`}
-      triggerClassName="h-9 gap-1.5 px-3 text-[13px] leading-[18px] font-semibold"
+      aria-label={t.rows}
       value={String(query.pageSize)}
       onValueChange={(value) =>
         navigate(paymentListHref({ ...query, pageSize: Number(value), page: 1 }))
       }
       options={PAYMENT_PAGE_SIZES.map((size) => ({
         value: String(size),
-        label: `${size} ta qator`,
+        label: t.rowsOption(size),
       }))}
+      className="min-w-0"
     />
   );
 }

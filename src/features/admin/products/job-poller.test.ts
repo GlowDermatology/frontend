@@ -213,6 +213,23 @@ describe("createJobPoller", () => {
     expect(poller.active).toBe(false);
   });
 
+  it("reads a function timeoutMessage when the limit is reached (the language may have changed)", async () => {
+    const fetchJob = vi.fn(async () => ok(job("running")));
+    const onError = vi.fn();
+    let language = "uz";
+    const poller = createJobPoller({
+      fetchJob,
+      onUpdate: vi.fn(),
+      onError,
+      maxAttempts: 1,
+      timeoutMessage: () => (language === "uz" ? "Vaqt tugadi" : "Timed out"),
+    });
+    poller.start(job("running"));
+    language = "en";
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(onError).toHaveBeenCalledWith("Timed out");
+  });
+
   it("computes the backoff as the interval doubled per retry", () => {
     expect([1, 2, 3, 4].map((n) => retryDelayMs(n))).toEqual([1500, 3000, 6000, 12_000]);
     expect(retryDelayMs(2, 1000)).toBe(2000);

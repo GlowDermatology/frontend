@@ -3,12 +3,15 @@
 import { z } from "zod";
 
 import type { Category } from "@/domain/category";
+import { catalogDataCopy, type CatalogDataCopy } from "@/domain/copy/catalog";
+import { getAdminLocale, getLocalized } from "@/lib/i18n/admin-locale";
+import type { Locale } from "@/lib/i18n/locales";
 
 import {
   apiMutation,
   fieldErrorsFrom,
   guardAction,
-  idempotencyKeySchema,
+  idempotencyKeySchemas,
   sessionToken,
 } from "./action-guard";
 import {
@@ -20,10 +23,7 @@ import {
 import { categoryCreateBody, categoryPatchBody, mapCategory, toActionResult } from "./api/mappers";
 import { categoryFormData } from "./api/mappers/categories";
 import {
-  categoryEditSchema,
-  categoryFormSchema,
-  categoryImageSchema,
-  categorySlugSchema,
+  categorySchemas,
   type CategoryEditValues,
   type CategoryFormValues,
 } from "./categories.schema";
@@ -46,22 +46,35 @@ import type { ActionResult } from "./types";
 
 type ParsedMedia = { ok: true; image: File | null; remove: boolean } | ActionFailure;
 
-function parseMedia(media: FormData | null | undefined): ParsedMedia {
+/** The admin language's messages and schemas (cookie `gd_admin_language`). */
+async function localizedParts(): Promise<{
+  m: CatalogDataCopy;
+  schemas: (typeof categorySchemas)[Locale];
+}> {
+  const locale = await getAdminLocale();
+  return { m: catalogDataCopy[locale], schemas: categorySchemas[locale] };
+}
+
+function parseMedia(
+  media: FormData | null | undefined,
+  m: CatalogDataCopy,
+  schemas: (typeof categorySchemas)[Locale],
+): ParsedMedia {
   if (!(media instanceof FormData)) return { ok: true, image: null, remove: false };
   const picked = media.get("image");
-  const image = categoryImageSchema.safeParse(
+  const image = schemas.image.safeParse(
     picked instanceof File && picked.size > 0 ? picked : undefined,
   );
   if (!image.success) {
     return {
       ok: false,
-      error: "Rasmni tekshiring.",
-      fieldErrors: { image: image.error.issues[0]?.message ?? "Rasmni tekshiring." },
+      error: m.checkImage,
+      fieldErrors: { image: image.error.issues[0]?.message ?? m.checkImage },
     };
   }
   const remove = media.get("remove_image") === "true";
   if (image.data && remove) {
-    return { ok: false, error: "Rasmni tekshiring.", fieldErrors: { image: "Rasmni tekshiring." } };
+    return { ok: false, error: m.checkImage, fieldErrors: { image: m.checkImage } };
   }
   return { ok: true, image: image.data ?? null, remove };
 }
@@ -74,11 +87,12 @@ export async function createCategory(
 ): Promise<ActionResult<Category>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
-  const parsedKey = z.object({ key: idempotencyKeySchema }).safeParse({ key });
-  if (!parsedKey.success) return fieldErrorsFrom(parsedKey.error);
-  const parsed = categoryFormSchema.safeParse(values);
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
-  const file = parseMedia(media);
+  const { m, schemas } = await localizedParts();
+  const parsedKey = z.object({ key: await getLocalized(idempotencyKeySchemas) }).safeParse({ key });
+  if (!parsedKey.success) return fieldErrorsFrom(parsedKey.error, m.checkFields);
+  const parsed = schemas.form.safeParse(values);
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, m.checkFields);
+  const file = parseMedia(media, m, schemas);
   if (!file.ok) return file;
   const image = file.image;
   if ((await dataSource()) === "api") {
@@ -109,13 +123,14 @@ export async function updateCategory(
 ): Promise<ActionResult<Category>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
-  const parsedSlug = categorySlugSchema.safeParse(slug);
-  if (!parsedSlug.success) return { ok: false, error: "Kategoriya topilmadi.", code: "not_found" };
-  const parsedKey = z.object({ key: idempotencyKeySchema }).safeParse({ key });
-  if (!parsedKey.success) return fieldErrorsFrom(parsedKey.error);
-  const parsed = categoryEditSchema.safeParse(values);
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
-  const file = parseMedia(media);
+  const { m, schemas } = await localizedParts();
+  const parsedSlug = schemas.slug.safeParse(slug);
+  if (!parsedSlug.success) return { ok: false, error: m.categoryNotFound, code: "not_found" };
+  const parsedKey = z.object({ key: await getLocalized(idempotencyKeySchemas) }).safeParse({ key });
+  if (!parsedKey.success) return fieldErrorsFrom(parsedKey.error, m.checkFields);
+  const parsed = schemas.edit.safeParse(values);
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, m.checkFields);
+  const file = parseMedia(media, m, schemas);
   if (!file.ok) return file;
   const { image, remove } = file;
   if ((await dataSource()) === "api") {
@@ -148,8 +163,9 @@ export async function deleteCategory(
 ): Promise<ActionResult<{ slug: string }>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
-  const parsedSlug = categorySlugSchema.safeParse(slug);
-  if (!parsedSlug.success) return { ok: false, error: "Kategoriya topilmadi.", code: "not_found" };
+  const { m, schemas } = await localizedParts();
+  const parsedSlug = schemas.slug.safeParse(slug);
+  if (!parsedSlug.success) return { ok: false, error: m.categoryNotFound, code: "not_found" };
   if ((await dataSource()) === "api") {
     return apiMutation("deleteCategory", async () => {
       try {
@@ -170,12 +186,13 @@ export async function reorderCategories(
 ): Promise<ActionResult<Category[]>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
+  const { m, schemas } = await localizedParts();
   const parsed = z
-    .array(categorySlugSchema)
+    .array(schemas.slug)
     .max(200)
-    .refine((list) => new Set(list).size === list.length, { error: "Sluglar takrorlanmoqda." })
+    .refine((list) => new Set(list).size === list.length, { error: m.slugsRepeated })
     .safeParse(slugs);
-  if (!parsed.success) return fieldErrorsFrom(parsed.error, "Tartibni tekshiring.");
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, m.checkOrder);
   if ((await dataSource()) === "api") {
     return apiMutation("reorderCategories", async () => {
       try {

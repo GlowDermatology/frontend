@@ -4,14 +4,15 @@ import Image from "next/image";
 import { useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonStyles } from "@/components/ui/button";
+import { Button, buttonStyles, IconButton } from "@/components/ui/button";
 import { AlertDialog, AlertDialogCancel } from "@/components/ui/dialog";
 import { Icon } from "@/components/ui/icon";
 import { ScrollRegion } from "@/components/ui/scroll-region";
 import { useToast } from "@/components/ui/toast";
 import { deleteCategory, reorderCategories } from "@/data/categories.actions";
-import type { Category } from "@/domain/category";
-import { formatNumber } from "@/lib/format";
+import { canDeleteCategory, type Category } from "@/domain/category";
+import { useCopy } from "@/lib/i18n/admin-context";
+import { useFormat } from "@/lib/i18n/admin-hooks";
 
 import { runAction } from "../shared/action-client";
 import { ExportMenu } from "../shared/export-menu";
@@ -22,6 +23,7 @@ import { ListFilterBar, useListFilter } from "../shared/list-filter";
 import { useRowDrag } from "../shared/row-drag";
 import { upsertRow, useOrderedList } from "../shared/use-ordered-list";
 import { CategoryDialog } from "./category-dialog";
+import { categoriesCopy } from "./copy";
 
 interface CategoriesViewProps {
   categories: Category[];
@@ -29,9 +31,6 @@ interface CategoriesViewProps {
 }
 
 type DialogState = { mode: "create" } | { mode: "edit"; category: Category } | null;
-
-const iconButtonClass =
-  "flex size-9 items-center justify-center rounded-md text-ink-muted transition-colors duration-150 hover:bg-gold-soft hover:text-ink";
 
 /**
  * Kategoriyalar: the ordered list with create/edit dialogs, delete
@@ -44,12 +43,16 @@ const iconButtonClass =
 
 const slugOf = (category: Category) => category.slug;
 export function CategoriesView({ categories, exportHref }: CategoriesViewProps) {
+  const copy = useCopy(categoriesCopy);
+  const t = copy.list;
+  const fmt = useFormat();
   const toast = useToast();
   const { items, move, apply, announcement } = useOrderedList(categories, {
     keyOf: slugOf,
     label: (category) => `«${category.name.uz}»`,
     send: (slugs) => runAction((csrf) => reorderCategories(slugs, csrf)),
-    onError: (message) => toast({ tone: "info", title: "Amal bajarilmadi", description: message }),
+    onError: (message) =>
+      toast({ tone: "danger", title: copy.toast.orderFailed, description: message }),
     // Keep a demo preview: mock uploads store no bytes, so the server rows
     // never carry the picked image.
     merge: (server, local) =>
@@ -85,7 +88,8 @@ export function CategoriesView({ categories, exportHref }: CategoriesViewProps) 
     const row = category.imageUrl === "" ? { ...category, imageUrl: previewUrl } : category;
     apply((rows) => upsertRow(rows, row, slugOf));
     toast({
-      title: mode === "create" ? "Kategoriya qo‘shildi" : "Kategoriya saqlandi",
+      tone: "success",
+      title: mode === "create" ? copy.toast.created : copy.toast.saved,
       description: category.name.uz,
     });
   };
@@ -101,23 +105,24 @@ export function CategoriesView({ categories, exportHref }: CategoriesViewProps) 
     setDeleteBusy(false);
     if (!result.ok) {
       setDeleteError(result.error);
+      toast({ tone: "danger", title: copy.toast.failed, description: result.error });
       return;
     }
     deletedSlug.current = deleting.slug;
     const slug = deleting.slug;
     apply((rows) => rows.filter((item) => item.slug !== slug));
     setDeleting(null);
-    toast({ title: "Kategoriya o‘chirildi", description: deleting.name.uz });
+    toast({ tone: "success", title: copy.toast.deleted, description: deleting.name.uz });
   };
 
   return (
     <>
       <PageHeader
-        eyebrow={`${formatNumber(items.length)} ta kategoriya`}
-        title="Kategoriyalar"
+        eyebrow={t.eyebrow(fmt.number(items.length))}
+        title={t.title}
         actions={
           <>
-            <ExportMenu href={exportHref} />
+            <ExportMenu href={exportHref} label={t.export} />
             <button
               type="button"
               ref={addButton}
@@ -125,7 +130,7 @@ export function CategoriesView({ categories, exportHref }: CategoriesViewProps) 
               className={buttonStyles()}
             >
               <Icon name="plus" size={18} />
-              Kategoriya qo‘shish
+              {t.add}
             </button>
           </>
         }
@@ -136,27 +141,27 @@ export function CategoriesView({ categories, exportHref }: CategoriesViewProps) 
       </p>
 
       <section
-        aria-label="Kategoriyalar ro‘yxati"
+        aria-label={t.region}
         className="overflow-hidden rounded-lg bg-surface-raised shadow-sm"
       >
-        {items.length > 0 && <ListFilterBar label="Nomi yoki slug" filter={filter} />}
+        {items.length > 0 && <ListFilterBar label={t.filter} filter={filter} />}
         {items.length > 0 ? (
-          <ScrollRegion label="Kategoriyalar jadvali">
+          <ScrollRegion label={t.table}>
             <table className="data-table min-w-[820px]">
               <thead>
                 <tr>
-                  <th scope="col">TARTIB</th>
+                  <th scope="col">{t.order}</th>
                   <th scope="col">
-                    <span className="sr-only">Rasm</span>
+                    <span className="sr-only">{t.image}</span>
                   </th>
-                  <th scope="col">NOMI</th>
-                  <th scope="col">SLUG</th>
+                  <th scope="col">{t.name}</th>
+                  <th scope="col">{t.slug}</th>
                   <th scope="col" className="text-right!">
-                    MAHSULOTLAR
+                    {t.products}
                   </th>
-                  <th scope="col">HOLAT</th>
+                  <th scope="col">{t.status}</th>
                   <th scope="col">
-                    <span className="sr-only">Amallar</span>
+                    <span className="sr-only">{t.actions}</span>
                   </th>
                 </tr>
               </thead>
@@ -173,7 +178,7 @@ export function CategoriesView({ categories, exportHref }: CategoriesViewProps) 
                             </span>
                           ) : (
                             <ReorderButtons
-                              subject={`«${category.name.uz}»`}
+                              subject={category.name.uz}
                               index={index}
                               count={items.length}
                               onMove={move}
@@ -207,44 +212,49 @@ export function CategoriesView({ categories, exportHref }: CategoriesViewProps) 
                         </span>
                       </td>
                       <td>
-                        <span className="flex flex-col">
-                          <span className="font-bold text-ink">{category.name.uz}</span>
-                          <span className="text-[12px] text-ink-muted">
+                        <span className="flex max-w-[320px] min-w-0 flex-col">
+                          <span lang="uz" className="font-bold break-words text-ink">
+                            {category.name.uz}
+                          </span>
+                          <span className="truncate text-[12px] text-ink-muted">
                             {[category.name.ru, category.name.en].filter(Boolean).join(" · ") ||
-                              "Tarjimalar to‘ldirilmagan"}
+                              t.noTranslations}
                           </span>
                         </span>
                       </td>
                       <td className="font-mono text-[12px] text-ink-muted">{category.slug}</td>
                       <td className="text-right tabular-nums">
-                        {formatNumber(category.productCount)}
+                        {fmt.number(category.productCount)}
                       </td>
                       <td>
                         <Badge tone={category.isActive ? "success" : "neutral"}>
-                          {category.isActive ? "Faol" : "Faol emas"}
+                          {category.isActive ? t.active : t.inactive}
                         </Badge>
                       </td>
                       <td>
                         <span className="flex justify-end gap-0.5">
-                          <button
-                            type="button"
-                            aria-label={`«${category.name.uz}» — tahrirlash`}
+                          <IconButton
+                            size="sm"
+                            aria-label={t.edit(category.name.uz)}
                             onClick={() => openDialog({ mode: "edit", category })}
-                            className={iconButtonClass}
                           >
                             <Icon name="pencil" size={18} />
-                          </button>
-                          <button
-                            type="button"
-                            aria-label={`«${category.name.uz}» — o‘chirish`}
+                          </IconButton>
+                          <IconButton
+                            size="sm"
+                            aria-label={t.remove(category.name.uz)}
+                            disabledReason={
+                              !canDeleteCategory(category) &&
+                              t.removeBlocked(fmt.number(category.productCount))
+                            }
                             onClick={() => {
                               setDeleteError(null);
                               setDeleting(category);
                             }}
-                            className={`${iconButtonClass} hover:text-danger`}
+                            className="hover:text-danger"
                           >
                             <Icon name="trash" size={18} />
-                          </button>
+                          </IconButton>
                         </span>
                       </td>
                     </tr>
@@ -254,7 +264,7 @@ export function CategoriesView({ categories, exportHref }: CategoriesViewProps) 
             </table>
             {shown === 0 && (
               <p className="m-0 px-6 py-10 text-center text-body-sm text-ink-muted">
-                Hech narsa topilmadi. Qidiruv yoki holatni o‘zgartirib ko‘ring.
+                {t.nothingFound}
               </p>
             )}
           </ScrollRegion>
@@ -263,21 +273,17 @@ export function CategoriesView({ categories, exportHref }: CategoriesViewProps) 
             <span className="flex size-12 items-center justify-center rounded-full bg-gold-soft text-gold-ink">
               <Icon name="tag" size={22} />
             </span>
-            <p className="m-0 text-subheading text-ink">Hali kategoriya yo‘q</p>
-            <p className="m-0 max-w-[420px] text-body-sm text-ink-muted">
-              Mahsulotlarni guruhlash uchun birinchi kategoriyani qo‘shing. Tartib ilovadagi
-              ko‘rinishni belgilaydi.
-            </p>
+            <p className="m-0 text-subheading text-ink">{t.emptyTitle}</p>
+            <p className="m-0 max-w-[420px] text-body-sm text-ink-muted">{t.emptyLead}</p>
             <Button variant="secondary" onClick={() => openDialog({ mode: "create" })}>
               <Icon name="plus" size={18} />
-              Kategoriya qo‘shish
+              {t.add}
             </Button>
           </div>
         )}
         <div className="flex flex-wrap items-center gap-2 border-t border-line px-4 py-3 text-caption font-normal text-ink-muted">
-          <Icon name="info" size={14} />
-          Tartibni qatorni sudrab yoki strelkalar bilan o‘zgartiring; u ilovadagi ketma-ketlikni
-          belgilaydi. Mahsulotli kategoriyani o‘chirib bo‘lmaydi.
+          <Icon name="info" size={14} className="shrink-0" />
+          <span className="min-w-0 flex-1">{t.footer}</span>
         </div>
       </section>
 
@@ -306,17 +312,14 @@ export function CategoriesView({ categories, exportHref }: CategoriesViewProps) 
             addButton.current?.focus();
           }
         }}
-        title={deleting ? `«${deleting.name.uz}» kategoriyasini o‘chirasizmi?` : ""}
+        title={deleting ? copy.remove.title(deleting.name.uz) : ""}
         description={
           deleting && deleting.productCount > 0 ? (
             <p className="m-0 text-[14px] leading-5 text-ink">
-              Kategoriyada {formatNumber(deleting.productCount)} ta mahsulot bor. Avval ularni
-              boshqa kategoriyaga o‘tkazing — aks holda server o‘chirishni rad etadi.
+              {copy.remove.hasProducts(fmt.number(deleting.productCount))}
             </p>
           ) : (
-            <p className="m-0 text-[14px] leading-5 text-ink">
-              Kategoriya ilovadan va filtrlardan yo‘qoladi. Bu amalni qaytarib bo‘lmaydi.
-            </p>
+            <p className="m-0 text-[14px] leading-5 text-ink">{copy.remove.lead}</p>
           )
         }
       >
@@ -330,16 +333,13 @@ export function CategoriesView({ categories, exportHref }: CategoriesViewProps) 
           </p>
         )}
         <div className="mt-1.5 flex flex-wrap justify-end gap-2">
-          <AlertDialogCancel disabled={deleteBusy} className={buttonStyles({ variant: "outline" })}>
-            Bekor qilish
+          <AlertDialogCancel asChild>
+            <Button variant="outline" disabledReason={deleteBusy && copy.remove.cancelBusy}>
+              {copy.remove.cancel}
+            </Button>
           </AlertDialogCancel>
-          <Button
-            variant="destructive"
-            onClick={confirmDelete}
-            disabled={deleteBusy}
-            aria-busy={deleteBusy}
-          >
-            {deleteBusy ? "O‘chirilmoqda…" : "O‘chirish"}
+          <Button variant="destructive" onClick={confirmDelete} busy={deleteBusy}>
+            {deleteBusy ? copy.remove.busy : copy.remove.confirm}
           </Button>
         </div>
       </AlertDialog>

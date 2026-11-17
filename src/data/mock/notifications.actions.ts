@@ -1,4 +1,5 @@
 import { dispatchEta } from "@/domain/campaign-actions";
+import { notificationDataCopy, type NotificationDataCopy } from "@/domain/copy/notifications";
 import {
   TEMPLATE_PLACEHOLDER,
   unknownPlaceholders,
@@ -10,6 +11,7 @@ import {
   type TestDevice,
 } from "@/domain/notification";
 import { formatNumber, formatPhone } from "@/lib/format";
+import { copyFor } from "@/lib/i18n/admin-locale";
 
 import { referenceNow } from "../config";
 import type {
@@ -33,31 +35,21 @@ import {
 /**
  * Mock implementation of `src/data/notifications.actions.ts`: every
  * operation of the approval workflow computed over the fixtures with the
- * backend's codes and Uzbek messages, nothing kept. The audience label
+ * backend's codes and messages (in the admin language), nothing kept. The audience label
  * comes from the fixtures (segment name and size, device count), never from
  * the client. The role check (`permission_denied` for an ordinary admin on a
  * superuser operation) happens before these bodies, in `requireSuperuser`.
  */
 
-/* The backend's messages (`notifications/services.py` module constants). */
-export const SEND_STARTED_MESSAGE = "Yuborish boshlangan: xabarni bekor qilib bo‘lmaydi.";
-export const MESSAGE_STALE_REVISION =
-  "Xabar o‘zgartirilgan: sahifani yangilab, qayta urinib ko‘ring.";
-export const MESSAGE_NOT_TESTED = "Avval test yuboring va qurilmada ko‘rganingizni tasdiqlang.";
-export const MESSAGE_NOT_EDITABLE = "Faqat qoralamani o‘zgartirish mumkin.";
-export const MESSAGE_CANCEL_DRAFT =
-  "Qoralamani bekor qilish shart emas: uni o‘chiring yoki o‘zgartiring.";
-export const MESSAGE_NOT_SENDING = "Xabar hozir yuborilmayapti: to‘xtatadigan narsa yo‘q.";
-export const MESSAGE_NOT_RETURNABLE =
-  "Faqat rejalashtirilgan yoki bekor qilingan xabarni qoralamaga qaytarish mumkin.";
-export const MESSAGE_TEST_STALE = "Bu test eski matn uchun yuborilgan: qayta test yuboring.";
-export const MESSAGE_TEST_UNDELIVERED = "Bu test qurilmaga yetib bormagan: tasdiqlab bo‘lmaydi.";
-export const MESSAGE_NO_TEST_DEVICES = "Push qabul qila oladigan test qurilmasi tanlanmadi.";
-export const MESSAGE_CUSTOMER_NOT_FOUND = "Bu raqam bilan mijoz topilmadi.";
-export const MESSAGE_DEVICE_NOT_PUSHABLE = "Bu mijozning push yoqilgan qurilmasi yo‘q.";
-export const MESSAGE_DEVICE_REGISTERED = "Bu qurilma allaqachon ro‘yxatda.";
+/* The backend's messages (`notifications/services.py` module constants), in the admin language. */
+type Backend = NotificationDataCopy["backend"];
+const messages = async (): Promise<Backend> => (await copyFor(notificationDataCopy)).backend;
 
-const NOT_FOUND: ActionResult<never> = { ok: false, error: "Topilmadi.", code: "not_found" };
+const notFound = (m: Backend): ActionResult<never> => ({
+  ok: false,
+  error: m.notFound,
+  code: "not_found",
+});
 const conflict = (error: string): ActionResult<never> => ({ ok: false, error, code: "conflict" });
 const invalidTransition = (error: string): ActionResult<never> => ({
   ok: false,
@@ -75,32 +67,41 @@ const MOCK_IMAGE_URL = "/demo/campaign-image.jpg";
 const now = () => referenceNow().toISOString();
 const find = (id: string) => NOTIFICATION_HISTORY.find((n) => n.id === id);
 
-function audienceLabel(input: NotificationInput): { label: string; count: number } | null {
+function audienceLabel(
+  input: NotificationInput,
+): { label: string; name: string | null; count: number } | null {
   if (input.audience === "all") {
-    return { label: `Barcha · ${formatNumber(TOTAL_DEVICES)}`, count: TOTAL_DEVICES };
+    return { label: `Barcha · ${formatNumber(TOTAL_DEVICES)}`, name: null, count: TOTAL_DEVICES };
   }
   if (input.audience === "group") {
     const segment = SEGMENTS.find((s) => s.id === input.segmentId);
     return segment
-      ? { label: `${segment.name} · ${formatNumber(segment.size)}`, count: segment.size }
+      ? {
+          label: `${segment.name} · ${formatNumber(segment.size)}`,
+          name: segment.name,
+          count: segment.size,
+        }
       : null;
   }
-  return { label: `Bitta mijoz · ${formatPhone(input.phone)}`, count: 1 };
+  return { label: `Bitta mijoz · ${formatPhone(input.phone)}`, name: null, count: 1 };
 }
 
-const SEGMENT_MISSING: ActionResult<never> = {
-  ok: false,
-  error: "Guruh topilmadi.",
-  fieldErrors: { segmentId: "Guruhni tanlang." },
-};
+async function segmentMissing(): Promise<ActionResult<never>> {
+  const { backend, schema } = await copyFor(notificationDataCopy);
+  return {
+    ok: false,
+    error: backend.groupNotFound,
+    fieldErrors: { segmentId: schema.chooseGroup },
+  };
+}
 
-function linkOf(input: NotificationInput): NotificationLink {
+function linkOf(input: NotificationInput, m: Backend): NotificationLink {
   const { link } = input;
   if (link.kind !== "product") return link;
   const option = LINK_OPTIONS.find((o) => o.kind === "product" && o.productId === link.productId);
   return option?.kind === "product"
     ? option
-    : { kind: "product", productId: link.productId, label: `Mahsulot #${link.productId}` };
+    : { kind: "product", productId: link.productId, label: m.productFallback(link.productId) };
 }
 
 function linkFields(link: NotificationLink): Pick<NotificationRecord, "linkLabel" | "linkUrl"> {
@@ -120,10 +121,11 @@ export async function saveNotificationDraft(
   input: NotificationInput,
 ): Promise<ActionResult<NotificationRecord>> {
   await delay(600);
+  const m = await messages();
   const audience = audienceLabel(input);
-  if (audience === null) return SEGMENT_MISSING;
+  if (audience === null) return segmentMissing();
   const at = now();
-  const link = linkOf(input);
+  const link = linkOf(input, m);
   return {
     ok: true,
     data: campaignRecord({
@@ -134,6 +136,7 @@ export async function saveNotificationDraft(
       title: input.title,
       body: input.body,
       audienceLabel: audience.label,
+      audienceName: audience.name,
       recipientCount: audience.count,
       audience: audienceOf(input),
       link,
@@ -157,13 +160,14 @@ export async function updateNotificationDraft(
   expectedRevision: number,
 ): Promise<ActionResult<NotificationRecord>> {
   await delay(600);
+  const m = await messages();
   const record = find(id);
-  if (!record) return NOT_FOUND;
-  if (!EDITABLE.has(record.state)) return invalidTransition(MESSAGE_NOT_EDITABLE);
-  if (record.revision !== expectedRevision) return conflict(MESSAGE_STALE_REVISION);
+  if (!record) return notFound(m);
+  if (!EDITABLE.has(record.state)) return invalidTransition(m.notEditable);
+  if (record.revision !== expectedRevision) return conflict(m.staleRevision);
   const audience = audienceLabel(input);
-  if (audience === null) return SEGMENT_MISSING;
-  const link = linkOf(input);
+  if (audience === null) return segmentMissing();
+  const link = linkOf(input, m);
   const nextAudience = audienceOf(input);
   const contentChanged =
     record.kind !== input.kind ||
@@ -181,6 +185,7 @@ export async function updateNotificationDraft(
     title: input.title,
     body: input.body,
     audienceLabel: audience.label,
+    audienceName: audience.name,
     recipientCount: audience.count,
     audience: nextAudience,
     link,
@@ -203,9 +208,10 @@ export async function updateNotificationDraft(
 /** `DELETE notifications/{id}/`: a draft or tested campaign is gone (204). */
 export async function deleteNotificationDraft(id: string): Promise<ActionResult<{ id: string }>> {
   await delay(450);
+  const m = await messages();
   const record = find(id);
-  if (!record) return NOT_FOUND;
-  if (!EDITABLE.has(record.state)) return invalidTransition(MESSAGE_NOT_EDITABLE);
+  if (!record) return notFound(m);
+  if (!EDITABLE.has(record.state)) return invalidTransition(m.notEditable);
   return { ok: true, data: { id } };
 }
 
@@ -219,12 +225,13 @@ export async function sendCampaignTest(
   deviceIds: ReadonlyArray<string>,
 ): Promise<ActionResult<NotificationRecord>> {
   await delay(700);
+  const m = await messages();
   const record = find(id);
-  if (!record) return NOT_FOUND;
-  if (!EDITABLE.has(record.state)) return invalidTransition(MESSAGE_NOT_EDITABLE);
+  if (!record) return notFound(m);
+  if (!EDITABLE.has(record.state)) return invalidTransition(m.notEditable);
   const devices = deviceIds.map((deviceId) => TEST_DEVICES.find((d) => d.id === deviceId));
   if (devices.length === 0 || devices.some((d) => d === undefined)) {
-    return conflict(MESSAGE_NO_TEST_DEVICES);
+    return conflict(m.noTestDevices);
   }
   const sentAt = now();
   const tests: CampaignTest[] = (devices as TestDevice[]).map((device, index) => ({
@@ -247,14 +254,15 @@ export async function confirmCampaignTest(
   testId: string,
 ): Promise<ActionResult<NotificationRecord>> {
   await delay(450);
+  const m = await messages();
   const record = find(id);
-  if (!record) return NOT_FOUND;
+  if (!record) return notFound(m);
   const test = record.tests.find((t) => t.id === testId);
-  if (!test) return NOT_FOUND;
+  if (!test) return notFound(m);
   if (test.confirmedAt) return { ok: true, data: record };
-  if (!EDITABLE.has(record.state)) return invalidTransition(MESSAGE_NOT_EDITABLE);
-  if (test.revision !== record.revision) return conflict(MESSAGE_TEST_STALE);
-  if (test.fcmOk !== true) return conflict(MESSAGE_TEST_UNDELIVERED);
+  if (!EDITABLE.has(record.state)) return invalidTransition(m.notEditable);
+  if (test.revision !== record.revision) return conflict(m.testStale);
+  if (test.fcmOk !== true) return conflict(m.testUndelivered);
   const at = now();
   return {
     ok: true,
@@ -282,15 +290,16 @@ export async function approveNotification(
   expectedRevision: number,
 ): Promise<ActionResult<NotificationRecord>> {
   await delay(600);
+  const m = await messages();
   const record = find(id);
-  if (!record) return NOT_FOUND;
+  if (!record) return notFound(m);
   if (record.state === "scheduled" && record.approvedRevision === expectedRevision) {
     return { ok: true, data: record };
   }
-  if (record.state === "draft") return conflict(MESSAGE_NOT_TESTED);
-  if (record.state !== "tested") return invalidTransition(MESSAGE_NOT_TESTED);
+  if (record.state === "draft") return conflict(m.notTested);
+  if (record.state !== "tested") return invalidTransition(m.notTested);
   if (record.revision !== expectedRevision || record.testedRevision !== record.revision) {
-    return conflict(MESSAGE_STALE_REVISION);
+    return conflict(m.staleRevision);
   }
   const at = now();
   const dispatchAfter = dispatchEta(at, APPROVAL_DELAY_MINUTES, record.scheduledAt).toISOString();
@@ -314,11 +323,12 @@ export async function returnNotificationToDraft(
   id: string,
 ): Promise<ActionResult<NotificationRecord>> {
   await delay(450);
+  const m = await messages();
   const record = find(id);
-  if (!record) return NOT_FOUND;
+  if (!record) return notFound(m);
   if (record.state === "draft") return { ok: true, data: record };
   if (!(record.state === "scheduled" || record.state === "cancelled") || record.startedAt) {
-    return invalidTransition(MESSAGE_NOT_RETURNABLE);
+    return invalidTransition(m.notReturnable);
   }
   const at = now();
   return {
@@ -350,11 +360,12 @@ export async function returnNotificationToDraft(
  */
 export async function cancelNotification(id: string): Promise<ActionResult<NotificationRecord>> {
   await delay(450);
+  const m = await messages();
   const record = find(id);
-  if (!record) return NOT_FOUND;
+  if (!record) return notFound(m);
   if (record.state === "cancelled") return { ok: true, data: record };
-  if (EDITABLE.has(record.state)) return invalidTransition(MESSAGE_CANCEL_DRAFT);
-  if (record.state !== "scheduled") return conflict(SEND_STARTED_MESSAGE);
+  if (EDITABLE.has(record.state)) return invalidTransition(m.cancelDraft);
+  if (record.state !== "scheduled") return conflict(m.sendStarted);
   return {
     ok: true,
     data: { ...record, state: "cancelled", cancelledAt: now(), updatedAt: now() },
@@ -364,10 +375,11 @@ export async function cancelNotification(id: string): Promise<ActionResult<Notif
 /** `POST notifications/{id}/stop/`: a sending campaign is `stopping` (a repeat answers it unchanged). */
 export async function stopNotification(id: string): Promise<ActionResult<NotificationRecord>> {
   await delay(450);
+  const m = await messages();
   const record = find(id);
-  if (!record) return NOT_FOUND;
+  if (!record) return notFound(m);
   if (record.state === "stopping") return { ok: true, data: record };
-  if (record.state !== "sending") return invalidTransition(MESSAGE_NOT_SENDING);
+  if (record.state !== "sending") return invalidTransition(m.notSending);
   const at = now();
   return {
     ok: true,
@@ -385,15 +397,16 @@ export async function registerTestDevice(
   input: TestDeviceInput,
 ): Promise<ActionResult<TestDevice>> {
   await delay(600);
+  const m = await messages();
   const refuse = (message: string): ActionResult<never> => ({
     ok: false,
-    error: "Maydonlarni tekshiring.",
+    error: m.checkFields,
     code: "validation_error",
     fieldErrors: { phone: message },
   });
-  if (input.phone.endsWith("0000")) return refuse(MESSAGE_CUSTOMER_NOT_FOUND);
-  if (input.phone.endsWith("9999")) return refuse(MESSAGE_DEVICE_NOT_PUSHABLE);
-  if (TEST_DEVICES.some((d) => d.phone === input.phone)) return refuse(MESSAGE_DEVICE_REGISTERED);
+  if (input.phone.endsWith("0000")) return refuse(m.customerNotFound);
+  if (input.phone.endsWith("9999")) return refuse(m.deviceNotPushable);
+  if (TEST_DEVICES.some((d) => d.phone === input.phone)) return refuse(m.deviceRegistered);
   return {
     ok: true,
     data: {
@@ -413,8 +426,6 @@ export async function removeTestDevice(id: string): Promise<ActionResult<{ id: s
   return { ok: true, data: { id } };
 }
 
-const PLACEHOLDER_MESSAGE = `Faqat ${TEMPLATE_PLACEHOLDER} o‘rinbosari ishlatiladi.`;
-
 /**
  * Template update with the backend's placeholder rule (`unknown_placeholder`
  * on the offending language); nothing is kept.
@@ -424,14 +435,15 @@ export async function updateNotificationTemplate(
   texts: TemplateTextsInput,
 ): Promise<ActionResult<StatusTemplate>> {
   await delay(450);
+  const m = await messages();
   const fieldErrors: Record<string, string> = {};
   for (const language of ["uz", "ru", "en"] as const) {
     if (unknownPlaceholders(texts[language]).length > 0) {
-      fieldErrors[`texts.${language}`] = PLACEHOLDER_MESSAGE;
+      fieldErrors[`texts.${language}`] = m.placeholder(TEMPLATE_PLACEHOLDER);
     }
   }
   if (Object.keys(fieldErrors).length > 0) {
-    return { ok: false, error: "Maydonlarni tekshiring.", code: "validation_error", fieldErrors };
+    return { ok: false, error: m.checkFields, code: "validation_error", fieldErrors };
   }
   const current = STATUS_TEMPLATES.find((t) => t.status === status);
   return {

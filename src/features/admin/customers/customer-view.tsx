@@ -12,33 +12,25 @@ import { Card, CardTitle, DetailRow } from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
 import { useToast } from "@/components/ui/toast";
 import { formatPercent, type LedgerEntry } from "@/domain/cashback";
+import { customerDataCopy } from "@/domain/copy/customers";
 import {
   canAdjustCashback,
   canNotify,
-  DEVICE_PLATFORM_LABEL,
   lifetimeTotal,
   type Customer,
   type CustomerSession,
 } from "@/domain/customer";
 import type { Page } from "@/data/types";
 import { cn } from "@/lib/cn";
-import {
-  formatDateLong,
-  formatDateTimeShort,
-  formatDayMonthShort,
-  formatMillions,
-  formatNumber,
-  formatPhone,
-  formatSom,
-  formatTime,
-} from "@/lib/format";
+import { useAdminLocale, useCopy } from "@/lib/i18n/admin-context";
+import { useFormat } from "@/lib/i18n/admin-hooks";
 
 import { AdjustCashbackDialog } from "./adjust-cashback-dialog";
-import { balanceNote } from "./labels";
+import { customersCopy } from "./copy";
+import { balanceNote, customerDisplayName } from "./labels";
 import { LedgerTable, PurchasesTable } from "./ledger";
 import { SessionsSection } from "./sessions-section";
 
-const LANGUAGE_NAME = { uz: "O‘zbekcha", ru: "Ruscha", en: "Inglizcha" } as const;
 const LEDGER_PREVIEW = 6;
 
 interface CustomerViewProps {
@@ -89,6 +81,12 @@ const tabTrigger =
   "h-11 border-b-2 border-transparent px-3 text-[14px] leading-[18px] font-semibold text-ink transition-colors duration-150 hover:border-line-strong data-[state=active]:border-gold data-[state=active]:font-bold";
 
 export function CustomerView({ customer, now, sessions }: CustomerViewProps) {
+  const copy = useCopy(customersCopy);
+  const t = copy.card;
+  const domain = useCopy(customerDataCopy);
+  const locale = useAdminLocale();
+  const fmt = useFormat();
+  const pct = (value: number | string) => formatPercent(value, locale);
   const toast = useToast();
   // Reset the local ledger whenever the server sends the card again (api
   // mode re-renders the route after an adjustment, so the new props already
@@ -110,38 +108,33 @@ export function CustomerView({ customer, now, sessions }: CustomerViewProps) {
   const { tier, devices } = customer;
   const deleted = customer.status === "deleted";
   const adjustable = canAdjustCashback(customer);
-  const lastActive = (at: string) =>
-    formatDayMonthShort(at) === formatDayMonthShort(now)
-      ? `bugun, ${formatTime(at)}`
-      : formatDateTimeShort(at);
+  const lastActive = (at: string) => fmt.relativeDateTime(at, now);
   const allOrders = customer.onlineOrders.allCount ?? 0;
+  const name = customerDisplayName(customer.name, locale);
 
   return (
     <>
-      <Breadcrumbs
-        items={[{ label: "Mijozlar", href: "/admin/customers" }, { label: customer.name }]}
-      />
+      <Breadcrumbs items={[{ label: copy.title, href: "/admin/customers" }, { label: name }]} />
 
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex items-center gap-4">
-          <Avatar name={customer.name} size={64} className="text-[22px]" />
-          <div className="flex flex-col gap-1">
+          <Avatar name={name} size={64} className="shrink-0 text-[22px]" />
+          <div className="flex min-w-0 flex-col gap-1">
             <div className="flex flex-wrap items-center gap-3">
-              <h1 className="m-0 font-serif text-display leading-10 tracking-normal text-ink">
-                {customer.name}
+              <h1 className="m-0 font-serif text-display leading-10 tracking-normal break-words text-ink">
+                {name}
               </h1>
               {deleted ? (
-                <Badge tone="muted">O‘chirilgan</Badge>
+                <Badge tone="muted">{domain.status.deleted}</Badge>
               ) : (
-                <Badge tone="success">Faol</Badge>
+                <Badge tone="success">{domain.status.active}</Badge>
               )}
             </div>
             <p className="m-0 text-body-sm text-ink-muted tabular-nums">
-              {formatPhone(customer.phone)} · Ro‘yxatdan o‘tgan:{" "}
-              {formatDateLong(customer.registeredAt)}
+              {fmt.phone(customer.phone)} · {t.registered(fmt.dateLong(customer.registeredAt))}
               {deleted && customer.deletedAt
-                ? ` · O‘chirilgan: ${formatDateLong(customer.deletedAt)}`
-                : ` · ${LANGUAGE_NAME[customer.language]}`}
+                ? ` · ${t.deletedAt(fmt.dateLong(customer.deletedAt))}`
+                : ` · ${t.language[customer.language]}`}
             </p>
           </div>
         </div>
@@ -149,7 +142,7 @@ export function CustomerView({ customer, now, sessions }: CustomerViewProps) {
           {adjustable && (
             <Button variant="secondary" className="px-4" onClick={() => setAdjustOpen(true)}>
               <Icon name="coins" size={18} />
-              Cashback tuzatish
+              {t.adjust}
             </Button>
           )}
           {canNotify(customer) && (
@@ -158,7 +151,7 @@ export function CustomerView({ customer, now, sessions }: CustomerViewProps) {
               className={buttonStyles({ variant: "secondary" })}
             >
               <Icon name="bell" size={18} />
-              Bildirishnoma yuborish
+              {t.notify}
             </Link>
           )}
         </div>
@@ -171,34 +164,35 @@ export function CustomerView({ customer, now, sessions }: CustomerViewProps) {
         >
           <Icon name="info" size={18} className="mt-px shrink-0 text-gold-ink" />
           <span>
-            <b>Mijoz hisobini o‘chirgan.</b> Ism va manzil o‘chirildi; xaridlar va cashback balansi
-            telefon raqamiga bog‘langan holda saqlanadi va qayta ro‘yxatdan o‘tganda tiklanadi.
-            Balansni tuzatish mumkin; bildirishnoma yuborib bo‘lmaydi.
+            <b>{t.deletedTitle}</b> {t.deletedText}
           </span>
         </div>
       )}
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(220px,100%),1fr))] gap-4">
         <Metric
-          label="Jami xaridlar"
-          value={formatSom(lifetime)}
-          note={`Do‘kon ${formatMillions(customer.totals.store)} · Onlayn ${formatMillions(customer.totals.online)}`}
+          label={t.total}
+          value={fmt.som(lifetime)}
+          note={t.totalNote(
+            fmt.millions(customer.totals.store),
+            fmt.millions(customer.totals.online),
+          )}
         />
         <Metric
-          label="Cashback foizi"
-          value={tier.percent === null ? "—" : `${formatPercent(tier.percent)}%`}
+          label={t.rate}
+          value={tier.percent === null ? "—" : `${pct(tier.percent)}%`}
           note={
             tier.next
-              ? `${formatPercent(tier.next.percent)}% gacha ${formatSom(tier.next.remaining)}`
+              ? t.nextTier(pct(tier.next.percent), fmt.som(tier.next.remaining))
               : tier.percent === null
-                ? "Daraja belgilanmagan"
-                : "Eng yuqori daraja"
+                ? t.noTier
+                : t.topTier
           }
         >
           {tier.next && (
             <span
               role="progressbar"
-              aria-label={`${formatPercent(tier.next.percent)}% darajagacha`}
+              aria-label={t.progress(pct(tier.next.percent))}
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={Math.round(tier.next.progress * 100)}
@@ -206,23 +200,31 @@ export function CustomerView({ customer, now, sessions }: CustomerViewProps) {
             >
               <span
                 className="rounded-full bg-gold"
-                style={{ width: `${Math.round(tier.next.progress * 100)}%` }}
+                style={{
+                  width: `${Math.min(100, Math.max(0, Math.round(tier.next.progress * 100)))}%`,
+                }}
               />
             </span>
           )}
         </Metric>
         <Metric
-          label="Cashback balansi"
-          value={formatSom(balance)}
-          note={balanceNote(held, available)}
+          label={t.balance}
+          value={fmt.som(balance)}
+          note={balanceNote(held, available, copy, fmt)}
         />
         <Metric
-          label="Onlayn buyurtmalar"
-          value={`${customer.onlineOrders.count} ta`}
+          label={t.orders}
+          value={t.ordersValue(
+            customer.onlineOrders.count,
+            fmt.number(customer.onlineOrders.count),
+          )}
           note={
             customer.onlineOrders.lastOrderAt && customer.onlineOrders.lastOrderId
-              ? `Oxirgisi: ${formatDayMonthShort(customer.onlineOrders.lastOrderAt)}, №${customer.onlineOrders.lastOrderId}`
-              : "Hali buyurtma yo‘q"
+              ? t.lastOrder(
+                  fmt.dayMonthShort(customer.onlineOrders.lastOrderAt),
+                  customer.onlineOrders.lastOrderId,
+                )
+              : t.noOrders
           }
         >
           {allOrders > 0 && (
@@ -230,7 +232,7 @@ export function CustomerView({ customer, now, sessions }: CustomerViewProps) {
               href={`/admin/orders?customer=${customer.id}`}
               className="self-start text-[13px] leading-[18px] font-bold text-ink underline decoration-line-strong underline-offset-4 hover:decoration-gold"
             >
-              Buyurtmalari ({formatNumber(allOrders)})
+              {t.allOrders(fmt.number(allOrders))}
             </Link>
           )}
         </Metric>
@@ -241,22 +243,22 @@ export function CustomerView({ customer, now, sessions }: CustomerViewProps) {
           value={tab}
           onValueChange={setTab}
           className="min-w-0 flex-[2_1_640px] overflow-hidden rounded-lg bg-surface-raised shadow-sm"
-          aria-label="Mijoz tarixi"
+          aria-label={t.historyLabel}
           asChild
         >
           <section>
             <Tabs.List
-              aria-label="Bo‘limlar"
+              aria-label={t.tabsLabel}
               className="flex flex-wrap gap-1 border-b border-line px-3 pt-2"
             >
               <Tabs.Trigger value="cashback" className={tabTrigger}>
-                Cashback tarixi
+                {t.tabCashback}
               </Tabs.Trigger>
               <Tabs.Trigger value="purchases" className={tabTrigger}>
-                Xaridlar
+                {t.tabPurchases}
               </Tabs.Trigger>
               <Tabs.Trigger value="device" className={tabTrigger}>
-                Qurilmalar
+                {t.tabDevices}
               </Tabs.Trigger>
             </Tabs.List>
 
@@ -265,14 +267,13 @@ export function CustomerView({ customer, now, sessions }: CustomerViewProps) {
                 <LedgerTable rows={visibleRows} />
               ) : (
                 <p className="m-0 px-5 py-10 text-center text-body-sm text-ink-muted">
-                  Hali cashback yozuvlari yo‘q.
+                  {t.noLedger}
                 </p>
               )}
               <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-line px-5 py-3.5">
                 <p className="m-0 flex gap-2.5 text-[12px] leading-[18px] text-ink-muted">
                   <Icon name="shield" size={16} className="mt-px shrink-0 text-gold-ink" />
-                  Yozuvlar o‘zgarmaydi va o‘chirilmaydi. Xato faqat yangi tuzatish yozuvi bilan
-                  to‘g‘rilanadi.
+                  {t.ledgerNote}
                 </p>
                 {rows.length > LEDGER_PREVIEW && (
                   <button
@@ -282,8 +283,11 @@ export function CustomerView({ customer, now, sessions }: CustomerViewProps) {
                     className="text-[13px] leading-[18px] font-bold text-ink underline decoration-line-strong underline-offset-4 hover:decoration-gold"
                   >
                     {showAll
-                      ? "Kamroq ko‘rsatish"
-                      : `Yana ${rows.length - LEDGER_PREVIEW} ta yozuv`}
+                      ? t.showLess
+                      : t.showMore(
+                          rows.length - LEDGER_PREVIEW,
+                          fmt.number(rows.length - LEDGER_PREVIEW),
+                        )}
                   </button>
                 )}
               </div>
@@ -294,7 +298,7 @@ export function CustomerView({ customer, now, sessions }: CustomerViewProps) {
                 <PurchasesTable purchases={customer.purchases} />
               ) : (
                 <p className="m-0 px-5 py-10 text-center text-body-sm text-ink-muted">
-                  Hali xaridlar yo‘q.
+                  {t.noPurchases}
                 </p>
               )}
             </Tabs.Content>
@@ -304,7 +308,7 @@ export function CustomerView({ customer, now, sessions }: CustomerViewProps) {
               className="flex flex-col gap-3.5 p-5 focus-visible:outline-offset-[-2px]"
             >
               {devices.length > 0 ? (
-                <ul aria-label="Qurilmalar" className="m-0 flex list-none flex-col gap-2 p-0">
+                <ul aria-label={t.devicesLabel} className="m-0 flex list-none flex-col gap-2 p-0">
                   {devices.map((row) => (
                     <li
                       key={row.id}
@@ -323,30 +327,29 @@ export function CustomerView({ customer, now, sessions }: CustomerViewProps) {
                       />
                       <span className="flex min-w-0 flex-[1_1_220px] flex-col gap-0.5">
                         <span className="text-[14px] leading-5 font-bold text-ink">
-                          {DEVICE_PLATFORM_LABEL[row.platform]} · {row.model} · {row.os}
+                          {domain.platform[row.platform]} · {row.model} · {row.os}
                         </span>
                         <span className="text-caption font-normal text-ink-muted tabular-nums">
-                          {row.platform === "web" ? "Brauzer" : `Ilova ${row.appVersion}`} · oxirgi
-                          faollik{" "}
-                          <time dateTime={row.lastActiveAt}>{lastActive(row.lastActiveAt)}</time> ·
-                          push {row.pushEnabled ? "yoqilgan" : "o‘chirilgan"}
+                          {row.platform === "web" ? t.browser : t.app(row.appVersion)} ·{" "}
+                          {t.lastActive}{" "}
+                          <time dateTime={row.lastActiveAt}>{lastActive(row.lastActiveAt)}</time> ·{" "}
+                          {row.pushEnabled ? t.pushOn : t.pushOff}
                         </span>
                       </span>
                       {row.isActive ? (
-                        <Badge tone="success">Faol</Badge>
+                        <Badge tone="success">{t.active}</Badge>
                       ) : (
-                        <Badge tone="muted">Faol emas</Badge>
+                        <Badge tone="muted">{t.inactive}</Badge>
                       )}
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="m-0 text-body-sm text-ink-muted">Qurilma yo‘q.</p>
+                <p className="m-0 text-body-sm text-ink-muted">{t.noDevices}</p>
               )}
               <p className="m-0 flex gap-2.5 text-body-sm leading-5 text-ink-muted">
                 <Icon name="info" size={18} className="mt-px shrink-0 text-gold-ink" />
-                Mijoz bir vaqtda bir nechta telefon va brauzerda kirgan bo‘lishi mumkin. Ularni
-                quyidagi «Faol seanslar» bo‘limida ko‘rish va tugatish mumkin.
+                {t.devicesNote}
               </p>
             </Tabs.Content>
           </section>
@@ -356,40 +359,43 @@ export function CustomerView({ customer, now, sessions }: CustomerViewProps) {
           aria-labelledby="customer-profile-title"
           className="flex min-w-0 flex-[1_1_300px] flex-col gap-3"
         >
-          <CardTitle id="customer-profile-title">Profil</CardTitle>
+          <CardTitle id="customer-profile-title">{t.profile}</CardTitle>
           <dl className="m-0 flex flex-col gap-3">
-            <DetailRow label="Manzil" className="leading-5">
+            <DetailRow label={t.address} className="leading-5 break-words">
               {customer.address ?? "—"}
             </DetailRow>
-            <DetailRow label="Ilova tili" className="leading-5">
-              {LANGUAGE_NAME[customer.language]}
+            <DetailRow label={t.appLanguage} className="leading-5">
+              {t.language[customer.language]}
             </DetailRow>
-            <DetailRow label="Qabullar" className="leading-5">
+            <DetailRow label={t.appointments} className="leading-5">
               {customer.upcomingAppointments > 0
-                ? `${customer.upcomingAppointments} ta rejalashtirilgan`
-                : "Rejalashtirilmagan"}
+                ? t.planned(
+                    customer.upcomingAppointments,
+                    fmt.number(customer.upcomingAppointments),
+                  )
+                : t.notPlanned}
             </DetailRow>
           </dl>
           <span aria-hidden="true" className="h-px bg-line" />
-          <h3 className="m-0 text-body-sm font-semibold text-ink-muted">Guruhlar</h3>
+          <h3 className="m-0 text-body-sm font-semibold text-ink-muted">{t.groupsTitle}</h3>
           {customer.groups.length > 0 ? (
             <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
               {customer.groups.map((group) => (
                 <li
                   key={group}
-                  className="h-7 rounded-full bg-gold-soft px-2.5 text-[12px] leading-7 font-semibold text-ink"
+                  className="max-w-full truncate rounded-full bg-gold-soft px-2.5 text-[12px] leading-7 font-semibold text-ink"
                 >
                   {group}
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="m-0 text-body-sm text-ink-muted">Guruhga kirmagan</p>
+            <p className="m-0 text-body-sm text-ink-muted">{t.noGroups}</p>
           )}
           <span aria-hidden="true" className="h-px bg-line" />
           <p className="m-0 flex gap-2.5 text-[12px] leading-[18px] text-ink-muted">
             <Icon name="info" size={16} className="mt-px shrink-0" />
-            Hisob o‘chirilsa ham xaridlar va cashback telefon raqamiga bog‘langan holda saqlanadi.
+            {t.keptNote}
           </p>
         </Card>
       </div>
@@ -404,7 +410,7 @@ export function CustomerView({ customer, now, sessions }: CustomerViewProps) {
           balance={balance}
           available={available}
           onError={(message) =>
-            toast({ tone: "info", title: "Amal bajarilmadi", description: message })
+            toast({ tone: "danger", title: copy.adjust.failed, description: message })
           }
           onAdjusted={({ entry, balance: nextBalance, available: nextAvailable }) => {
             // The server's balances when it sent them (api mode, which also
@@ -424,10 +430,7 @@ export function CustomerView({ customer, now, sessions }: CustomerViewProps) {
             });
             setTab("cashback");
             setAdjustOpen(false);
-            toast({
-              title: "Tuzatish yozuvi qo‘shildi",
-              description: "Sabab va admin amallar jurnaliga yozildi",
-            });
+            toast({ tone: "success", title: t.adjusted, description: t.adjustedText });
           }}
         />
       )}

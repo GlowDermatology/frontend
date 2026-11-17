@@ -9,6 +9,7 @@ const uz = {
     description: "Glow Derma hisobingizga kiring: buyurtmalar, cashback va qabullar bir joyda.",
   },
   eyebrow: "Glow Derma hisobi",
+  audience: { label: "Kim sifatida kirasiz", customer: "Mijoz", staff: "Xodim" },
   signIn: {
     title: "Xush kelibsiz",
     lead: "Buyurtmalar, cashback va qabullaringiz bir joyda.",
@@ -97,6 +98,7 @@ const ru: Copy = {
     description: "Войдите в аккаунт Glow Derma: заказы, кешбэк и записи в одном месте.",
   },
   eyebrow: "Аккаунт Glow Derma",
+  audience: { label: "Как вы входите", customer: "Клиент", staff: "Сотрудник" },
   signIn: {
     title: "С возвращением",
     lead: "Заказы, кешбэк и записи — в одном месте.",
@@ -182,6 +184,7 @@ const en: Copy = {
     description: "Sign in to Glow Derma: your orders, cashback and appointments in one place.",
   },
   eyebrow: "Glow Derma account",
+  audience: { label: "Who is signing in", customer: "Customer", staff: "Staff" },
   signIn: {
     title: "Welcome back",
     lead: "Your orders, cashback and appointments in one place.",

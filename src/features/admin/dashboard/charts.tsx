@@ -4,7 +4,10 @@ import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 
 import type { SeriesPoint } from "@/domain/dashboard";
 import { cn } from "@/lib/cn";
-import { formatMillions, formatNumber } from "@/lib/format";
+import { useCopy } from "@/lib/i18n/admin-context";
+import { useFormat } from "@/lib/i18n/admin-hooks";
+
+import { dashboardCopy } from "./copy";
 
 /** Round an axis maximum up to a "nice" value (1, 1.2, 1.5, 2, 2.5 … × 10ⁿ). */
 export function niceMax(value: number): number {
@@ -23,11 +26,14 @@ interface DashboardChartsProps {
 }
 
 export function DashboardCharts({ series, axisNote, axisLabels }: DashboardChartsProps) {
+  const t = useCopy(dashboardCopy).charts;
+  const fmt = useFormat();
   // One hover index for both charts: inspecting a day shows revenue and orders together.
   const [active, setActive] = useState<number | null>(null);
 
-  const revenueMax = niceMax(Math.max(...series.map((p) => p.revenue)));
-  const ordersPeak = Math.max(...series.map((p) => p.orders));
+  const revenueMax = niceMax(Math.max(0, ...series.map((p) => p.revenue)));
+  const ordersPeak = Math.max(0, ...series.map((p) => p.orders));
+  const quiet = series.every((p) => p.orders === 0 && p.revenue === 0);
   const ordersStep = ordersPeak < 10 ? 2 : 10;
   const ordersMax = Math.max(ordersStep, Math.ceil(ordersPeak / ordersStep) * ordersStep);
   const n = series.length;
@@ -42,17 +48,19 @@ export function DashboardCharts({ series, axisNote, axisLabels }: DashboardChart
     <div className="grid grid-cols-[repeat(auto-fit,minmax(min(440px,100%),1fr))] gap-4">
       <ChartCard
         id="rev-title"
-        title="Tushum, so‘m"
+        title={t.revenue}
         axisNote={axisNote}
         axisLabels={axisLabels}
-        yLabels={[formatMillions(revenueMax), formatMillions(revenueMax / 2)]}
+        yLabels={[fmt.millions(revenueMax), fmt.millions(revenueMax / 2)]}
+        empty={quiet ? t.empty : null}
       >
         <PointStrip
-          label="Tushum, so‘m"
+          label={t.revenue}
+          hint={t.hint(t.revenue)}
           series={series}
           active={active}
           onActive={setActive}
-          describe={(p) => `${p.label}: ${formatNumber(p.revenue)} so‘m`}
+          describe={(p) => t.revenuePoint(p.label, fmt.number(p.revenue))}
           className="gap-0.5"
           renderPoint={(p, on) => {
             const height = `${((p.revenue / revenueMax) * 100).toFixed(2)}%`;
@@ -68,7 +76,7 @@ export function DashboardCharts({ series, axisNote, axisLabels }: DashboardChart
                 {on && (
                   <Tooltip
                     label={p.label}
-                    value={`${formatNumber(p.revenue)} so‘m`}
+                    value={t.revenueValue(fmt.number(p.revenue))}
                     bottom={`calc(${height} + 8px)`}
                   />
                 )}
@@ -80,10 +88,11 @@ export function DashboardCharts({ series, axisNote, axisLabels }: DashboardChart
 
       <ChartCard
         id="ord-title"
-        title="Buyurtmalar soni"
+        title={t.orders}
         axisNote={axisNote}
         axisLabels={axisLabels}
-        yLabels={[String(ordersMax), String(ordersMax / 2)]}
+        yLabels={[fmt.number(ordersMax), fmt.number(ordersMax / 2)]}
+        empty={quiet ? t.empty : null}
       >
         <svg
           aria-hidden="true"
@@ -102,11 +111,12 @@ export function DashboardCharts({ series, axisNote, axisLabels }: DashboardChart
           />
         </svg>
         <PointStrip
-          label="Buyurtmalar soni"
+          label={t.orders}
+          hint={t.hint(t.orders)}
           series={series}
           active={active}
           onActive={setActive}
-          describe={(p) => `${p.label}: ${p.orders} ta buyurtma`}
+          describe={(p) => `${p.label}: ${t.ordersValue(p.orders)}`}
           className="absolute inset-0"
           renderPoint={(p, on) => {
             if (!on) return null;
@@ -124,7 +134,7 @@ export function DashboardCharts({ series, axisNote, axisLabels }: DashboardChart
                 />
                 <Tooltip
                   label={p.label}
-                  value={`${p.orders} ta buyurtma`}
+                  value={t.ordersValue(p.orders)}
                   bottom={`calc(${height} + 14px)`}
                 />
               </>
@@ -142,6 +152,7 @@ function ChartCard({
   axisNote,
   axisLabels,
   yLabels,
+  empty,
   children,
 }: {
   id: string;
@@ -149,6 +160,8 @@ function ChartCard({
   axisNote: string;
   axisLabels: [string, string, string];
   yLabels: [string, string];
+  /** Shown over the plot when the period has no orders and no revenue. */
+  empty: string | null;
   children: ReactNode;
 }) {
   return (
@@ -183,7 +196,14 @@ function ChartCard({
         >
           0
         </span>
-        <div className="relative h-full border-b border-line-strong">{children}</div>
+        <div className="relative h-full border-b border-line-strong">
+          {children}
+          {empty && (
+            <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-body-sm text-ink-muted">
+              {empty}
+            </span>
+          )}
+        </div>
       </div>
       <div
         aria-hidden="true"
@@ -199,6 +219,8 @@ function ChartCard({
 
 interface PointStripProps {
   label: string;
+  /** The group's name with the keyboard hint, e.g. "Tushum, so‘m — strelkalar bilan ko‘ring". */
+  hint: string;
   series: SeriesPoint[];
   active: number | null;
   onActive: (index: number | null) => void;
@@ -213,7 +235,7 @@ interface PointStripProps {
  * label (the canvas made every bar a separate tab stop).
  */
 function PointStrip({
-  label,
+  hint,
   series,
   active,
   onActive,
@@ -243,14 +265,10 @@ function PointStrip({
   };
 
   return (
-    <div
-      role="group"
-      aria-label={`${label} — strelkalar bilan ko‘ring`}
-      className={cn("flex h-full items-stretch", className)}
-    >
+    <div role="group" aria-label={hint} className={cn("flex h-full items-stretch", className)}>
       {series.map((point, index) => (
         <button
-          key={point.label}
+          key={`${index}:${point.label}`}
           ref={(el) => {
             refs.current[index] = el;
           }}

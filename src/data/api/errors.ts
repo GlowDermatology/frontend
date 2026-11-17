@@ -1,3 +1,6 @@
+import type { Locale } from "@/lib/i18n/locales";
+
+import { dataCopy } from "../copy";
 import type { ErrorEnvelope, ErrorItem } from "./types";
 
 /**
@@ -34,11 +37,17 @@ export class ApiError extends Error {
    * when the API sent `null`, `undefined` for the admin envelope.
    */
   readonly details: unknown;
+  /**
+   * The language the admin request asked for (`Accept-Language`), so the frontend's own texts
+   * for this failure (network, throttle, unexpected) match the backend's translated `message`.
+   * `undefined` for the customer client and hand-made errors (Uzbek).
+   */
+  readonly locale: Locale | undefined;
 
   constructor(
     status: number,
     body: ErrorEnvelope,
-    options: { retryAfter?: number; cause?: unknown; details?: unknown } = {},
+    options: { retryAfter?: number; cause?: unknown; details?: unknown; locale?: Locale } = {},
   ) {
     super(
       `${status} ${body.code}: ${body.message}`,
@@ -49,16 +58,17 @@ export class ApiError extends Error {
     this.body = body;
     this.retryAfter = options.retryAfter;
     this.details = options.details;
+    this.locale = options.locale;
   }
 
   get code(): string {
     return this.body.code;
   }
 
-  static async fromResponse(response: Response): Promise<ApiError> {
+  static async fromResponse(response: Response, locale?: Locale): Promise<ApiError> {
     let body: ErrorEnvelope = {
       code: `http_${response.status}`,
-      message: "Kutilmagan xato.",
+      message: dataCopy[locale ?? "uz"].unexpected,
       errors: [],
       request_id: response.headers.get("x-request-id") ?? "",
     };
@@ -80,6 +90,7 @@ export class ApiError extends Error {
     return new ApiError(response.status, body, {
       retryAfter: parseRetryAfter(response.headers.get("retry-after")),
       details,
+      locale,
     });
   }
 }

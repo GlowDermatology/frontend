@@ -2,10 +2,14 @@
 
 import { useEffect, useRef } from "react";
 
+import { IconButton } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { useCopy } from "@/lib/i18n/admin-context";
+
+import { sharedCopy } from "./copy";
 
 interface ReorderButtonsProps {
-  /** Accessible subject, e.g. "«Serumlar»". */
+  /** The item's name, e.g. "Serumlar"; the copy quotes it per language. */
   subject: string;
   index: number;
   count: number;
@@ -13,8 +17,7 @@ interface ReorderButtonsProps {
   onMove: (from: number, to: number) => boolean | void;
 }
 
-const buttonClass =
-  "flex size-8 items-center justify-center rounded-sm text-ink-muted transition-colors duration-150 hover:bg-gold-soft hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-ink-muted";
+const buttonClass = "size-8 rounded-sm text-ink-muted hover:bg-gold-soft hover:text-ink";
 
 /**
  * Up/down controls of an ordered row (categories, banners): a keyboard and
@@ -22,9 +25,11 @@ const buttonClass =
  * order is saved (moves are coalesced by the list), and after a move focus
  * follows the row to its new place — on the same arrow, or on the other one
  * when the row reached an end — so Enter can be pressed repeatedly. Each
- * target is 32×32 px (WCAG 2.5.8).
+ * target is 32×32 px (WCAG 2.5.8). At an end the arrow stays focusable and
+ * says why it does nothing (`disabledReason`).
  */
 export function ReorderButtons({ subject, index, count, onMove }: ReorderButtonsProps) {
+  const t = useCopy(sharedCopy).reorder;
   const up = useRef<HTMLButtonElement>(null);
   const down = useRef<HTMLButtonElement>(null);
   const pendingFocus = useRef<"up" | "down" | null>(null);
@@ -46,26 +51,26 @@ export function ReorderButtons({ subject, index, count, onMove }: ReorderButtons
   return (
     <span className="inline-flex items-center gap-1">
       <span className="w-6 text-right text-body-sm text-ink-muted tabular-nums">{index + 1}</span>
-      <button
-        type="button"
+      <IconButton
         ref={up}
-        aria-label={`${subject} yuqoriga`}
-        disabled={index === 0}
+        size="sm"
+        aria-label={t.up(subject)}
+        disabledReason={index === 0 && t.first}
         onClick={() => press("up")}
         className={buttonClass}
       >
         <Icon name="chevron-up" size={16} />
-      </button>
-      <button
-        type="button"
+      </IconButton>
+      <IconButton
         ref={down}
-        aria-label={`${subject} pastga`}
-        disabled={index === count - 1}
+        size="sm"
+        aria-label={t.down(subject)}
+        disabledReason={index === count - 1 && t.last}
         onClick={() => press("down")}
         className={buttonClass}
       >
         <Icon name="chevron-down" size={16} />
-      </button>
+      </IconButton>
     </span>
   );
 }

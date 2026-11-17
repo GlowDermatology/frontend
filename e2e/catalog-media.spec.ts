@@ -2,6 +2,8 @@ import { expect, test } from "@playwright/test";
 import { join } from "node:path";
 
 import { BACKEND_DIR, deleteCatalogRows } from "./backend-shell";
+import { kitCopy } from "../src/components/ui/copy";
+import { saveAnyway } from "./catalog-helpers";
 import { API_URL } from "./env";
 import { heading, toast, watchPage } from "./helpers";
 
@@ -32,6 +34,11 @@ test("a category gets an image, shows its thumbnail, loses it and is deleted", a
   await dialog.locator('input[type="file"]').setInputFiles(IMAGE);
   await expect(dialog.getByRole("img", { name: "Kategoriya rasmi" })).toBeVisible();
   await dialog.getByRole("button", { name: "Saqlash" }).click();
+  // A create without a Russian / English name: the "save anyway?" question comes first.
+  const question = page.getByRole("alertdialog", { name: kitCopy.uz.recommended.title });
+  await expect(question).toBeVisible();
+  await expect(question).not.toContainText("Rasm");
+  await question.getByRole("button", { name: kitCopy.uz.recommended.save }).click();
   await expect(toast(page, "Kategoriya qo‘shildi")).toBeVisible();
 
   const row = page.locator("tr").filter({ hasText: slug });
@@ -45,7 +52,10 @@ test("a category gets an image, shows its thumbnail, loses it and is deleted", a
   await edit.getByRole("button", { name: "Rasmni olib tashlash" }).click();
   await expect(edit.getByText("Rasm saqlanganda olib tashlanadi.")).toBeVisible();
   await edit.getByRole("button", { name: "Saqlash" }).click();
+  // The names did not change (still no translation, already answered) and the image is never
+  // asked about: saved without the question.
   await expect(toast(page, "Kategoriya saqlandi")).toBeVisible();
+  await expect(question).toHaveCount(0);
   await expect(row.locator("img")).toHaveCount(0);
 
   // A wrong file type is refused before the round trip.
@@ -56,6 +66,11 @@ test("a category gets an image, shows its thumbnail, loses it and is deleted", a
     buffer: Buffer.from("GIF89a"),
   });
   await expect(edit.getByRole("alert")).toHaveText("Faqat JPEG, PNG yoki WebP rasm.");
+  // The image card carries the error, so a save reveals it (summary + focus on the card).
+  await edit.getByRole("button", { name: "Saqlash" }).click();
+  await expect(edit.locator('[data-field="image"]')).toHaveAttribute("data-invalid", "true");
+  await expect(edit.locator('[data-field="image"]')).toBeFocused();
+  await expect(edit.getByRole("link", { name: /^Rasm/ })).toBeVisible();
   await edit.getByRole("button", { name: "Bekor qilish" }).click();
 
   await row.getByRole("button", { name: /— o‘chirish$/ }).click();
@@ -81,9 +96,15 @@ test("a banner links to an https page and the app's banner list carries it", asy
   await dialog.getByRole("radio", { name: "Havola (URL)" }).check();
   await dialog.getByRole("textbox", { name: "Havola (URL)" }).fill("http://glowderma.uz/aksiya");
   await dialog.getByRole("button", { name: "Saqlash" }).click();
-  await expect(dialog.getByText("Havolani https:// bilan to‘liq kiriting.")).toBeVisible();
-  await dialog.getByRole("textbox", { name: "Havola (URL)" }).fill(url);
+  // The field error, also listed in the summary; the field is focused by the reveal.
+  const urlField = dialog.getByRole("textbox", { name: "Havola (URL)" });
+  await expect(urlField).toHaveAttribute("aria-invalid", "true");
+  await expect(urlField).toBeFocused();
+  await expect(dialog.getByText("Havolani https:// bilan to‘liq kiriting.").first()).toBeVisible();
+  await urlField.fill(url);
   await dialog.getByRole("button", { name: "Saqlash" }).click();
+  // No Russian / English title: the "save anyway?" question comes first.
+  await saveAnyway(page, toast(page, "Banner qo‘shildi"));
   await expect(toast(page, "Banner qo‘shildi")).toBeVisible();
 
   const row = page.locator("tr").filter({ hasText: title });

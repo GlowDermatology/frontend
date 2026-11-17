@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { BILLZ_AUTH_FAILED_MESSAGE, BILLZ_LISTING_INCOMPLETE_MESSAGE } from "@/domain/job";
+import { lastChangeActor, lastChangeText } from "@/domain/product";
 import { emptySeo } from "@/domain/seo";
 
 import bannerFixture from "../__fixtures__/banner.json";
@@ -156,13 +157,33 @@ describe("mapProduct", () => {
       ...product,
       last_change: { kind: "updated", at, actor: null, old_price: null, new_price: null },
     });
-    expect(system.lastChange).toEqual({ by: "Tizim", at, note: "ma’lumotlar yangilandi" });
+    // No actor = the system: `by: null`, shown as «Tizim» / «Система» / «System».
+    expect(system.lastChange).toEqual({
+      by: null,
+      at,
+      kind: "updated",
+      note: "ma’lumotlar yangilandi",
+    });
+    expect(lastChangeActor(system.lastChange!, "uz")).toBe("Tizim");
+    expect(lastChangeActor(system.lastChange!, "ru")).toBe("Система");
+    expect(lastChangeActor({ by: "Administrator" }, "en")).toBe("Administrator");
     // Since M3 the Billz full sync hides products as the system (§2.3).
     const synced = mapProduct({
       ...product,
       last_change: { kind: "hidden", at, actor: null, old_price: null, new_price: null },
     });
-    expect(synced.lastChange).toEqual({ by: "Tizim", at, note: "yashirildi" });
+    expect(synced.lastChange).toMatchObject({ by: null, kind: "hidden", note: "yashirildi" });
+    // The note in the other admin languages, from the kind (numbers in the language's format).
+    expect(note("price_changed")).toBe(
+      lastChangeText({ kind: "price_changed", oldPrice: 100_000, newPrice: 1_250_000 }),
+    );
+    expect(
+      lastChangeText({ kind: "price_changed", oldPrice: 100_000, newPrice: 1_250_000 }, "en"),
+    ).toBe("price 100,000 → 1,250,000");
+    expect(lastChangeText({ kind: "promo_added" }, "ru")).toBe("добавлен в акцию");
+    expect(
+      lastChangeNote({ kind: "created", at, actor: null, old_price: null, new_price: null }, "en"),
+    ).toBe("product created");
   });
 
   it("maps the page envelope", () => {
@@ -196,6 +217,9 @@ describe("catalog stats", () => {
     expect(lastSyncLabel("2026-10-23T11:59:00+05:00", now)).toBe("23-okt, 11:59");
     // A clock slightly ahead of the server never produces a negative age.
     expect(lastSyncLabel("2026-10-24T12:00:10+05:00", now)).toBe("hozirgina");
+    // In the other admin languages.
+    expect(lastSyncLabel(null, now, "ru")).toBe("ещё не синхронизировано");
+    expect(lastSyncLabel("2026-10-24T11:58:00+05:00", now, "en")).toBe("2 min ago");
   });
 });
 

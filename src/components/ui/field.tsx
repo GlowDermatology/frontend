@@ -13,6 +13,11 @@ export const textareaClass =
 
 export const labelClass = "text-label text-ink";
 
+/** The id `Field` gives its `<label>` (`<control id>-label`), for buttons named after the field. */
+export function fieldLabelId(controlId: string): string {
+  return `${controlId}-label`;
+}
+
 interface FieldProps {
   label: ReactNode;
   children: (control: {
@@ -24,23 +29,36 @@ interface FieldProps {
   error?: string;
   /** Right-aligned helper next to the label, e.g. a character counter. */
   aside?: ReactNode;
+  /**
+   * The form field's name (e.g. the React Hook Form path `variants.0.sku`). Sets
+   * `data-field={name}` on the wrapper, so the error reveal (`revealFirstError(root, { name })`,
+   * `useRhfReveal().select(name)`, the summary links) finds the field even when its control has no
+   * `name` of its own (pickers, Select, a custom group). The control does not receive it.
+   */
+  name?: string;
   className?: string;
 }
 
 /**
  * Label + control + hint/error, wired with `htmlFor`, `aria-describedby` and
- * `aria-invalid` so errors are announced with the field.
+ * `aria-invalid` so errors are announced with the field. While `error` is set the
+ * wrapper also carries `data-invalid` (the reveal then focuses the invalid control
+ * inside it, or its first focusable element when the control marks nothing).
  */
-export function Field({ label, children, hint, error, aside, className }: FieldProps) {
+export function Field({ label, children, hint, error, aside, name, className }: FieldProps) {
   const id = useId();
   const hintId = hint ? `${id}-hint` : undefined;
   const errorId = error ? `${id}-error` : undefined;
   const describedBy = [errorId, hintId].filter(Boolean).join(" ") || undefined;
 
   return (
-    <div className={cn("flex flex-col gap-2", className)}>
+    <div
+      className={cn("flex flex-col gap-2", className)}
+      data-field={name}
+      data-invalid={error ? "true" : undefined}
+    >
       <div className="flex items-baseline justify-between gap-3">
-        <label htmlFor={id} className={labelClass}>
+        <label htmlFor={id} id={fieldLabelId(id)} className={labelClass}>
           {label}
         </label>
         {aside}
@@ -97,6 +115,7 @@ interface AffixInputProps extends ComponentProps<"input"> {
 export function AffixInput({ suffix, className, ...rest }: AffixInputProps) {
   return (
     <span
+      data-reveal-box=""
       className={cn(
         "flex h-11 items-center rounded-md border-[1.5px] border-line-strong bg-surface-raised transition-colors duration-150 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-gold-ink has-[[aria-invalid=true]]:border-danger",
         className,
@@ -122,6 +141,7 @@ interface SearchInputProps extends ComponentProps<"input"> {
 export function SearchInput({ label, wrapperClassName, className, ...rest }: SearchInputProps) {
   return (
     <label
+      data-reveal-box=""
       className={cn(
         "flex h-11 items-center gap-2.5 rounded-md border border-line-strong bg-surface-raised px-3.5 text-ink-muted focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-gold-ink",
         wrapperClassName,

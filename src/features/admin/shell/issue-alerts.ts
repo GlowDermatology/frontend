@@ -1,6 +1,8 @@
 import type { IssueAlert } from "@/domain/delivery-issue";
 import { issueKindLabel } from "@/domain/order";
 
+import { shellCopy, type ShellCopy } from "./copy";
+
 /**
  * Which urgent delivery issues get a toast (Yandex Delivery plan §4): every
  * urgent issue that appears while staff work, exactly once per browser.
@@ -124,11 +126,21 @@ export interface AlertToast {
   description: string;
 }
 
-/** "Shoshilinch: buyurtma №10233" · "Qaytish kutilmoqda · warehouse_closed". */
-export function alertToast(alert: IssueAlert): AlertToast {
+/** The toast texts of one admin language (`shellCopy[locale].issues`). */
+export type AlertTexts = ShellCopy["issues"];
+
+/**
+ * "Shoshilinch: buyurtma №10233" · "Qaytish kutilmoqda · warehouse_closed". `kindLabel` names the
+ * issue kind in the admin language (`issueKindLabel(kind, locale)`; Uzbek by default).
+ */
+export function alertToast(
+  alert: IssueAlert,
+  texts: AlertTexts = shellCopy.uz.issues,
+  kindLabel: (kind: string) => string = issueKindLabel,
+): AlertToast {
   return {
-    title: `Shoshilinch: buyurtma №${alert.orderId}`,
-    description: `${issueKindLabel(alert.kind)} · ${alert.code}. «Muammolar» bo‘limida ko‘ring.`,
+    title: texts.toastTitle(alert.orderId),
+    description: texts.toastDescription(kindLabel(alert.kind), alert.code),
   };
 }
 
@@ -136,15 +148,14 @@ export function alertToast(alert: IssueAlert): AlertToast {
  * The toasts of one poll: one per fresh issue, or — beyond the three the
  * region shows — the first two and a summary of the rest.
  */
-export function planToasts(fresh: ReadonlyArray<IssueAlert>): AlertToast[] {
-  if (fresh.length <= MAX_TOASTS_PER_POLL) return fresh.map(alertToast);
-  const shown = fresh.slice(0, MAX_TOASTS_PER_POLL - 1).map(alertToast);
+export function planToasts(
+  fresh: ReadonlyArray<IssueAlert>,
+  texts: AlertTexts = shellCopy.uz.issues,
+  kindLabel: (kind: string) => string = issueKindLabel,
+): AlertToast[] {
+  const toast = (alert: IssueAlert) => alertToast(alert, texts, kindLabel);
+  if (fresh.length <= MAX_TOASTS_PER_POLL) return fresh.map(toast);
+  const shown = fresh.slice(0, MAX_TOASTS_PER_POLL - 1).map(toast);
   const rest = fresh.length - shown.length;
-  return [
-    ...shown,
-    {
-      title: `Yana ${rest} ta shoshilinch muammo`,
-      description: "«Muammolar» bo‘limida ko‘ring.",
-    },
-  ];
+  return [...shown, { title: texts.moreTitle(rest), description: texts.moreDescription }];
 }

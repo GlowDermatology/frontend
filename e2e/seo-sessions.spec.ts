@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import { BACKEND_DIR, clearCategorySeo, restoreProductSeo } from "./backend-shell";
+import { saveAnyway } from "./catalog-helpers";
 import { randomPhone, signUp } from "./customer/helpers";
 import { heading, toast, watchPage } from "./helpers";
 
@@ -25,6 +26,7 @@ function seoStatus(page: Page) {
 
 async function save(page: Page) {
   await page.getByRole("button", { name: "Saqlash" }).click();
+  await saveAnyway(page, toast(page, "Mahsulot saqlandi"));
   await expect(toast(page, "Mahsulot saqlandi")).toBeVisible();
 }
 
@@ -68,8 +70,12 @@ test.describe("SEO", () => {
     ).toBeVisible();
     await slug.fill(otherSlug);
     await page.getByRole("button", { name: "Saqlash" }).click();
-    await expect(card.getByText("Bu manzil (slug) boshqa mahsulotda bor.")).toBeVisible();
+    const taken = card.getByText("Bu manzil (slug) boshqa mahsulotda bor.");
+    await saveAnyway(page, taken);
+    await expect(taken).toBeVisible();
+    // The reveal scrolls to the slug (below the images) and focuses it; the summary lists it.
     await expect(slug).toBeFocused();
+    await expect(page.getByRole("link", { name: /^Manzil \(slug\)/ })).toBeVisible();
 
     // A new slug, SEO texts of ideal length and the missing en description.
     const newSlug = `${slugBefore}-e2e`;
@@ -155,6 +161,7 @@ test.describe("SEO", () => {
     await title.fill("Сыворотки для лица — Glow Derma");
     await expect(dialog.getByTestId("seo-snippet")).toContainText("/ru/categories/serums");
     await dialog.getByRole("button", { name: "Saqlash" }).click();
+    await saveAnyway(page, toast(page, "Kategoriya saqlandi"));
     await expect(toast(page, "Kategoriya saqlandi")).toBeVisible();
 
     await page.reload();
@@ -172,6 +179,7 @@ test.describe("SEO", () => {
 
     await dialog.getByLabel("SEO sarlavha").fill(before);
     await dialog.getByRole("button", { name: "Saqlash" }).click();
+    await saveAnyway(page, toast(page, "Kategoriya saqlandi"));
     await expect(toast(page, "Kategoriya saqlandi")).toBeVisible();
     categoryTouched = false;
     watcher.assertClean();

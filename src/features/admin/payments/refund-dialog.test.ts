@@ -24,7 +24,7 @@ import {
   type RefundDialogState,
   type RefundOperation,
 } from "./refund-dialog";
-import { CLICK_UNAVAILABLE_MESSAGE } from "./refusals";
+import { CLICK_UNAVAILABLE_MESSAGE } from "./refund-dialog";
 
 const refund: Refund = {
   id: 9,
@@ -54,7 +54,7 @@ const ok: ActionResult<PaymentRecord> = { ok: true, data: settled };
 const stillPaid: ActionResult<PaymentRecord> = {
   ok: false,
   error: CLICK_STILL_PAID_MESSAGE,
-  code: "invalid_transition",
+  code: "click_not_reversed",
 };
 const stillPaidCoded: ActionResult<PaymentRecord> = {
   ok: false,
@@ -155,7 +155,7 @@ describe("nextStep", () => {
     const fake: ActionResult<PaymentRecord> = {
       ok: false,
       error: "Click sinov rejimida: to‘lov holatini tekshirib bo‘lmaydi.",
-      code: "invalid_transition",
+      code: "click_fake_mode",
     };
     expect(nextStep(close, fake)).toEqual({
       type: "retryable",

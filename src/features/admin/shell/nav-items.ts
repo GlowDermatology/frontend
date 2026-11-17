@@ -20,9 +20,12 @@ export type AdminSection =
   | "staff"
   | "settings";
 
+/**
+ * One sidebar entry. Its label is `shellCopy[locale].nav[section]` (`./copy.ts`); the item itself
+ * holds no text, so the list is the same in every admin language.
+ */
 export interface NavItem {
   section: AdminSection;
-  label: string;
   href: Route;
   icon: IconName;
   /** Live count shown as a pill (work waiting for the admin). */
@@ -32,13 +35,12 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: ReadonlyArray<NavItem> = [
-  { section: "dashboard", label: "Dashboard", href: "/admin", icon: "chart" },
-  { section: "products", label: "Mahsulotlar", href: "/admin/products", icon: "bag" },
-  { section: "categories", label: "Kategoriyalar", href: "/admin/categories", icon: "tag" },
-  { section: "banners", label: "Bannerlar", href: "/admin/banners", icon: "image" },
+  { section: "dashboard", href: "/admin", icon: "chart" },
+  { section: "products", href: "/admin/products", icon: "bag" },
+  { section: "categories", href: "/admin/categories", icon: "tag" },
+  { section: "banners", href: "/admin/banners", icon: "image" },
   {
     section: "orders",
-    label: "Buyurtmalar",
     href: "/admin/orders",
     icon: "receipt",
     badge: "orders",
@@ -46,40 +48,50 @@ export const NAV_ITEMS: ReadonlyArray<NavItem> = [
   {
     // Yandex Delivery plan §4: the exception queue (the Telegram bot links here).
     section: "delivery-issues",
-    label: "Muammolar",
     href: "/admin/delivery-issues",
     icon: "alert-triangle",
     badge: "issues",
   },
   {
     section: "appointments",
-    label: "Qabullar",
     href: "/admin/appointments",
     icon: "calendar",
     badge: "appointments",
   },
   {
     section: "specialists",
-    label: "Mutaxassislar",
     href: "/admin/specialists",
     icon: "user",
   },
-  { section: "services", label: "Xizmatlar", href: "/admin/services", icon: "sparkle" },
-  { section: "customers", label: "Mijozlar", href: "/admin/customers", icon: "users" },
-  { section: "cashback", label: "Cashback sozlamalari", href: "/admin/cashback", icon: "percent" },
+  { section: "services", href: "/admin/services", icon: "sparkle" },
+  { section: "customers", href: "/admin/customers", icon: "users" },
+  { section: "cashback", href: "/admin/cashback", icon: "percent" },
   {
     section: "notifications",
-    label: "Bildirishnomalar",
     href: "/admin/notifications",
     icon: "bell",
   },
-  { section: "payments", label: "To‘lovlar", href: "/admin/payments", icon: "card" },
+  { section: "payments", href: "/admin/payments", icon: "card" },
   {
     section: "audit-log",
-    label: "Harakatlar jurnali",
     href: "/admin/audit-log",
     icon: "history",
   },
-  { section: "staff", label: "Xodimlar", href: "/admin/staff", icon: "shield", managerOnly: true },
-  { section: "settings", label: "Sozlamalar", href: "/admin/settings", icon: "sliders" },
+  { section: "staff", href: "/admin/staff", icon: "shield", managerOnly: true },
+  { section: "settings", href: "/admin/settings", icon: "sliders" },
 ];
+
+const SECTIONS = new Set<string>(NAV_ITEMS.map((item) => item.section));
+
+/**
+ * The highlighted sidebar section for the segments below `(panel)/layout.tsx`
+ * (`useSelectedLayoutSegments()`): `[]` → Dashboard, `["orders", "10240"]` → Buyurtmalar,
+ * `["customers", "groups"]` → Mijozlar. Route groups (`(…)`) and Next's internal page markers are
+ * skipped; anything else — a catch-all match such as `"foo/bar"`, a removed section — highlights
+ * nothing. Pure, unit-tested.
+ */
+export function sectionFromSegments(segments: ReadonlyArray<string>): AdminSection | undefined {
+  const first = segments.find((segment) => !segment.startsWith("(") && !segment.startsWith("__"));
+  if (first === undefined) return "dashboard";
+  return SECTIONS.has(first) ? (first as AdminSection) : undefined;
+}

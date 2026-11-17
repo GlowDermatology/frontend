@@ -9,6 +9,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Badge, type Tone } from "@/components/ui/badge";
 import { Card, CardTitle, DetailRow } from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
+import { orderLabelsCopy, type OrderLabels } from "@/domain/copy/orders";
 import {
   carrierLabel,
   itemsSubtotal,
@@ -16,7 +17,6 @@ import {
   promoSubtotal,
   refundStateLine,
   shipmentPending,
-  type EventSource,
   type Order,
   type OrderCashbackEntry,
   type OrderEvent,
@@ -24,25 +24,24 @@ import {
   type OrderStatus,
 } from "@/domain/order";
 import { cn } from "@/lib/cn";
-import {
-  formatDateTimeShort,
-  formatDayMonthShort,
-  formatNumber,
-  formatPhone,
-  formatSigned,
-  formatSom,
-} from "@/lib/format";
+import type { AdminFormatter } from "@/lib/format";
+import { useCopy } from "@/lib/i18n/admin-context";
+import { useFormat } from "@/lib/i18n/admin-hooks";
 
 import {
   ORDER_STATUS_META,
-  PaymentStatusBadge,
+  PAYMENT_STATUS_META,
   PROVIDER_LABEL,
   REFUND_TONE,
 } from "../shared/status";
+import { ordersCopy, type OrdersCopy } from "./copy";
+import { customerName } from "./labels";
 
 const rowClass = "leading-5";
 
 export function OrderItemsCard({ order }: { order: Order }) {
+  const t = useCopy(ordersCopy).sections;
+  const fmt = useFormat();
   const subtotal = itemsSubtotal(order.items);
   const paid = order.payment.status === "paid" || order.payment.status === "refunded";
 
@@ -52,46 +51,42 @@ export function OrderItemsCard({ order }: { order: Order }) {
       className="overflow-hidden rounded-lg bg-surface-raised shadow-sm"
     >
       <CardTitle id="order-items-title" className="px-5 py-4">
-        Mahsulotlar
+        {t.items}
       </CardTitle>
-      <ScrollRegion label="Buyurtma mahsulotlari">
+      <ScrollRegion label={t.itemsTable}>
         <table className="data-table min-w-[600px]">
           <thead>
             <tr>
-              <th scope="col">MAHSULOT</th>
-              <th scope="col">BILLZ</th>
+              <th scope="col">{t.product}</th>
+              <th scope="col">{t.billz}</th>
               <th scope="col" className="text-right!">
-                SONI
+                {t.quantity}
               </th>
               <th scope="col" className="text-right!">
-                NARX
+                {t.price}
               </th>
               <th scope="col" className="text-right!">
-                JAMI
+                {t.lineTotal}
               </th>
             </tr>
           </thead>
           <tbody>
-            {order.items.map((item) => (
-              <tr key={item.productId}>
+            {order.items.map((item, index) => (
+              <tr key={`${item.productId}-${index}`}>
                 <td>
                   <span className="flex items-center gap-3">
                     <ItemThumbnail item={item} />
-                    <span className="flex flex-col gap-1">
-                      <span className="font-semibold">{item.name}</span>
-                      {item.promo && (
-                        <span className="text-[12px] text-ink-muted">
-                          Aksiya · cashback hisoblanmaydi
-                        </span>
-                      )}
+                    <span className="flex min-w-0 flex-col gap-1">
+                      <span className="font-semibold break-words">{item.name}</span>
+                      {item.promo && <span className="text-[12px] text-ink-muted">{t.promo}</span>}
                     </span>
                   </span>
                 </td>
                 <td className="text-ink-muted! tabular-nums">{item.billzId}</td>
-                <td className="text-right tabular-nums">{item.quantity}</td>
-                <td className="text-right tabular-nums">{formatNumber(item.unitPrice)}</td>
+                <td className="text-right tabular-nums">{fmt.number(item.quantity)}</td>
+                <td className="text-right tabular-nums">{fmt.number(item.unitPrice)}</td>
                 <td className="text-right font-bold tabular-nums">
-                  {formatNumber(item.unitPrice * item.quantity)}
+                  {fmt.number(item.unitPrice * item.quantity)}
                 </td>
               </tr>
             ))}
@@ -100,20 +95,20 @@ export function OrderItemsCard({ order }: { order: Order }) {
       </ScrollRegion>
       <div className="flex justify-end border-t border-line px-5 py-4">
         <dl className="flex w-full max-w-[360px] flex-col gap-2 text-[14px] leading-5 text-ink">
-          <TotalRow label="Mahsulotlar" value={formatSom(subtotal)} />
+          <TotalRow label={t.itemsTotal} value={fmt.som(subtotal)} />
           {order.fulfilment === "delivery" && (
             <TotalRow
-              label={`Yetkazib berish (${carrierLabel(order)})`}
-              value={formatSom(order.deliveryFee)}
+              label={t.deliveryTotal(carrierLabel(order, fmt.locale))}
+              value={fmt.som(order.deliveryFee)}
             />
           )}
           {order.cashbackUsed > 0 && (
-            <TotalRow label="Cashback chegirmasi" value={formatSom(-order.cashbackUsed)} />
+            <TotalRow label={t.cashbackDiscount} value={fmt.som(-order.cashbackUsed)} />
           )}
           <span aria-hidden="true" className="h-px bg-line" />
           <TotalRow
-            label={paid ? "To‘langan" : "To‘lanishi kerak"}
-            value={formatSom(order.total)}
+            label={paid ? t.paid : t.due}
+            value={fmt.som(order.total)}
             className="font-bold"
             valueClassName="text-[17px]"
           />
@@ -165,13 +160,6 @@ function TotalRow({
   );
 }
 
-const SOURCE_LABEL: Record<EventSource, string> = {
-  system: "TIZIM",
-  bts: "BTS",
-  admin: "ADMIN",
-  yandex: "YANDEX",
-};
-
 const STATUS_DOT: Record<OrderStatus, string> = {
   awaiting_payment: "bg-warning",
   processing: "bg-gold",
@@ -181,9 +169,11 @@ const STATUS_DOT: Record<OrderStatus, string> = {
 };
 
 /** "23-okt, 16:40", or "24-okt, hozir" for something that just happened. */
-function eventTime(at: string, now: string): string {
+function eventTime(at: string, now: string, fmt: AdminFormatter, t: OrdersCopy): string {
   const age = new Date(now).getTime() - new Date(at).getTime();
-  return age >= 0 && age < 60_000 ? `${formatDayMonthShort(at)}, hozir` : formatDateTimeShort(at);
+  return age >= 0 && age < 60_000
+    ? t.sections.justNow(fmt.dayMonthShort(at))
+    : fmt.dateTimeShort(at);
 }
 
 export function OrderHistoryCard({
@@ -193,9 +183,11 @@ export function OrderHistoryCard({
   events: ReadonlyArray<OrderEvent>;
   now: string;
 }) {
+  const t = useCopy(ordersCopy);
+  const fmt = useFormat();
   return (
     <Card aria-labelledby="order-history-title" className="flex flex-col gap-4">
-      <CardTitle id="order-history-title">Holatlar tarixi</CardTitle>
+      <CardTitle id="order-history-title">{t.sections.history}</CardTitle>
       <ol className="m-0 flex list-none flex-col p-0">
         {events.map((event, index) => {
           const last = index === events.length - 1;
@@ -208,7 +200,7 @@ export function OrderHistoryCard({
                 dateTime={event.at}
                 className="text-body-sm leading-5 text-ink-muted tabular-nums"
               >
-                {eventTime(event.at, now)}
+                {eventTime(event.at, now, fmt, t)}
               </time>
               <span aria-hidden="true" className="flex flex-col items-center">
                 <span
@@ -219,7 +211,7 @@ export function OrderHistoryCard({
                 />
                 {!last && <span className="min-h-4 w-0.5 flex-1 bg-line" />}
               </span>
-              <span className={cn("flex flex-col gap-1", !last && "pb-[18px]")}>
+              <span className={cn("flex min-w-0 flex-col gap-1", !last && "pb-[18px]")}>
                 <span className="flex flex-wrap items-center gap-2">
                   <span
                     className={cn(
@@ -230,11 +222,15 @@ export function OrderHistoryCard({
                     {event.title}
                   </span>
                   <span className="rounded-sm border border-line-strong px-1.5 py-0.5 text-[11px] leading-[14px] font-bold tracking-[0.06em] text-ink">
-                    <span className="sr-only">Manba: </span>
-                    {SOURCE_LABEL[event.source]}
+                    <span className="sr-only">{t.sections.source}</span>
+                    {t.sections.sources[event.source] ?? event.source}
                   </span>
                 </span>
-                <span className="text-body-sm text-ink-muted tabular-nums">{event.note}</span>
+                {event.note && (
+                  <span className="text-body-sm break-words text-ink-muted tabular-nums">
+                    {event.note}
+                  </span>
+                )}
               </span>
             </li>
           );
@@ -245,21 +241,25 @@ export function OrderHistoryCard({
 }
 
 export function OrderCustomerCard({ order }: { order: Order }) {
+  const t = useCopy(ordersCopy).sections;
+  const labels = useCopy(orderLabelsCopy);
+  const fmt = useFormat();
   const { customer } = order;
+  const name = customerName(customer.name, labels);
   return (
     <Card aria-labelledby="order-customer-title" className="flex flex-col gap-3">
-      <CardTitle id="order-customer-title">Mijoz</CardTitle>
+      <CardTitle id="order-customer-title">{t.customer}</CardTitle>
       <Link
         href={`/admin/customers/${customer.id}` as Route}
         className="group -m-1 flex items-center gap-3 rounded-md p-1 text-ink no-underline transition-colors duration-150 hover:bg-surface"
       >
-        <Avatar name={customer.name} size={40} className="text-[14px]" />
-        <span className="flex flex-1 flex-col">
-          <span className="text-[14px] leading-5 font-bold group-hover:underline group-hover:decoration-gold group-hover:underline-offset-4">
-            {customer.name}
+        <Avatar name={name} size={40} className="shrink-0 text-[14px]" />
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="text-[14px] leading-5 font-bold break-words group-hover:underline group-hover:decoration-gold group-hover:underline-offset-4">
+            {name}
           </span>
           <span className="text-body-sm text-ink-muted tabular-nums">
-            {formatPhone(customer.phone)}
+            {fmt.phone(customer.phone)}
           </span>
         </span>
         <Icon name="chevron-right" size={18} className="text-ink-muted" />
@@ -268,15 +268,15 @@ export function OrderCustomerCard({ order }: { order: Order }) {
       {order.fulfilment === "delivery" && order.address ? (
         <p className="m-0 flex gap-2.5 text-body-sm leading-5 text-ink">
           <Icon name="map-pin" size={18} className="mt-px shrink-0 text-gold-ink" />
-          <span>
-            <span className="sr-only">Manzil: </span>
+          <span className="min-w-0 break-words">
+            <span className="sr-only">{t.address}</span>
             {order.address}
           </span>
         </p>
       ) : (
         <p className="m-0 flex gap-2.5 text-body-sm leading-5 text-ink">
           <Icon name="store" size={18} className="mt-px shrink-0 text-gold-ink" />
-          Do‘kondan olib ketadi
+          {t.pickupAddress}
         </p>
       )}
     </Card>
@@ -284,32 +284,37 @@ export function OrderCustomerCard({ order }: { order: Order }) {
 }
 
 export function OrderPaymentCard({ order }: { order: Order }) {
+  const t = useCopy(ordersCopy).sections;
+  const labels = useCopy(orderLabelsCopy);
+  const fmt = useFormat();
   const { payment } = order;
   const newest = order.refunds[0];
   // Why the newest refund is paid out by hand (§5.1 note; Payme's line says it already).
-  const reasonNote = newest ? manualRefundNote(newest) : null;
+  const reasonNote = newest ? manualRefundNote(newest, fmt.locale) : null;
   return (
     <Card aria-labelledby="order-payment-title" className="flex flex-col gap-2.5">
       <div className="flex items-center justify-between gap-3">
-        <CardTitle id="order-payment-title">To‘lov</CardTitle>
-        <PaymentStatusBadge status={payment.status} />
+        <CardTitle id="order-payment-title">{t.payment}</CardTitle>
+        <Badge tone={PAYMENT_STATUS_META[payment.status].tone}>
+          {labels.paymentStatus[payment.status]}
+        </Badge>
       </div>
       <dl className="m-0 flex flex-col gap-2.5">
-        <DetailRow label="Usul" className={rowClass}>
+        <DetailRow label={t.method} className={rowClass}>
           {PROVIDER_LABEL[payment.provider]}
         </DetailRow>
         {payment.transactionId && (
-          <DetailRow label="Tranzaksiya" className={rowClass}>
-            <span className="tabular-nums">{payment.transactionId}</span>
+          <DetailRow label={t.transaction} className={rowClass}>
+            <span className="break-all tabular-nums">{payment.transactionId}</span>
           </DetailRow>
         )}
-        <DetailRow label="Summa" className={rowClass}>
-          <span className="tabular-nums">{formatSom(order.total)}</span>
+        <DetailRow label={t.amount} className={rowClass}>
+          <span className="tabular-nums">{fmt.som(order.total)}</span>
         </DetailRow>
         {payment.confirmedAt && (
-          <DetailRow label="Tasdiqlangan" className={rowClass}>
+          <DetailRow label={t.confirmed} className={rowClass}>
             <time dateTime={payment.confirmedAt} className="tabular-nums">
-              {formatDateTimeShort(payment.confirmedAt)}
+              {fmt.dateTimeShort(payment.confirmedAt)}
             </time>
           </DetailRow>
         )}
@@ -318,25 +323,23 @@ export function OrderPaymentCard({ order }: { order: Order }) {
         <>
           <span aria-hidden="true" className="h-px bg-line" />
           <p className="m-0 flex items-center justify-between gap-3 text-body-sm leading-5 font-bold text-ink">
-            <span>{refundStateLine(newest)}</span>
-            <Badge tone={REFUND_TONE[newest.state]}>Qaytarish</Badge>
+            <span>{refundStateLine(newest, fmt.locale)}</span>
+            <Badge tone={REFUND_TONE[newest.state]}>{t.refund}</Badge>
           </p>
           {reasonNote && (
             <p className="m-0 text-[12px] leading-[18px] text-ink-muted">{reasonNote}</p>
           )}
-          <ul aria-label="Qaytarishlar" className="m-0 flex list-none flex-col gap-1.5 p-0">
+          <ul aria-label={t.refunds} className="m-0 flex list-none flex-col gap-1.5 p-0">
             {order.refunds.map((refund) => (
               <li
                 key={refund.id}
                 className="flex flex-wrap items-baseline justify-between gap-x-3 text-[12px] leading-[18px] text-ink-muted"
               >
                 <span className="tabular-nums">
-                  <time dateTime={refund.requestedAt}>
-                    {formatDateTimeShort(refund.requestedAt)}
-                  </time>{" "}
-                  · {refundStateLine(refund)}
+                  <time dateTime={refund.requestedAt}>{fmt.dateTimeShort(refund.requestedAt)}</time>{" "}
+                  · {refundStateLine(refund, fmt.locale)}
                 </span>
-                <span className="font-bold text-ink tabular-nums">{formatSom(refund.amount)}</span>
+                <span className="font-bold text-ink tabular-nums">{fmt.som(refund.amount)}</span>
               </li>
             ))}
           </ul>
@@ -344,7 +347,7 @@ export function OrderPaymentCard({ order }: { order: Order }) {
             href={`/admin/payments?q=${order.id}` as Route}
             className="flex min-h-11 items-center gap-1 self-start text-body-sm font-bold text-ink no-underline hover:underline hover:decoration-gold"
           >
-            To‘lovlar bo‘limida ochish
+            {t.openPayments}
             <Icon name="chevron-right" size={16} />
           </Link>
         </>
@@ -353,39 +356,46 @@ export function OrderPaymentCard({ order }: { order: Order }) {
   );
 }
 
-function shipmentBadge(order: Order): { label: string; tone: Tone } {
+function shipmentBadge(
+  order: Order,
+  t: OrdersCopy["sections"],
+  labels: OrderLabels,
+): { label: string; tone: Tone } {
   const { shipment } = order;
-  if (shipmentPending(shipment)) return { label: "Yuborilmoqda…", tone: "warning" };
-  if (shipment.state === "failed") return { label: "Yuborilmadi", tone: "danger" };
-  if (shipment.state !== "created") return { label: "Yaratilmagan", tone: "muted" };
-  if (order.status === "cancelled") return { label: "Bekor qilish so‘raldi", tone: "danger" };
+  if (shipmentPending(shipment)) return { label: t.shipmentSending, tone: "warning" };
+  if (shipment.state === "failed") return { label: t.shipmentFailed, tone: "danger" };
+  if (shipment.state !== "created") return { label: t.shipmentNotCreated, tone: "muted" };
+  if (order.status === "cancelled") return { label: t.shipmentCancelRequested, tone: "danger" };
   if (order.status === "handed_to_courier" || order.status === "delivered") {
-    return ORDER_STATUS_META[order.status];
+    return { label: labels.status[order.status], tone: ORDER_STATUS_META[order.status].tone };
   }
-  return { label: "Yaratildi", tone: "gold" };
+  return { label: t.shipmentCreated, tone: "gold" };
 }
 
 /** The BTS card; `children` (the open delivery issues) close it. */
 export function OrderShipmentCard({ order, children }: { order: Order; children?: ReactNode }) {
+  const t = useCopy(ordersCopy).sections;
+  const labels = useCopy(orderLabelsCopy);
+  const fmt = useFormat();
   const { shipment } = order;
-  const badge = shipmentBadge(order);
+  const badge = shipmentBadge(order, t, labels);
   return (
     <Card aria-labelledby="order-shipment-title" className="flex flex-col gap-2.5">
       <div className="flex items-center justify-between gap-3">
-        <CardTitle id="order-shipment-title">BTS yetkazish</CardTitle>
+        <CardTitle id="order-shipment-title">{t.shipment}</CardTitle>
         <Badge tone={badge.tone}>{badge.label}</Badge>
       </div>
       {shipment.state === "created" && (
         <dl className="m-0 flex flex-col gap-2.5">
-          <DetailRow label="BTS raqami" className={rowClass}>
+          <DetailRow label={t.btsNumber} className={rowClass}>
             <span className="tabular-nums">{shipment.trackingNumber}</span>
           </DetailRow>
-          <DetailRow label="Tarif" className={rowClass}>
-            <span className="tabular-nums">{formatSom(shipment.tariff)}</span>
+          <DetailRow label={t.tariff} className={rowClass}>
+            <span className="tabular-nums">{fmt.som(shipment.tariff)}</span>
           </DetailRow>
-          <DetailRow label="Oxirgi yangilanish" className={rowClass}>
+          <DetailRow label={t.lastUpdate} className={rowClass}>
             <span className="tabular-nums">
-              {formatDateTimeShort(shipment.updatedAt)} ·{" "}
+              {fmt.dateTimeShort(shipment.updatedAt)} ·{" "}
               {shipment.via === "webhook" ? "Webhook" : "Polling"}
             </span>
           </DetailRow>
@@ -394,31 +404,27 @@ export function OrderShipmentCard({ order, children }: { order: Order; children?
       {shipment.state === "failed" && (
         <>
           <dl className="m-0 flex flex-col gap-2.5">
-            <DetailRow label="Oxirgi urinish" className={rowClass}>
-              <span className="tabular-nums">{formatDateTimeShort(shipment.lastAttemptAt)}</span>
+            <DetailRow label={t.lastAttempt} className={rowClass}>
+              <span className="tabular-nums">{fmt.dateTimeShort(shipment.lastAttemptAt)}</span>
             </DetailRow>
             {shipment.attempts !== undefined && (
-              <DetailRow label="Urinishlar" className={rowClass}>
-                <span className="tabular-nums">{shipment.attempts}</span>
+              <DetailRow label={t.attempts} className={rowClass}>
+                <span className="tabular-nums">{fmt.number(shipment.attempts)}</span>
               </DetailRow>
             )}
           </dl>
           <p className="m-0 text-[12px] leading-[18px] text-ink-muted" aria-live="polite">
             {shipment.pending
-              ? "BTS so‘rovi yuborilmoqda. Natija kelishi bilan sahifa yangilanadi."
+              ? t.btsPending
               : order.availableActions.retryShipment
-                ? "Avtomatik yuborish muvaffaqiyatsiz tugadi. «BTS ga yuborish» tugmasi bilan qayta urinib ko‘ring."
-                : "Avtomatik yuborish muvaffaqiyatsiz tugadi."}
+                ? t.btsRetryHint
+                : t.btsFailedNote}
           </p>
         </>
       )}
       {shipment.state === "not_created" && (
         <p className="m-0 text-[12px] leading-[18px] text-ink-muted" aria-live="polite">
-          {shipment.pending
-            ? "BTS so‘rovi yuborilmoqda."
-            : order.status === "cancelled"
-              ? "Buyurtma BTS ga yuborilmagan."
-              : "To‘lov tasdiqlangach BTS buyurtmasi avtomatik yaratiladi."}
+          {shipment.pending ? t.btsQueued : order.status === "cancelled" ? t.btsNotSent : t.btsAuto}
         </p>
       )}
       {children}
@@ -426,59 +432,55 @@ export function OrderShipmentCard({ order, children }: { order: Order; children?
   );
 }
 
-const CASHBACK_BADGE: Record<OrderCashbackEntry["kind"], { label: string; tone: Tone }> = {
-  debit: { label: "Ishlatildi", tone: "gold" },
-  credit: { label: "Hisoblandi", tone: "success" },
-  reversal: { label: "Qaytarildi", tone: "neutral" },
+const CASHBACK_TONE: Record<OrderCashbackEntry["kind"], Tone> = {
+  debit: "gold",
+  credit: "success",
+  reversal: "neutral",
 };
 
 export function OrderCashbackCard({ order }: { order: Order }) {
+  const t = useCopy(ordersCopy).sections;
+  const fmt = useFormat();
   const promo = promoSubtotal(order.items);
   const reversible = order.cashback.filter((entry) => entry.kind !== "reversal").length;
   const notes: string[] = [];
-  if (promo > 0) notes.push(`Aksiyadagi ${formatSom(promo)} hisobga olinmadi.`);
+  if (promo > 0) notes.push(t.cashbackPromo(fmt.som(promo)));
   if (order.status === "awaiting_payment") {
-    notes.push("Cashback to‘lov tasdiqlangach hisoblanadi.");
+    notes.push(t.cashbackAwaiting);
   } else if (order.status !== "cancelled" && reversible > 0) {
-    notes.push(
-      reversible > 1
-        ? "Bekor qilinsa, ikkala yozuv ham qarama-qarshi yozuv bilan qaytariladi."
-        : "Bekor qilinsa, yozuv qarama-qarshi yozuv bilan qaytariladi.",
-    );
+    notes.push(reversible > 1 ? t.cashbackReverseBoth : t.cashbackReverseOne);
   }
 
   const hold = order.cashbackHold;
   if (hold?.state === "active") {
-    notes.push(
-      `${formatSom(hold.amount)} cashback band qilingan (${formatDateTimeShort(hold.expiresAt)} gacha).`,
-    );
+    notes.push(t.cashbackHold(fmt.som(hold.amount), fmt.dateTimeShort(hold.expiresAt)));
   }
+  const badge: Record<OrderCashbackEntry["kind"], string> = {
+    debit: t.cashbackUsed,
+    credit: t.cashbackCredited,
+    reversal: t.cashbackReversed,
+  };
 
   return (
     <Card aria-labelledby="order-cashback-title" className="flex flex-col gap-2.5">
-      <CardTitle id="order-cashback-title">Cashback</CardTitle>
+      <CardTitle id="order-cashback-title">{t.cashback}</CardTitle>
       {order.cashback.length > 0 ? (
         <ul className="m-0 flex list-none flex-col gap-2.5 p-0">
-          {order.cashback.map((entry, index) => {
-            const badge = CASHBACK_BADGE[entry.kind];
-            return (
-              <li
-                key={`${entry.kind}-${index}`}
-                className="flex items-center justify-between gap-3 text-body-sm leading-5 text-ink-muted"
-              >
-                <span className="tabular-nums">{entry.label}</span>
-                <Badge tone={badge.tone}>{badge.label}</Badge>
-                <span className="font-bold text-ink tabular-nums">
-                  {formatSigned(entry.amount)}
-                </span>
-              </li>
-            );
-          })}
+          {order.cashback.map((entry, index) => (
+            <li
+              key={`${entry.kind}-${index}`}
+              className="grid grid-cols-[1fr_auto_auto] items-center gap-3 text-body-sm leading-5 text-ink-muted"
+            >
+              <span className="min-w-0 tabular-nums">{entry.label}</span>
+              <Badge tone={CASHBACK_TONE[entry.kind]}>{badge[entry.kind]}</Badge>
+              <span className="min-w-[72px] text-right font-bold text-ink tabular-nums">
+                {fmt.signed(entry.amount)}
+              </span>
+            </li>
+          ))}
         </ul>
       ) : (
-        <p className="m-0 text-body-sm text-ink-muted">
-          Bu buyurtmada cashback ishlatilmagan va hisoblanmagan.
-        </p>
+        <p className="m-0 text-body-sm text-ink-muted">{t.cashbackNone}</p>
       )}
       {notes.length > 0 && (
         <p className="m-0 text-[12px] leading-[18px] text-ink-muted">{notes.join(" ")}</p>

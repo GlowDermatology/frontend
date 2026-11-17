@@ -1,13 +1,12 @@
-import {
-  SHIPMENT_STAGE_LABEL,
-  type DeliveryIssueRef,
-  type Order,
-  type OrderDelivery,
-  type ShipmentStage,
-} from "@/domain/order";
-import type { DispatchPhase } from "@/domain/order-dispatch";
+import type { ToastTone } from "@/components/ui/toast";
 import type { Tone } from "@/components/ui/badge";
-import { formatDateTimeShort, formatNumber, formatTime, toLocalIsoDate } from "@/lib/format";
+import { orderLabelsCopy } from "@/domain/copy/orders";
+import type { DeliveryIssueRef, Order, OrderDelivery, ShipmentStage } from "@/domain/order";
+import type { DispatchPhase } from "@/domain/order-dispatch";
+import { createFormatter, toLocalIsoDate } from "@/lib/format";
+import type { Locale } from "@/lib/i18n/locales";
+
+import { ordersCopy } from "./copy";
 
 /**
  * Pure helpers of the order page's carrier-neutral delivery card (Yandex
@@ -46,17 +45,19 @@ export interface DispatchOffer {
  */
 export function dispatchOffer(
   order: Pick<Order, "availableActions" | "delivery">,
+  locale: Locale = "uz",
 ): DispatchOffer | null {
   const delivery = order.delivery;
   if (delivery?.provider !== "yandex" || order.availableActions.dispatch !== true) return null;
+  const t = ordersCopy[locale].dispatchOffer;
   const review = delivery.openIssues.find((issue) => issue.kind === "dispatch_review") ?? null;
   const label = review
-    ? "Narxni ko‘rib chiqish"
+    ? t.review
     : delivery.stage === "failed"
-      ? "Kuryerni qayta chaqirish"
+      ? t.retry
       : delivery.stage === "returned"
-        ? "Qayta jo‘natish"
-        : "Kuryer chaqirish";
+        ? t.resend
+        : t.call;
   return { review, label };
 }
 
@@ -85,83 +86,80 @@ const COURIER_FOUND: ReadonlyArray<ShipmentStage> = [
 ];
 
 export interface DispatchToast {
-  tone?: "info";
+  tone: ToastTone;
   title: string;
   description?: string;
 }
 
 /**
  * The toast of a dispatch's outcome (the 202 answer or the end of the poll):
- * a courier found, still searching, or the issue that ended the attempt.
- * `null` for a stage the dispatch did not lead to (e.g. cancelled meanwhile).
+ * a courier found (success), still searching (success: the call went out),
+ * or the issue that ended the attempt (a price review or an unclear answer:
+ * warning; no courier: danger). `null` for a stage the dispatch did not lead
+ * to (e.g. cancelled meanwhile).
  */
 export function dispatchToast(
   phase: DispatchPhase,
   order: Pick<Order, "delivery">,
+  locale: Locale = "uz",
 ): DispatchToast | null {
+  const t = ordersCopy[locale].dispatchToast;
   switch (phase.kind) {
     case "searching":
-      return {
-        title: "Kuryer chaqirildi",
-        description: "Yandex kuryer qidirmoqda. Holat har 10 soniyada tekshiriladi.",
-      };
+      return { tone: "success", title: t.called, description: t.calledHint };
     case "moved": {
       if (phase.stage === null || !COURIER_FOUND.includes(phase.stage)) return null;
       const courier = order.delivery?.courierName;
       return {
-        title: "Kuryer topildi",
-        description: `${SHIPMENT_STAGE_LABEL[phase.stage]}${courier ? ` · ${courier}` : ""}`,
+        tone: "success",
+        title: t.found,
+        description: `${orderLabelsCopy[locale].shipmentStage[phase.stage]}${courier ? ` · ${courier}` : ""}`,
       };
     }
     case "issue":
       switch (phase.issueKind) {
         case "dispatch_review":
-          return {
-            tone: "info",
-            title: "Narxni tasdiqlash kerak",
-            description:
-              "Yandex taklifi narx chegarasidan oshdi, kuryer chaqirilmadi. «Narxni ko‘rib chiqish» orqali tasdiqlang, boshqa usulni tanlang yoki buyurtmani bekor qiling.",
-          };
+          return { tone: "warning", title: t.review, description: t.reviewHint };
         case "dispatch_unknown":
-          return {
-            tone: "info",
-            title: "Kuryer chaqiruvi noaniq",
-            description:
-              "Yandex javobi aniq emas, chaqiruv kuzatilmoqda. «Muammolar» bo‘limini tekshiring.",
-          };
+          return { tone: "warning", title: t.unknown, description: t.unknownHint };
         default:
           return {
-            tone: "info",
-            title: "Kuryer chaqirilmadi",
-            description: phase.code
-              ? `Sabab: ${phase.code}. Kuryerni qayta chaqirish mumkin.`
-              : "Kuryerni qayta chaqirish mumkin.",
+            tone: "danger",
+            title: t.failed,
+            description: phase.code ? t.failedReason(phase.code) : t.failedHint,
           };
       }
   }
 }
 
 /** The poll ran its 3 minutes and Yandex is still searching. */
-export const DISPATCH_TIMEOUT_TOAST: DispatchToast = {
-  tone: "info",
-  title: "Kuryer hali topilmadi",
-  description:
-    "Yandex qidirishda davom etmoqda. «Holatni tekshirish» bilan yana kuzatish yoki sahifani keyinroq yangilash mumkin.",
-};
-
-/** "24-okt, 14:05–15:35", or both ends in full when they fall on different days. */
-export function promisedWindow(from: string | null, to: string | null): string | null {
-  if (!from && !to) return null;
-  if (!from) return `${formatDateTimeShort(to!)} gacha`;
-  if (!to) return `${formatDateTimeShort(from)} dan`;
-  return toLocalIsoDate(from) === toLocalIsoDate(to)
-    ? `${formatDateTimeShort(from)}–${formatTime(to)}`
-    : `${formatDateTimeShort(from)} – ${formatDateTimeShort(to)}`;
+export function dispatchTimeoutToast(locale: Locale = "uz"): DispatchToast {
+  const t = ordersCopy[locale].dispatchToast;
+  return { tone: "info", title: t.timeout, description: t.timeoutHint };
 }
 
-/** Parcel weight in grams as staff weigh it: "650 g", "1 250 g". */
-export function formatGrams(grams: number): string {
-  return `${formatNumber(grams)} g`;
+/** The Uzbek timeout toast (`dispatchTimeoutToast("uz")`). */
+export const DISPATCH_TIMEOUT_TOAST: DispatchToast = dispatchTimeoutToast("uz");
+
+/** "24-okt, 14:05–15:35", or both ends in full when they fall on different days. */
+export function promisedWindow(
+  from: string | null,
+  to: string | null,
+  locale: Locale = "uz",
+): string | null {
+  if (!from && !to) return null;
+  const fmt = createFormatter(locale);
+  const t = ordersCopy[locale].window;
+  if (!from) return t.until(fmt.dateTimeShort(to!));
+  if (!to) return t.from(fmt.dateTimeShort(from));
+  return toLocalIsoDate(from) === toLocalIsoDate(to)
+    ? `${fmt.dateTimeShort(from)}–${fmt.time(to)}`
+    : `${fmt.dateTimeShort(from)} – ${fmt.dateTimeShort(to)}`;
+}
+
+/** Parcel weight in grams as staff weigh it: "650 g", "1 250 g" ("1 250 г", "1,250 g"). */
+export function formatGrams(grams: number, locale: Locale = "uz"): string {
+  return orderLabelsCopy[locale].grams(createFormatter(locale).number(grams));
 }
 
 /**

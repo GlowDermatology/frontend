@@ -6,6 +6,9 @@ import { useEffect, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { useCopy } from "@/lib/i18n/admin-context";
+
+import { shellCopy } from "./copy";
 
 /**
  * The content-level error card: a board whose data or rendering fails shows
@@ -19,6 +22,7 @@ import { Icon } from "@/components/ui/icon";
  * the shell itself still reaches `src/app/admin/error.tsx`.
  */
 function ContentErrorCard(_props: object, { error, retry }: ErrorInfo) {
+  const t = useCopy(shellCopy).contentError;
   const heading = useRef<HTMLHeadingElement>(null);
   // `catchError` clears itself only on a navigation to another route. A new
   // URL of the same board (its own sidebar link, the header search's
@@ -61,20 +65,17 @@ function ContentErrorCard(_props: object, { error, retry }: ErrorInfo) {
         tabIndex={-1}
         className="m-0 font-serif text-display leading-10 tracking-normal text-ink focus:outline-none"
       >
-        Bo‘limni yuklab bo‘lmadi
+        {t.title}
       </h1>
-      <p className="m-0 max-w-[52ch] text-body text-ink-muted">
-        Ma’lumotlarni olishda xatolik yuz berdi. Qayta urinib ko‘ring yoki chap menyudan boshqa
-        bo‘limga o‘ting; muammo takrorlansa, quyidagi kodni administratorga yuboring.
-      </p>
+      <p className="m-0 max-w-[52ch] text-body text-ink-muted">{t.description}</p>
       {digest && (
         <p className="m-0 text-body-sm text-ink-muted">
-          Xato kodi: <code className="font-mono text-ink select-all">{digest}</code>
+          {t.code} <code className="font-mono text-ink select-all">{digest}</code>
         </p>
       )}
       <Button variant="secondary" onClick={() => retry()}>
         <Icon name="refresh" size={18} />
-        Qayta urinish
+        {t.retry}
       </Button>
     </section>
   );

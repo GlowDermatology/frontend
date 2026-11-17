@@ -1,7 +1,7 @@
-import type { AuditEntry, AuditFilters } from "@/domain/audit";
+import type { AuditEntry, AuditFacets, AuditFilters } from "@/domain/audit";
 
 import type { QueryValue } from "../client";
-import type { ApiAuditEntry } from "../types";
+import type { ApiAuditEntry, ApiAuditFacets } from "../types";
 import { idString } from "./common";
 
 /** `AuditEntry` (contract §2.13) → the FE domain type; `null` actor = the system. */
@@ -29,6 +29,18 @@ export function auditFilterParams(filters: AuditFilters): Record<string, QueryVa
     object_id: filters.objectId,
     date_from: filters.dateFrom,
     date_to: filters.dateTo,
+    request_id: filters.requestId,
     ordering: filters.ordering === "-at" ? undefined : filters.ordering,
+  };
+}
+
+/** `GET audit-log/facets/` → the FE facets (lists copied, sorted as the API sends them). */
+export function mapAuditFacets(api: ApiAuditFacets): AuditFacets {
+  return {
+    tier: api.tier,
+    ipVisible: api.ip_visible,
+    visiblePrefixes: [...api.visible_prefixes],
+    ownOnlyPrefixes: [...api.own_only_prefixes],
+    hiddenActions: [...api.hidden_actions],
   };
 }

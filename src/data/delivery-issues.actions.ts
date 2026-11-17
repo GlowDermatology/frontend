@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 
+import { deliveryIssueCopy } from "@/domain/copy/delivery-issues";
 import {
   ISSUE_NOTE_MAX,
   ISSUE_NOTE_MIN,
@@ -11,13 +12,11 @@ import {
 } from "@/domain/delivery-issue";
 import { DELIVERY_ISSUE_KINDS, type DeliveryIssueKind } from "@/domain/order";
 
-import {
-  apiMutation,
-  fieldErrorsFrom,
-  guardAction,
-  idempotencyKeySchema,
-  sessionToken,
-} from "./action-guard";
+import { getAdminLocale } from "@/lib/i18n/admin-locale";
+import { localized } from "@/lib/i18n/localized";
+import { validationCopy } from "@/lib/i18n/validation-copy";
+
+import { apiMutation, fieldErrorsFrom, guardAction, sessionToken } from "./action-guard";
 import {
   apiListDeliveryIssuesFresh,
   apiOpenIncident,
@@ -46,37 +45,41 @@ import type { ActionResult } from "./types";
  * pickup order), 400 `validation_error` on `note` / `until` (`in_past`).
  */
 
-const noteSchema = z
-  .string()
-  .trim()
-  .min(1, "Majburiy maydon.")
-  .min(ISSUE_NOTE_MIN, `Kamida ${ISSUE_NOTE_MIN} ta belgi kiriting.`)
-  .max(ISSUE_NOTE_MAX, `${ISSUE_NOTE_MAX} belgidan oshmasin.`);
-
 const idSchema = z.int().positive();
-
-const resolveSchema = z.object({ issueId: idSchema, note: noteSchema, key: idempotencyKeySchema });
-
-const incidentSchema = z.object({
-  orderId: idSchema,
-  note: noteSchema,
-  urgent: z.boolean(),
-  key: idempotencyKeySchema,
-});
 
 /** An aware instant (`2026-10-25T18:00:00+05:00`); the API refuses a naive one. */
 const AWARE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
 
-const suspensionSchema = z.object({
-  suspended: z.boolean(),
-  until: z
+/** The actions' input rules with the backend's limits; messages in the admin language. */
+const issueActionSchemas = localized(validationCopy, (v) => {
+  const key = z.uuid({ error: v.requestKey });
+  const note = z
     .string()
-    .regex(AWARE, "Noto‘g‘ri qiymat.")
-    .refine((value) => !Number.isNaN(Date.parse(value)), "Noto‘g‘ri qiymat.")
-    .nullable(),
-  note: z.string().trim().max(SUSPENSION_NOTE_MAX, `${SUSPENSION_NOTE_MAX} belgidan oshmasin.`),
-  key: idempotencyKeySchema,
+    .trim()
+    .min(1, v.required)
+    .min(ISSUE_NOTE_MIN, v.minChars(ISSUE_NOTE_MIN))
+    .max(ISSUE_NOTE_MAX, v.maxChars(ISSUE_NOTE_MAX));
+  return {
+    resolve: z.object({ issueId: idSchema, note, key }),
+    incident: z.object({ orderId: idSchema, note, urgent: z.boolean(), key }),
+    suspension: z.object({
+      suspended: z.boolean(),
+      until: z
+        .string()
+        .regex(AWARE, v.invalid)
+        .refine((value) => !Number.isNaN(Date.parse(value)), v.invalid)
+        .nullable(),
+      note: z.string().trim().max(SUSPENSION_NOTE_MAX, v.maxChars(SUSPENSION_NOTE_MAX)),
+      key,
+    }),
+  };
 });
+
+/** The admin language of this request, its messages and its rules. */
+async function requestLanguage() {
+  const locale = await getAdminLocale();
+  return { locale, m: deliveryIssueCopy[locale], schemas: issueActionSchemas[locale] };
+}
 
 export async function resolveDeliveryIssue(
   issueId: number,
@@ -86,8 +89,9 @@ export async function resolveDeliveryIssue(
 ): Promise<ActionResult<DeliveryIssue>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
-  const parsed = resolveSchema.safeParse({ issueId, note, key });
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  const { locale, m, schemas } = await requestLanguage();
+  const parsed = schemas.resolve.safeParse({ issueId, note, key });
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, m.checkFields);
   const input = parsed.data;
   if ((await dataSource()) === "api") {
     return apiMutation("resolveDeliveryIssue", async () => {
@@ -104,7 +108,7 @@ export async function resolveDeliveryIssue(
       }
     });
   }
-  return mock.resolveIssue(input.issueId, input.note);
+  return mock.resolveIssue(input.issueId, input.note, locale);
 }
 
 export interface OpenedIncident {
@@ -122,8 +126,9 @@ export async function openDeliveryIncident(
 ): Promise<ActionResult<OpenedIncident>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
-  const parsed = incidentSchema.safeParse({ orderId, note, urgent, key });
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  const { locale, m, schemas } = await requestLanguage();
+  const parsed = schemas.incident.safeParse({ orderId, note, urgent, key });
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, m.checkFields);
   const input = parsed.data;
   if ((await dataSource()) === "api") {
     return apiMutation("openDeliveryIncident", async () => {
@@ -140,7 +145,7 @@ export async function openDeliveryIncident(
       }
     });
   }
-  return mock.openIncident(input.orderId, input.note, input.urgent);
+  return mock.openIncident(input.orderId, input.note, input.urgent, locale);
 }
 
 export interface SuspensionInput {
@@ -157,8 +162,9 @@ export async function updateDispatchSuspension(
 ): Promise<ActionResult<DispatchSuspension>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
-  const parsed = suspensionSchema.safeParse({ ...input, key });
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  const { locale, m, schemas } = await requestLanguage();
+  const parsed = schemas.suspension.safeParse({ ...input, key });
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, m.checkFields);
   const value = parsed.data;
   if ((await dataSource()) === "api") {
     return apiMutation("updateDispatchSuspension", async () => {
@@ -174,7 +180,7 @@ export async function updateDispatchSuspension(
       }
     });
   }
-  return mock.setDispatchSuspension(value.suspended, value.until, value.note);
+  return mock.setDispatchSuspension(value.suspended, value.until, value.note, locale);
 }
 
 const openIssueSchema = z.object({ orderId: idSchema, kind: z.enum(DELIVERY_ISSUE_KINDS) });
@@ -193,7 +199,9 @@ export async function loadOpenIssue(
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
   const parsed = openIssueSchema.safeParse({ orderId, kind });
-  if (!parsed.success) return { ok: false, error: "Topilmadi.", code: "not_found" };
+  if (!parsed.success) {
+    return { ok: false, error: (await requestLanguage()).m.notFound, code: "not_found" };
+  }
   const query = {
     state: "open" as const,
     kind: parsed.data.kind,

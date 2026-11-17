@@ -13,7 +13,9 @@ import type { ActionResult } from "@/data/types";
  * with `redirect: "manual"`, so the 303 back to `next` is not followed and
  * only the cookie side effect matters — and retries the action once. If the
  * session is still expired the browser goes to the sign-in page with the
- * current location as `next`.
+ * current location as `next`. With `passwordChangeUrl` (admin), an answer
+ * `code: "password_change_required"` (the backend's 403 for an account that
+ * must set its own password first) sends the browser to that page instead.
  *
  * Idempotency key reuse across the retry is the caller's job: pass the same
  * key inside `invoke` (see `useIdempotencyKey`).
@@ -41,7 +43,16 @@ export interface ActionClientConfig {
   signInUrl: (next: string) => string;
   /** Message of the synthetic `network_error` failure. */
   networkErrorMessage: string;
+  /**
+   * The forced password change page for the current location (admin, DESIGN §E): an action
+   * answered 403 `password_change_required` sends the browser there. Omitted: the failure is
+   * returned as is.
+   */
+  passwordChangeUrl?: (next: string) => string;
 }
+
+/** The backend's 403 for an account that must set its own password first (DESIGN §E). */
+export const PASSWORD_CHANGE_REQUIRED = "password_change_required";
 
 export function currentPath(location: Pick<Location, "pathname" | "search">): string {
   return `${location.pathname}${location.search}`;
@@ -109,12 +120,20 @@ export async function runActionWith<T>(
   env: ActionClientEnv,
 ): Promise<ActionResult<T>> {
   const first = await invokeSafely(invoke, env.csrf(), config.networkErrorMessage);
+  if (!first.ok && first.code === PASSWORD_CHANGE_REQUIRED && config.passwordChangeUrl) {
+    env.location.assign(config.passwordChangeUrl(currentPath(env.location)));
+    return first;
+  }
   if (first.ok || first.code !== "session_expired") return first;
 
   const refreshed = await refreshSessionAt(config.refreshPath, env);
   const second = refreshed
     ? await invokeSafely(invoke, env.csrf(), config.networkErrorMessage)
     : first;
+  if (!second.ok && second.code === PASSWORD_CHANGE_REQUIRED && config.passwordChangeUrl) {
+    env.location.assign(config.passwordChangeUrl(currentPath(env.location)));
+    return second;
+  }
   if (second.ok || second.code !== "session_expired") return second;
 
   env.location.assign(config.signInUrl(currentPath(env.location)));

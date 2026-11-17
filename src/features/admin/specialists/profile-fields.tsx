@@ -1,25 +1,22 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId } from "react";
 
-import { Field, Select, TextArea, TextInput } from "@/components/ui/field";
+import { Field, TextArea, TextInput } from "@/components/ui/field";
+import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import type { SpecialistFormValues } from "@/data/clinic.schema";
-import {
-  EXPERIENCE_MAX,
-  NAME_MAX,
-  SLOT_STEPS,
-  SPECIALIST_ROLE_LABEL,
-  SPECIALIST_ROLES,
-  TEXT_MAX,
-} from "@/domain/clinic";
+import { EXPERIENCE_MAX, NAME_MAX, SLOT_STEPS, SPECIALIST_ROLES, TEXT_MAX } from "@/domain/clinic";
+import { clinicDataCopy } from "@/domain/copy/clinic";
 import type { ContentLanguage } from "@/domain/product";
 import { slugifyName, SPECIALIST_SLUG_MAX } from "@/domain/seo";
+import { useCopy } from "@/lib/i18n/admin-context";
 
 import { LanguageTabs } from "../products/language-tabs";
 import { SlugField } from "../shared/seo-fields";
+import { specialistsCopy, type SpecialistsCopy } from "./copy";
 
-const LANGUAGES: ReadonlyArray<ContentLanguage> = ["uz", "ru", "en"];
+export const LANGUAGES: ReadonlyArray<ContentLanguage> = ["uz", "ru", "en"];
 
 export interface StaffOption {
   id: string;
@@ -38,6 +35,62 @@ export const PROFILE_FIELDS = [
   ...LANGUAGES.flatMap((l) => [`qualifications.${l}`, `bio.${l}`]),
 ];
 
+/** The form order of the profile's fields (the error summary follows it). */
+export const PROFILE_ORDER = [
+  "name",
+  "role",
+  "experienceYears",
+  "slotStepMin",
+  "staffUserId",
+  "slug",
+  ...LANGUAGES.flatMap((l) => [`qualifications.${l}`, `bio.${l}`]),
+  "isActive",
+];
+
+/** The summary label of a profile field ("Malakasi (ruscha)" for `qualifications.ru`). */
+export function profileFieldLabel(name: string, t: SpecialistsCopy): string | undefined {
+  const p = t.profile;
+  const [field, language] = name.split(".") as [string, ContentLanguage | undefined];
+  if ((field === "qualifications" || field === "bio") && language && language in p.language) {
+    return p.inLanguage(field === "bio" ? p.bio : p.qualifications, p.language[language]);
+  }
+  const labels: Record<string, string> = {
+    name: p.name,
+    role: p.role,
+    experienceYears: p.experience,
+    slotStepMin: p.slotStep,
+    staffUserId: p.staff,
+    slug: p.slug,
+    isActive: p.active,
+    photo: p.photo,
+  };
+  return labels[field];
+}
+
+/** The "save anyway?" rows of the specialist's empty recommended fields. */
+export function specialistRecommendedFields(
+  missing: ReadonlyArray<"qualifications.uz" | "bio.uz" | "photo">,
+  t: SpecialistsCopy,
+): Array<{ name: string; label: string }> {
+  const label = {
+    "qualifications.uz": t.recommended.qualifications,
+    "bio.uz": t.recommended.bio,
+    photo: t.recommended.photo,
+  } as const;
+  return missing.map((name) => ({ name, label: label[name] }));
+}
+
+/** The first content language whose qualifications or bio hold an error (to show its tab). */
+export function firstTextErrorLanguage(
+  errors: Readonly<Record<string, string>>,
+): ContentLanguage | null {
+  return (
+    LANGUAGES.find(
+      (language) => errors[`qualifications.${language}`] || errors[`bio.${language}`],
+    ) ?? null
+  );
+}
+
 interface ProfileFieldsProps {
   values: SpecialistFormValues;
   onChange: (values: SpecialistFormValues) => void;
@@ -52,13 +105,17 @@ interface ProfileFieldsProps {
   activeHint: string;
   /** The stored website slug; `null` while creating (derived from the name on save). */
   savedSlug: string | null;
+  /** The content language whose qualifications and bio are shown (the parent switches it to an error). */
+  language: ContentLanguage;
+  onLanguageChange: (language: ContentLanguage) => void;
 }
 
 /**
  * The specialist's profile fields (contract §2.17 `ClinicSpecialist`): name,
  * category, experience, the customer slot grid, the linked staff account,
  * the active flag, and the qualifications and bio per language. Shared by
- * the create dialog and the detail page; the parent owns submit.
+ * the create dialog and the detail page; the parent owns submit and the
+ * shown language (so an error in another language's text can be revealed).
  */
 export function SpecialistProfileFields({
   values,
@@ -70,20 +127,20 @@ export function SpecialistProfileFields({
   linkedStaff,
   activeHint,
   savedSlug,
+  language,
+  onLanguageChange,
 }: ProfileFieldsProps) {
+  const t = useCopy(specialistsCopy).profile;
+  const m = useCopy(clinicDataCopy);
   const idBase = useId();
-  const [language, setLanguage] = useState<ContentLanguage>("uz");
   const set = <K extends keyof SpecialistFormValues>(key: K, value: SpecialistFormValues[K]) =>
     onChange({ ...values, [key]: value });
-  const options =
-    linkedStaff && !staffOptions.some((o) => o.id === linkedStaff.id)
-      ? [linkedStaff, ...staffOptions]
-      : staffOptions;
+  const linkedMissing = linkedStaff && !staffOptions.some((o) => o.id === linkedStaff.id);
 
   return (
     <div className="flex flex-col gap-4">
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Ism familiya" error={errors.name}>
+        <Field label={t.name} name="name" error={errors.name}>
           {(c) => (
             <TextInput
               {...c}
@@ -95,23 +152,23 @@ export function SpecialistProfileFields({
             />
           )}
         </Field>
-        <Field label="Mutaxassislik" error={errors.role}>
+        <Field label={t.role} name="role" error={errors.role}>
           {(c) => (
-            <Select
+            <Select<SpecialistFormValues["role"]>
               {...c}
               name="role"
               value={values.role}
-              onChange={(event) => set("role", event.target.value as SpecialistFormValues["role"])}
-            >
-              {SPECIALIST_ROLES.map((role) => (
-                <option key={role} value={role}>
-                  {SPECIALIST_ROLE_LABEL[role]}
-                </option>
-              ))}
-            </Select>
+              onValueChange={(role) => set("role", role)}
+              options={SPECIALIST_ROLES.map((role) => ({ value: role, label: m.role[role] }))}
+            />
           )}
         </Field>
-        <Field label="Tajriba (yil)" error={errors.experienceYears} hint="Bo‘sh qoldirish mumkin.">
+        <Field
+          label={t.experience}
+          name="experienceYears"
+          error={errors.experienceYears}
+          hint={t.experienceHint}
+        >
           {(c) => (
             <TextInput
               {...c}
@@ -127,75 +184,85 @@ export function SpecialistProfileFields({
           )}
         </Field>
         <Field
-          label="Yozilish qadami"
+          label={t.slotStep}
+          name="slotStepMin"
           error={errors.slotStepMin}
-          hint="Ilovada bo‘sh vaqtlar shu oraliqda ko‘rsatiladi."
+          hint={t.slotStepHint}
         >
           {(c) => (
-            <Select
+            <Select<string>
               {...c}
               name="slotStepMin"
               value={String(values.slotStepMin)}
-              onChange={(event) =>
-                set(
-                  "slotStepMin",
-                  Number(event.target.value) as SpecialistFormValues["slotStepMin"],
-                )
+              onValueChange={(step) =>
+                set("slotStepMin", Number(step) as SpecialistFormValues["slotStepMin"])
               }
-            >
-              {SLOT_STEPS.map((step) => (
-                <option key={step} value={step}>
-                  {step} daqiqa
-                </option>
-              ))}
-            </Select>
+              options={SLOT_STEPS.map((step) => ({
+                value: String(step),
+                label: t.slotStepOption(step),
+              }))}
+            />
           )}
         </Field>
         <Field
-          label="Bog‘langan xodim hisobi"
+          label={t.staff}
+          name="staffUserId"
           error={errors.staffUserId}
-          hint="Ixtiyoriy: mutaxassis o‘zi admin panelga kirsa."
+          hint={t.staffHint}
           className="sm:col-span-2"
         >
           {(c) => (
-            <Select
+            <Select<string>
               {...c}
               name="staffUserId"
               value={values.staffUserId}
-              onChange={(event) => set("staffUserId", event.target.value)}
-            >
-              <option value="">Bog‘lanmagan</option>
-              {options.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.name}
-                </option>
-              ))}
-            </Select>
+              onValueChange={(id) => set("staffUserId", id)}
+              options={[
+                { value: "", label: t.staffNone },
+                ...(linkedMissing && linkedStaff
+                  ? [
+                      {
+                        value: linkedStaff.id,
+                        label: linkedStaff.name,
+                        description: t.staffInactive,
+                      },
+                    ]
+                  : []),
+                ...staffOptions.map((option) => ({ value: option.id, label: option.name })),
+              ]}
+            />
           )}
         </Field>
       </div>
 
-      <SlugField
-        kind="specialist"
-        name="slug"
-        value={values.slug}
-        onChange={(slug) => set("slug", slug)}
-        error={errors.slug}
-        max={SPECIALIST_SLUG_MAX}
-        suggestion={slugifyName(values.name, SPECIALIST_SLUG_MAX)}
-        saved={savedSlug || null}
-      />
+      <div data-field="slug" data-invalid={errors.slug ? "true" : undefined}>
+        <SlugField
+          kind="specialist"
+          name="slug"
+          value={values.slug}
+          onChange={(slug) => set("slug", slug)}
+          error={errors.slug}
+          max={SPECIALIST_SLUG_MAX}
+          suggestion={slugifyName(values.name, SPECIALIST_SLUG_MAX)}
+          saved={savedSlug || null}
+        />
+      </div>
 
       <div className="flex flex-col gap-2">
-        <span className="text-label text-ink">Malaka va tavsif</span>
+        <span className="text-label text-ink">{t.texts}</span>
         <LanguageTabs
           languages={LANGUAGES}
           value={language}
-          onChange={setLanguage}
+          onChange={onLanguageChange}
           complete={{
             uz: Boolean(values.qualifications.uz.trim()),
             ru: Boolean(values.qualifications.ru.trim()),
             en: Boolean(values.qualifications.en.trim()),
+          }}
+          invalid={{
+            uz: Boolean(errors["qualifications.uz"] || errors["bio.uz"]),
+            ru: Boolean(errors["qualifications.ru"] || errors["bio.ru"]),
+            en: Boolean(errors["qualifications.en"] || errors["bio.en"]),
           }}
           idBase={idBase}
         />
@@ -203,12 +270,14 @@ export function SpecialistProfileFields({
           role="tabpanel"
           id={`${idBase}-panel`}
           aria-labelledby={`${idBase}-tab-${language}`}
+          data-lang={language}
           className="flex flex-col gap-3"
         >
           <Field
-            label="Malakasi"
+            label={t.qualifications}
+            name={`qualifications.${language}`}
             error={errors[`qualifications.${language}`]}
-            hint="Ilovada mutaxassis kartasida: ta’lim, sertifikatlar, yo‘nalishlar."
+            hint={t.qualificationsHint}
           >
             {(c) => (
               <TextArea
@@ -226,7 +295,7 @@ export function SpecialistProfileFields({
               />
             )}
           </Field>
-          <Field label="Qisqacha ma’lumot" error={errors[`bio.${language}`]}>
+          <Field label={t.bio} name={`bio.${language}`} error={errors[`bio.${language}`]}>
             {(c) => (
               <TextArea
                 {...c}
@@ -241,15 +310,24 @@ export function SpecialistProfileFields({
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-3 rounded-md bg-surface px-3.5 py-3">
+      <div
+        className="flex items-center justify-between gap-3 rounded-md bg-surface px-3.5 py-3"
+        data-field="isActive"
+        data-invalid={errors.isActive ? "true" : undefined}
+      >
         <span className="flex flex-col gap-0.5">
-          <span className="text-label text-ink">Faol</span>
+          <span className="text-label text-ink">{t.active}</span>
           <span className="text-caption font-normal text-ink-muted">{activeHint}</span>
+          {errors.isActive && (
+            <span role="alert" className="text-body-sm font-semibold text-danger">
+              {errors.isActive}
+            </span>
+          )}
         </span>
         <Switch
           checked={values.isActive}
           onCheckedChange={(checked) => set("isActive", checked)}
-          aria-label="Mutaxassis faol"
+          aria-label={t.activeSwitch}
         />
       </div>
     </div>

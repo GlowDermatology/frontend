@@ -1,8 +1,8 @@
+import { orderHistoryCopy, orderLabelsCopy, type OrderHistoryCopy } from "@/domain/copy/orders";
 import {
   DELIVERY_ISSUE_KINDS,
   DELIVERY_METHODS,
   manualRefundReason,
-  MANUAL_REFUND_NOTE,
   refundManualReason,
   SHIPMENT_STAGES,
   type CustomerRef,
@@ -21,7 +21,8 @@ import {
   type Shipment,
 } from "@/domain/order";
 import type { DispatchInput } from "@/domain/order-dispatch";
-import { formatNumber, formatSom } from "@/lib/format";
+import { createFormatter, type AdminFormatter } from "@/lib/format";
+import type { Locale } from "@/lib/i18n/locales";
 
 import type { OrderFilters, OrderListQuery } from "../../orders";
 import type { QueryValue } from "../client";
@@ -46,8 +47,11 @@ import { idString, customerContact } from "./common";
  * contract's №10248 vector.
  */
 
-/** §7.16: a deleted customer's `name` is `""`. */
-export const DELETED_CUSTOMER_NAME = "O‘chirilgan mijoz";
+/**
+ * §7.16: a deleted customer's `name` is `""`. The mapper keeps this Uzbek token (shared with the
+ * payments mapper); the order screens show `orderLabelsCopy[locale].deletedCustomer` for it.
+ */
+export const DELETED_CUSTOMER_NAME = orderLabelsCopy.uz.deletedCustomer;
 
 export function mapCustomerRef(ref: {
   id: number;
@@ -262,35 +266,44 @@ export function mapRefund(api: ApiRefund): Refund {
   return refund;
 }
 
-/** `PCT(p)` (§5): `"1.00"` → `1`, `"1.50"` → `1,5`, `"0.57"` → `0,57`. */
-export function formatPercent(percent: string | number | null | undefined): string {
+/**
+ * `PCT(p)` (§5): `"1.00"` → `1`, `"1.50"` → `1,5`, `"0.57"` → `0,57` (a decimal point in
+ * English).
+ */
+export function formatPercent(
+  percent: string | number | null | undefined,
+  locale: Locale = "uz",
+): string {
   if (percent === null || percent === undefined || percent === "") return "";
   const text = String(percent);
   const trimmed = text.includes(".") ? text.replace(/0+$/, "").replace(/\.$/, "") : text;
-  return trimmed.replace(".", ",");
+  return locale === "en" ? trimmed : trimmed.replace(".", ",");
 }
 
 /** `cashback[]` (+ the active hold) → the card's entries (§5.1 `OrderCashbackEntry`). */
 export function mapOrderCashback(
   entries: ReadonlyArray<ApiOrderCashback>,
   hold: ApiCashbackHold | null,
+  locale: Locale = "uz",
 ): OrderCashbackEntry[] {
+  const h = orderHistoryCopy[locale];
+  const fmt = createFormatter(locale);
   const mapped = entries.map((entry): OrderCashbackEntry => {
     switch (entry.kind) {
       case "debit":
-        return { kind: "debit", amount: entry.amount, label: "Ishlatildi" };
+        return { kind: "debit", amount: entry.amount, label: h.cashbackUsed };
       case "credit":
         return {
           kind: "credit",
           amount: entry.amount,
-          label: `${formatPercent(entry.percent)}% × ${formatNumber(entry.base ?? 0)}`,
+          label: `${formatPercent(entry.percent, locale)}% × ${fmt.number(entry.base ?? 0)}`,
         };
       case "reversal":
-        return { kind: "reversal", amount: entry.amount, label: "Qarama-qarshi yozuv" };
+        return { kind: "reversal", amount: entry.amount, label: h.cashbackReversal };
     }
   });
   if (!entries.some((e) => e.kind === "debit") && hold?.state === "active") {
-    mapped.unshift({ kind: "debit", amount: -hold.amount, label: "Ishlatildi" });
+    mapped.unshift({ kind: "debit", amount: -hold.amount, label: h.cashbackUsed });
   }
   return mapped;
 }
@@ -317,18 +330,22 @@ const via = (d: EventData): string => {
   const value = str(d, "via") ?? "";
   return VIA[value] ?? value;
 };
-const pushSuffix = (d: EventData) => (flag(d, "push_sent") ? " · mijozga push yuborildi" : "");
-const actorName = (event: ApiOrderEvent) => event.actor?.display_name || "Administrator";
+const pushSuffix = (d: EventData, h: OrderHistoryCopy) =>
+  flag(d, "push_sent") ? ` · ${h.pushSent}` : "";
+const actorName = (event: ApiOrderEvent, h: OrderHistoryCopy) =>
+  event.actor?.display_name || h.admin;
 
 /** A manual refund's reason (§4: absent on M1 rows → `payme`); `null` for an automatic one. */
 const manualReasonOf = (d: EventData): ManualRefundReason | "unknown" | null =>
   flag(d, "manual") ? (manualRefundReason(d.manual_reason) ?? "unknown") : null;
 
 /** §5.1 note of `refund_requested`: by `manual_reason`, a reason added later reads as "manual". */
-const manualSuffix = (d: EventData): string => {
+const manualSuffix = (d: EventData, locale: Locale): string => {
   const reason = manualReasonOf(d);
   if (reason === null) return "";
-  return reason === "unknown" ? " · qo‘lda qaytariladi" : ` · ${MANUAL_REFUND_NOTE[reason]}`;
+  return reason === "unknown"
+    ? ` · ${orderHistoryCopy[locale].refundManual}`
+    : ` · ${orderLabelsCopy[locale].manualRefundNote[reason]}`;
 };
 
 /** Refund id → the reason its manual `refund_requested` event names (folded rows included). */
@@ -348,13 +365,8 @@ export function manualRefundReasons(
   return reasons;
 }
 
-export const STATUS_TITLE: Record<OrderStatus, string> = {
-  awaiting_payment: "To‘lov kutilmoqda",
-  processing: "Jarayonda",
-  handed_to_courier: "Kuryerga topshirildi",
-  delivered: "Yetkazildi",
-  cancelled: "Bekor qilindi",
-};
+/** History row titles of the status changes (Uzbek; `orderLabelsCopy[locale].status`). */
+export const STATUS_TITLE: Record<OrderStatus, string> = orderLabelsCopy.uz.status;
 
 const isStatus = (value: unknown): value is OrderStatus =>
   typeof value === "string" && value in STATUS_TITLE;
@@ -371,6 +383,7 @@ export function foldOrderHistory(
   history: ReadonlyArray<ApiOrderEvent>,
   fulfilment: Order["fulfilment"],
   provider: DeliveryProvider | null = null,
+  locale: Locale = "uz",
 ): OrderEvent[] {
   const firstOf = (type: string) => history.find((e) => e.type === type);
   const reservation = firstOf("reservation_created");
@@ -391,7 +404,17 @@ export function foldOrderHistory(
       const refundId = num(d, "refund_id");
       if (refundId !== undefined && cancelledRefundIds.has(refundId)) continue;
     }
-    const row = describeEvent(event, d, { reservation, billz, credit, fulfilment, provider });
+    const row = describeEvent(event, d, {
+      reservation,
+      billz,
+      credit,
+      fulfilment,
+      provider,
+      locale,
+      h: orderHistoryCopy[locale],
+      status: orderLabelsCopy[locale].status,
+      fmt: createFormatter(locale),
+    });
     rows.push({
       id: event.id,
       at: event.at,
@@ -410,6 +433,10 @@ interface FoldContext {
   fulfilment: Order["fulfilment"];
   /** The order's carrier (`null`: pickup, or an API before Yandex Delivery). */
   provider: DeliveryProvider | null;
+  locale: Locale;
+  h: OrderHistoryCopy;
+  status: Record<OrderStatus, string>;
+  fmt: AdminFormatter;
 }
 
 /** A carrier event of a Yandex order: its shipment is Yandex's or Yandex wrote it. */
@@ -424,107 +451,102 @@ function describeEvent(
   d: EventData,
   ctx: FoldContext,
 ): { title: string; note: string } {
+  const { h, fmt } = ctx;
   switch (event.type) {
     case "order_created": {
       if (ctx.reservation) {
         const r = dataOf(ctx.reservation);
         return {
-          title: "To‘lov kutilmoqda",
-          note: `Qoldiq qayta tekshirildi · ${num(r, "item_count") ?? 0} ta mahsulot ${num(r, "minutes") ?? 0} daqiqaga band qilindi`,
+          title: ctx.status.awaiting_payment,
+          note: h.reserved(num(r, "item_count") ?? 0, num(r, "minutes") ?? 0),
         };
       }
-      return {
-        title: "To‘lov kutilmoqda",
-        note: `Buyurtma yaratildi · ${num(d, "item_count") ?? 0} ta mahsulot`,
-      };
+      return { title: ctx.status.awaiting_payment, note: h.created(num(d, "item_count") ?? 0) };
     }
     case "payment_confirmed": {
-      const parts = [`${provider(d)} to‘lovi tasdiqlandi`];
-      if (flag(d, "reservation_converted")) parts.push("band qilish savdoga aylantirildi");
-      if (ctx.billz) parts.push("Billz’ga yozildi");
-      if (ctx.credit)
-        parts.push(`cashback +${formatNumber(num(dataOf(ctx.credit), "amount") ?? 0)}`);
-      return { title: "Jarayonda", note: parts.join(" · ") };
+      const parts = [h.paymentConfirmed(provider(d))];
+      if (flag(d, "reservation_converted")) parts.push(h.reservationConverted);
+      if (ctx.billz) parts.push(h.billzRecorded);
+      if (ctx.credit) {
+        parts.push(h.cashbackCredited(fmt.number(num(dataOf(ctx.credit), "amount") ?? 0)));
+      }
+      return { title: ctx.status.processing, note: parts.join(" · ") };
     }
     case "payment_failed":
-      return { title: "To‘lov o‘tmadi", note: `${provider(d)} · to‘lov rad etildi` };
+      return { title: h.paymentFailed, note: `${provider(d)} · ${h.paymentRejected}` };
     case "shipment_created": {
       const tn = str(d, "tracking_number") ?? "";
       if (isYandexEvent(event, d, ctx)) {
         // Plan §3.1: for Yandex the tracking number is the courier claim's id.
-        return { title: "Kuryer chaqirildi", note: joinNote("Yandex", tn && `buyurtma ${tn}`) };
+        return { title: h.courierCalled, note: joinNote("Yandex", tn && h.claim(tn)) };
       }
       return {
-        title: "BTS buyurtmasi yaratildi",
-        note: flag(d, "manual")
-          ? `Qo‘lda yuborildi · yetkazish raqami ${tn}`
-          : `Yetkazish raqami ${tn}`,
+        title: h.btsCreated,
+        note: flag(d, "manual") ? h.sentByHand(tn) : h.trackingNumber(tn),
       };
     }
     case "shipment_failed":
       if (isYandexEvent(event, d, ctx)) {
-        return { title: "Kuryer chaqirilmadi", note: joinNote("Yandex", str(d, "error_code")) };
+        return { title: h.courierNotCalled, note: joinNote("Yandex", str(d, "error_code")) };
       }
       return {
-        title: "BTS ga yuborilmadi",
-        note: flag(d, "manual")
-          ? "Qo‘lda urinish muvaffaqiyatsiz"
-          : "Avtomatik urinish muvaffaqiyatsiz · administratorga xabar berildi",
+        title: h.btsFailed,
+        note: flag(d, "manual") ? h.manualAttemptFailed : h.autoAttemptFailed,
       };
     case "status_changed": {
       const to = d.to;
-      const title = isStatus(to) ? STATUS_TITLE[to] : String(to ?? "");
+      const title = isStatus(to) ? ctx.status[to] : String(to ?? "");
       if (to === "delivered" && ctx.fulfilment === "pickup") {
-        return { title, note: `${actorName(event)} · mijozga topshirildi` };
+        return { title, note: `${actorName(event, h)} · ${h.handedToCustomer}` };
       }
-      return { title, note: `${actorName(event)} · holat qo‘lda o‘zgartirildi${pushSuffix(d)}` };
+      return {
+        title,
+        note: `${actorName(event, h)} · ${h.changedByHand}${pushSuffix(d, h)}`,
+      };
     }
     case "handed_to_courier":
-      return { title: "Kuryerga topshirildi", note: `${via(d)}${pushSuffix(d)}` };
+      return { title: ctx.status.handed_to_courier, note: `${via(d)}${pushSuffix(d, h)}` };
     case "delivered":
-      return { title: "Yetkazildi", note: `${via(d)}${pushSuffix(d)}` };
+      return { title: ctx.status.delivered, note: `${via(d)}${pushSuffix(d, h)}` };
     case "cancelled": {
-      const head = str(d, "reason") === "customer_request" ? "Mijoz" : actorName(event);
+      const head = str(d, "reason") === "customer_request" ? h.customer : actorName(event, h);
       const effects = [
-        num(d, "refund_id") !== undefined ? "to‘lov qaytarish so‘rovi yuborildi" : null,
-        flag(d, "cashback_reversed") ? "cashback yozuvlari qaytarildi" : null,
+        num(d, "refund_id") !== undefined ? h.refundRequestSent : null,
+        flag(d, "cashback_reversed") ? h.cashbackReversed : null,
       ].filter((v): v is string => v !== null);
       const parts = [
         head,
         effects.length > 0 ? effects.join(", ") : null,
         flag(d, "bts_cancelled")
           ? isYandexEvent(event, d, ctx)
-            ? "Yandex buyurtmasi bekor qilindi"
-            : "BTS buyurtmasi bekor qilindi"
+            ? h.yandexCancelled
+            : h.btsCancelled
           : null,
         str(d, "note") || null,
       ].filter((v): v is string => v !== null);
-      return { title: "Bekor qilindi", note: parts.join(" · ") };
+      return { title: ctx.status.cancelled, note: parts.join(" · ") };
     }
     case "reservation_expired":
-      return { title: "Bekor qilindi", note: "Band muddati tugadi · mahsulotlar bo‘shatildi" };
+      return { title: ctx.status.cancelled, note: h.reservationExpired };
     case "refund_requested":
       return {
-        title: "To‘lov qaytarish so‘raldi",
-        note: `${provider(d)} · ${formatSom(num(d, "amount") ?? 0)}${manualSuffix(d)}`,
+        title: h.refundRequested,
+        note: `${provider(d)} · ${fmt.som(num(d, "amount") ?? 0)}${manualSuffix(d, ctx.locale)}`,
       };
     case "refund_succeeded":
       return {
-        title: "To‘lov qaytarildi",
-        note: `${provider(d)} · ${formatSom(num(d, "amount") ?? 0)}`,
+        title: h.refundSucceeded,
+        note: `${provider(d)} · ${fmt.som(num(d, "amount") ?? 0)}`,
       };
     case "refund_failed":
       return {
-        title: "To‘lov qaytarilmadi",
-        note:
-          str(d, "state") === "unknown"
-            ? `${provider(d)} · holat noma’lum, tekshirish kerak`
-            : `${provider(d)} · xato, administrator tekshiruvi kerak`,
+        title: h.refundFailed,
+        note: `${provider(d)} · ${str(d, "state") === "unknown" ? h.refundUnknown : h.refundError}`,
       };
     case "delivery_failed":
       // The courier could not hand the parcel over; it is on its way back (plan §3.7).
       return {
-        title: "Yetkazib bo‘lmadi",
+        title: h.deliveryFailed,
         note: joinNote(
           str(d, "provider") === "bts" ? "BTS" : "Yandex",
           str(d, "carrier_status"),
@@ -534,9 +556,9 @@ function describeEvent(
     case "shipment_returned": {
       const status = str(d, "carrier_status");
       return {
-        title: "Jo‘natma omborga qaytdi",
+        title: h.returned,
         // `carrier_status` is "" when staff confirmed the return by hand (§3.8).
-        note: status ? joinNote("Yandex", status) : "Qaytish qo‘lda tasdiqlandi",
+        note: status ? joinNote("Yandex", status) : h.returnConfirmedByHand,
       };
     }
     default:
@@ -548,6 +570,8 @@ function describeEvent(
 /* --- detail --- */
 
 export interface MapOrderOptions {
+  /** Language of the folded history rows and cashback labels (default Uzbek). */
+  locale?: Locale;
   /**
    * Keeps or drops an item photo URL. The server passes a filter that drops
    * hosts `next/image` may not load (`src/data/api/media.ts`); by default
@@ -567,6 +591,7 @@ function itemPhoto(
 
 export function mapOrder(api: ApiOrderDetail, options: MapOrderOptions = {}): Order {
   const imageUrl = options.imageUrl ?? ((url: string) => url);
+  const locale = options.locale ?? "uz";
   const reasons = manualRefundReasons(api.history);
   const summary = mapOrderSummary(api);
   return {
@@ -606,8 +631,13 @@ export function mapOrder(api: ApiOrderDetail, options: MapOrderOptions = {}): Or
           expiresAt: api.cashback_hold.expires_at,
         }
       : undefined,
-    history: foldOrderHistory(api.history, api.fulfilment, summary.delivery?.provider ?? null),
-    cashback: mapOrderCashback(api.cashback, api.cashback_hold),
+    history: foldOrderHistory(
+      api.history,
+      api.fulfilment,
+      summary.delivery?.provider ?? null,
+      locale,
+    ),
+    cashback: mapOrderCashback(api.cashback, api.cashback_hold, locale),
     availableActions: mapOrderActions(api.available_actions),
   };
 }

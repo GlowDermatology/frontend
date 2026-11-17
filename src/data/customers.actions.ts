@@ -3,13 +3,17 @@
 import { z } from "zod";
 
 import type { LedgerEntry } from "@/domain/cashback";
+import { customerDataCopy, type CustomerDataCopy } from "@/domain/copy/customers";
 import type { CustomerSession } from "@/domain/customer";
+import { getAdminLocale } from "@/lib/i18n/admin-locale";
+import { validationCopy } from "@/lib/i18n/validation-copy";
 
 import {
   apiMutation,
   fieldErrorsFrom,
   guardAction,
   idempotencyKeySchema,
+  idempotencyKeySchemas,
   sessionToken,
 } from "./action-guard";
 import { apiAdjustCashback, apiRevokeCustomerSession } from "./api/customers";
@@ -45,23 +49,34 @@ export interface CashbackAdjustment {
   available?: number;
 }
 
-const adjustmentSchema = z.object({
-  customerId: z.string().trim().min(1).max(64),
-  input: z.object({
-    direction: z.enum(["add", "subtract"], { error: "Amalni tanlang." }),
+/** The largest single adjustment (contract §2.6), and the reason's length. */
+const ADJUSTMENT_MAX = 10_000_000;
+const REASON_MIN = 3;
+const REASON_MAX = 300;
+
+/** The adjustment's fields in one admin language (the dialog checks the same rules). */
+function adjustmentInputSchema(m: CustomerDataCopy, locale: keyof typeof validationCopy) {
+  const v = validationCopy[locale];
+  return z.object({
+    direction: z.enum(["add", "subtract"], { error: m.chooseDirection }),
     amount: z
-      .number({ error: "Summani kiriting." })
-      .int("Summani kiriting.")
-      .min(1, "Summani kiriting.")
-      .max(10_000_000, "Summa juda katta."),
+      .number({ error: m.enterAmount })
+      .int(m.enterAmount)
+      .min(1, m.enterAmount)
+      .max(ADJUSTMENT_MAX, m.amountTooLarge),
     reason: z
-      .string({ error: "Kamida 3 ta belgi kiriting." })
+      .string({ error: v.minChars(REASON_MIN) })
       .trim()
-      .min(3, "Kamida 3 ta belgi kiriting.")
-      .max(300, "300 belgidan oshmasin."),
-  }),
-  key: idempotencyKeySchema,
-});
+      .min(REASON_MIN, v.minChars(REASON_MIN))
+      .max(REASON_MAX, v.maxChars(REASON_MAX)),
+  });
+}
+
+/** The admin language's messages (cookie `gd_admin_language`). */
+async function messages(): Promise<{ m: CustomerDataCopy; locale: keyof typeof validationCopy }> {
+  const locale = await getAdminLocale();
+  return { m: customerDataCopy[locale], locale };
+}
 
 export async function adjustCashback(
   customerId: string,
@@ -71,9 +86,16 @@ export async function adjustCashback(
 ): Promise<ActionResult<CashbackAdjustment>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
-  const parsed = adjustmentSchema.safeParse({ customerId, input, key });
+  const { m, locale } = await messages();
+  const parsed = z
+    .object({
+      customerId: z.string().trim().min(1).max(64),
+      input: adjustmentInputSchema(m, locale),
+      key: idempotencyKeySchemas[locale],
+    })
+    .safeParse({ customerId, input, key });
   if (!parsed.success) {
-    const failure = fieldErrorsFrom(parsed.error);
+    const failure = fieldErrorsFrom(parsed.error, m.checkFields);
     // The dialog shows field errors under `amount` / `reason` (not `input.amount`).
     failure.fieldErrors = Object.fromEntries(
       Object.entries(failure.fieldErrors ?? {}).map(([path, message]) => [
@@ -85,7 +107,7 @@ export async function adjustCashback(
   }
   const { customerId: id, input: values } = parsed.data;
   if ((await dataSource()) === "api") {
-    if (!/^\d{1,18}$/.test(id)) return { ok: false, error: "Mijoz topilmadi.", code: "not_found" };
+    if (!/^\d{1,18}$/.test(id)) return { ok: false, error: m.customerNotFound, code: "not_found" };
     return apiMutation("adjustCashback", async () => {
       try {
         const { data } = await apiAdjustCashback(
@@ -116,8 +138,6 @@ const customerIdSchema = z.string().trim().min(1).max(64);
 const pageSchema = z.number().int().min(1).max(100_000);
 const sessionIdSchema = z.uuid();
 
-const SESSION_NOT_FOUND_MESSAGE = "Seans allaqachon tugagan yoki topilmadi.";
-
 /** One page of the customer's open sessions (a read: no refresh, no key). */
 export async function loadCustomerSessions(
   customerId: string,
@@ -126,14 +146,15 @@ export async function loadCustomerSessions(
 ): Promise<ActionResult<Page<CustomerSession>>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
+  const { m } = await messages();
   const parsed = z
     .object({ customerId: customerIdSchema, page: pageSchema })
     .safeParse({ customerId, page });
-  if (!parsed.success) return { ok: false, error: "Mijoz topilmadi.", code: "not_found" };
+  if (!parsed.success) return { ok: false, error: m.customerNotFound, code: "not_found" };
   try {
     const token = guard.session.mode === "api" ? sessionToken(guard.session) : undefined;
     const sessions = await listCustomerSessions(parsed.data.customerId, parsed.data.page, token);
-    if (!sessions) return { ok: false, error: "Mijoz topilmadi.", code: "not_found" };
+    if (!sessions) return { ok: false, error: m.customerNotFound, code: "not_found" };
     return { ok: true, data: sessions };
   } catch (error) {
     return toActionResult(error);
@@ -170,6 +191,7 @@ export async function revokeCustomerSession(
 ): Promise<ActionResult<RevokedSession>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
+  const { m } = await messages();
   const parsed = z
     .object({
       customerId: customerIdSchema,
@@ -178,11 +200,11 @@ export async function revokeCustomerSession(
       key: idempotencyKeySchema,
     })
     .safeParse({ customerId, sessionId, page, key });
-  if (!parsed.success) return { ok: false, error: SESSION_NOT_FOUND_MESSAGE, code: "not_found" };
+  if (!parsed.success) return { ok: false, error: m.sessionNotFound, code: "not_found" };
   const { customerId: id, sessionId: sid } = parsed.data;
   const reread = async (token: string | undefined, revoked: boolean) => {
     const sessions = await listCustomerSessions(id, parsed.data.page, token);
-    if (!sessions) return { ok: false as const, error: "Mijoz topilmadi.", code: "not_found" };
+    if (!sessions) return { ok: false as const, error: m.customerNotFound, code: "not_found" };
     return {
       ok: true as const,
       data: {
@@ -192,7 +214,7 @@ export async function revokeCustomerSession(
     };
   };
   if ((await dataSource()) === "api") {
-    if (!/^\d{1,18}$/.test(id)) return { ok: false, error: "Mijoz topilmadi.", code: "not_found" };
+    if (!/^\d{1,18}$/.test(id)) return { ok: false, error: m.customerNotFound, code: "not_found" };
     return apiMutation("revokeCustomerSession", async () => {
       const token = sessionToken(guard.session);
       try {
@@ -211,6 +233,6 @@ export async function revokeCustomerSession(
     });
   }
   const known = await mock.hasCustomerSession(id, sid);
-  if (known === null) return { ok: false, error: "Mijoz topilmadi.", code: "not_found" };
+  if (known === null) return { ok: false, error: m.customerNotFound, code: "not_found" };
   return reread(undefined, known);
 }

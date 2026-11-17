@@ -2,7 +2,9 @@ import type { Route } from "next";
 
 import type { IconName } from "@/components/ui/icon";
 import type { DashboardData } from "@/domain/dashboard";
-import { formatWeekdayShortDateTime } from "@/lib/format";
+import { createFormatter, type AdminFormatter } from "@/lib/format";
+
+import { dashboardCopy, type DashboardCopy } from "./copy";
 
 /** The dashboard's attention block, item by item (contract §5.7). */
 
@@ -16,19 +18,21 @@ export interface AttentionItem {
   tone: "danger" | "warning" | "neutral";
 }
 
-/** §5.7 (M2) `attention.bts_polling_failing`. */
-export const BTS_POLLING_FAILING_TITLE =
-  "BTS kuzatuvi ishlamayapti · buyurtma holatlari yangilanmayapti";
+/** §5.7 (M2) `attention.bts_polling_failing` (Uzbek, the contract's line). */
+export const BTS_POLLING_FAILING_TITLE = dashboardCopy.uz.attention.btsPolling;
 
 /** Yandex Delivery plan §3.9 `attention.yandex_failing`. */
-export const YANDEX_FAILING_TITLE =
-  "Yandex Dostavka javob bermayapti · narxlar va holatlar yangilanmayapti";
+export const YANDEX_FAILING_TITLE = dashboardCopy.uz.attention.yandex;
 
 /** §5.7 (gap CB-9.2.4) `attention.cashback_policy_missing`. */
-export const CASHBACK_POLICY_MISSING_TITLE =
-  "Cashback siyosati yo‘q · xaridlarga cashback yozilmayapti";
+export const CASHBACK_POLICY_MISSING_TITLE = dashboardCopy.uz.attention.cashbackPolicy;
 
-export function attentionItems(attention: DashboardData["attention"]): AttentionItem[] {
+/** The items in the admin language (`t` = `dashboardCopy[locale].attention`, `fmt` its formatter). */
+export function attentionItems(
+  attention: DashboardData["attention"],
+  t: DashboardCopy["attention"] = dashboardCopy.uz.attention,
+  fmt: AdminFormatter = createFormatter("uz"),
+): AttentionItem[] {
   const items: AttentionItem[] = [];
   if (attention.btsFailed > 0) {
     items.push({
@@ -36,8 +40,8 @@ export function attentionItems(attention: DashboardData["attention"]): Attention
       // No shipment filter on `orders/`: processing delivery orders of every date hold them.
       href: "/admin/orders?status=processing&fulfilment=delivery&period=all",
       icon: "truck",
-      title: `${attention.btsFailed} ta buyurtma BTS ga yuborilmadi`,
-      body: "Avtomatik urinish muvaffaqiyatsiz. Qo‘lda yuboring.",
+      title: t.btsFailed(attention.btsFailed),
+      body: t.btsFailedBody,
       tone: "danger",
     });
   }
@@ -48,7 +52,7 @@ export function attentionItems(attention: DashboardData["attention"]): Attention
     items.push({
       key: "bts-polling",
       icon: "truck",
-      title: BTS_POLLING_FAILING_TITLE,
+      title: t.btsPolling,
       tone: "danger",
     });
   }
@@ -59,8 +63,8 @@ export function attentionItems(attention: DashboardData["attention"]): Attention
       key: "yandex-failing",
       href: "/admin/delivery-issues",
       icon: "truck",
-      title: YANDEX_FAILING_TITLE,
-      body: "Yandex kabinetidagi balans va kalitni tekshiring; ochiq muammolarni ko‘ring.",
+      title: t.yandex,
+      body: t.yandexBody,
       tone: "danger",
     });
   }
@@ -69,8 +73,8 @@ export function attentionItems(attention: DashboardData["attention"]): Attention
       key: "cashback-policy",
       href: "/admin/cashback",
       icon: "percent",
-      title: CASHBACK_POLICY_MISSING_TITLE,
-      body: "Cashback sozlamalarida yangi versiya qo‘shing.",
+      title: t.cashbackPolicy,
+      body: t.cashbackPolicyBody,
       tone: "danger",
     });
   }
@@ -79,10 +83,10 @@ export function attentionItems(attention: DashboardData["attention"]): Attention
       key: "appointments",
       href: "/admin/appointments",
       icon: "calendar",
-      title: `${attention.pendingAppointments} ta qabul tasdiq kutmoqda`,
+      title: t.appointments(attention.pendingAppointments),
       body: attention.nextAppointmentAt
-        ? `Eng yaqini: ${formatWeekdayShortDateTime(attention.nextAppointmentAt)}`
-        : "Ko‘rib chiqing",
+        ? t.nextAppointment(fmt.weekdayShortDateTime(attention.nextAppointmentAt))
+        : t.review,
       tone: "warning",
     });
   }
@@ -91,8 +95,8 @@ export function attentionItems(attention: DashboardData["attention"]): Attention
       key: "refunds",
       href: "/admin/payments?refund=needs_action",
       icon: "card",
-      title: `${attention.refundsNeedingAction} ta qaytarish tekshiruv kutmoqda`,
-      body: "Xato, holati noma’lum yoki qo‘lda qaytariladigan qaytarishlarni ko‘rib chiqing.",
+      title: t.refunds(attention.refundsNeedingAction),
+      body: t.refundsBody,
       tone: "danger",
     });
   }
@@ -101,8 +105,8 @@ export function attentionItems(attention: DashboardData["attention"]): Attention
       key: "billz",
       href: "/admin/products?new=1",
       icon: "refresh",
-      title: `Billz’dan ${attention.newFromBillz} ta yangi mahsulot`,
-      body: "Tavsif va rasmlarni to‘ldirib, faollashtiring.",
+      title: t.billz(attention.newFromBillz),
+      body: t.billzBody,
       tone: "neutral",
     });
   }

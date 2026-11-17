@@ -1,3 +1,6 @@
+import type { Locale } from "@/lib/i18n/locales";
+import { validationCopy } from "@/lib/i18n/validation-copy";
+
 /** Preset periods of the dashboard switch. */
 export const DASHBOARD_RANGES = ["today", "week", "month"] as const;
 export type DashboardRange = (typeof DASHBOARD_RANGES)[number];
@@ -41,7 +44,7 @@ export interface DashboardData {
   from: string;
   to: string;
   bucket: DashboardBucket;
-  /** Human label of the bucket size, e.g. "Soatlar bo‘yicha". */
+  /** Label of the bucket size in the admin language, e.g. "Soatlar bo‘yicha". */
   axisNote: string;
   /** Three evenly spaced x-axis labels. */
   axisLabels: [string, string, string];
@@ -88,10 +91,10 @@ export interface DashboardData {
 /** Longest custom range, in days, inclusive (contract §2.10). */
 export const CUSTOM_RANGE_MAX_DAYS = 366;
 
-/** Field messages of `dashboard/?range=custom` (contract §1.6 generic codes). */
+/** Field messages of `dashboard/?range=custom` (contract §1.6 generic codes), Uzbek. */
 export const RANGE_MESSAGES = {
-  required: "Majburiy maydon.",
-  invalid: "Noto‘g‘ri qiymat.",
+  required: validationCopy.uz.required,
+  invalid: validationCopy.uz.invalid,
 } as const;
 
 export type CustomRangeErrors = Partial<Record<"from" | "to", string>>;
@@ -116,20 +119,22 @@ export function validateCustomRange(
   from: string | undefined,
   to: string | undefined,
   today: string,
+  locale: Locale = "uz",
 ): CustomRangeErrors {
+  const m = validationCopy[locale];
   const errors: CustomRangeErrors = {};
-  if (!from) errors.from = RANGE_MESSAGES.required;
-  if (!to) errors.to = RANGE_MESSAGES.required;
+  if (!from) errors.from = m.required;
+  if (!to) errors.to = m.required;
   if (errors.from || errors.to) return errors;
   const a = dayNumber(from!);
   const b = dayNumber(to!);
-  if (a === null) errors.from = RANGE_MESSAGES.invalid;
-  if (b === null) errors.to = RANGE_MESSAGES.invalid;
+  if (a === null) errors.from = m.invalid;
+  if (b === null) errors.to = m.invalid;
   if (a === null || b === null) return errors;
-  if (a > b) return { from: RANGE_MESSAGES.invalid };
+  if (a > b) return { from: m.invalid };
   const t = dayNumber(today);
-  if (t !== null && b > t) return { to: RANGE_MESSAGES.invalid };
-  if (b - a + 1 > CUSTOM_RANGE_MAX_DAYS) return { to: RANGE_MESSAGES.invalid };
+  if (t !== null && b > t) return { to: m.invalid };
+  if (b - a + 1 > CUSTOM_RANGE_MAX_DAYS) return { to: m.invalid };
   return {};
 }
 

@@ -1,4 +1,6 @@
 import { canDeleteCategory, type Category } from "@/domain/category";
+import { catalogDataCopy } from "@/domain/copy/catalog";
+import { copyFor } from "@/lib/i18n/admin-locale";
 
 import type { CategoryEditValues, CategoryFormValues } from "../categories.schema";
 import { referenceNow } from "../config";
@@ -13,7 +15,8 @@ import { delay } from "./delay";
 
 const bySlug = (slug: string) => CATEGORIES.find((c) => c.slug === slug) ?? null;
 
-export const CATEGORY_HAS_PRODUCTS_MESSAGE = "Kategoriyada mahsulotlar bor.";
+/** The API's 409 message (Uzbek); the mock answers in the admin language. */
+export const CATEGORY_HAS_PRODUCTS_MESSAGE = catalogDataCopy.uz.categoryHasProducts;
 
 /**
  * The upload keeps no bytes: a picked image answers with an empty
@@ -25,11 +28,8 @@ export async function createCategory(
 ): Promise<ActionResult<Category>> {
   await delay(400);
   if (bySlug(values.slug)) {
-    return {
-      ok: false,
-      error: "Maydonlarni tekshiring.",
-      fieldErrors: { slug: "Bu qiymat band." },
-    };
+    const m = await copyFor(catalogDataCopy);
+    return { ok: false, error: m.checkFields, fieldErrors: { slug: m.valueTaken } };
   }
   const now = referenceNow().toISOString();
   return {
@@ -55,7 +55,13 @@ export async function updateCategory(
 ): Promise<ActionResult<Category>> {
   await delay(400);
   const before = bySlug(slug);
-  if (!before) return { ok: false, error: "Kategoriya topilmadi.", code: "not_found" };
+  if (!before) {
+    return {
+      ok: false,
+      error: (await copyFor(catalogDataCopy)).categoryNotFound,
+      code: "not_found",
+    };
+  }
   const imageUrl = media.image ? "" : media.remove ? null : before.imageUrl;
   return {
     ok: true,
@@ -72,10 +78,11 @@ export async function updateCategory(
 
 export async function deleteCategory(slug: string): Promise<ActionResult<{ slug: string }>> {
   await delay(300);
+  const m = await copyFor(catalogDataCopy);
   const before = bySlug(slug);
-  if (!before) return { ok: false, error: "Kategoriya topilmadi.", code: "not_found" };
+  if (!before) return { ok: false, error: m.categoryNotFound, code: "not_found" };
   if (!canDeleteCategory(before)) {
-    return { ok: false, error: CATEGORY_HAS_PRODUCTS_MESSAGE, code: "conflict" };
+    return { ok: false, error: m.categoryHasProducts, code: "conflict" };
   }
   return { ok: true, data: { slug } };
 }
@@ -85,7 +92,9 @@ export async function reorderCategories(slugs: string[]): Promise<ActionResult<C
   await delay(200);
   const current = new Set(CATEGORIES.map((c) => c.slug));
   const same = slugs.length === current.size && slugs.every((slug) => current.has(slug));
-  if (!same) return { ok: false, error: "Ro‘yxat joriy elementlarga mos emas.", code: "mismatch" };
+  if (!same) {
+    return { ok: false, error: (await copyFor(catalogDataCopy)).listMismatch, code: "mismatch" };
+  }
   return {
     ok: true,
     data: slugs.map((slug, position) => ({ ...bySlug(slug)!, position })),

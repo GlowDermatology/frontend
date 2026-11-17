@@ -4,7 +4,7 @@ import { cn } from "@/lib/cn";
 
 import type { LandingDictionary } from "../content/uz";
 import type { Locale } from "../i18n";
-import { LanguageSwitcher } from "./language-switcher";
+import { LanguageMenu } from "./language-menu";
 import { gutter, textLink } from "./primitives";
 import { TabletMenu } from "./tablet-menu";
 
@@ -52,8 +52,8 @@ export function SiteHeader({ dict, locale }: SiteHeaderProps) {
           </ul>
         </nav>
 
-        <div className="flex items-center gap-4">
-          <LanguageSwitcher current={locale} label={dict.header.languageLabel} />
+        <div className="flex items-center gap-2 sm:gap-4">
+          <LanguageMenu current={locale} label={dict.header.languageLabel} />
           <a
             href={`#${SECTION_IDS.download}`}
             className={buttonStyles({

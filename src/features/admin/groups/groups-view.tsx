@@ -5,7 +5,7 @@ import type { Route } from "next";
 import { useRef, useState } from "react";
 
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
-import { Button, buttonStyles } from "@/components/ui/button";
+import { Button, IconButton } from "@/components/ui/button";
 import { AlertDialog, AlertDialogCancel } from "@/components/ui/dialog";
 import { Icon } from "@/components/ui/icon";
 import { ScrollRegion } from "@/components/ui/scroll-region";
@@ -13,7 +13,8 @@ import { useToast } from "@/components/ui/toast";
 import type { Page } from "@/data/types";
 import { deleteSegment } from "@/data/segments.actions";
 import { segmentRulesSummary, type Segment } from "@/domain/segment";
-import { formatNumber } from "@/lib/format";
+import { useAdminLocale, useCopy } from "@/lib/i18n/admin-context";
+import { useFormat } from "@/lib/i18n/admin-hooks";
 
 import { runAction } from "../shared/action-client";
 import { ExportMenu } from "../shared/export-menu";
@@ -21,6 +22,7 @@ import { useIdempotencyKey } from "../shared/idempotency";
 import { PageHeader } from "../shared/page-header";
 import { Pagination, rangeLabel } from "../shared/pagination";
 import { upsertRow } from "../shared/use-ordered-list";
+import { groupsCopy } from "./copy";
 import { SegmentDialog } from "./segment-dialog";
 
 type DialogState = { mode: "create" } | { mode: "edit"; segment: Segment } | null;
@@ -32,14 +34,20 @@ const groupHref = (id: string) => `/admin/customers/groups/${id}` as Route;
 const pageHref = (page: number) =>
   (page > 1 ? `/admin/customers/groups?page=${page}` : "/admin/customers/groups") as Route;
 
+const numericHead = "text-right! uppercase";
+
 /**
- * Guruhlar (contract §2.8 segments): the list with the rules in words,
+ * Customer groups (contract §2.8 segments): the list with the rules in words,
  * member and push-device counts, create/edit dialogs, delete confirmation
  * (409 while a scheduled campaign targets the group) and the CSV/XLSX export.
  * Rows live in local state, updated from each action's answer (mock mode
  * persists nothing); a newer server page replaces them.
  */
 export function GroupsView({ page }: { page: Page<Segment> }) {
+  const t = useCopy(groupsCopy);
+  const l = t.list;
+  const locale = useAdminLocale();
+  const fmt = useFormat();
   const toast = useToast();
   const [source, setSource] = useState(page);
   const [rows, setRows] = useState(page.items);
@@ -74,6 +82,7 @@ export function GroupsView({ page }: { page: Page<Segment> }) {
     setDeleteBusy(false);
     if (!result.ok) {
       setDeleteError(result.error);
+      toast({ tone: "danger", title: l.deleteFailed, description: result.error });
       return;
     }
     const { id, name } = deleting;
@@ -81,54 +90,56 @@ export function GroupsView({ page }: { page: Page<Segment> }) {
     setRows((current) => current.filter((row) => row.id !== id));
     setTotal((current) => Math.max(0, current - 1));
     setDeleting(null);
-    toast({ title: "Guruh o‘chirildi", description: name });
+    toast({ tone: "success", title: l.deleted, description: name });
   };
 
   return (
     <>
       <div className="flex flex-col gap-3">
         <Breadcrumbs
-          items={[{ label: "Mijozlar", href: "/admin/customers" }, { label: "Guruhlar" }]}
+          items={[
+            { label: t.crumbs.customers, href: "/admin/customers" },
+            { label: t.crumbs.groups },
+          ]}
         />
         <PageHeader
-          eyebrow={`${formatNumber(total)} ta guruh`}
-          title="Guruhlar"
+          eyebrow={l.count(total)}
+          title={l.title}
           actions={
             <>
               <ExportMenu href="/admin/customers/groups/export" />
-              <button
-                type="button"
-                ref={addButton}
-                onClick={() => openDialog({ mode: "create" })}
-                className={buttonStyles()}
-              >
+              <Button ref={addButton} onClick={() => openDialog({ mode: "create" })}>
                 <Icon name="plus" size={18} />
-                Guruh yaratish
-              </button>
+                {l.create}
+              </Button>
             </>
           }
         />
       </div>
 
       <section
-        aria-label="Guruhlar ro‘yxati"
+        aria-label={l.sectionLabel}
         className="overflow-hidden rounded-lg bg-surface-raised shadow-sm"
       >
         {rows.length > 0 ? (
-          <ScrollRegion label="Guruhlar jadvali">
+          <ScrollRegion label={l.tableLabel}>
             <table className="data-table min-w-[820px]">
               <thead>
                 <tr>
-                  <th scope="col">NOMI</th>
-                  <th scope="col">QOIDALAR</th>
-                  <th scope="col" className="text-right!">
-                    A’ZOLAR
+                  <th scope="col" className="uppercase">
+                    {l.columns.name}
                   </th>
-                  <th scope="col" className="text-right!">
-                    PUSH QURILMALAR
+                  <th scope="col" className="uppercase">
+                    {l.columns.rules}
+                  </th>
+                  <th scope="col" className={numericHead}>
+                    {l.columns.members}
+                  </th>
+                  <th scope="col" className={numericHead}>
+                    {l.columns.devices}
                   </th>
                   <th scope="col">
-                    <span className="sr-only">Amallar</span>
+                    <span className="sr-only">{l.columns.actions}</span>
                   </th>
                 </tr>
               </thead>
@@ -143,42 +154,41 @@ export function GroupsView({ page }: { page: Page<Segment> }) {
                         {segment.name}
                       </Link>
                     </td>
-                    <td className="text-ink-muted">{segmentRulesSummary(segment.rules)}</td>
+                    <td className="text-ink-muted">{segmentRulesSummary(segment.rules, locale)}</td>
                     <td className="text-right tabular-nums">
-                      {formatNumber(segment.memberCount)}
+                      {fmt.number(segment.memberCount)}
                       <span className="block text-[12px] text-ink-muted">
-                        {formatNumber(segment.manualMemberCount)} ta qo‘lda
+                        {l.manualCount(fmt.number(segment.manualMemberCount))}
                       </span>
                     </td>
-                    <td className="text-right tabular-nums">{formatNumber(segment.size)}</td>
+                    <td className="text-right tabular-nums">{fmt.number(segment.size)}</td>
                     <td>
                       <span className="flex justify-end gap-0.5">
                         <Link
                           href={groupHref(segment.id)}
-                          aria-label={`«${segment.name}» — a’zolar`}
+                          aria-label={l.membersOf(segment.name)}
                           className={iconButtonClass}
                         >
                           <Icon name="users" size={18} />
                         </Link>
-                        <button
-                          type="button"
-                          aria-label={`«${segment.name}» — tahrirlash`}
+                        <IconButton
+                          size="sm"
+                          aria-label={l.editOf(segment.name)}
                           onClick={() => openDialog({ mode: "edit", segment })}
-                          className={iconButtonClass}
                         >
                           <Icon name="pencil" size={18} />
-                        </button>
-                        <button
-                          type="button"
-                          aria-label={`«${segment.name}» — o‘chirish`}
+                        </IconButton>
+                        <IconButton
+                          size="sm"
+                          aria-label={l.deleteOf(segment.name)}
                           onClick={() => {
                             setDeleteError(null);
                             setDeleting(segment);
                           }}
-                          className={`${iconButtonClass} hover:text-danger`}
+                          className="hover:bg-danger-soft hover:text-danger"
                         >
                           <Icon name="trash" size={18} />
-                        </button>
+                        </IconButton>
                       </span>
                     </td>
                   </tr>
@@ -191,25 +201,23 @@ export function GroupsView({ page }: { page: Page<Segment> }) {
             <span className="flex size-12 items-center justify-center rounded-full bg-gold-soft text-gold-ink">
               <Icon name="users" size={22} />
             </span>
-            <p className="m-0 text-subheading text-ink">Hali guruh yo‘q</p>
-            <p className="m-0 max-w-[420px] text-body-sm text-ink-muted">
-              Guruhlar bildirishnomalarni tanlangan mijozlarga yuborish uchun kerak.
-            </p>
+            <p className="m-0 text-subheading text-ink">{l.emptyTitle}</p>
+            <p className="m-0 max-w-[420px] text-body-sm text-ink-muted">{l.emptyText}</p>
             <Button variant="secondary" onClick={() => openDialog({ mode: "create" })}>
               <Icon name="plus" size={18} />
-              Guruh yaratish
+              {l.create}
             </Button>
           </div>
         )}
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3">
           <span className="flex items-center gap-2 text-caption font-normal text-ink-muted">
             <Icon name="info" size={14} />
-            Push qurilmalar — guruhga yuborilgan xabar yetadigan mijozlar soni.
+            {l.devicesNote}
           </span>
           {page.pageCount > 1 && (
             <span className="flex items-center gap-3">
               <span className="text-body-sm text-ink-muted tabular-nums">
-                {rangeLabel(page.page, page.pageSize, total)}
+                {rangeLabel(page.page, page.pageSize, total, fmt)}
               </span>
               <Pagination page={page.page} pageCount={page.pageCount} hrefFor={pageHref} />
             </span>
@@ -229,7 +237,8 @@ export function GroupsView({ page }: { page: Page<Segment> }) {
           setRows((current) => upsertRow(current, segment, (row) => row.id));
           if (mode === "create") setTotal((current) => current + 1);
           toast({
-            title: mode === "create" ? "Guruh yaratildi" : "Guruh saqlandi",
+            tone: "success",
+            title: mode === "create" ? l.created : l.saved,
             description: segment.name,
           });
         }}
@@ -248,14 +257,8 @@ export function GroupsView({ page }: { page: Page<Segment> }) {
             addButton.current?.focus();
           }
         }}
-        title={deleting ? `«${deleting.name}» guruhini o‘chirasizmi?` : ""}
-        description={
-          <p className="m-0 text-[14px] leading-5 text-ink">
-            Mijozlar o‘chirilmaydi, faqat guruh va qo‘lda qo‘shilganlar ro‘yxati yo‘qoladi.
-            Rejalashtirilgan xabar shu guruhga yuborilishi kerak bo‘lsa, server o‘chirishni rad
-            etadi.
-          </p>
-        }
+        title={deleting ? l.deleteTitle(deleting.name) : ""}
+        description={<p className="m-0 text-[14px] leading-5 text-ink">{l.deleteText}</p>}
       >
         {deleteError && (
           <p
@@ -267,16 +270,13 @@ export function GroupsView({ page }: { page: Page<Segment> }) {
           </p>
         )}
         <div className="mt-1.5 flex flex-wrap justify-end gap-2">
-          <AlertDialogCancel disabled={deleteBusy} className={buttonStyles({ variant: "outline" })}>
-            Bekor qilish
+          <AlertDialogCancel asChild>
+            <Button variant="outline" disabledReason={deleteBusy && t.busyReason}>
+              {t.cancel}
+            </Button>
           </AlertDialogCancel>
-          <Button
-            variant="destructive"
-            onClick={confirmDelete}
-            disabled={deleteBusy}
-            aria-busy={deleteBusy}
-          >
-            {deleteBusy ? "O‘chirilmoqda…" : "O‘chirish"}
+          <Button variant="destructive" onClick={confirmDelete} busy={deleteBusy}>
+            {deleteBusy ? l.deleting : l.delete}
           </Button>
         </div>
       </AlertDialog>

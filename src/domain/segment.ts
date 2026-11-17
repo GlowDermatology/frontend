@@ -1,4 +1,7 @@
-import { formatMillions, formatNumber } from "@/lib/format";
+import { createFormatter } from "@/lib/format";
+import type { Locale } from "@/lib/i18n/locales";
+
+import { segmentCopy } from "./copy/segments";
 
 /**
  * Customer groups (segments, contract §2.8). Membership = active customer ∧
@@ -43,23 +46,25 @@ export const SEGMENT_NAME_MIN = 2;
 export const SEGMENT_NAME_MAX = 60;
 export const SEGMENT_MEMBERS_MAX = 500;
 
-/** "Kamida 3 ta onlayn buyurtma va jami xaridlar 10 mln so‘mdan"; no rule → manual only. */
-export function segmentRulesSummary(rules: SegmentRules): string {
+/**
+ * The rules in words, in `locale` (Uzbek by default): "Kamida 3 ta onlayn buyurtma va jami
+ * xaridlar 10 mln so‘mdan"; no rule → manual only. Amounts of a million or more read as
+ * millions ("10 mln"), smaller ones stay plain ("500 000").
+ */
+export function segmentRulesSummary(rules: SegmentRules, locale: Locale = "uz"): string {
+  const t = segmentCopy[locale].rules;
+  const fmt = createFormatter(locale);
   const parts: string[] = [];
   if (rules.minOnlineOrders !== null) {
-    parts.push(`kamida ${formatNumber(rules.minOnlineOrders)} ta onlayn buyurtma`);
+    parts.push(t.minOrders(rules.minOnlineOrders));
   }
   if (rules.minLifetimeAmount !== null) {
-    parts.push(`jami xaridlar ${formatAmount(rules.minLifetimeAmount)} so‘mdan`);
+    const value = rules.minLifetimeAmount;
+    parts.push(t.minAmount(value >= 1_000_000 ? fmt.millions(value) : fmt.number(value)));
   }
-  if (parts.length === 0) return "Faqat qo‘lda qo‘shilgan mijozlar";
-  const text = parts.join(" va ");
+  if (parts.length === 0) return t.manualOnly;
+  const text = parts.join(t.join);
   return `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
-}
-
-/** 10 000 000 → "10 mln"; amounts under a million stay plain ("500 000"). */
-function formatAmount(value: number): string {
-  return value >= 1_000_000 ? formatMillions(value) : formatNumber(value);
 }
 
 /** A customer id or E.164 phone to add, with the input row (0-based) that named it first. */
@@ -142,9 +147,15 @@ export function pasteMemberLines(
   };
 }
 
-/** The dialog message for lines a paste could not add. */
-export const droppedLinesMessage = (dropped: number, max: number = SEGMENT_MEMBERS_MAX) =>
-  `${dropped} ta qator qo‘shilmadi: ko‘pi bilan ${max} ta.`;
+/** The dialog message for lines a paste could not add, in `locale` (Uzbek by default). */
+export const droppedLinesMessage = (
+  dropped: number,
+  max: number = SEGMENT_MEMBERS_MAX,
+  locale: Locale = "uz",
+) => {
+  const fmt = createFormatter(locale);
+  return segmentCopy[locale].dropped(fmt.number(dropped), fmt.number(max));
+};
 
 /**
  * The admin's "customer ids or phones" list (`splitMemberList` +

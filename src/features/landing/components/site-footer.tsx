@@ -2,13 +2,15 @@ import { SECTION_IDS, siteConfig } from "@/config/site";
 import { cn } from "@/lib/cn";
 
 import type { LandingDictionary } from "../content/uz";
+import type { Locale } from "../i18n";
+import { LanguageLinks } from "./language-switcher";
 import { gutter, textLink } from "./primitives";
 
 const top = `#${SECTION_IDS.top}`;
 const footerLink = cn("text-[15px] leading-[22px] font-semibold text-ink", textLink);
 const heading = "m-0 text-overline text-ink-muted uppercase";
 
-export function SiteFooter({ dict }: { dict: LandingDictionary }) {
+export function SiteFooter({ dict, locale }: { dict: LandingDictionary; locale: Locale }) {
   const { footer, nav } = dict;
   const { links } = siteConfig;
   return (
@@ -69,7 +71,7 @@ export function SiteFooter({ dict }: { dict: LandingDictionary }) {
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-6 text-body-sm text-ink-muted">
           <span>{footer.copyright}</span>
-          <span>{footer.languages}</span>
+          <LanguageLinks current={locale} label={dict.header.languageLabel} />
         </div>
       </div>
     </footer>

@@ -5,6 +5,7 @@ import type { Order, OrderDelivery } from "@/domain/order";
 import {
   DISPATCH_TIMEOUT_TOAST,
   dispatchOffer,
+  dispatchTimeoutToast,
   dispatchToast,
   formatGrams,
   manualDeliveryOffered,
@@ -109,7 +110,11 @@ describe("dispatchToast", () => {
       { kind: "moved", stage: "courier_assigned" },
       order({ delivery: yandex({ courierName: "Sardor" }) }),
     );
-    expect(found).toEqual({ title: "Kuryer topildi", description: "Kuryer biriktirildi · Sardor" });
+    expect(found).toEqual({
+      tone: "success",
+      title: "Kuryer topildi",
+      description: "Kuryer biriktirildi · Sardor",
+    });
     expect(dispatchToast({ kind: "moved", stage: "cancelled" }, order({}))).toBeNull();
     expect(
       dispatchToast({ kind: "issue", issueKind: "dispatch_review", code: "x" }, order({}))?.title,
@@ -124,6 +129,27 @@ describe("dispatchToast", () => {
       )?.description,
     ).toContain("performer_not_found");
     expect(DISPATCH_TIMEOUT_TOAST.title).toBe("Kuryer hali topilmadi");
+  });
+
+  it("tones failures as warning / danger and words them in the admin language", () => {
+    const review = { kind: "issue", issueKind: "dispatch_review", code: "x" } as const;
+    const failed = { kind: "issue", issueKind: "dispatch_failed", code: "boom" } as const;
+    expect(dispatchToast(review, order({}))?.tone).toBe("warning");
+    expect(dispatchToast(failed, order({}))?.tone).toBe("danger");
+    expect(dispatchToast({ kind: "searching" }, order({}))?.tone).toBe("success");
+    expect(dispatchToast(review, order({}), "ru")?.title).toBe("Нужно подтвердить цену");
+    expect(dispatchToast(failed, order({}), "en")?.description).toBe(
+      "Reason: boom. You can call a courier again.",
+    );
+    expect(dispatchTimeoutToast("en")).toMatchObject({ tone: "info", title: "No courier yet" });
+  });
+
+  it("labels the dispatch button in every language", () => {
+    const offered = { availableActions: { ...actions, dispatch: true } };
+    expect(dispatchOffer(order(offered), "ru")?.label).toBe("Вызвать курьера");
+    expect(
+      dispatchOffer(order({ ...offered, delivery: yandex({ stage: "failed" }) }), "en")?.label,
+    ).toBe("Call a courier again");
   });
 
   it("never shows a phone in a toast", () => {

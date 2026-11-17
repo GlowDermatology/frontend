@@ -46,6 +46,13 @@ export async function saveCashbackPolicy(
       version: {
         version,
         summary: policySummary(draft.tiers, previous.tiers),
+        detail: {
+          tiers: draft.tiers,
+          previous: previous.tiers,
+          effectiveFrom: draft.effectiveFrom,
+          effectiveTo: null,
+          author: "Administrator",
+        },
         author: "Administrator",
         period: policyPeriod({
           effectiveFrom: draft.effectiveFrom,

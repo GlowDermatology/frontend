@@ -1,3 +1,4 @@
+import { customerDataCopy } from "./copy/customers";
 import type { ContentLanguage } from "./product";
 import type { LedgerEntry } from "./cashback";
 import type { SegmentMember } from "./segment";
@@ -22,11 +23,8 @@ export interface CustomerPurchase {
 /** The app installation's platform (contract §2.6, `OrderChannel`). */
 export type DevicePlatform = "ios" | "android" | "web";
 
-export const DEVICE_PLATFORM_LABEL: Record<DevicePlatform, string> = {
-  ios: "iOS",
-  android: "Android",
-  web: "Veb-sayt",
-};
+/** Uzbek names (older callers); `customerDataCopy[locale].platform` in the admin language. */
+export const DEVICE_PLATFORM_LABEL: Record<DevicePlatform, string> = customerDataCopy.uz.platform;
 
 export interface CustomerDevice {
   platform?: DevicePlatform;
@@ -148,7 +146,7 @@ export function canNotify(customer: Pick<Customer, "status">): boolean {
 export type CustomerListItem = SegmentMember;
 
 /** Shown instead of the scrubbed name of a deleted customer (contract §7.16). */
-export const DELETED_CUSTOMER_LABEL = "O‘chirilgan mijoz";
+export const DELETED_CUSTOMER_LABEL = customerDataCopy.uz.deleted;
 
 export type CustomerSort =
   | "registered_desc"
@@ -171,16 +169,7 @@ export const CUSTOMER_SORTS: ReadonlyArray<CustomerSort> = [
   "balance_asc",
 ];
 
-export const CUSTOMER_SORT_LABEL: Record<CustomerSort, string> = {
-  registered_desc: "Avval yangilari",
-  registered_asc: "Avval eskilari",
-  name_asc: "Ism: A–Z",
-  name_desc: "Ism: Z–A",
-  total_desc: "Xaridlar: ko‘pdan",
-  total_asc: "Xaridlar: kamdan",
-  balance_desc: "Balans: ko‘pdan",
-  balance_asc: "Balans: kamdan",
-};
+export const CUSTOMER_SORT_LABEL: Record<CustomerSort, string> = customerDataCopy.uz.sort;
 
 /** Page sizes of the customers list (contract §1.5: 20, 50). */
 export const CUSTOMER_PAGE_SIZES = [20, 50] as const;

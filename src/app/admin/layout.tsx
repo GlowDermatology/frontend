@@ -2,7 +2,7 @@ import "../globals.css";
 
 import type { Metadata, Viewport } from "next";
 
-import { ToastProvider } from "@/components/ui/toast";
+import { HTML_LANG_SCRIPT } from "@/lib/i18n/admin-locale-cookie";
 import { fontVariables } from "@/lib/fonts";
 
 export const metadata: Metadata = {
@@ -18,17 +18,20 @@ export const viewport: Viewport = {
 /**
  * Root layout of the private admin panel (desktop + tablet).
  *
- * Authentication is out of scope for this phase. When the Django API is
- * connected, verify the staff session inside each page's data boundary (and
- * in every Server Action), not here: reading cookies in a layout would make
- * every admin route block on the request.
+ * It stays static: the staff session is verified inside each page's data boundary (and in every
+ * Server Action), and the admin language (`gd_admin_language`) is read by the panel layout
+ * (`(panel)/layout.tsx`, inside `<Suspense>`). `<html lang>` defaults to Uzbek and the inline head
+ * script sets it from the cookie while the HTML is parsed ("Preventing flash before hydration",
+ * cookie variant), hence `suppressHydrationWarning`. The toast and tooltip providers live in the
+ * panel's `LocalizedShell`, inside the locale.
  */
 export default function AdminRootLayout({ children }: LayoutProps<"/admin">) {
   return (
-    <html lang="uz" data-theme="light" className={fontVariables}>
-      <body>
-        <ToastProvider>{children}</ToastProvider>
-      </body>
+    <html lang="uz" data-theme="light" className={fontVariables} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: HTML_LANG_SCRIPT }} />
+      </head>
+      <body>{children}</body>
     </html>
   );
 }

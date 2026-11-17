@@ -1,10 +1,12 @@
+import { paymentDataCopy } from "@/domain/copy/payments";
 import {
   canCloseFailedRefund,
-  CLICK_STILL_PAID_MESSAGE,
   hasOpenRefund,
   refundOperations,
   type PaymentRecord,
 } from "@/domain/payment";
+
+import { copyFor } from "@/lib/i18n/admin-locale";
 
 import { referenceNow } from "../config";
 import type { ActionResult } from "../types";
@@ -17,8 +19,18 @@ import { paymentById } from "./payments";
  * answers. Nothing is persisted.
  */
 
-const NOT_FOUND: ActionResult<never> = { ok: false, error: "Topilmadi.", code: "not_found" };
-const NOT_RESOLVABLE = "Bu qaytarishni yakunlab bo‘lmaydi.";
+/** The backend's messages in the admin language (the API answers in `Accept-Language`). */
+const messages = () => copyFor(paymentDataCopy);
+const notFound = async (): Promise<ActionResult<never>> => ({
+  ok: false,
+  error: (await messages()).notFound,
+  code: "not_found",
+});
+const notResolvable = async (): Promise<ActionResult<never>> => ({
+  ok: false,
+  error: (await messages()).notResolvable,
+  code: "invalid_transition",
+});
 
 function lookup(paymentId: number, refundId: number) {
   const payment = paymentById(paymentId);
@@ -32,21 +44,21 @@ export async function retryRefund(
 ): Promise<ActionResult<PaymentRecord>> {
   await delay(450);
   const found = lookup(paymentId, refundId);
-  if (!found) return NOT_FOUND;
+  if (!found) return notFound();
   const { payment, refund } = found;
   // The contract's order: a refund that cannot be retried at all is
   // `invalid_transition`; a retriable one blocked by an open sibling is `conflict`.
   if (refund.state !== "failed" || payment.status !== "paid") {
     return {
       ok: false,
-      error: "Bu qaytarishni qayta yuborib bo‘lmaydi.",
+      error: (await messages()).notRetryable,
       code: "invalid_transition",
     };
   }
   if (hasOpenRefund(payment)) {
     return {
       ok: false,
-      error: "Bu to‘lov uchun qaytarish allaqachon jarayonda.",
+      error: (await messages()).refundOpen,
       code: "conflict",
     };
   }
@@ -96,10 +108,10 @@ export async function resolveRefund(
 ): Promise<ActionResult<PaymentRecord>> {
   await delay(450);
   const found = lookup(paymentId, refundId);
-  if (!found) return NOT_FOUND;
+  if (!found) return notFound();
   const { payment, refund } = found;
   if (!refundOperations(refund, payment).resolve) {
-    return { ok: false, error: NOT_RESOLVABLE, code: "invalid_transition" };
+    return notResolvable();
   }
   return { ok: true, data: settle(payment, refund.id, state) };
 }
@@ -116,13 +128,13 @@ export async function closeFailedRefund(
 ): Promise<ActionResult<PaymentRecord>> {
   await delay(450);
   const found = lookup(paymentId, refundId);
-  if (!found) return NOT_FOUND;
+  if (!found) return notFound();
   const { payment, refund } = found;
   if (refund.state !== "failed" || !canCloseFailedRefund(refund, payment)) {
-    return { ok: false, error: NOT_RESOLVABLE, code: "invalid_transition" };
+    return notResolvable();
   }
   if (!manualPayout) {
-    return { ok: false, error: CLICK_STILL_PAID_MESSAGE, code: "invalid_transition" };
+    return { ok: false, error: (await messages()).clickStillPaid, code: "click_not_reversed" };
   }
   return { ok: true, data: settle(payment, refund.id, "succeeded") };
 }

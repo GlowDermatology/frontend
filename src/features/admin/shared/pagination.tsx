@@ -1,9 +1,8 @@
-import Link from "next/link";
 import type { Route } from "next";
 
-import { Icon } from "@/components/ui/icon";
-import { cn } from "@/lib/cn";
 import { formatNumber } from "@/lib/format";
+
+import { PaginationLinks } from "./pagination-links";
 
 /** Page numbers with ellipses: 1 2 3 … 129, or 1 … 4 5 6 … 129. */
 export function pageItems(page: number, pageCount: number): Array<number | "gap"> {
@@ -21,11 +20,17 @@ export function pageItems(page: number, pageCount: number): Array<number | "gap"
   return result;
 }
 
-export function rangeLabel(page: number, pageSize: number, total: number): string {
+/** "1–20 / 1 284"; pass the admin formatter (`useFormat()` / `getFormat()`) for its digit grouping. */
+export function rangeLabel(
+  page: number,
+  pageSize: number,
+  total: number,
+  fmt: { number: (value: number) => string } = { number: formatNumber },
+): string {
   if (total === 0) return "0 / 0";
   const from = (page - 1) * pageSize + 1;
   const to = Math.min(total, page * pageSize);
-  return `${formatNumber(from)}–${formatNumber(to)} / ${formatNumber(total)}`;
+  return `${fmt.number(from)}–${fmt.number(to)} / ${fmt.number(total)}`;
 }
 
 interface PaginationProps {
@@ -34,74 +39,20 @@ interface PaginationProps {
   hrefFor: (page: number) => Route;
 }
 
-const arrowClass = "flex size-9 items-center justify-center rounded-md border";
-
+/**
+ * Page links of a list. Usable from server and client components alike: the hrefs are worked
+ * out here and handed to `PaginationLinks` (a client component, so its labels follow the admin
+ * language through `useCopy`).
+ */
 export function Pagination({ page, pageCount, hrefFor }: PaginationProps) {
-  const prev = page > 1 ? hrefFor(page - 1) : null;
-  const next = page < pageCount ? hrefFor(page + 1) : null;
   return (
-    <nav aria-label="Sahifalar" className="flex items-center gap-1">
-      {prev ? (
-        <Link
-          href={prev}
-          scroll={false}
-          aria-label="Oldingi sahifa"
-          className={cn(arrowClass, "border-line-strong text-ink hover:bg-gold-soft")}
-        >
-          <Icon name="chevron-left" size={18} />
-        </Link>
-      ) : (
-        <span
-          aria-disabled="true"
-          aria-label="Oldingi sahifa"
-          role="link"
-          className={cn(arrowClass, "border-line text-ink-muted")}
-        >
-          <Icon name="chevron-left" size={18} />
-        </span>
+    <PaginationLinks
+      page={page}
+      previous={page > 1 ? hrefFor(page - 1) : null}
+      next={page < pageCount ? hrefFor(page + 1) : null}
+      items={pageItems(page, pageCount).map((item) =>
+        item === "gap" ? item : { page: item, href: hrefFor(item) },
       )}
-      {pageItems(page, pageCount).map((item, index) =>
-        item === "gap" ? (
-          <span key={`gap-${index}`} aria-hidden="true" className="px-1 text-ink-muted">
-            …
-          </span>
-        ) : (
-          <Link
-            key={item}
-            href={hrefFor(item)}
-            scroll={false}
-            aria-current={item === page ? "page" : undefined}
-            aria-label={`${item}-sahifa`}
-            className={cn(
-              "flex h-9 min-w-9 items-center justify-center rounded-md px-2 text-[13px] leading-none no-underline",
-              item === page
-                ? "bg-gold font-bold text-on-gold"
-                : "font-semibold text-ink hover:bg-gold-soft",
-            )}
-          >
-            {item}
-          </Link>
-        ),
-      )}
-      {next ? (
-        <Link
-          href={next}
-          scroll={false}
-          aria-label="Keyingi sahifa"
-          className={cn(arrowClass, "border-line-strong text-ink hover:bg-gold-soft")}
-        >
-          <Icon name="chevron-right" size={18} />
-        </Link>
-      ) : (
-        <span
-          aria-disabled="true"
-          aria-label="Keyingi sahifa"
-          role="link"
-          className={cn(arrowClass, "border-line text-ink-muted")}
-        >
-          <Icon name="chevron-right" size={18} />
-        </span>
-      )}
-    </nav>
+    />
   );
 }

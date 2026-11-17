@@ -9,10 +9,11 @@ import { CONTENT_LANGUAGES, type ContentLanguage } from "@/domain/product";
 import {
   groupSeoIssues,
   isSeoComplete,
+  localizeSeoStatus,
   SEO_DESCRIPTION_MAX,
   SEO_LANGUAGE_CHIP,
-  SEO_SEVERITY_LABEL,
   SEO_TITLE_MAX,
+  seoSeverityLabel,
   slugProblem,
   type LengthState,
   type SeoSeverity,
@@ -21,8 +22,10 @@ import {
   type SeoTexts,
 } from "@/domain/seo";
 import { cn } from "@/lib/cn";
+import { useAdminLocale } from "@/lib/i18n/admin-context";
 
 import { LanguageTabs } from "../products/language-tabs";
+import { sharedCopy } from "./copy";
 import {
   buildSnippet,
   idealHint,
@@ -69,21 +72,20 @@ export function SlugField({
   suggestion,
   saved,
 }: SlugFieldProps) {
+  const locale = useAdminLocale();
+  const t = sharedCopy[locale].seo;
   const trimmed = value.trim();
   const shown = trimmed || (saved ?? "") || suggestion;
   // The live check while typing; the form's own error (submit, server) wins.
-  const live = trimmed ? slugProblem(trimmed, max) : null;
+  const live = trimmed ? slugProblem(trimmed, max, locale) : null;
   const changed = saved !== null && trimmed !== "" && trimmed !== saved;
   const previewId = useId();
   return (
     <Field
-      label="Manzil (slug)"
+      label={t.slugLabel}
+      name={name}
       error={error ?? live ?? undefined}
-      hint={
-        saved === null
-          ? "Bo‘sh qoldirilsa, saqlanganda nomdan yasaladi. Lotin kichik harflari, raqamlar va chiziqcha."
-          : "Lotin kichik harflari, raqamlar va chiziqcha; faqat raqamdan iborat bo‘lmasin."
-      }
+      hint={saved === null ? t.slugHintNew : t.slugHintSaved}
     >
       {(c) => (
         <div className="flex flex-col gap-2">
@@ -99,7 +101,7 @@ export function SlugField({
               autoComplete="off"
               spellCheck={false}
               maxLength={max + 20}
-              placeholder={suggestion || "masalan, gialuron-serum"}
+              placeholder={suggestion || t.slugPlaceholder}
               className="font-mono text-[14px]"
             />
             {suggestion && suggestion !== trimmed && (
@@ -108,7 +110,7 @@ export function SlugField({
                 onClick={() => onChange(suggestion)}
                 className="h-11 shrink-0 rounded-md px-3 text-[13px] leading-[18px] font-bold text-ink underline decoration-line-strong underline-offset-4 hover:decoration-gold"
               >
-                Nomdan yasash
+                {t.fromName}
               </button>
             )}
           </span>
@@ -118,21 +120,20 @@ export function SlugField({
           >
             <Icon name="link" size={16} className="mt-px shrink-0 text-gold-ink" />
             <span className="min-w-0 break-all">
-              Saytdagi manzil:{" "}
+              {t.publicAddress}{" "}
               {shown ? (
                 <span className="font-mono text-ink" data-testid="slug-preview">
                   {publicUrlLabel(kind, shown)}
                 </span>
               ) : (
-                <span>saqlangandan keyin ko‘rinadi</span>
+                <span>{t.afterSave}</span>
               )}
             </span>
           </p>
           {changed && (
             <p className="m-0 flex items-start gap-1.5 rounded-md bg-warning-soft px-3 py-2 text-body-sm text-ink">
               <Icon name="alert-triangle" size={16} className="mt-px shrink-0 text-warning" />
-              Manzil o‘zgarsa, eski havola ({publicPath(kind, saved)}) ishlamay qoladi: saytda qayta
-              yo‘naltirish saqlanmaydi.
+              {t.slugChanged(publicPath(kind, saved))}
             </p>
           )}
         </div>
@@ -142,6 +143,9 @@ export function SlugField({
 }
 
 /* --- SEO sarlavha va tavsif --- */
+
+/** The search engine's favicon of the snippet (a letter, the same in every language). */
+const SEARCH_ENGINE_INITIAL = "G";
 
 const COUNTER_TONE: Record<LengthState, string> = {
   empty: "text-ink-muted",
@@ -159,7 +163,7 @@ function Counter({
   kind: "title" | "description";
   max: number;
 }) {
-  const info = seoCounter(value, kind, max);
+  const info = seoCounter(value, kind, max, useAdminLocale());
   return (
     <span className="flex items-center gap-1.5 text-caption font-semibold tabular-nums">
       <span className={COUNTER_TONE[info.state]}>{info.note}</span>
@@ -201,6 +205,8 @@ export function SeoEditor({
   slug,
   fallback,
 }: SeoEditorProps) {
+  const locale = useAdminLocale();
+  const t = sharedCopy[locale].seo;
   const tabsId = `${idBase}-seo`;
   const current = value[language];
   const set = (leaf: keyof SeoText, text: string) =>
@@ -214,6 +220,9 @@ export function SeoEditor({
     fallbackDescription: fallback[language].description,
   });
   const fieldError = errors?.[language];
+  const invalid = Object.fromEntries(
+    CONTENT_LANGUAGES.map((l) => [l, Boolean(errors?.[l]?.title || errors?.[l]?.description)]),
+  ) as Record<ContentLanguage, boolean>;
 
   return (
     <div className="flex flex-col gap-4">
@@ -222,6 +231,7 @@ export function SeoEditor({
         value={language}
         onChange={onLanguageChange}
         complete={complete}
+        invalid={invalid}
         idBase={tabsId}
       />
       <div
@@ -233,9 +243,10 @@ export function SeoEditor({
         className="flex flex-col gap-4"
       >
         <Field
-          label="SEO sarlavha"
+          label={t.title}
+          name={`seo.${language}.title`}
           error={fieldError?.title}
-          hint={`${idealHint("title")} Bo‘sh bo‘lsa, sayt nomdan foydalanadi.`}
+          hint={`${idealHint("title", locale)} ${t.titleFallback}`}
           aside={<Counter value={current.title} kind="title" max={SEO_TITLE_MAX} />}
         >
           {(c) => (
@@ -251,9 +262,10 @@ export function SeoEditor({
           )}
         </Field>
         <Field
-          label="SEO tavsif"
+          label={t.description}
+          name={`seo.${language}.description`}
           error={fieldError?.description}
-          hint={`${idealHint("description")} Bo‘sh bo‘lsa, sayt tavsifdan yasaydi.`}
+          hint={`${idealHint("description", locale)} ${t.descriptionFallback}`}
           aside={
             <Counter value={current.description} kind="description" max={SEO_DESCRIPTION_MAX} />
           }
@@ -270,9 +282,7 @@ export function SeoEditor({
           )}
         </Field>
         <figure className="m-0 flex flex-col gap-2">
-          <figcaption className="text-body-sm font-semibold text-ink-muted">
-            Qidiruvdagi ko‘rinishi
-          </figcaption>
+          <figcaption className="text-body-sm font-semibold text-ink-muted">{t.snippet}</figcaption>
           <div
             data-testid="seo-snippet"
             className="flex flex-col gap-1 rounded-md border border-line bg-surface px-4 py-3.5"
@@ -282,7 +292,7 @@ export function SeoEditor({
                 aria-hidden="true"
                 className="flex size-6 items-center justify-center rounded-full bg-gold-soft text-[11px] font-bold text-gold-ink"
               >
-                G
+                {SEARCH_ENGINE_INITIAL}
               </span>
               <span className="flex min-w-0 flex-col">
                 <span className="font-semibold text-ink">Glow Derma</span>
@@ -300,13 +310,11 @@ export function SeoEditor({
                 snippet.descriptionSource === "none" ? "text-ink-muted italic" : "text-ink",
               )}
             >
-              {snippet.description || "Tavsif yo‘q: sayt sahifa ma’lumotlaridan yasaydi."}
+              {snippet.description || t.noDescription}
             </span>
           </div>
           {(snippet.titleSource === "fallback" || snippet.descriptionSource !== "seo") && (
-            <p className="m-0 text-caption font-normal text-ink-muted">
-              Bo‘sh maydonlar o‘rniga sayt avtomatik matn ko‘rsatadi.
-            </p>
+            <p className="m-0 text-caption font-normal text-ink-muted">{t.fallbackNote}</p>
           )}
         </figure>
       </div>
@@ -345,24 +353,29 @@ interface SeoStatusPanelProps {
  * «SEO holati»: the server's checklist grouped by severity, each issue with
  * its language chip; a green «Hammasi joyida» when nothing but hints is left.
  */
-export function SeoStatusPanel({ status, note, titleId, className }: SeoStatusPanelProps) {
+export function SeoStatusPanel({ status: raw, note, titleId, className }: SeoStatusPanelProps) {
+  const locale = useAdminLocale();
+  const t = sharedCopy[locale].seo;
+  // Worded from the issue codes, so the checklist follows the admin language (DESIGN §G).
+  const status = raw ? localizeSeoStatus(raw, locale) : null;
   const groups = status ? groupSeoIssues(status.issues) : [];
   return (
     <div className={cn("flex flex-col gap-3", className)} data-testid="seo-status">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 id={titleId} className="m-0 text-[15px] leading-5 font-bold text-ink">
-          SEO holati
+          {t.status}
         </h3>
         {status &&
           (status.ok ? (
-            <Badge tone="success">Hammasi joyida</Badge>
+            <Badge tone="success">{t.allGood}</Badge>
           ) : (
             <Badge tone={groups[0]?.severity === "error" ? "danger" : "warning"}>
               {groups
                 .filter((group) => group.severity !== "info")
-                .map(
-                  (group) =>
-                    `${group.issues.length} ${group.severity === "error" ? "xato" : "ogohlantirish"}`,
+                .map((group) =>
+                  group.severity === "error"
+                    ? t.errors(group.issues.length)
+                    : t.warnings(group.issues.length),
                 )
                 .join(" · ")}
             </Badge>
@@ -370,7 +383,7 @@ export function SeoStatusPanel({ status, note, titleId, className }: SeoStatusPa
       </div>
       {note && <p className="m-0 text-caption font-normal text-ink-muted">{note}</p>}
       {!status ? (
-        <p className="m-0 text-body-sm text-ink-muted">Saqlangandan keyin tekshiriladi.</p>
+        <p className="m-0 text-body-sm text-ink-muted">{t.notChecked}</p>
       ) : (
         <>
           {status.ok && (
@@ -379,18 +392,18 @@ export function SeoStatusPanel({ status, note, titleId, className }: SeoStatusPa
               className="m-0 flex items-start gap-2 rounded-md bg-success-soft px-3.5 py-3 text-body-sm font-semibold text-ink"
             >
               <Icon name="shield-check" size={18} className="shrink-0 text-success" />
-              Hammasi joyida: sahifa qidiruv uchun tayyor.
+              {t.ready}
             </p>
           )}
           {groups.map((group) => (
             <section
               key={group.severity}
-              aria-label={SEO_SEVERITY_LABEL[group.severity]}
+              aria-label={seoSeverityLabel(group.severity, locale)}
               className="flex flex-col gap-1.5"
             >
               <h4 className="m-0 flex items-center gap-2 text-body-sm font-semibold text-ink-muted">
                 <Badge tone={SEVERITY_TONE[group.severity]}>
-                  {SEO_SEVERITY_LABEL[group.severity]}
+                  {seoSeverityLabel(group.severity, locale)}
                 </Badge>
                 <span className="tabular-nums">{group.issues.length}</span>
               </h4>
@@ -410,7 +423,7 @@ export function SeoStatusPanel({ status, note, titleId, className }: SeoStatusPa
                     {issue.language && (
                       <span
                         className="h-5 shrink-0 rounded-sm bg-gold-soft px-1.5 text-[11px] leading-5 font-bold text-ink"
-                        aria-label={`Til: ${SEO_LANGUAGE_CHIP[issue.language]}`}
+                        aria-label={t.language(SEO_LANGUAGE_CHIP[issue.language])}
                       >
                         {SEO_LANGUAGE_CHIP[issue.language]}
                       </span>

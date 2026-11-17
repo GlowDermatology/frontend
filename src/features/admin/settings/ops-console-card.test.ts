@@ -2,10 +2,13 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
+import { settingsCopy } from "./copy";
 import { OpsConsoleCard, opsConsoleSettingsUrl } from "./ops-console-card";
 
-const render = (consoleUrl: string | null) =>
-  renderToStaticMarkup(createElement(OpsConsoleCard, { consoleUrl }));
+const render = (consoleUrl: string | null, locale: "uz" | "ru" | "en" = "uz") =>
+  renderToStaticMarkup(
+    createElement(OpsConsoleCard, { consoleUrl, t: settingsCopy[locale].store }),
+  );
 
 describe("opsConsoleSettingsUrl", () => {
   it("resolves the settings page under the console base", () => {
@@ -42,5 +45,12 @@ describe("OpsConsoleCard", () => {
     expect(html).toContain("Konsol manzili sozlanmagan (GLOWDERMA_OPS_CONSOLE_URL).");
     expect(html).not.toContain("<a ");
     expect(html).not.toContain("Ops konsolda ochish");
+  });
+
+  it("speaks the admin language", () => {
+    expect(render("https://ops.glowderma.uz/django-admin/", "ru")).toContain(
+      "Открыть в ops-консоли",
+    );
+    expect(render(null, "en")).toContain("The console address is not set");
   });
 });

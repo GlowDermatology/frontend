@@ -1,20 +1,17 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import { useEffect, useId, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 
 import { ProductArt } from "@/components/brand/product-art";
 import { Icon } from "@/components/ui/icon";
 import { ActionMenu } from "@/components/ui/menu";
-import type { ProductImage } from "@/domain/product";
-import {
-  IMAGE_TOO_LARGE_MESSAGE,
-  IMAGE_TYPE_MESSAGE,
-  IMAGE_TYPES,
-  MAX_IMAGE_BYTES,
-  MAX_IMAGES,
-} from "@/data/products.schema";
+import { isDefaultImageLabel, type ProductImage } from "@/domain/product";
+import { imageFileProblem, IMAGE_TYPES, MAX_IMAGES } from "@/data/products.schema";
 import { cn } from "@/lib/cn";
+import { useAdminLocale, useCopy } from "@/lib/i18n/admin-context";
+
+import { productsCopy } from "./copy";
 
 interface ImageManagerProps {
   images: ReadonlyArray<ProductImage>;
@@ -25,7 +22,10 @@ interface ImageManagerProps {
    * editor keeps the files until it uploads them on save.
    */
   onAdd: (images: ProductImage[], files: ReadonlyMap<string, File>) => void;
+  /** The form's error for the images (e.g. an active product without one). */
   error?: string;
+  /** Accessible name of the card's group (the card title's id). */
+  labelledBy?: string;
 }
 
 const tileButton =
@@ -37,8 +37,22 @@ const tileButton =
  * single-pointer alternative to dragging, WCAG 2.5.7). Uploads are previewed
  * locally with object URLs; the files themselves go to the server when the
  * form is saved (`uploadProductImage`, one call per file).
+ *
+ * The root is the field the error reveal lands on (`data-field="images"`, `data-invalid` while the
+ * form refuses the images, focusable with `tabIndex={-1}`), so a save that fails on the images
+ * scrolls here, focuses and marks the card instead of failing out of sight.
  */
-export function ImageManager({ images, onMove, onRemove, onAdd, error }: ImageManagerProps) {
+export function ImageManager({
+  images,
+  onMove,
+  onRemove,
+  onAdd,
+  error,
+  labelledBy,
+}: ImageManagerProps) {
+  const t = useCopy(productsCopy).imageManager;
+  const locale = useAdminLocale();
+  const errorId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const createdUrls = useRef(new Set<string>());
@@ -52,23 +66,26 @@ export function ImageManager({ images, onMove, onRemove, onAdd, error }: ImageMa
     return () => urls.forEach((url) => URL.revokeObjectURL(url));
   }, []);
 
+  // An API photo has no name (the mapper's «Rasm N» token): it is shown by its current place.
+  const labelOf = (image: ProductImage | undefined, index: number) =>
+    image?.label && !isDefaultImageLabel(image.label) ? image.label : t.alt(index + 1);
+
   const move = (from: number, to: number) => {
     if (from === to || to < 0 || to >= images.length) return;
-    const image = images[from];
+    const label = labelOf(images[from], from);
     onMove(from, to);
-    setAnnouncement(
-      `«${image?.label ?? "Rasm"}» ${to + 1}-o‘ringa ko‘chirildi${to === 0 ? ", endi asosiy rasm" : ""}.`,
-    );
+    setAnnouncement(t.moved(label, to + 1, to === 0));
   };
 
   const remove = (index: number) => {
     const image = images[index];
+    const label = labelOf(image, index);
     if (image?.src && createdUrls.current.has(image.src)) {
       URL.revokeObjectURL(image.src);
       createdUrls.current.delete(image.src);
     }
     onRemove(index);
-    setAnnouncement(`«${image?.label ?? "Rasm"}» o‘chirildi.`);
+    setAnnouncement(t.removed(label));
     // Keep focus in the grid: the tile that took this place, or the upload button.
     requestAnimationFrame(() => {
       listRef.current?.children[index]?.querySelector("button")?.focus();
@@ -83,17 +100,14 @@ export function ImageManager({ images, onMove, onRemove, onAdd, error }: ImageMa
     const addedFiles = new Map<string, File>();
     for (const file of files) {
       if (images.length + added.length >= MAX_IMAGES) {
-        errors.push(`Ko‘pi bilan ${MAX_IMAGES} ta rasm qo‘shish mumkin.`);
+        errors.push(t.tooMany(MAX_IMAGES));
         break;
       }
-      if (!(IMAGE_TYPES as ReadonlyArray<string>).includes(file.type)) {
-        errors.push(`«${file.name}»: ${IMAGE_TYPE_MESSAGE}`);
-        continue;
-      }
-      // 5 MiB, checked here so an oversized file never makes the round trip
-      // (the Server Action body limit is 6 MB).
-      if (file.size > MAX_IMAGE_BYTES) {
-        errors.push(`«${file.name}»: ${IMAGE_TOO_LARGE_MESSAGE}`);
+      // Type, then 5 MiB, checked here so an oversized file never makes the
+      // round trip (the Server Action body limit is 6 MB).
+      const problem = imageFileProblem(file, locale);
+      if (problem) {
+        errors.push(t.fileProblem(file.name, problem));
         continue;
       }
       const src = URL.createObjectURL(file);
@@ -105,7 +119,7 @@ export function ImageManager({ images, onMove, onRemove, onAdd, error }: ImageMa
     setUploadErrors(errors);
     if (added.length > 0) {
       onAdd(added, addedFiles);
-      setAnnouncement(`${added.length} ta rasm qo‘shildi. Saqlash tugmasini bosing.`);
+      setAnnouncement(t.added(added.length));
     }
   };
 
@@ -134,14 +148,28 @@ export function ImageManager({ images, onMove, onRemove, onAdd, error }: ImageMa
     },
   });
 
+  const messages = [...(error ? [error] : []), ...uploadErrors];
+
   return (
-    <div className="flex flex-col gap-3">
+    <div
+      role="group"
+      aria-labelledby={labelledBy}
+      aria-describedby={messages.length > 0 ? errorId : undefined}
+      data-field="images"
+      data-invalid={error ? "true" : undefined}
+      tabIndex={-1}
+      className={cn(
+        "-m-2 flex flex-col gap-3 rounded-lg p-2 transition-[box-shadow] duration-150 outline-none",
+        error && "ring-[1.5px] ring-danger/60",
+      )}
+    >
       <ul
         ref={listRef}
         className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3 p-0"
       >
         {images.map((image, index) => {
           const main = index === 0;
+          const label = labelOf(image, index);
           return (
             <li
               key={image.id}
@@ -159,11 +187,11 @@ export function ImageManager({ images, onMove, onRemove, onAdd, error }: ImageMa
               {image.src?.startsWith("blob:") ? (
                 // Local preview of an unsaved upload (object URL); next/image cannot optimise blobs.
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={image.src} alt={image.label} className="size-full object-cover" />
+                <img src={image.src} alt={label} className="size-full object-cover" />
               ) : image.src ? (
                 <Image
                   src={image.src}
-                  alt={image.label}
+                  alt={label}
                   fill
                   sizes="(min-width: 640px) 160px, 45vw"
                   className="object-cover"
@@ -174,43 +202,41 @@ export function ImageManager({ images, onMove, onRemove, onAdd, error }: ImageMa
                   tone={image.art.tone}
                   detail="thumb"
                   width={image.art.kind === "texture" ? 80 : 66}
-                  label={image.label}
+                  label={label}
                 />
               ) : null}
               {main && (
                 <span className="absolute top-2 left-2 h-[22px] rounded-sm bg-gold px-2 text-[10px] leading-[22px] font-bold tracking-[0.06em] text-on-gold">
-                  ASOSIY
+                  {t.main}
                 </span>
               )}
               <span className="absolute top-1.5 right-1.5 flex gap-0.5">
                 <ActionMenu
-                  label={`«${image.label}» tartibi`}
+                  label={t.order(label)}
                   triggerClassName={cn(tileButton, "cursor-grab text-ink-muted")}
                   trigger={
                     <>
                       <Icon name="grip" size={16} />
-                      <span className="sr-only">
-                        «{image.label}», {index + 1}-rasm: tartibni o‘zgartirish
-                      </span>
+                      <span className="sr-only">{t.orderTrigger(label, index + 1)}</span>
                     </>
                   }
                   items={[
                     {
                       key: "main",
-                      label: "Asosiy qilish",
-                      disabled: main,
+                      label: t.makeMain,
+                      disabledReason: main ? t.alreadyMain : null,
                       onSelect: () => move(index, 0),
                     },
                     {
                       key: "earlier",
-                      label: "Oldinga surish",
-                      disabled: main,
+                      label: t.earlier,
+                      disabledReason: main ? t.alreadyFirst : null,
                       onSelect: () => move(index, index - 1),
                     },
                     {
                       key: "later",
-                      label: "Orqaga surish",
-                      disabled: index === images.length - 1,
+                      label: t.later,
+                      disabledReason: index === images.length - 1 ? t.alreadyLast : null,
                       onSelect: () => move(index, index + 1),
                     },
                   ]}
@@ -218,7 +244,7 @@ export function ImageManager({ images, onMove, onRemove, onAdd, error }: ImageMa
                 <button
                   type="button"
                   onClick={() => remove(index)}
-                  aria-label={`«${image.label}» rasmini o‘chirish`}
+                  aria-label={t.remove(label)}
                   className={cn(tileButton, "text-danger")}
                 >
                   <Icon name="trash" size={16} />
@@ -235,9 +261,12 @@ export function ImageManager({ images, onMove, onRemove, onAdd, error }: ImageMa
               className="flex size-full flex-col items-center justify-center gap-2 rounded-md border-[1.5px] border-dashed border-line-strong p-3 text-center text-[13px] leading-[18px] font-semibold text-ink transition-colors duration-150 hover:bg-surface"
             >
               <Icon name="upload" size={24} className="text-gold-ink" />
-              Rasm yuklash
+              {t.upload}
               <span className="text-[11px] leading-[14px] font-medium text-ink-muted">
-                JPG, PNG, WebP · 5 MB gacha
+                {t.uploadHint}
+              </span>
+              <span className="text-[11px] leading-[14px] font-semibold text-ink-muted tabular-nums">
+                {t.countHint(images.length, MAX_IMAGES)}
               </span>
             </button>
             <input
@@ -253,9 +282,9 @@ export function ImageManager({ images, onMove, onRemove, onAdd, error }: ImageMa
           </li>
         )}
       </ul>
-      {(error || uploadErrors.length > 0) && (
-        <div role="alert" className="flex flex-col gap-1">
-          {[...(error ? [error] : []), ...uploadErrors].map((message) => (
+      {messages.length > 0 && (
+        <div id={errorId} role="alert" className="flex flex-col gap-1">
+          {messages.map((message) => (
             <p
               key={message}
               className="m-0 flex items-start gap-1.5 text-body-sm font-semibold text-ink"

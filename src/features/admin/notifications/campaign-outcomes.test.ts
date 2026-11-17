@@ -112,6 +112,7 @@ describe("applyCampaignOutcome", () => {
       replaceRecord: vi.fn(),
       dropRecord: vi.fn(),
       toast: vi.fn(),
+      staleTitle: "Amal bajarilmadi",
     }) satisfies CampaignEffects;
 
   it("shows the answered row, closes the dialog and confirms with the operation's toast", () => {
@@ -129,7 +130,7 @@ describe("applyCampaignOutcome", () => {
     applyCampaignOutcome({ type: "stale", message: STARTED, gone: false }, record, success, e);
     expect(e.close).toHaveBeenCalledTimes(1);
     expect(e.toast).toHaveBeenCalledWith({
-      tone: "info",
+      tone: "warning",
       title: "Amal bajarilmadi",
       description: STARTED,
     });

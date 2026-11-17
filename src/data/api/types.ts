@@ -6,8 +6,13 @@ import type { components } from "./schema";
 
 export type Schemas = components["schemas"];
 
-/** `POST auth/login/` 200 (also `auth/oauth/{provider}/`). */
+/** The session answer of `auth/login/`, `auth/oauth/{provider}/` and `auth/mfa/verify/`. */
 export type LoginResponse = Schemas["LoginResponse"];
+/**
+ * `POST auth/login/` and `auth/oauth/{provider}/` 200: a session, or — with the admin panel MFA on —
+ * the `MfaChallenge` for `auth/mfa/verify/` (tell them apart with `isMfaChallengeAnswer`).
+ */
+export type AdminLoginResult = Schemas["AdminLoginResult"];
 /** `POST auth/refresh/` 200. */
 export type AccessResponse = Schemas["Access"];
 /** `GET auth/me/` and `LoginResponse.user`. */
@@ -70,6 +75,10 @@ export type ApiDayBlock = Schemas["DayBlock"];
 export type ApiAppointmentItem = Schemas["AppointmentItem"];
 export type ApiPendingSummary = Schemas["PendingSummary"];
 export type ApiAppointmentsMeta = Schemas["AppointmentsMeta"];
+/** `GET appointments/range/` (week and month boards). */
+export type ApiAppointmentRange = Schemas["AppointmentRange"];
+export type ApiRangeDay = Schemas["RangeDay"];
+export type ApiRangeSchedule = Schemas["RangeSchedule"];
 export type ApiBookingSpecialist = Schemas["BookingSpecialist"];
 /**
  * `POST appointments/`. The generated schema marks `note` required, the
@@ -105,6 +114,7 @@ export type ApiPaginatedCustomers = Schemas["PaginatedCustomerListItemList"];
 
 export type ApiAuditEntry = Schemas["AuditEntry"];
 export type ApiPaginatedAuditLog = Schemas["PaginatedAuditEntryList"];
+export type ApiAuditFacets = Schemas["AuditFacets"];
 export type ApiNavCounts = Schemas["NavCounts"];
 export type ApiActor = Schemas["Actor"];
 
@@ -136,6 +146,15 @@ export type ApiStaffCredentials = Schemas["StaffCredentials"];
 export type ApiStaffCreate = Schemas["StaffCreateRequest"];
 export type ApiStaffPatch = Partial<Schemas["PatchedStaffUpdateRequest"]>;
 export type ApiPaginatedStaff = Schemas["PaginatedStaffListItemList"];
+export type ApiStaffInvite = Schemas["StaffInvite"];
+export type ApiStaffResetPassword = Schemas["StaffResetPasswordRequest"];
+/** `POST staff/{id}/send-password-link/` 200. */
+export type ApiStaffLinkSent = Schemas["StaffLinkSent"];
+/** `POST auth/password-link/` 200 (the caller's own link). */
+export type ApiOwnPasswordLink = Schemas["OwnPasswordLink"];
+/** `POST auth/password-token/check/` 200. */
+export type ApiPasswordTokenInfo = Schemas["PasswordTokenInfo"];
+export type ApiPasswordTokenSet = Schemas["PasswordTokenSetRequest"];
 
 /* --- Orders, payments, dashboard (contract §2.2, §2.10, §2.12) — F2d --- */
 

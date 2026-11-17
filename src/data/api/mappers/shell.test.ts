@@ -603,6 +603,10 @@ describe("account", () => {
         linked_providers: ["google"],
         session_expires_at: "2026-10-26T15:33:54+05:00",
         auth_method: "password",
+        language: "uz",
+        must_change_password: false,
+        mfa_enabled: false,
+        capabilities: { staff_email_invite: false },
       }),
     ).toEqual({
       id: "1",
@@ -621,6 +625,10 @@ describe("account", () => {
       is_manager: false,
       linked_providers: [],
       session_expires_at: "2026-10-26T15:33:54+05:00",
+      language: "uz" as const,
+      must_change_password: false,
+      mfa_enabled: false,
+      capabilities: { staff_email_invite: false },
     };
     expect(mapStaffAccount({ ...base, auth_method: "google" }).authMethod).toBe("google");
     // §2.16: a staff member who is not a manager; a superuser always is one.

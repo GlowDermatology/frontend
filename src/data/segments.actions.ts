@@ -2,16 +2,21 @@
 
 import { z } from "zod";
 
+import { segmentCopy, type SegmentCopy } from "@/domain/copy/segments";
 import {
   SEGMENT_MEMBERS_MAX,
   parseMemberEntry,
   type MemberRef,
   type Segment,
 } from "@/domain/segment";
+import { createFormatter } from "@/lib/format";
+import { copyFor, getAdminLocale, getLocalized } from "@/lib/i18n/admin-locale";
+import { validationCopy } from "@/lib/i18n/validation-copy";
 
 import {
   apiMutation,
   fieldErrorsFrom,
+  invalidFormMessage,
   guardAction,
   idempotencyKeySchema,
   sessionToken,
@@ -26,7 +31,7 @@ import {
 import { toActionResult, type FieldRemap } from "./api/mappers/errors";
 import { mapSegment, segmentCreateBody, segmentPatchBody } from "./api/mappers/segments";
 import * as mock from "./mock/segments.actions";
-import { segmentFormSchema, type SegmentFormValues } from "./segments.schema";
+import { segmentFormSchemas, type SegmentFormValues } from "./segments.schema";
 import { dataSource } from "./source";
 import type { ActionFailure, ActionResult } from "./types";
 
@@ -40,7 +45,15 @@ import type { ActionFailure, ActionResult } from "./types";
  */
 
 const idSchema = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
-const NOT_FOUND: ActionFailure = { ok: false, error: "Guruh topilmadi.", code: "not_found" };
+const notFound = async (): Promise<ActionFailure> => ({
+  ok: false,
+  error: (await copyFor(segmentCopy)).actions.notFound,
+  code: "not_found",
+});
+const badKey = async (): Promise<ActionFailure> => ({
+  ok: false,
+  error: (await copyFor(validationCopy)).requestKey,
+});
 const apiId = (value: string) => /^\d{1,12}$/.test(value);
 
 export async function createSegment(
@@ -51,9 +64,10 @@ export async function createSegment(
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
   const parsedKey = idempotencyKeySchema.safeParse(key);
-  if (!parsedKey.success) return { ok: false, error: "Noto‘g‘ri so‘rov kaliti." };
-  const parsed = segmentFormSchema.safeParse(values);
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  if (!parsedKey.success) return badKey();
+  const schema = await getLocalized(segmentFormSchemas);
+  const parsed = schema.safeParse(values);
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, await invalidFormMessage());
   if ((await dataSource()) === "api") {
     return apiMutation("createSegment", async () => {
       try {
@@ -82,18 +96,19 @@ export async function updateSegment(
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
   const parsedId = idSchema.safeParse(id);
-  if (!parsedId.success) return NOT_FOUND;
+  if (!parsedId.success) return notFound();
   const parsedKey = idempotencyKeySchema.safeParse(key);
-  if (!parsedKey.success) return { ok: false, error: "Noto‘g‘ri so‘rov kaliti." };
-  const parsed = segmentFormSchema.safeParse(values);
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  if (!parsedKey.success) return badKey();
+  const schema = await getLocalized(segmentFormSchemas);
+  const parsed = schema.safeParse(values);
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, await invalidFormMessage());
   // The baseline only decides what is sent; a malformed one sends everything.
-  const parsedBaseline = segmentFormSchema.safeParse(baseline);
+  const parsedBaseline = schema.safeParse(baseline);
   const base = parsedBaseline.success
     ? parsedBaseline.data
     : { name: "", rules: { minOnlineOrders: -1, minLifetimeAmount: -1 } };
   if ((await dataSource()) === "api") {
-    if (!apiId(parsedId.data)) return NOT_FOUND;
+    if (!apiId(parsedId.data)) return notFound();
     return apiMutation("updateSegment", async () => {
       try {
         const { data } = await apiPatchSegment(
@@ -118,9 +133,9 @@ export async function deleteSegment(
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
   const parsedId = idSchema.safeParse(id);
-  if (!parsedId.success) return NOT_FOUND;
+  if (!parsedId.success) return notFound();
   if ((await dataSource()) === "api") {
-    if (!apiId(parsedId.data)) return NOT_FOUND;
+    if (!apiId(parsedId.data)) return notFound();
     return apiMutation("deleteSegment", async () => {
       try {
         await apiDeleteSegment(sessionToken(guard.session), parsedId.data);
@@ -133,12 +148,6 @@ export async function deleteSegment(
   return mock.deleteSegment(parsedId.data);
 }
 
-const MEMBER_ROW_MESSAGES = {
-  incomplete: "Telefonni to‘liq kiriting.",
-  invalid: "ID yoki telefon raqamini to‘g‘ri kiriting.",
-  tooLong: "Juda uzun.",
-} as const;
-
 /**
  * Reads the dialog's rows (one customer id or phone each, contract §2.8):
  * ids and E.164 phones, de-duplicated, each remembering the first row that
@@ -146,27 +155,30 @@ const MEMBER_ROW_MESSAGES = {
  * that row. Rows that are not an id or a whole phone are refused here,
  * under `entries.{row}`.
  */
-function readMemberRows(
+async function readMemberRows(
   entries: unknown,
-): { ok: true; ids: MemberRef[]; phones: MemberRef[] } | ActionFailure {
+  t: SegmentCopy["actions"],
+  shown: (n: number) => string,
+): Promise<{ ok: true; ids: MemberRef[]; phones: MemberRef[] } | ActionFailure> {
   const fail = (fieldErrors: Record<string, string>): ActionFailure => ({
     ok: false,
-    error: "Maydonlarni tekshiring.",
+    error: t.checkFields,
     code: "validation_error",
     fieldErrors,
   });
   if (!Array.isArray(entries) || entries.some((entry) => typeof entry !== "string")) {
-    return fail({ members: "Mijoz ID yoki telefon raqamini kiriting." });
+    return fail({ members: t.membersRequired });
   }
   const rows = entries as string[];
-  if (rows.length > SEGMENT_MEMBERS_MAX)
-    return fail({ members: `Ko‘pi bilan ${SEGMENT_MEMBERS_MAX} ta.` });
+  if (rows.length > SEGMENT_MEMBERS_MAX) {
+    return fail({ members: t.membersMax(shown(SEGMENT_MEMBERS_MAX)) });
+  }
   const ids = new Map<string, number>();
   const phones = new Map<string, number>();
   const errors: Record<string, string> = {};
   rows.forEach((raw, row) => {
     if (raw.length > 64) {
-      errors[`entries.${row}`] = MEMBER_ROW_MESSAGES.tooLong;
+      errors[`entries.${row}`] = t.rowTooLong;
       return;
     }
     const entry = parseMemberEntry(raw);
@@ -174,13 +186,14 @@ function readMemberRows(
       if (!ids.has(entry.value)) ids.set(entry.value, row);
     } else if (entry.kind === "phone") {
       if (!phones.has(entry.value)) phones.set(entry.value, row);
-    } else if (entry.kind === "incomplete" || entry.kind === "invalid") {
-      errors[`entries.${row}`] = MEMBER_ROW_MESSAGES[entry.kind];
+    } else if (entry.kind === "incomplete") {
+      errors[`entries.${row}`] = t.rowIncomplete;
+    } else if (entry.kind === "invalid") {
+      errors[`entries.${row}`] = t.rowInvalid;
     }
   });
   if (Object.keys(errors).length > 0) return fail(errors);
-  if (ids.size + phones.size === 0)
-    return fail({ members: "Mijoz ID yoki telefon raqamini kiriting." });
+  if (ids.size + phones.size === 0) return fail({ members: t.membersRequired });
   const refs = (map: Map<string, number>) => [...map].map(([value, row]) => ({ value, row }));
   return { ok: true, ids: refs(ids), phones: refs(phones) };
 }
@@ -217,14 +230,17 @@ export async function addSegmentMembers(
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
   const parsedId = idSchema.safeParse(id);
-  if (!parsedId.success) return NOT_FOUND;
+  if (!parsedId.success) return notFound();
   const parsedKey = idempotencyKeySchema.safeParse(key);
-  if (!parsedKey.success) return { ok: false, error: "Noto‘g‘ri so‘rov kaliti." };
-  const read = readMemberRows(entries);
+  if (!parsedKey.success) return badKey();
+  const locale = await getAdminLocale();
+  const read = await readMemberRows(entries, segmentCopy[locale].actions, (n) =>
+    createFormatter(locale).number(n),
+  );
   if (!read.ok) return read;
   const { ids, phones } = read;
   if ((await dataSource()) === "api") {
-    if (!apiId(parsedId.data)) return NOT_FOUND;
+    if (!apiId(parsedId.data)) return notFound();
     return apiMutation("addSegmentMembers", async () => {
       try {
         const { data } = await apiAddSegmentMembers(
@@ -254,9 +270,9 @@ export async function removeSegmentMember(
   if (!guard.ok) return guard;
   const parsedId = idSchema.safeParse(id);
   const parsedCustomer = idSchema.safeParse(customerId);
-  if (!parsedId.success || !parsedCustomer.success) return NOT_FOUND;
+  if (!parsedId.success || !parsedCustomer.success) return notFound();
   if ((await dataSource()) === "api") {
-    if (!apiId(parsedId.data) || !apiId(parsedCustomer.data)) return NOT_FOUND;
+    if (!apiId(parsedId.data) || !apiId(parsedCustomer.data)) return notFound();
     return apiMutation("removeSegmentMember", async () => {
       try {
         await apiRemoveSegmentMember(

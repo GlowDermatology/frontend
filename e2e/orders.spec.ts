@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { cancelOrderThroughUi, heading, listedOrderIds, toast, watchPage } from "./helpers";
+import { expectDisabledReason, selectOption, selectTrigger } from "./ui";
 
 /**
  * Order actions against the seeded backend (contract §2.2). Each test takes
@@ -70,10 +71,11 @@ test("an order handed to the courier is marked delivered from the status menu", 
   await expect(heading(page)).toHaveText(`Buyurtma №${id}`);
   await page.getByRole("button", { name: /Holatni o‘zgartirish/ }).click();
   await page.getByRole("menuitem", { name: /Yetkazildi/ }).click();
-  // ADM-14.1: the irreversible transition is confirmed first.
+  // ADM-14.1: the irreversible transition is confirmed first («Orqaga» leaves it).
   const confirm = page.getByRole("alertdialog", {
     name: "Holatni «Yetkazildi» ga o‘zgartirasizmi?",
   });
+  await expect(confirm.getByRole("button", { name: "Orqaga" })).toBeVisible();
   await confirm.getByRole("button", { name: "Holatni o‘zgartirish" }).click();
   await expect(confirm).toBeHidden();
   await expect(toast(page, "Holat yangilandi")).toBeVisible();
@@ -115,5 +117,38 @@ test("a failed BTS hand-off is retried and the parcel is created", async ({ page
 
   await page.reload();
   await expect(shipmentCard).toContainText("BTS raqami");
+  watcher.assertClean();
+});
+
+test("the list filters are kit selects and the reset explains when there is nothing to clear", async ({
+  page,
+}) => {
+  const watcher = watchPage(page);
+  await page.goto("/admin/orders");
+  await expect(heading(page)).toHaveText("Buyurtmalar");
+  const clear = page.getByRole("button", { name: "Filtrlarni tozalash" });
+  await expectDisabledReason(clear, "Hozir filtr qo‘yilmagan");
+
+  await selectOption(page, "Olish usuli", "Olib ketish");
+  await expect(page).toHaveURL(/fulfilment=pickup/);
+  await expect(selectTrigger(page, "Olish usuli")).toContainText("Olib ketish");
+  await expect(clear).not.toHaveAttribute("aria-disabled", "true");
+  await clear.click();
+  await expect(page).not.toHaveURL(/fulfilment=/);
+  watcher.assertClean();
+});
+
+test("a delivered BTS order explains its unavailable hand-off button", async ({ page }) => {
+  const watcher = watchPage(page);
+  const ids = await listedOrderIds(
+    page,
+    "/admin/orders?status=delivered&fulfilment=delivery&period=all&provider=bts",
+  );
+  test.skip(ids.length === 0, "the seed has no delivered BTS order");
+  await page.goto(`/admin/orders/${ids[0]}`);
+  await expectDisabledReason(
+    page.getByRole("button", { name: "BTS ga yuborilgan" }),
+    "BTS ga avtomatik yuborilgan",
+  );
   watcher.assertClean();
 });

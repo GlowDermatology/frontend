@@ -5,7 +5,10 @@ import { useState } from "react";
 import { SearchInput } from "@/components/ui/field";
 import { Icon } from "@/components/ui/icon";
 import { SegmentedControl } from "@/components/ui/segmented-control";
+import { useCopy } from "@/lib/i18n/admin-context";
 import { searchKey } from "@/lib/search";
+
+import { sharedCopy } from "./copy";
 
 export type StatusFilter = "all" | "active" | "inactive";
 
@@ -37,6 +40,7 @@ interface FilterControls {
 }
 
 export function ListFilterBar({ label, filter }: { label: string; filter: FilterControls }) {
+  const t = useCopy(sharedCopy).listFilter;
   return (
     <div className="flex flex-wrap items-center gap-2.5 border-b border-line p-4">
       <SearchInput
@@ -48,19 +52,19 @@ export function ListFilterBar({ label, filter }: { label: string; filter: Filter
         wrapperClassName="max-w-[320px] flex-[1_1_220px] gap-2 bg-transparent px-3"
       />
       <SegmentedControl<StatusFilter>
-        label="Holat"
+        label={t.status}
         value={filter.status}
         onChange={filter.setStatus}
         options={[
-          { value: "all", label: "Hammasi" },
-          { value: "active", label: "Faol" },
-          { value: "inactive", label: "Faol emas" },
+          { value: "all", label: t.all },
+          { value: "active", label: t.active },
+          { value: "inactive", label: t.inactive },
         ]}
       />
       {filter.filtered && (
         <span className="flex items-center gap-1.5 text-caption font-normal text-ink-muted">
           <Icon name="info" size={14} />
-          Tartibni o‘zgartirish uchun filtrlarni tozalang.
+          {t.reorderPaused}
         </span>
       )}
     </div>

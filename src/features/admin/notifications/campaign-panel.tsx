@@ -2,11 +2,12 @@
 
 import { useId, useRef, useState, type ReactNode } from "react";
 
-import { Button, buttonStyles } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import { AlertDialog, AlertDialogCancel, Dialog } from "@/components/ui/dialog";
 import { Icon } from "@/components/ui/icon";
 import { useToast, type ToastInput } from "@/components/ui/toast";
+import { notificationDataCopy } from "@/domain/copy/notifications";
 import {
   approveNotification,
   cancelNotification,
@@ -25,15 +26,19 @@ import {
   type CampaignAction,
 } from "@/domain/campaign-actions";
 import {
-  NOTIFICATION_KIND_LABEL,
+  audienceText,
+  campaignRecommendedMissing,
   type CampaignTest,
   type NotificationRecord,
   type TestDevice,
 } from "@/domain/notification";
 import { cn } from "@/lib/cn";
 import { formatCountdown, useCountdownTo } from "@/lib/countdown";
-import { formatDateTimeShort, formatNumber, formatPhone } from "@/lib/format";
+import { useAdminLocale, useCopy } from "@/lib/i18n/admin-context";
+import { useFormat } from "@/lib/i18n/admin-hooks";
+import { useRecommendedConfirm } from "@/lib/forms/recommended";
 
+import { afterDialogsClose } from "../products/form-reveal";
 import { runAction } from "../shared/action-client";
 import {
   actionKeyFor,
@@ -42,6 +47,7 @@ import {
   settleActionKey,
 } from "./campaign-outcomes";
 import { InlineError } from "./composer";
+import { notificationsCopy, type NotificationsCopy } from "./copy";
 import { StateBadge } from "./history-table";
 
 /**
@@ -53,12 +59,11 @@ import { StateBadge } from "./history-table";
  * test, approves the send (it starts after the approval delay, cancellable
  * until then with a live countdown), returns a waiting or cancelled campaign
  * to draft, or stops a send in progress. Every operation keeps one
- * idempotency key per campaign until it succeeds (contract §1.7).
+ * idempotency key per campaign until it succeeds (contract §1.7); while one
+ * runs, the other controls explain why they wait.
  */
 
 export const CAMPAIGN_PANEL_ID = "campaign-panel";
-
-export const IRREVERSIBLE_MESSAGE = "Yuborilgan push xabarni qaytarib bo‘lmaydi.";
 
 type DialogKind = "approve" | "cancel" | "stop" | "delete" | "test";
 
@@ -85,6 +90,12 @@ export function CampaignPanel({
   onEdit,
   onClose,
 }: CampaignPanelProps) {
+  const t = useCopy(notificationsCopy);
+  const p = t.panel;
+  const d = t.dialogs;
+  const locale = useAdminLocale();
+  const kinds = notificationDataCopy[locale].kind;
+  const fmt = useFormat();
   const toast = useToast();
   const idBase = useId();
   const actions = new Set<CampaignAction>(allowedActions(record, me));
@@ -98,14 +109,44 @@ export function CampaignPanel({
   const keys = useRef(new Map<string, string>());
   const [pickedDevices, setPickedDevices] = useState<ReadonlySet<string>>(new Set());
 
+  const recommended = useRecommendedConfirm();
+
+  /**
+   * A promotion without a tap destination opens only the app's home page: asked once per
+   * revision before it is tested or approved (not at draft save, where it may be half done).
+   * «To‘ldirish» opens the editor when this admin may edit the campaign.
+   */
+  const openAfterLinkCheck = async (kind: "test" | "approve") => {
+    const missing = campaignRecommendedMissing({ kind: record.kind, link: record.link.kind });
+    const choice = await recommended.confirm(
+      missing.map((name) => ({ name, label: t.composer.link })),
+      {
+        description: d.noLinkLead,
+        remember: { kind: "campaign", id: `${record.id}@${record.revision}` },
+      },
+    );
+    if (choice === "fix") {
+      if (actions.has("edit")) {
+        await afterDialogsClose();
+        onEdit(record);
+      }
+      return;
+    }
+    if (missing.length > 0) await afterDialogsClose();
+    openDialog(kind);
+  };
+
   const openDialog = (kind: DialogKind) => {
     setDialogError(null);
     setPanelError(null);
     setShownDialog(kind);
     setDialog(kind);
     if (kind === "test") {
-      setPickedDevices(new Set((testDevices ?? []).filter((d) => d.isPushable).map((d) => d.id)));
+      setPickedDevices(new Set((testDevices ?? []).filter((x) => x.isPushable).map((x) => x.id)));
     }
+  };
+  const closeDialog = (open: boolean) => {
+    if (!open && !inFlight.current) setDialog(null);
   };
 
   /** Runs one operation with its own key and applies the shared outcome rules. */
@@ -136,6 +177,7 @@ export function CampaignPanel({
       replaceRecord: onReplace,
       dropRecord: onDrop,
       toast,
+      staleTitle: t.failed,
     });
   };
 
@@ -144,10 +186,11 @@ export function CampaignPanel({
       "approve",
       (key, csrf) => approveNotification(record.id, record.revision, key, csrf),
       (answered) => ({
-        title: "Yuborish tasdiqlandi",
+        tone: "success",
+        title: t.toasts.approved,
         description: answered.dispatchAfter
-          ? `${formatDateTimeShort(answered.dispatchAfter)} dan keyin yuboriladi; ungacha bekor qilish mumkin`
-          : "Ungacha bekor qilish mumkin",
+          ? t.toasts.approvedAt(fmt.dateTimeShort(answered.dispatchAfter))
+          : t.toasts.approvedNote,
       }),
       "approve",
     );
@@ -156,7 +199,11 @@ export function CampaignPanel({
     perform(
       "cancel",
       (key, csrf) => cancelNotification(record.id, key, csrf),
-      { title: "Xabar bekor qilindi", description: `«${record.title}» yuborilmaydi` },
+      {
+        tone: "success",
+        title: t.toasts.cancelled,
+        description: t.toasts.cancelledNote(record.title),
+      },
       "cancel",
     );
 
@@ -164,10 +211,7 @@ export function CampaignPanel({
     perform(
       "stop",
       (key, csrf) => stopNotification(record.id, key, csrf),
-      {
-        title: "To‘xtatish so‘raldi",
-        description: "Yuborish keyingi partiyadan oldin to‘xtaydi",
-      },
+      { tone: "success", title: t.toasts.stopRequested, description: t.toasts.stopNote },
       "stop",
     );
 
@@ -175,7 +219,7 @@ export function CampaignPanel({
     perform(
       "returnToDraft",
       (key, csrf) => returnNotificationToDraft(record.id, key, csrf),
-      { title: "Qoralamaga qaytarildi", description: "Yuborishdan oldin qayta test kerak" },
+      { tone: "success", title: t.toasts.returned, description: t.toasts.returnedNote },
       "returnToDraft",
     );
 
@@ -183,7 +227,7 @@ export function CampaignPanel({
     perform(
       "confirm",
       (key, csrf) => confirmCampaignTest(record.id, test.id, key, csrf),
-      { title: "Test tasdiqlandi", description: "Endi yuborishni tasdiqlash mumkin" },
+      { tone: "success", title: t.toasts.testConfirmed, description: t.toasts.testConfirmedNote },
       `confirm:${test.id}`,
     );
 
@@ -192,8 +236,9 @@ export function CampaignPanel({
       "test",
       (key, csrf) => sendCampaignTest(record.id, [...pickedDevices], key, csrf),
       {
-        title: "Test yuborildi",
-        description: `${pickedDevices.size} ta qurilmaga; ilovada ko‘rib, tasdiqlang`,
+        tone: "success",
+        title: t.toasts.testSent,
+        description: t.toasts.testSentNote(pickedDevices.size),
       },
       "test",
     );
@@ -212,14 +257,12 @@ export function CampaignPanel({
       if (
         result.code === "conflict" ||
         result.code === "invalid_transition" ||
-        result.code === "permission_denied"
+        result.code === "permission_denied" ||
+        result.code === "not_found"
       ) {
         setDialog(null);
-        toast({ tone: "info", title: "Amal bajarilmadi", description: result.error });
-      } else if (result.code === "not_found") {
-        setDialog(null);
-        onDrop(record.id);
-        toast({ tone: "info", title: "Amal bajarilmadi", description: result.error });
+        if (result.code === "not_found") onDrop(record.id);
+        toast({ tone: "warning", title: t.failed, description: result.error });
       } else {
         setDialogError(result.error);
       }
@@ -227,19 +270,25 @@ export function CampaignPanel({
     }
     setDialog(null);
     onDrop(record.id);
-    toast({ title: "Qoralama o‘chirildi", description: `«${record.title}»` });
+    toast({ tone: "success", title: t.toasts.deleted, description: `«${record.title}»` });
   };
 
   const confirmed = record.tests.find(
-    (t) => t.confirmedAt && t.revision === (record.testedRevision ?? record.revision),
+    (x) => x.confirmedAt && x.revision === (record.testedRevision ?? record.revision),
   );
-  const confirmable = new Set(confirmableTests(record).map((t) => t.id));
-  const pushableDevices = (testDevices ?? []).filter((d) => d.isPushable);
+  const confirmable = new Set(confirmableTests(record).map((x) => x.id));
+  const pushableDevices = (testDevices ?? []).filter((x) => x.isPushable);
   const eta =
     dialog === "approve" || shownDialog === "approve"
       ? dispatchEta(new Date(), approvalDelayMinutes, record.scheduledAt)
       : null;
   const busy = pending !== null;
+  /** Why a control waits while another operation of this panel runs. */
+  const waitReason = busy ? t.busyReason : null;
+  const audience = audienceText(record, locale);
+  const testLine = confirmed
+    ? p.testConfirmed(fmt.dateTimeShort(confirmed.confirmedAt!), confirmed.deviceLabel)
+    : null;
 
   return (
     <Card
@@ -253,19 +302,24 @@ export function CampaignPanel({
           <span className="flex flex-wrap items-center gap-2">
             <StateBadge state={record.state} />
             <span className="text-caption font-normal text-ink-muted">
-              {NOTIFICATION_KIND_LABEL[record.kind]} · {record.revision}-tahrir
+              {kinds[record.kind]} · {t.revision(record.revision)}
               {record.author ? ` · ${record.author}` : ""}
             </span>
           </span>
-          <CardTitle id={`${idBase}-title`} className="text-heading break-words">
+          <CardTitle
+            id={`${idBase}-title`}
+            className="text-heading [overflow-wrap:anywhere] break-words"
+          >
             {record.title}
           </CardTitle>
-          <p className="m-0 text-body text-ink">{record.body}</p>
+          <p className="m-0 text-body [overflow-wrap:anywhere] break-words text-ink">
+            {record.body}
+          </p>
         </div>
         <button
           type="button"
           onClick={onClose}
-          aria-label="Panelni yopish"
+          aria-label={p.close}
           className="flex size-9 shrink-0 items-center justify-center rounded-md text-ink-muted transition-colors duration-150 hover:bg-gold-soft hover:text-ink"
         >
           <Icon name="close" size={18} />
@@ -273,68 +327,62 @@ export function CampaignPanel({
       </div>
 
       <dl className="m-0 grid grid-cols-[repeat(auto-fit,minmax(min(200px,100%),1fr))] gap-x-6 gap-y-2 text-body-sm">
-        <Detail label="Kimga">{record.audienceLabel}</Detail>
-        <Detail label="Taxminiy qurilmalar">{formatNumber(record.recipientCount)} ta</Detail>
-        {record.linkLabel && <Detail label="Bosilganda">Mahsulot: {record.linkLabel}</Detail>}
+        <Detail label={p.audience}>{audience}</Detail>
+        <Detail label={p.estimate}>{p.deviceCount(record.recipientCount)}</Detail>
+        {record.linkLabel && <Detail label={p.onTap}>{p.product(record.linkLabel)}</Detail>}
         {record.linkUrl && (
-          <Detail label="Bosilganda">
+          <Detail label={p.onTap}>
             <span className="break-all">{record.linkUrl}</span>
           </Detail>
         )}
-        <Detail label="Yaratildi">
-          {formatDateTimeShort(record.createdAt)}
+        <Detail label={p.created}>
+          {fmt.dateTimeShort(record.createdAt)}
           {record.author ? ` · ${record.author}` : ""}
         </Detail>
         {record.scheduledAt && (
-          <Detail label="So‘ralgan vaqt">{formatDateTimeShort(record.scheduledAt)}</Detail>
+          <Detail label={p.requested}>{fmt.dateTimeShort(record.scheduledAt)}</Detail>
         )}
-        <Detail label="Test">
-          {confirmed
-            ? `Tasdiqlangan · ${formatDateTimeShort(confirmed.confirmedAt!)} · ${confirmed.deviceLabel}`
-            : record.tests.length > 0
-              ? "Yuborilgan, tasdiqlanmagan"
-              : "Yuborilmagan"}
+        <Detail label={p.test}>
+          {testLine ?? (record.tests.length > 0 ? p.testUnconfirmed : p.testNone)}
         </Detail>
         {record.approvedAt && (
-          <Detail label="Tasdiqlandi">
-            {formatDateTimeShort(record.approvedAt)}
+          <Detail label={p.approved}>
+            {fmt.dateTimeShort(record.approvedAt)}
             {record.approvedBy ? ` · ${record.approvedBy}` : ""}
           </Detail>
         )}
         {record.dispatchAfter && record.state === "scheduled" && (
-          <Detail label="Yuborish vaqti">
-            {formatDateTimeShort(record.dispatchAfter)} dan keyin
-          </Detail>
+          <Detail label={p.sendTime}>{p.after(fmt.dateTimeShort(record.dispatchAfter))}</Detail>
         )}
         {record.startedAt && (
-          <Detail label="Yuborish boshlandi">{formatDateTimeShort(record.startedAt)}</Detail>
+          <Detail label={p.started}>{fmt.dateTimeShort(record.startedAt)}</Detail>
         )}
         {record.attempted !== null && (
-          <Detail label="Yuborildi / xato">
-            {formatNumber(record.sent ?? 0)} / {formatNumber(record.failed ?? 0)}
+          <Detail label={p.sentFailed}>
+            {fmt.number(record.sent ?? 0)} / {fmt.number(record.failed ?? 0)}
             {record.state === "sending" || record.state === "stopping"
-              ? ` · ${formatNumber(record.attempted)} / ${formatNumber(record.recipientCount)}`
+              ? ` · ${fmt.number(record.attempted)} / ${fmt.number(record.recipientCount)}`
               : ""}
           </Detail>
         )}
         {record.delivered !== null && (
-          <Detail label="Yetkazildi">{formatNumber(record.delivered)}</Detail>
+          <Detail label={p.delivered}>{fmt.number(record.delivered)}</Detail>
         )}
-        {record.sentAt && <Detail label="Yakunlandi">{formatDateTimeShort(record.sentAt)}</Detail>}
+        {record.sentAt && <Detail label={p.finished}>{fmt.dateTimeShort(record.sentAt)}</Detail>}
         {record.stopRequestedAt && (
-          <Detail label="To‘xtatish so‘raldi">{formatDateTimeShort(record.stopRequestedAt)}</Detail>
+          <Detail label={p.stopRequested}>{fmt.dateTimeShort(record.stopRequestedAt)}</Detail>
         )}
         {record.stoppedAt && (
-          <Detail label="To‘xtatildi">{formatDateTimeShort(record.stoppedAt)}</Detail>
+          <Detail label={p.stopped}>{fmt.dateTimeShort(record.stoppedAt)}</Detail>
         )}
         {record.cancelledAt && (
-          <Detail label="Bekor qilindi">{formatDateTimeShort(record.cancelledAt)}</Detail>
+          <Detail label={p.cancelled}>{fmt.dateTimeShort(record.cancelledAt)}</Detail>
         )}
         {record.failedAt && (
-          <Detail label="Yuborilmadi">{formatDateTimeShort(record.failedAt)}</Detail>
+          <Detail label={p.failedAt}>{fmt.dateTimeShort(record.failedAt)}</Detail>
         )}
         {record.lastError && (
-          <Detail label="Oxirgi xato">
+          <Detail label={p.lastError}>
             <span className="text-danger-strong">{record.lastError}</span>
           </Detail>
         )}
@@ -343,7 +391,7 @@ export function CampaignPanel({
       {record.tests.length > 0 && (
         <section aria-labelledby={`${idBase}-tests`} className="flex flex-col gap-2">
           <h3 id={`${idBase}-tests`} className="m-0 text-label text-ink">
-            Test yuborishlar
+            {p.tests}
           </h3>
           <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
             {record.tests.map((test) => (
@@ -352,22 +400,22 @@ export function CampaignPanel({
                 className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-line px-3 py-2 text-body-sm"
               >
                 <span className="flex min-w-0 flex-col">
-                  <span className="font-semibold text-ink">{test.deviceLabel}</span>
+                  <span className="font-semibold break-words text-ink">{test.deviceLabel}</span>
                   <span className="text-caption font-normal text-ink-muted tabular-nums">
-                    {formatDateTimeShort(test.sentAt)} · {test.revision}-tahrir
+                    {fmt.dateTimeShort(test.sentAt)} · {t.revision(test.revision)}
                     {test.sentBy ? ` · ${test.sentBy}` : ""} ·{" "}
                     {test.fcmOk === null
-                      ? "FCM javobi kutilmoqda"
+                      ? p.fcmPending
                       : test.fcmOk
-                        ? "Qurilmaga yetkazildi"
-                        : `Yetkazilmadi${test.fcmError ? `: ${test.fcmError}` : ""}`}
-                    {test.revision !== record.revision && " · eski tahrir"}
+                        ? p.fcmDelivered
+                        : `${p.fcmRefused}${test.fcmError ? `: ${test.fcmError}` : ""}`}
+                    {test.revision !== record.revision && ` · ${p.oldRevision}`}
                   </span>
                 </span>
                 {test.confirmedAt ? (
                   <span className="flex items-center gap-1.5 text-body-sm font-semibold text-ink">
                     <Icon name="check" size={16} className="text-success" />
-                    Tasdiqlangan · {formatDateTimeShort(test.confirmedAt)}
+                    {p.confirmedAt(fmt.dateTimeShort(test.confirmedAt))}
                     {test.confirmedBy ? ` · ${test.confirmedBy}` : ""}
                   </span>
                 ) : actions.has("confirm") && confirmable.has(test.id) ? (
@@ -375,10 +423,10 @@ export function CampaignPanel({
                     size="sm"
                     variant="secondary"
                     onClick={() => confirm(test)}
-                    disabled={busy}
-                    aria-busy={pending === `confirm:${test.id}`}
+                    busy={pending === `confirm:${test.id}`}
+                    disabledReason={pending !== `confirm:${test.id}` && waitReason}
                   >
-                    Testni tasdiqlash
+                    {p.confirmTest}
                   </Button>
                 ) : null}
               </li>
@@ -392,56 +440,67 @@ export function CampaignPanel({
       {actions.size > 0 && (
         <div className="flex flex-wrap items-center gap-2 border-t border-line pt-4">
           {actions.has("edit") && (
-            <Button variant="secondary" onClick={() => onEdit(record)} disabled={busy}>
+            <Button variant="secondary" onClick={() => onEdit(record)} disabledReason={waitReason}>
               <Icon name="pencil" size={18} />
-              Tahrirlash
+              {p.edit}
             </Button>
           )}
           {actions.has("delete") && (
-            <Button variant="danger" onClick={() => openDialog("delete")} disabled={busy}>
+            <Button
+              variant="danger"
+              onClick={() => openDialog("delete")}
+              disabledReason={waitReason}
+            >
               <Icon name="trash" size={18} />
-              O‘chirish
+              {p.delete}
             </Button>
           )}
           {actions.has("test") && (
-            <Button variant="secondary" onClick={() => openDialog("test")} disabled={busy}>
+            <Button
+              variant="secondary"
+              onClick={() => void openAfterLinkCheck("test")}
+              disabledReason={waitReason}
+            >
               <Icon name="smartphone" size={18} />
-              Test yuborish
+              {p.sendTest}
             </Button>
           )}
           {actions.has("approve") && (
-            <Button onClick={() => openDialog("approve")} disabled={busy}>
+            <Button onClick={() => void openAfterLinkCheck("approve")} disabledReason={waitReason}>
               <Icon name="shield-check" size={18} />
-              Yuborishni tasdiqlash
+              {p.approve}
             </Button>
           )}
           {record.state === "tested" && !actions.has("approve") && me.isSuperuser && (
-            <span className="text-body-sm text-ink-muted">
-              Test eski tahrir uchun: tasdiqlashdan oldin qayta test yuboring.
-            </span>
+            <span className="text-body-sm text-ink-muted">{p.staleTest}</span>
           )}
           {actions.has("cancel") && (
             <CancelButton
+              t={t}
               dispatchAfter={record.dispatchAfter}
               onClick={() => openDialog("cancel")}
-              disabled={busy}
+              disabledReason={waitReason}
             />
           )}
           {actions.has("returnToDraft") && (
             <Button
               variant="outline"
               onClick={returnToDraft}
-              disabled={busy}
-              aria-busy={pending === "returnToDraft"}
+              busy={pending === "returnToDraft"}
+              disabledReason={pending !== "returnToDraft" && waitReason}
             >
               <Icon name="refresh" size={18} />
-              Qoralamaga qaytarish
+              {p.returnToDraft}
             </Button>
           )}
           {actions.has("stop") && (
-            <Button variant="destructive" onClick={() => openDialog("stop")} disabled={busy}>
+            <Button
+              variant="destructive"
+              onClick={() => openDialog("stop")}
+              disabledReason={waitReason}
+            >
               <Icon name="alert-triangle" size={18} />
-              Favqulodda to‘xtatish
+              {p.stop}
             </Button>
           )}
         </div>
@@ -449,147 +508,108 @@ export function CampaignPanel({
 
       <AlertDialog
         open={dialog === "approve"}
-        onOpenChange={(open) => !open && !inFlight.current && setDialog(null)}
-        title="Yuborish tasdiqlansinmi?"
+        onOpenChange={closeDialog}
+        title={d.approveTitle}
         description={
           <dl className="m-0 flex flex-col gap-1.5 text-[14px] leading-5 text-ink">
-            <Detail label="Sarlavha">{record.title}</Detail>
-            <Detail label="Matn">{record.body}</Detail>
-            <Detail label="Kimga">{record.audienceLabel}</Detail>
-            <Detail label="Taxminiy qurilmalar (oxirgi saqlashda)">
-              {formatNumber(record.recipientCount)} ta
-            </Detail>
-            <Detail label="Test">
-              {confirmed
-                ? `Tasdiqlangan · ${formatDateTimeShort(confirmed.confirmedAt!)} · ${confirmed.deviceLabel}`
-                : "Tasdiqlanmagan"}
-            </Detail>
-            <Detail label="Yuborish vaqti">
-              {eta ? `${formatDateTimeShort(eta)} dan keyin` : "—"}
-              {record.scheduledAt ? "" : ` (${approvalDelayMinutes} daqiqa kutish)`}
+            <Detail label={p.title}>{record.title}</Detail>
+            <Detail label={p.body}>{record.body}</Detail>
+            <Detail label={p.audience}>{audience}</Detail>
+            <Detail label={p.estimateAtSave}>{p.deviceCount(record.recipientCount)}</Detail>
+            <Detail label={p.test}>{testLine ?? p.testNotConfirmed}</Detail>
+            <Detail label={p.sendTime}>
+              {eta ? p.after(fmt.dateTimeShort(eta)) : "—"}
+              {record.scheduledAt ? "" : ` (${p.waitMinutes(approvalDelayMinutes)})`}
             </Detail>
             <p className="m-0 mt-1 font-semibold">
-              Ungacha yuborishni bekor qilish mumkin. {IRREVERSIBLE_MESSAGE}
+              {d.approveNote} {d.irreversible}
             </p>
           </dl>
         }
       >
         {dialogError && <InlineError>{dialogError}</InlineError>}
-        <div className="mt-1.5 flex flex-wrap justify-end gap-2">
-          <AlertDialogCancel disabled={busy} className={buttonStyles({ variant: "outline" })}>
-            Orqaga
-          </AlertDialogCancel>
-          <Button onClick={approve} disabled={busy} aria-busy={pending === "approve"}>
+        <DialogButtons back={t.back} waitReason={waitReason}>
+          <Button onClick={approve} busy={pending === "approve"}>
             <Icon name="shield-check" size={18} />
-            {pending === "approve" ? "Tasdiqlanmoqda…" : "Yuborishni tasdiqlash"}
+            {pending === "approve" ? d.approving : p.approve}
           </Button>
-        </div>
+        </DialogButtons>
       </AlertDialog>
 
       <AlertDialog
         open={dialog === "cancel"}
-        onOpenChange={(open) => !open && !inFlight.current && setDialog(null)}
-        title="Yuborish bekor qilinsinmi?"
+        onOpenChange={closeDialog}
+        title={d.cancelTitle}
         description={
           <div className="flex flex-col gap-1.5 text-[14px] leading-5 text-ink">
             <p className="m-0">
-              «{record.title}» yuborilmaydi
-              {record.dispatchAfter
-                ? ` (${formatDateTimeShort(record.dispatchAfter)} ga rejalashtirilgan)`
-                : ""}
-              . Bekor qilingan xabarni qoralamaga qaytarib, qayta test va tasdiqdan o‘tkazish
-              mumkin.
+              {d.cancelText(
+                record.title,
+                record.dispatchAfter ? fmt.dateTimeShort(record.dispatchAfter) : null,
+              )}
             </p>
             {record.dispatchAfter && dialog === "cancel" && (
-              <CountdownLine dispatchAfter={record.dispatchAfter} />
+              <CountdownLine t={t} dispatchAfter={record.dispatchAfter} />
             )}
           </div>
         }
       >
         {dialogError && <InlineError>{dialogError}</InlineError>}
-        <div className="mt-1.5 flex flex-wrap justify-end gap-2">
-          <AlertDialogCancel disabled={busy} className={buttonStyles({ variant: "outline" })}>
-            Orqaga
-          </AlertDialogCancel>
-          <Button
-            variant="destructive"
-            onClick={cancel}
-            disabled={busy}
-            aria-busy={pending === "cancel"}
-          >
-            {pending === "cancel" ? "Bekor qilinmoqda…" : "Yuborishni bekor qilish"}
+        <DialogButtons back={t.back} waitReason={waitReason}>
+          <Button variant="destructive" onClick={cancel} busy={pending === "cancel"}>
+            {pending === "cancel" ? d.cancelling : p.cancelSend}
           </Button>
-        </div>
+        </DialogButtons>
       </AlertDialog>
 
       <AlertDialog
         open={dialog === "stop"}
-        onOpenChange={(open) => !open && !inFlight.current && setDialog(null)}
-        title="Yuborish favqulodda to‘xtatilsinmi?"
+        onOpenChange={closeDialog}
+        title={d.stopTitle}
         description={
           <p className="m-0 text-[14px] leading-5 text-ink">
-            «{record.title}» yuborilishi keyingi partiyadan oldin to‘xtaydi; qolgan qurilmalarga
-            xabar bormaydi. Allaqachon yuborilgan {formatNumber(record.sent ?? 0)} ta xabarni
-            qaytarib bo‘lmaydi.
+            {d.stopText(record.title, fmt.number(record.sent ?? 0))}
           </p>
         }
       >
         {dialogError && <InlineError>{dialogError}</InlineError>}
-        <div className="mt-1.5 flex flex-wrap justify-end gap-2">
-          <AlertDialogCancel disabled={busy} className={buttonStyles({ variant: "outline" })}>
-            Orqaga
-          </AlertDialogCancel>
-          <Button
-            variant="destructive"
-            onClick={stop}
-            disabled={busy}
-            aria-busy={pending === "stop"}
-          >
+        <DialogButtons back={t.back} waitReason={waitReason}>
+          <Button variant="destructive" onClick={stop} busy={pending === "stop"}>
             <Icon name="alert-triangle" size={18} />
-            {pending === "stop" ? "To‘xtatilmoqda…" : "To‘xtatish"}
+            {pending === "stop" ? d.stopping : d.stopConfirm}
           </Button>
-        </div>
+        </DialogButtons>
       </AlertDialog>
 
       <AlertDialog
         open={dialog === "delete"}
-        onOpenChange={(open) => !open && !inFlight.current && setDialog(null)}
-        title="Qoralama o‘chirilsinmi?"
+        onOpenChange={closeDialog}
+        title={d.deleteTitle}
         description={
-          <p className="m-0 text-[14px] leading-5 text-ink">
-            «{record.title}» va uning test yuborishlari o‘chiriladi. Bu amalni qaytarib bo‘lmaydi.
-          </p>
+          <p className="m-0 text-[14px] leading-5 text-ink">{d.deleteText(record.title)}</p>
         }
       >
         {dialogError && <InlineError>{dialogError}</InlineError>}
-        <div className="mt-1.5 flex flex-wrap justify-end gap-2">
-          <AlertDialogCancel disabled={busy} className={buttonStyles({ variant: "outline" })}>
-            Orqaga
-          </AlertDialogCancel>
-          <Button
-            variant="destructive"
-            onClick={remove}
-            disabled={busy}
-            aria-busy={pending === "delete"}
-          >
-            {pending === "delete" ? "O‘chirilmoqda…" : "O‘chirish"}
+        <DialogButtons back={t.back} waitReason={waitReason}>
+          <Button variant="destructive" onClick={remove} busy={pending === "delete"}>
+            {pending === "delete" ? d.deleting : p.delete}
           </Button>
-        </div>
+        </DialogButtons>
       </AlertDialog>
 
       <Dialog
         open={dialog === "test"}
-        onOpenChange={(open) => !open && !inFlight.current && setDialog(null)}
-        title="Test yuborish"
+        onOpenChange={closeDialog}
+        title={d.testTitle}
         description={
           pushableDevices.length > 0
-            ? `«${record.title}» tanlangan qurilmalarga haqiqiy push sifatida yuboriladi (${record.revision}-tahrir). Ilovada ko‘rib, tasdiqlang.`
-            : "Avval test qurilmasini ro‘yxatga oling (quyidagi «Test qurilmalari» kartasi)."
+            ? d.testText(record.title, t.revision(record.revision))
+            : d.testNoDevices
         }
       >
         {pushableDevices.length > 0 && (
           <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
-            <legend className="sr-only">Qurilmalar</legend>
+            <legend className="sr-only">{d.devices}</legend>
             {pushableDevices.map((device) => (
               <label
                 key={device.id}
@@ -598,21 +618,24 @@ export function CampaignPanel({
                 <input
                   type="checkbox"
                   checked={pickedDevices.has(device.id)}
-                  onChange={(event) =>
+                  aria-disabled={busy || undefined}
+                  onChange={(event) => {
+                    // While the test is being sent the choice is frozen (it is what was sent).
+                    if (inFlight.current) return;
+                    const on = event.target.checked;
                     setPickedDevices((current) => {
                       const next = new Set(current);
-                      if (event.target.checked) next.add(device.id);
+                      if (on) next.add(device.id);
                       else next.delete(device.id);
                       return next;
-                    })
-                  }
-                  disabled={busy}
+                    });
+                  }}
                   className="size-4 shrink-0 accent-gold-ink"
                 />
                 <span className="flex min-w-0 flex-col">
-                  {device.label}
+                  <span className="break-words">{device.label}</span>
                   <span className="text-caption font-normal text-ink-muted tabular-nums">
-                    {formatPhone(device.phone)}
+                    {fmt.phone(device.phone)}
                   </span>
                 </span>
               </label>
@@ -621,65 +644,90 @@ export function CampaignPanel({
         )}
         {dialogError && <InlineError>{dialogError}</InlineError>}
         <div className="mt-1.5 flex flex-wrap justify-end gap-2">
-          <Button variant="outline" onClick={() => setDialog(null)} disabled={busy}>
-            Orqaga
+          <Button variant="outline" onClick={() => setDialog(null)} disabledReason={waitReason}>
+            {t.back}
           </Button>
           {pushableDevices.length > 0 && (
             <Button
               onClick={sendTest}
-              disabled={busy || pickedDevices.size === 0}
-              aria-busy={pending === "test"}
+              busy={pending === "test"}
+              disabledReason={pending !== "test" && pickedDevices.size === 0 && d.pickDevice}
             >
               <Icon name="send" size={18} />
-              {pending === "test" ? "Yuborilmoqda…" : "Test yuborish"}
+              {pending === "test" ? d.sending : p.sendTest}
             </Button>
           )}
         </div>
       </Dialog>
+      {recommended.dialog}
     </Card>
+  );
+}
+
+/** «Orqaga» (Radix starts focus on it: the least destructive choice) and the dialog's action. */
+function DialogButtons({
+  back,
+  waitReason,
+  children,
+}: {
+  back: string;
+  waitReason: string | null;
+  children: ReactNode;
+}) {
+  return (
+    <div className="mt-1.5 flex flex-wrap justify-end gap-2">
+      <AlertDialogCancel asChild>
+        <Button variant="outline" disabledReason={waitReason}>
+          {back}
+        </Button>
+      </AlertDialogCancel>
+      {children}
+    </div>
   );
 }
 
 function Detail({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className="flex min-w-0 flex-col gap-0.5">
       <dt className="text-caption font-normal text-ink-muted">{label}</dt>
-      <dd className="m-0 font-semibold break-words text-ink">{children}</dd>
+      <dd className="m-0 font-semibold [overflow-wrap:anywhere] break-words text-ink">
+        {children}
+      </dd>
     </div>
   );
 }
 
 /** «Yuborishni bekor qilish · 4:59»: the time left until the beat may start the send. */
 function CancelButton({
+  t,
   dispatchAfter,
   onClick,
-  disabled,
+  disabledReason,
 }: {
+  t: NotificationsCopy;
   dispatchAfter: string | null;
   onClick: () => void;
-  disabled: boolean;
+  disabledReason: string | null;
 }) {
   const left = useCountdownTo(dispatchAfter);
   return (
-    <Button variant="danger" onClick={onClick} disabled={disabled}>
+    <Button variant="danger" onClick={onClick} disabledReason={disabledReason}>
       <Icon name="close" size={18} />
-      Yuborishni bekor qilish
+      {t.panel.cancelSend}
       {dispatchAfter && (
         <span className={cn("tabular-nums", left === 0 && "text-ink-muted")} aria-live="off">
-          · {left > 0 ? formatCountdown(left) : "vaqti keldi"}
+          · {left > 0 ? formatCountdown(left) : t.panel.due}
         </span>
       )}
     </Button>
   );
 }
 
-function CountdownLine({ dispatchAfter }: { dispatchAfter: string }) {
+function CountdownLine({ t, dispatchAfter }: { t: NotificationsCopy; dispatchAfter: string }) {
   const left = useCountdownTo(dispatchAfter);
   return (
     <p className="m-0 font-semibold tabular-nums" aria-live="off">
-      {left > 0
-        ? `Yuborishgacha ${formatCountdown(left)}`
-        : "Yuborish vaqti keldi: yuborish istalgan daqiqada boshlanishi mumkin."}
+      {left > 0 ? t.dialogs.countdown(formatCountdown(left)) : t.dialogs.countdownDue}
     </p>
   );
 }

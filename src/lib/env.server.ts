@@ -41,6 +41,34 @@ export const serverEnv = {
     if (value === undefined) return true;
     return value === "true" || value === "1";
   },
+  /**
+   * Mock mode only: the demo account must change its password first
+   * (`GLOWDERMA_MOCK_MUST_CHANGE`, default false), to preview the forced-change gate
+   * (`/admin/change-password`). Ignored in api mode, where `auth/me/` decides.
+   */
+  mockMustChange(): boolean {
+    const value = read("GLOWDERMA_MOCK_MUST_CHANGE");
+    return value === "true" || value === "1";
+  },
+  /**
+   * Mock mode only: whether e-mailed password links are offered
+   * (`GLOWDERMA_MOCK_EMAIL_INVITE`, default true; `capabilities.staff_email_invite` in api mode).
+   */
+  mockEmailInvite(): boolean {
+    const value = read("GLOWDERMA_MOCK_EMAIL_INVITE");
+    if (value === undefined) return true;
+    return value === "true" || value === "1";
+  },
+  /**
+   * Mock mode only: the demo account has the admin panel MFA on (`GLOWDERMA_MOCK_MFA`, default
+   * false), so the demo sign-in asks for the second step (code `123456`) and Settings shows MFA on;
+   * a choice made in Settings (the `gd_mock_mfa` cookie) overrides it in that browser. Ignored in
+   * api mode, where `auth/mfa/` decides.
+   */
+  mockMfa(): boolean {
+    const value = read("GLOWDERMA_MOCK_MFA");
+    return value === "true" || value === "1";
+  },
   /** Django origin without a trailing slash, e.g. `http://api:8000`. */
   apiUrl(): string {
     return required("GLOWDERMA_API_URL").replace(/\/+$/, "");

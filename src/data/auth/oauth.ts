@@ -2,6 +2,8 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypt
 
 import type { Route } from "next";
 
+import { authDataCopy, type AuthDataCopy } from "@/domain/copy/auth";
+
 import { safeNext } from "./next-param";
 
 /**
@@ -350,15 +352,22 @@ export function checkCallback(input: {
   return { ok: true, flow, code: input.code };
 }
 
-/** Uzbek messages for the callback failures this server detects itself. */
-export const CALLBACK_MESSAGES = {
-  no_flow: "Kirish so‘rovi eskirgan. Qayta urinib ko‘ring.",
-  provider_mismatch: "Kirish so‘rovi eskirgan. Qayta urinib ko‘ring.",
-  state_mismatch: "Kirish so‘rovi eskirgan. Qayta urinib ko‘ring.",
-  replayed: "Kirish so‘rovi eskirgan. Qayta urinib ko‘ring.",
-  denied: "Ijtimoiy tarmoq orqali kirish bekor qilindi.",
-  no_code: "Ijtimoiy tarmoq orqali kirish amalga oshmadi.",
-} as const satisfies Record<Extract<CallbackCheck, { ok: false }>["reason"], string>;
+/** The messages of the callback failures this server detects itself, in the language of `m`. */
+export function callbackMessages(
+  m: AuthDataCopy = authDataCopy.uz,
+): Record<Extract<CallbackCheck, { ok: false }>["reason"], string> {
+  return {
+    no_flow: m.callback.stale,
+    provider_mismatch: m.callback.stale,
+    state_mismatch: m.callback.stale,
+    replayed: m.callback.stale,
+    denied: m.callback.denied,
+    no_code: m.callback.failed,
+  };
+}
+
+/** The Uzbek ones (the default language). */
+export const CALLBACK_MESSAGES = callbackMessages();
 
 /* --- single use -------------------------------------------------------- */
 
@@ -572,7 +581,7 @@ export function oauthRedirectUri(origin: string, provider: OAuthProvider): strin
 export interface OAuthNotice {
   kind: "error" | "linked" | "demo";
   provider: OAuthProvider;
-  /** Uzbek text: the backend's message for an error. */
+  /** Text in the admin language of the request that sealed it (the backend's message for an error). */
   message: string;
   issuedAt: number;
 }

@@ -1,4 +1,7 @@
-import { formatDayMonthShort, formatMillions, tashkentParts } from "@/lib/format";
+import { createFormatter, tashkentParts } from "@/lib/format";
+import type { Locale } from "@/lib/i18n/locales";
+
+import { cashbackDataCopy } from "./copy/cashback";
 
 /**
  * Cashback rules from the "Cashback va QR qoidalari" backend board and the
@@ -60,9 +63,43 @@ export interface PolicyVersion {
   scheduled?: boolean;
   /** Contract §2.7 `state`; absent in the older demo rows (derived from the flags). */
   state?: PolicyVersionState;
+  /**
+   * What `summary`, `period` and `author` (Uzbek) were built from, so the history can word them
+   * in the admin language (`versionSummaryText`, `versionPeriodText`, `versionAuthorText`).
+   */
+  detail?: PolicyVersionDetail;
+}
+
+export interface PolicyVersionDetail {
+  tiers: ReadonlyArray<Pick<CashbackTier, "from" | "to" | "percent">>;
+  /** The previous non-superseded version's tiers; `null` for the first version. */
+  previous: ReadonlyArray<Pick<CashbackTier, "from" | "to" | "percent">> | null;
+  effectiveFrom: string;
+  /** Exclusive end; `null` while open-ended. */
+  effectiveTo: string | null;
+  /** The author's display name; `null` = the system (seed, migration). */
+  author: string | null;
 }
 
 export type LedgerEntryKind = "credit" | "debit" | "adjustment" | "reversal";
+
+/**
+ * What a ledger row's `source` and `note` (Uzbek) were built from (contract §5.3), so the card can
+ * word them in the admin language (`ledgerSourceText`, `ledgerNoteText`).
+ */
+export interface LedgerOrigin {
+  /** `order`, `billz_sale` or `admin` (a staff adjustment). */
+  type: "order" | "billz_sale" | "admin";
+  /** The order number or the Billz sale reference ("" when none). */
+  ref: string;
+  /** The adjusting staff member's display name; `null` when the API sent none. */
+  actor: string | null;
+  /** A credit's base (so‘m) and percent; `null` for other kinds. */
+  base: number | null;
+  percent: number | string | null;
+  /** An adjustment's reason (stored text, never translated). */
+  reason: string | null;
+}
 
 export interface LedgerEntry {
   id: string;
@@ -84,6 +121,8 @@ export interface LedgerEntry {
   policyVersion?: number;
   /** A credit whose base excluded promotional items. */
   promoExcluded?: boolean;
+  /** Structured `source` / `note`; rows without it show the strings as they are. */
+  origin?: LedgerOrigin;
 }
 
 export interface TierAnalysis {
@@ -256,14 +295,15 @@ export function percentString(bp: number): string {
  * `"1.00"` → `1`, `"1.50"` → `1,5`, `0.57` → `0,57`. A value that is not a
  * two-decimal percent is printed as given.
  */
-export function formatPercent(percent: number | string): string {
+export function formatPercent(percent: number | string, locale: Locale = "uz"): string {
+  const separator = locale === "en" ? "." : ",";
   const bp = basisPoints(percent);
-  if (bp === null) return String(percent).replace(".", ",");
+  if (bp === null) return String(percent).replace(/[.,]/, separator);
   const whole = Math.floor(bp / 100);
   const fraction = String(bp % 100)
     .padStart(2, "0")
     .replace(/0+$/, "");
-  return fraction ? `${whole},${fraction}` : String(whole);
+  return fraction ? `${whole}${separator}${fraction}` : String(whole);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -272,18 +312,20 @@ export function formatPercent(percent: number | string): string {
 
 type TierBand = Pick<CashbackTier, "from" | "to" | "percent">;
 
-const NBSP = "\u00a0";
-
-/** `MLN0(x)`: `formatMillions` without its NBSP `" mln"` suffix ("20"). */
-function millionsBare(value: number): string {
-  return formatMillions(value).replace(`${NBSP}mln`, "");
+/** `MLN0(x)`: the millions without their unit ("20"). */
+function millionsBare(value: number, locale: Locale): string {
+  return createFormatter(locale)
+    .millions(value)
+    .replace(/[\s\u00a0]*(mln|млн|M)$/, "");
 }
 
 /** `RANGE(t)`: "30–50 mln", or "50 mln dan" for an open top. */
-export function tierRange(tier: Pick<CashbackTier, "from" | "to">): string {
+export function tierRange(tier: Pick<CashbackTier, "from" | "to">, locale: Locale = "uz"): string {
+  const m = cashbackDataCopy[locale];
+  const mln = createFormatter(locale).millions;
   return tier.to === null
-    ? `${formatMillions(tier.from)} dan`
-    : `${millionsBare(tier.from)}–${formatMillions(tier.to)}`;
+    ? m.openRange(mln(tier.from))
+    : m.range(millionsBare(tier.from, locale), mln(tier.to));
 }
 
 const bandKey = (tier: TierBand) =>
@@ -298,14 +340,18 @@ const bandKey = (tier: TierBand) =>
 export function policySummary(
   tiers: ReadonlyArray<TierBand>,
   previous: ReadonlyArray<TierBand> | null,
+  locale: Locale = "uz",
 ): string {
+  const m = cashbackDataCopy[locale];
+  const mln = createFormatter(locale).millions;
+  const pct = (t: TierBand) => formatPercent(t.percent, locale);
   if (previous === null) {
     const parts = sortTiers(tiers).map((t) =>
       t.from === 0 && t.to !== null
-        ? `${formatMillions(t.to)} gacha ${formatPercent(t.percent)}%`
-        : `${tierRange(t)}: ${formatPercent(t.percent)}%`,
+        ? m.upTo(mln(t.to), pct(t))
+        : m.band(tierRange(t, locale), pct(t)),
     );
-    return `Boshlang‘ich: ${parts.join("; ")}`;
+    return m.initial(parts.join("; "));
   }
   const before = new Set(previous.map(bandKey));
   const after = new Set(tiers.map(bandKey));
@@ -313,19 +359,19 @@ export function policySummary(
   const removed = previous.filter((t) => !after.has(bandKey(t)));
   if (added.length > 0 && removed.length === 0) {
     return sortTiers(added)
-      .map((t) => `${tierRange(t)}: ${formatPercent(t.percent)}% qo‘shildi`)
+      .map((t) => m.bandAdded(m.band(tierRange(t, locale), pct(t))))
       .join("; ");
   }
-  if (removed.length > 0 && added.length === 0) return "Daraja olib tashlandi";
-  if (added.length > 0) return "Darajalar yangilandi";
-  return "Hisoblash qoidalari yangilandi";
+  if (removed.length > 0 && added.length === 0) return m.tierRemoved;
+  if (added.length > 0) return m.tiersUpdated;
+  return m.rulesUpdated;
 }
 
 const DAY_MS = 86_400_000;
 
-/** "1-okt 2026" */
-function dayMonthYear(iso: string): string {
-  return `${formatDayMonthShort(iso)} ${tashkentParts(iso).year}`;
+/** "1-okt 2026" · "1 окт 2026" · "1 Oct 2026" */
+function dayMonthYear(iso: string, locale: Locale): string {
+  return `${createFormatter(locale).dayMonthShort(iso)} ${tashkentParts(iso).year}`;
 }
 
 /**
@@ -334,18 +380,48 @@ function dayMonthYear(iso: string): string {
  * superseded version. `effectiveTo` is exclusive, so the last day is the one
  * before it.
  */
-export function policyPeriod(version: {
-  effectiveFrom: string;
-  effectiveTo: string | null;
-  state: PolicyVersionState;
-}): string {
+export function policyPeriod(
+  version: { effectiveFrom: string; effectiveTo: string | null; state: PolicyVersionState },
+  locale: Locale = "uz",
+): string {
+  const m = cashbackDataCopy[locale];
   const from = version.effectiveFrom;
-  if (version.state === "superseded") return `${dayMonthYear(from)} dan · almashtirildi`;
-  if (version.effectiveTo === null) return `${dayMonthYear(from)} dan`;
+  if (version.state === "superseded") {
+    return `${m.periodFrom(dayMonthYear(from, locale))} · ${m.superseded}`;
+  }
+  if (version.effectiveTo === null) return m.periodFrom(dayMonthYear(from, locale));
   const last = new Date(Date.parse(version.effectiveTo) - DAY_MS).toISOString();
   return tashkentParts(from).year === tashkentParts(last).year
-    ? `${formatDayMonthShort(from)} – ${dayMonthYear(last)}`
-    : `${dayMonthYear(from)} – ${dayMonthYear(last)}`;
+    ? `${createFormatter(locale).dayMonthShort(from)} – ${dayMonthYear(last, locale)}`
+    : `${dayMonthYear(from, locale)} – ${dayMonthYear(last, locale)}`;
+}
+
+/** The state of a history row (rows of the older demo carry only the flags). */
+export function versionState(version: PolicyVersion): PolicyVersionState {
+  return version.state ?? (version.active ? "active" : version.scheduled ? "scheduled" : "expired");
+}
+
+/** The history row's summary in `locale` (the Uzbek `summary` when the row has no detail). */
+export function versionSummaryText(version: PolicyVersion, locale: Locale): string {
+  const d = version.detail;
+  return d ? policySummary(d.tiers, d.previous, locale) : version.summary;
+}
+
+/** The history row's period in `locale`, following its current state (e.g. superseded after a save). */
+export function versionPeriodText(version: PolicyVersion, locale: Locale): string {
+  const d = version.detail;
+  if (!d) return version.period;
+  return policyPeriod(
+    { effectiveFrom: d.effectiveFrom, effectiveTo: d.effectiveTo, state: versionState(version) },
+    locale,
+  );
+}
+
+/** The history row's author; the system's versions read "Tizim" / "Система" / "System". */
+export function versionAuthorText(version: PolicyVersion, locale: Locale): string {
+  const d = version.detail;
+  if (!d) return version.author;
+  return d.author ?? cashbackDataCopy[locale].system;
 }
 
 /** Non-blocking notes of a saved version (contract §2.7 `warnings`). */
@@ -356,12 +432,61 @@ export interface TierWarning {
 }
 
 /** The toast text of the save warnings ("" when there are none). */
-export function tierWarningsText(warnings: ReadonlyArray<TierWarning>): string {
+export function tierWarningsText(
+  warnings: ReadonlyArray<TierWarning>,
+  locale: Locale = "uz",
+): string {
+  const m = cashbackDataCopy[locale];
+  const mln = createFormatter(locale).millions;
   return warnings
     .map((w) =>
       w.code === "gap" && w.to !== null
-        ? `${formatMillions(w.from)} – ${formatMillions(w.to)} so‘m oralig‘i uchun foiz yo‘q.`
-        : `${formatMillions(w.from)} so‘mdan yuqori xaridlar uchun foiz belgilanmagan.`,
+        ? m.warningGap(mln(w.from), mln(w.to))
+        : m.warningAbove(mln(w.from)),
     )
     .join(" ");
+}
+
+/* -------------------------------------------------------------------------- */
+/* Ledger rows (contract §5.3)                                                 */
+/* -------------------------------------------------------------------------- */
+
+/** `LedgerEntry.source`: "Buyurtma №10231", "Billz savdo S-88213" or the adjusting staff member. */
+export function ledgerSourceText(
+  entry: Pick<LedgerEntry, "source" | "origin">,
+  locale: Locale = "uz",
+): string {
+  const origin = entry.origin;
+  if (!origin) return entry.source;
+  const m = cashbackDataCopy[locale].ledger;
+  if (origin.type === "order") return m.order(origin.ref);
+  if (origin.type === "billz_sale") return m.billzSale(origin.ref);
+  return origin.actor || m.admin;
+}
+
+/** `LedgerEntry.note` (§5.3): the credit base and rate, the fixed debit/reversal text, or the reason. */
+export function ledgerNoteText(
+  entry: Pick<LedgerEntry, "kind" | "note" | "origin" | "promoExcluded">,
+  locale: Locale = "uz",
+): string {
+  const origin = entry.origin;
+  if (!origin) return entry.note;
+  const m = cashbackDataCopy[locale].ledger;
+  switch (entry.kind) {
+    case "credit": {
+      if (origin.base === null || origin.percent === null) return "";
+      const base = m.base(
+        createFormatter(locale).number(origin.base),
+        formatPercent(origin.percent, locale),
+      );
+      if (origin.type === "billz_sale") return m.receipt(base);
+      return entry.promoExcluded ? m.promoExcluded(base) : base;
+    }
+    case "debit":
+      return m.debit;
+    case "reversal":
+      return m.reversal;
+    case "adjustment":
+      return origin.reason ?? "";
+  }
 }

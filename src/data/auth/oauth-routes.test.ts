@@ -472,6 +472,10 @@ describe("GET /admin/auth/oauth/[provider]/callback", () => {
             linked_providers: ["google"],
             session_expires_at: "2026-10-26T22:00:00+05:00",
             auth_method: "google",
+            language: "uz",
+            must_change_password: false,
+            mfa_enabled: false,
+            capabilities: { staff_email_invite: false },
           },
         },
       });

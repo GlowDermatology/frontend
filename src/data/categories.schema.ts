@@ -1,49 +1,51 @@
 import { z } from "zod";
 
 import { CATEGORY_SLUG_PATTERN, isReservedCategorySlug } from "@/domain/category";
-
+import { catalogDataCopy, type CatalogDataCopy } from "@/domain/copy/catalog";
 import { emptySeo } from "@/domain/seo";
+import { localized, type LocalizedOf } from "@/lib/i18n/localized";
 
-import { imageFileSchema, seoFormSchema } from "./products.schema";
+import { imageFileSchemas, seoFormSchemas } from "./products.schema";
 
 /**
  * Validation for the category dialogs (contract §2.4), shared by the form and
- * the Server Actions. The slug is immutable after creation: the edit dialog
- * shows it read-only and `updateCategory` never sends it.
+ * the Server Actions, one schema per admin language (`categorySchemas[locale]`,
+ * messages from `catalogDataCopy`). The slug is immutable after creation: the
+ * edit dialog shows it read-only and `updateCategory` never sends it.
  */
 
-const optionalName = z.string().trim().max(60, "60 belgidan oshmasin.");
+function slugSchema(m: CatalogDataCopy) {
+  return z
+    .string()
+    .trim()
+    .regex(CATEGORY_SLUG_PATTERN, m.categorySlugInvalid)
+    .refine((slug) => !isReservedCategorySlug(slug), { error: m.slugReserved });
+}
 
-export const categorySlugSchema = z
-  .string()
-  .trim()
-  .regex(
-    CATEGORY_SLUG_PATTERN,
-    "Slug 2–40 ta kichik lotin harfi, raqam yoki defisdan iborat bo‘lsin.",
-  )
-  .refine((slug) => !isReservedCategorySlug(slug), { error: "Bu slug band." });
-
-export const categoryFormSchema = z.object({
-  slug: categorySlugSchema,
-  name: z.object({
-    uz: z
-      .string()
-      .trim()
-      .min(2, "O‘zbekcha nomni kiriting (kamida 2 belgi).")
-      .max(60, "60 belgidan oshmasin."),
-    ru: optionalName,
-    en: optionalName,
-  }),
-  isActive: z.boolean(),
-  /** Page title / meta description per language (B-W1). */
-  seo: seoFormSchema,
+export const categorySchemas = localized(catalogDataCopy, (m, locale) => {
+  const optionalName = z.string().trim().max(60, m.maxChars(60));
+  const form = z.object({
+    slug: slugSchema(m),
+    name: z.object({
+      uz: z.string().trim().min(2, m.categoryNameUzRequired).max(60, m.maxChars(60)),
+      ru: optionalName,
+      en: optionalName,
+    }),
+    isActive: z.boolean(),
+    /** Page title / meta description per language (B-W1). */
+    seo: seoFormSchemas[locale],
+  });
+  return {
+    slug: slugSchema(m),
+    form,
+    /** The editable part of an existing category (everything but the slug). */
+    edit: form.omit({ slug: true }),
+    image: imageFileSchemas[locale].optional(),
+  };
 });
 
-export type CategoryFormValues = z.infer<typeof categoryFormSchema>;
-
-/** The editable part of an existing category (everything but the slug). */
-export const categoryEditSchema = categoryFormSchema.omit({ slug: true });
-export type CategoryEditValues = z.infer<typeof categoryEditSchema>;
+export type CategoryFormValues = z.infer<LocalizedOf<typeof categorySchemas>["form"]>;
+export type CategoryEditValues = z.infer<LocalizedOf<typeof categorySchemas>["edit"]>;
 
 /**
  * The dialog's image change (gap ADM-5.1, contract §2.4), sent next to the
@@ -54,8 +56,6 @@ export interface CategoryImageChange {
   image: File | null;
   remove: boolean;
 }
-
-export const categoryImageSchema = imageFileSchema.optional();
 
 /** The dialog's image change → the `FormData` the actions take. */
 export function categoryMediaFormData(change: CategoryImageChange): FormData | null {

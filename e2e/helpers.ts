@@ -50,9 +50,13 @@ export function heading(page: Page) {
  */
 export const DESIGN_ORDER_IDS: ReadonlySet<number> = new Set([10248, 10249, 10250, 10251, 10252]);
 
-/** Text of the toast region (role="status"), for asserting a toast by its title. */
+/**
+ * A toast by its title (or any text in it). Every toast carries `data-toast` (and `data-tone`:
+ * success / info / warning / danger), wherever it is shown: successes and notes in the polite
+ * `role="status"` region, warnings and failures in the assertive `role="alert"` region.
+ */
 export function toast(page: Page, title: string | RegExp) {
-  return page.getByRole("status").filter({ hasText: title });
+  return page.locator("[data-toast]").filter({ hasText: title });
 }
 
 /**

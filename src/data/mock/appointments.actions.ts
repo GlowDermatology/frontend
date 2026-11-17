@@ -7,7 +7,8 @@ import {
   tashkentStart,
   type AppointmentStatus,
 } from "@/domain/appointment";
-import { toLocalIsoDate } from "@/lib/format";
+import { appointmentDataCopy, type AppointmentDataCopy } from "@/domain/copy/appointments";
+import { copyFor } from "@/lib/i18n/admin-locale";
 
 import type { DayAppointment } from "../appointments";
 import type { AppointmentAction } from "../appointments.actions";
@@ -15,15 +16,17 @@ import type { CreateAppointmentValues, RescheduleAppointmentValues } from "../ap
 import { referenceNow } from "../config";
 import type { ActionFailure, ActionResult } from "../types";
 import { delay } from "./delay";
-import { APPOINTMENTS, BOOKING_META, SPECIALISTS, type MockAppointment } from "./appointments";
+import { BOOKING_META, findAppointment, type MockAppointment } from "./appointments";
+import { getAppointmentDay } from "./appointments.queries";
 import { CUSTOMERS } from "./people";
 
 /**
  * Mock implementation of `src/data/appointments.actions.ts`: the appointment
  * is looked up by id in the fixture week and the change checked with the
- * domain rules and the backend's own field codes and messages (contract §2.9),
- * so the dialogs behave offline as they do against Django; nothing is
- * persisted or sent.
+ * domain rules and the backend's own field codes and messages (contract §2.9,
+ * in the admin language like the backend's `Accept-Language` answers), so the
+ * dialogs behave offline as they do against Django; nothing is persisted or
+ * sent.
  */
 
 const NEXT_STATUS: Record<AppointmentAction, AppointmentStatus> = {
@@ -32,50 +35,55 @@ const NEXT_STATUS: Record<AppointmentAction, AppointmentStatus> = {
   attend: "attended",
 };
 
-const INVALID_TRANSITION: ActionFailure = {
+const invalidTransition = (m: AppointmentDataCopy): ActionFailure => ({
   ok: false,
-  error: "Bu amal ushbu holatda mumkin emas.",
+  error: m.invalidTransition,
   code: "invalid_transition",
-};
-const NOT_FOUND: ActionFailure = { ok: false, error: "Qabul topilmadi.", code: "not_found" };
-
-const fieldError = (field: string, message: string): ActionFailure => ({
+});
+const notFound = (m: AppointmentDataCopy): ActionFailure => ({
   ok: false,
-  error: "Maydonlarni tekshiring.",
+  error: m.notFound,
+  code: "not_found",
+});
+
+const fieldError = (m: AppointmentDataCopy, field: string, message: string): ActionFailure => ({
+  ok: false,
+  error: m.checkFields,
   code: "validation_error",
   fieldErrors: { [field]: message },
 });
 
-const START_MESSAGES = {
-  invalid_step: "Vaqt 5 daqiqalik qadamda bo‘lsin.",
-  in_past: "Kelajakdagi vaqtni tanlang.",
-  outside_working_hours: "Mutaxassis bu vaqtda ishlamaydi.",
-  slot_unavailable: "Bu vaqt band.",
-} as const;
+const startMessage = (
+  m: AppointmentDataCopy,
+  problem: NonNullable<ReturnType<typeof bookingProblem>>,
+): string =>
+  ({
+    invalid_step: m.timeStep(BOOKING_META.slotStepMin),
+    in_past: m.inPast,
+    outside_working_hours: m.outsideWorkingHours,
+    slot_unavailable: m.slotUnavailable,
+  })[problem];
 
 const endOf = (start: string, durationMin: number) =>
   new Date(Date.parse(start) + durationMin * 60_000).toISOString().replace(".000Z", "Z");
 
-/** The `start` problem of a booking on the fixture day, as a `time` field error. */
-function startFailure(
+/** The `start` problem of a booking on the mock day, as a `time` field error. */
+async function startFailure(
+  m: AppointmentDataCopy,
   specialistId: string,
   date: string,
   time: string,
   durationMin: number,
   excludeId?: string,
-): ActionFailure | null {
+): Promise<ActionFailure | null> {
   const start = tashkentStart(date, time);
-  const day = {
-    specialists: SPECIALISTS,
-    appointments: APPOINTMENTS.filter((a) => toLocalIsoDate(a.start) === date),
-  };
   const problem = bookingProblem(
-    specialistSchedule(day, specialistId),
+    specialistSchedule(await getAppointmentDay(date), specialistId),
     minutesOfDay(time),
     durationMin,
     { inPast: Date.parse(start) <= referenceNow().getTime(), excludeId },
   );
-  return problem ? fieldError("time", START_MESSAGES[problem]) : null;
+  return problem ? fieldError(m, "time", startMessage(m, problem)) : null;
 }
 
 /** ISO with the Tashkent offset, the API's spelling (`2026-10-26T09:30:00+05:00`). */
@@ -89,9 +97,10 @@ export async function updateAppointment(
   action: AppointmentAction,
 ): Promise<ActionResult<MockAppointment>> {
   await delay(450);
-  const appointment = APPOINTMENTS.find((a) => a.id === id);
-  if (!appointment) return NOT_FOUND;
-  if (!appointmentActions(appointment.status).includes(action)) return INVALID_TRANSITION;
+  const m = await copyFor(appointmentDataCopy);
+  const appointment = findAppointment(id);
+  if (!appointment) return notFound(m);
+  if (!appointmentActions(appointment.status).includes(action)) return invalidTransition(m);
   return { ok: true, data: { ...appointment, status: NEXT_STATUS[action] } };
 }
 
@@ -99,13 +108,20 @@ export async function createAppointment(
   values: CreateAppointmentValues,
 ): Promise<ActionResult<DayAppointment>> {
   await delay(450);
+  const m = await copyFor(appointmentDataCopy);
   const specialist = BOOKING_META.specialists.find((s) => s.id === values.specialistId);
-  if (!specialist) return fieldError("specialistId", "Mutaxassis topilmadi.");
+  if (!specialist) return fieldError(m, "specialistId", m.specialistNotFound);
   const service = specialist.services.find((s) => s.id === values.serviceId);
-  if (!service) return fieldError("serviceId", "Mutaxassis bu xizmatni ko‘rsatmaydi.");
+  if (!service) return fieldError(m, "serviceId", m.serviceNotOffered);
   const customer = CUSTOMERS.find((c) => c.phone === values.phone);
-  if (!customer) return fieldError("phone", "Bu raqam bilan mijoz topilmadi.");
-  const failure = startFailure(specialist.id, values.date, values.time, service.durationMin);
+  if (!customer) return fieldError(m, "phone", m.customerNotFound);
+  const failure = await startFailure(
+    m,
+    specialist.id,
+    values.date,
+    values.time,
+    service.durationMin,
+  );
   if (failure) return failure;
   const start = tashkentStart(values.date, values.time);
   return {
@@ -133,15 +149,23 @@ export async function rescheduleAppointment(
   values: RescheduleAppointmentValues,
 ): Promise<ActionResult<DayAppointment>> {
   await delay(450);
-  const appointment = APPOINTMENTS.find((a) => a.id === id);
-  if (!appointment) return NOT_FOUND;
-  if (!canChangeAppointment(appointment.status)) return INVALID_TRANSITION;
+  const m = await copyFor(appointmentDataCopy);
+  const appointment = findAppointment(id);
+  if (!appointment) return notFound(m);
+  if (!canChangeAppointment(appointment.status)) return invalidTransition(m);
   const specialist = BOOKING_META.specialists.find((s) => s.id === values.specialistId);
-  if (!specialist) return fieldError("specialistId", "Mutaxassis topilmadi.");
+  if (!specialist) return fieldError(m, "specialistId", m.specialistNotFound);
   // Changing the specialist re-snapshots duration and price from that link.
   const service = specialist.services.find((s) => s.id === appointment.serviceId);
-  if (!service) return fieldError("specialistId", "Mutaxassis bu xizmatni ko‘rsatmaydi.");
-  const failure = startFailure(specialist.id, values.date, values.time, service.durationMin, id);
+  if (!service) return fieldError(m, "specialistId", m.serviceNotOffered);
+  const failure = await startFailure(
+    m,
+    specialist.id,
+    values.date,
+    values.time,
+    service.durationMin,
+    id,
+  );
   if (failure) return failure;
   const start = tashkentStart(values.date, values.time);
   const changedSpecialist = specialist.id !== appointment.specialistId;
@@ -163,8 +187,9 @@ export async function rescheduleAppointment(
 /** The reason is recorded on the backend's event; the demo has nowhere to keep it. */
 export async function cancelAppointment(id: string): Promise<ActionResult<DayAppointment>> {
   await delay(450);
-  const appointment = APPOINTMENTS.find((a) => a.id === id);
-  if (!appointment) return NOT_FOUND;
-  if (!canChangeAppointment(appointment.status)) return INVALID_TRANSITION;
+  const m = await copyFor(appointmentDataCopy);
+  const appointment = findAppointment(id);
+  if (!appointment) return notFound(m);
+  if (!canChangeAppointment(appointment.status)) return invalidTransition(m);
   return { ok: true, data: { ...appointment, status: "cancelled" } };
 }

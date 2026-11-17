@@ -1,13 +1,14 @@
 import type { FulfilmentCounters } from "@/domain/dashboard";
 import { ORDER_STATUSES, type Order, type OrderStatus, type OrderSummary } from "@/domain/order";
 import { tashkentParts, toLocalIsoDate } from "@/lib/format";
+import type { Locale } from "@/lib/i18n/locales";
 
 import { referenceNow } from "../config";
 import type { OrderFilters, OrderListQuery, OrderPeriod } from "../orders";
 import { paginate, type Page } from "../types";
 import {
-  buildOrderDetail,
   deliveredAtOf,
+  orderDetailIn,
   DELIVERY_ISSUES,
   orderSeed,
   ORDER_SEEDS,
@@ -88,9 +89,9 @@ export async function getOrderStatusCounts(
   return { all: filtered.length, ...counts };
 }
 
-export async function getOrder(id: number): Promise<Order | null> {
+export async function getOrder(id: number, locale: Locale = "uz"): Promise<Order | null> {
   const seed = orderSeed(id);
-  return seed ? buildOrderDetail(seed) : null;
+  return seed ? orderDetailIn(seed, locale) : null;
 }
 
 export async function getRecentOrders(limit: number): Promise<OrderSummary[]> {

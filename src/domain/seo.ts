@@ -1,3 +1,6 @@
+import type { Locale } from "@/lib/i18n/locales";
+
+import { catalogDataCopy } from "./copy/catalog";
 import type { ContentLanguage } from "./product";
 
 /**
@@ -15,14 +18,17 @@ export const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const PRODUCT_SLUG_MAX = 140;
 export const SPECIALIST_SLUG_MAX = 160;
 
-/** The API's `invalid` message for a slug (§2.3, §2.17). */
-export const SLUG_INVALID_MESSAGE =
-  "Faqat lotin kichik harflari, raqamlar va chiziqcha (faqat raqam emas).";
+/** The API's `invalid` message for a slug (§2.3, §2.17), in Uzbek (the backend's source text). */
+export const SLUG_INVALID_MESSAGE = catalogDataCopy.uz.slugInvalid;
 
-/** Why `slug` is refused, or `null` when it is a valid website slug of at most `max` characters. */
-export function slugProblem(slug: string, max: number): string | null {
-  if (slug.length > max) return `${max} belgidan oshmasin.`;
-  if (!SLUG_PATTERN.test(slug) || /^\d+$/.test(slug)) return SLUG_INVALID_MESSAGE;
+/**
+ * Why `slug` is refused (in `locale`), or `null` when it is a valid website slug of at most
+ * `max` characters.
+ */
+export function slugProblem(slug: string, max: number, locale: Locale = "uz"): string | null {
+  const t = catalogDataCopy[locale];
+  if (slug.length > max) return t.maxChars(max);
+  if (!SLUG_PATTERN.test(slug) || /^\d+$/.test(slug)) return t.slugInvalid;
   return null;
 }
 
@@ -158,11 +164,12 @@ export interface SeoStatus {
 
 export const SEO_SEVERITIES: ReadonlyArray<SeoSeverity> = ["error", "warning", "info"];
 
-export const SEO_SEVERITY_LABEL: Record<SeoSeverity, string> = {
-  error: "Xatolar",
-  warning: "Ogohlantirishlar",
-  info: "Maslahatlar",
-};
+/** @deprecated Uzbek only: use `seoSeverityLabel(severity, locale)`. */
+export const SEO_SEVERITY_LABEL: Record<SeoSeverity, string> = catalogDataCopy.uz.seo.severity;
+
+export function seoSeverityLabel(severity: SeoSeverity, locale: Locale = "uz"): string {
+  return catalogDataCopy[locale].seo.severity[severity];
+}
 
 export const SEO_LANGUAGE_CHIP: Record<ContentLanguage, string> = { uz: "UZ", ru: "RU", en: "EN" };
 
@@ -176,85 +183,99 @@ export function groupSeoIssues(
   })).filter((group) => group.issues.length > 0);
 }
 
+/**
+ * The text of a checklist issue in `locale`, from its `code` and `language` (DESIGN §G: the
+ * checklist is rendered from the code, so it follows the admin language whatever language the
+ * server wrote `message` in). An unknown code keeps the server's `message`.
+ */
+export function seoIssueText(
+  issue: Pick<SeoIssue, "code" | "language" | "message">,
+  locale: Locale = "uz",
+): string {
+  const t = catalogDataCopy[locale].seo;
+  const lang = t.language[issue.language ?? "uz"];
+  switch (issue.code) {
+    case "seo_title_missing":
+      return t.titleMissing(lang);
+    case "seo_title_short":
+      return t.titleShort(lang, SEO_TITLE_IDEAL.min);
+    case "seo_title_long":
+      return t.titleLong(lang, SEO_TITLE_IDEAL.max);
+    case "seo_description_missing":
+      return t.descriptionMissing(lang);
+    case "seo_description_short":
+      return t.descriptionShort(lang, SEO_DESCRIPTION_IDEAL.min);
+    case "seo_description_long":
+      return t.descriptionLong(lang, SEO_DESCRIPTION_IDEAL.max);
+    case "name_missing":
+      return t.nameMissing;
+    case "name_translation_missing":
+      return t.nameTranslationMissing(lang);
+    case "description_missing":
+      return t.productDescriptionMissing(lang);
+    case "description_short":
+      return t.productDescriptionShort(lang, DESCRIPTION_MIN);
+    case "images_missing":
+      return t.imagesMissing;
+    case "alt_text_fallback":
+      return t.altTextFallback;
+    case "category_missing":
+      return t.categoryMissing;
+    case "image_missing":
+      return t.imageMissing;
+    case "no_active_products":
+      return t.noActiveProducts;
+    default:
+      return issue.message;
+  }
+}
+
+/** The checklist with every issue worded in `locale` (from its code; see `seoIssueText`). */
+export function localizeSeoStatus(status: SeoStatus, locale: Locale): SeoStatus {
+  return {
+    ok: status.ok,
+    issues: status.issues.map((issue) => ({ ...issue, message: seoIssueText(issue, locale) })),
+  };
+}
+
 /* The checklist computed the way the server does (`catalog.seo`), for the
    demo data only: the API sends `seo_status` with every product and category. */
 
-const LANGUAGE_NAMES: Record<ContentLanguage, string> = {
-  uz: "o‘zbekcha",
-  ru: "ruscha",
-  en: "inglizcha",
-};
 const SEVERITY_ORDER: Record<SeoSeverity, number> = { error: 0, warning: 1, info: 2 };
 const DESCRIPTION_MIN = 80;
 
-const issue = (
-  code: SeoIssueCode,
-  severity: SeoSeverity,
-  message: string,
-  language: ContentLanguage | null = null,
-): SeoIssue => ({ code, severity, language, message });
+function issueFactory(locale: Locale) {
+  return (
+    code: SeoIssueCode,
+    severity: SeoSeverity,
+    language: ContentLanguage | null = null,
+  ): SeoIssue => ({
+    code,
+    severity,
+    language,
+    message: seoIssueText({ code, language, message: "" }, locale),
+  });
+}
 
-function metaIssues(seo: SeoTexts): SeoIssue[] {
+function metaIssues(seo: SeoTexts, locale: Locale): SeoIssue[] {
+  const issue = issueFactory(locale);
   const issues: SeoIssue[] = [];
   for (const language of LANGUAGES) {
-    const label = LANGUAGE_NAMES[language];
     const title = seo[language].title.trim();
     const description = seo[language].description.trim();
     if (!title) {
-      issues.push(
-        issue(
-          "seo_title_missing",
-          "info",
-          `SEO sarlavha (${label}) yo‘q: sayt nomdan foydalanadi.`,
-          language,
-        ),
-      );
+      issues.push(issue("seo_title_missing", "info", language));
     } else if (title.length < SEO_TITLE_IDEAL.min) {
-      issues.push(
-        issue(
-          "seo_title_short",
-          "warning",
-          `SEO sarlavha (${label}) juda qisqa: kamida ${SEO_TITLE_IDEAL.min} belgi yozing.`,
-          language,
-        ),
-      );
+      issues.push(issue("seo_title_short", "warning", language));
     } else if (title.length > SEO_TITLE_IDEAL.max) {
-      issues.push(
-        issue(
-          "seo_title_long",
-          "warning",
-          `SEO sarlavha (${label}) ${SEO_TITLE_IDEAL.max} belgidan uzun: qidiruvda kesiladi.`,
-          language,
-        ),
-      );
+      issues.push(issue("seo_title_long", "warning", language));
     }
     if (!description) {
-      issues.push(
-        issue(
-          "seo_description_missing",
-          "info",
-          `SEO tavsif (${label}) yo‘q: sayt uni tavsifdan yasaydi.`,
-          language,
-        ),
-      );
+      issues.push(issue("seo_description_missing", "info", language));
     } else if (description.length < SEO_DESCRIPTION_IDEAL.min) {
-      issues.push(
-        issue(
-          "seo_description_short",
-          "warning",
-          `SEO tavsif (${label}) juda qisqa: kamida ${SEO_DESCRIPTION_IDEAL.min} belgi yozing.`,
-          language,
-        ),
-      );
+      issues.push(issue("seo_description_short", "warning", language));
     } else if (description.length > SEO_DESCRIPTION_IDEAL.max) {
-      issues.push(
-        issue(
-          "seo_description_long",
-          "warning",
-          `SEO tavsif (${label}) ${SEO_DESCRIPTION_IDEAL.max} belgidan uzun: qidiruvda kesiladi.`,
-          language,
-        ),
-      );
+      issues.push(issue("seo_description_long", "warning", language));
     }
   }
   return issues;
@@ -274,72 +295,32 @@ export interface ProductSeoInput {
   seo: SeoTexts;
 }
 
-/** The product checklist (§2.3 «SEO holati»), as the server computes it. */
-export function productSeoStatus(product: ProductSeoInput): SeoStatus {
+/** The product checklist (§2.3 «SEO holati»), as the server computes it; messages in `locale`. */
+export function productSeoStatus(product: ProductSeoInput, locale: Locale = "uz"): SeoStatus {
+  const issue = issueFactory(locale);
   const issues: SeoIssue[] = [];
   const nameUz = product.texts.uz.name.trim();
-  if (!nameUz) {
-    issues.push(
-      issue("name_missing", "error", "O‘zbekcha nom yo‘q: sahifa Billz nomi bilan chiqadi.", "uz"),
-    );
-  }
+  if (!nameUz) issues.push(issue("name_missing", "error", "uz"));
   for (const language of ["ru", "en"] as const) {
     if (!product.texts[language].name.trim()) {
-      issues.push(
-        issue(
-          "name_translation_missing",
-          "warning",
-          `Nomning ${LANGUAGE_NAMES[language]} tarjimasi yo‘q.`,
-          language,
-        ),
-      );
+      issues.push(issue("name_translation_missing", "warning", language));
     }
   }
   for (const language of LANGUAGES) {
     const description = product.texts[language].description.trim();
-    const label = LANGUAGE_NAMES[language];
     if (!description) {
-      issues.push(
-        issue(
-          "description_missing",
-          language === "uz" ? "error" : "warning",
-          `Tavsif (${label}) yo‘q.`,
-          language,
-        ),
-      );
+      issues.push(issue("description_missing", language === "uz" ? "error" : "warning", language));
     } else if (description.length < DESCRIPTION_MIN) {
-      issues.push(
-        issue(
-          "description_short",
-          "warning",
-          `Tavsif (${label}) juda qisqa: kamida ${DESCRIPTION_MIN} belgi yozing.`,
-          language,
-        ),
-      );
+      issues.push(issue("description_short", "warning", language));
     }
   }
   if (product.imageCount === 0) {
-    issues.push(issue("images_missing", "error", "Mahsulotda rasm yo‘q."));
+    issues.push(issue("images_missing", "error"));
   } else if (!nameUz) {
-    issues.push(
-      issue(
-        "alt_text_fallback",
-        "warning",
-        "Rasmlarning alt matni mahsulot nomidan olinadi: o‘zbekcha nomni kiriting.",
-        "uz",
-      ),
-    );
+    issues.push(issue("alt_text_fallback", "warning", "uz"));
   }
-  if (!product.category) {
-    issues.push(
-      issue(
-        "category_missing",
-        "warning",
-        "Kategoriya tanlanmagan: sahifa katalog yo‘lida ko‘rinmaydi.",
-      ),
-    );
-  }
-  return toStatus([...issues, ...metaIssues(product.seo)]);
+  if (!product.category) issues.push(issue("category_missing", "warning"));
+  return toStatus([...issues, ...metaIssues(product.seo, locale)]);
 }
 
 export interface CategorySeoInput {
@@ -349,38 +330,16 @@ export interface CategorySeoInput {
   seo: SeoTexts;
 }
 
-/** The category checklist (§2.4 «SEO holati»), as the server computes it. */
-export function categorySeoStatus(category: CategorySeoInput): SeoStatus {
+/** The category checklist (§2.4 «SEO holati»), as the server computes it; messages in `locale`. */
+export function categorySeoStatus(category: CategorySeoInput, locale: Locale = "uz"): SeoStatus {
+  const issue = issueFactory(locale);
   const issues: SeoIssue[] = [];
   for (const language of ["ru", "en"] as const) {
     if (!category.name[language].trim()) {
-      issues.push(
-        issue(
-          "name_translation_missing",
-          "warning",
-          `Nomning ${LANGUAGE_NAMES[language]} tarjimasi yo‘q.`,
-          language,
-        ),
-      );
+      issues.push(issue("name_translation_missing", "warning", language));
     }
   }
-  if (!category.hasImage) {
-    issues.push(
-      issue(
-        "image_missing",
-        "warning",
-        "Kategoriya rasmi yo‘q: ijtimoiy tarmoqlarda umumiy rasm chiqadi.",
-      ),
-    );
-  }
-  if (category.activeProducts === 0) {
-    issues.push(
-      issue(
-        "no_active_products",
-        "warning",
-        "Kategoriyada faol mahsulot yo‘q: sahifa bo‘sh ko‘rinadi.",
-      ),
-    );
-  }
-  return toStatus([...issues, ...metaIssues(category.seo)]);
+  if (!category.hasImage) issues.push(issue("image_missing", "warning"));
+  if (category.activeProducts === 0) issues.push(issue("no_active_products", "warning"));
+  return toStatus([...issues, ...metaIssues(category.seo, locale)]);
 }

@@ -2,8 +2,8 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
-import { useId, useRef, useState, type ChangeEvent, type ReactNode } from "react";
-import { Controller, useForm, useWatch, type Path } from "react-hook-form";
+import { useId, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react";
+import { Controller, useForm, useWatch, type FieldErrors, type Path } from "react-hook-form";
 import { z } from "zod";
 
 import { Rings } from "@/components/brand/rings";
@@ -11,15 +11,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Combobox } from "@/components/ui/combobox";
 import { Field, TextArea, TextInput, labelClass } from "@/components/ui/field";
+import { FormErrorSummary } from "@/components/ui/form-errors";
+import { FormDateTimePicker, FormPhoneInput, FormSelect } from "@/components/ui/form-controls";
 import { Icon } from "@/components/ui/icon";
-import { SelectMenu } from "@/components/ui/menu";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { useToast } from "@/components/ui/toast";
 import { saveNotificationDraft, updateNotificationDraft } from "@/data/notifications.actions";
+import { notificationDataCopy } from "@/domain/copy/notifications";
 import {
   BODY_MAX,
   NOTIFICATION_IMAGE_TYPES,
-  NOTIFICATION_KIND_LABEL,
   TITLE_MAX,
   notificationImageProblem,
   type AudienceSegment,
@@ -28,13 +29,18 @@ import {
   type NotificationLink,
   type NotificationRecord,
 } from "@/domain/notification";
-import { isHttpsUrl, LINK_URL_MAX, LINK_URL_MESSAGE } from "@/lib/link-url";
-import { formatDateTimeShort, formatNumber, formatPhone } from "@/lib/format";
-import { maskPhone } from "@/lib/phone";
+import { fromLocalInput, toLocalInput } from "@/lib/datetime";
+import { useRhfReveal } from "@/lib/forms/rhf";
+import { useAdminLocale, useCopy } from "@/lib/i18n/admin-context";
+import { useFormat } from "@/lib/i18n/admin-hooks";
+import type { Locale } from "@/lib/i18n/locales";
+import { validationCopy } from "@/lib/i18n/validation-copy";
+import { isHttpsUrl, LINK_URL_MAX } from "@/lib/link-url";
 
 import { runAction } from "../shared/action-client";
 import { partitionFieldErrors } from "../shared/field-errors";
 import { useIdempotencyKey } from "../shared/idempotency";
+import { notificationsCopy } from "./copy";
 
 /**
  * The campaign composer (contract §2.8, campaign approval): writes a draft
@@ -43,35 +49,26 @@ import { useIdempotencyKey } from "../shared/idempotency";
  * Nothing is sent from here: a superuser tests and approves the draft from
  * the campaign panel, and the send starts after the approval delay. The
  * "send time" is the author's requested time; without one the send may start
- * as soon as the approval delay passed.
+ * as soon as the approval delay passed. A failed submit (in the form or from
+ * the server) lists the fields, toasts and reveals the first one; a promotion
+ * without a tap destination asks "save anyway?" first.
  */
 
-/** "2026-10-26T10:00" (datetime-local, Tashkent) ↔ ISO with +05:00. */
-const toLocalInput = (iso: string) => {
-  const shifted = new Date(new Date(iso).getTime() + 5 * 3_600_000);
-  return shifted.toISOString().slice(0, 16);
-};
-const fromLocalInput = (value: string) => `${value}:00+05:00`;
-
-const phoneDigits = (value: string) => value.replace(/\D/g, "");
-
-/** `now` is the server's render time: the schedule must be in its future. */
-const buildSchema = (now: string) =>
-  z
+/**
+ * The composer's rules in the admin language. `now` is the server's render
+ * time: a requested send time must be in its future. The phone is the
+ * `PhoneInput`'s value (`+998…`, partial while typed).
+ */
+export function composerSchema(now: string, locale: Locale) {
+  const v = validationCopy[locale];
+  const m = notificationDataCopy[locale].schema;
+  return z
     .object({
       kind: z.enum(["promo", "general"]),
-      title: z
-        .string()
-        .trim()
-        .min(3, "Sarlavhani kiriting (kamida 3 belgi).")
-        .max(TITLE_MAX, `${TITLE_MAX} belgidan oshmasin.`),
-      body: z
-        .string()
-        .trim()
-        .min(5, "Xabar matnini kiriting.")
-        .max(BODY_MAX, `${BODY_MAX} belgidan oshmasin.`),
+      title: z.string().trim().min(3, m.titleMin).max(TITLE_MAX, v.maxChars(TITLE_MAX)),
+      body: z.string().trim().min(5, m.bodyMin).max(BODY_MAX, v.maxChars(BODY_MAX)),
       link: z.string(),
-      linkUrl: z.string().trim().max(LINK_URL_MAX, `${LINK_URL_MAX} belgidan oshmasin.`),
+      linkUrl: z.string().trim().max(LINK_URL_MAX, v.maxChars(LINK_URL_MAX)),
       audience: z.enum(["all", "group", "one"]),
       segmentId: z.string(),
       phone: z.string(),
@@ -81,40 +78,32 @@ const buildSchema = (now: string) =>
     .superRefine((values, ctx) => {
       if (values.link === "url") {
         if (!values.linkUrl) {
-          ctx.addIssue({ code: "custom", path: ["linkUrl"], message: "Havolani kiriting." });
+          ctx.addIssue({ code: "custom", path: ["linkUrl"], message: m.linkUrlRequired });
         } else if (!isHttpsUrl(values.linkUrl)) {
-          ctx.addIssue({ code: "custom", path: ["linkUrl"], message: LINK_URL_MESSAGE });
+          ctx.addIssue({ code: "custom", path: ["linkUrl"], message: m.linkUrlHttps });
         }
       }
-      if (values.audience === "one" && !/^998\d{9}$/.test(phoneDigits(values.phone))) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["phone"],
-          message: "Telefon raqamni +998 XX XXX XX XX ko‘rinishida kiriting.",
-        });
+      if (values.audience === "group" && !values.segmentId) {
+        ctx.addIssue({ code: "custom", path: ["segmentId"], message: m.chooseGroup });
       }
-      if (
-        values.when === "later" &&
-        (!values.scheduledAt || new Date(fromLocalInput(values.scheduledAt)) <= new Date(now))
-      ) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["scheduledAt"],
-          message: "Kelajakdagi vaqtni tanlang.",
-        });
+      if (values.audience === "one" && !/^\+998\d{9}$/.test(values.phone)) {
+        ctx.addIssue({ code: "custom", path: ["phone"], message: m.phone });
+      }
+      if (values.when === "later") {
+        const at = fromLocalInput(values.scheduledAt);
+        if (!at) {
+          ctx.addIssue({ code: "custom", path: ["scheduledAt"], message: m.chooseTime });
+        } else if (Date.parse(at) <= Date.parse(now)) {
+          ctx.addIssue({ code: "custom", path: ["scheduledAt"], message: m.futureTime });
+        }
       }
     });
+}
 
-type Values = z.infer<ReturnType<typeof buildSchema>>;
+type Values = z.infer<ReturnType<typeof composerSchema>>;
 
 const linkKey = (link: NotificationLink) =>
   link.kind === "none" ? "none" : link.kind === "url" ? "url" : `product:${link.productId}`;
-const linkLabel = (link: NotificationLink) =>
-  link.kind === "none"
-    ? "Bosilganda: ilova ochiladi"
-    : link.kind === "url"
-      ? "Bosilganda: havola (URL)"
-      : "Bosilganda: mahsulot";
 
 /** The form values of a campaign opened for editing. */
 function valuesOf(
@@ -131,7 +120,7 @@ function valuesOf(
     audience: record.audience.type,
     segmentId:
       record.audience.type === "group" ? record.audience.segmentId : (segments[0]?.id ?? ""),
-    phone: record.audience.type === "one" ? formatPhone(record.audience.phone) : "",
+    phone: record.audience.type === "one" ? record.audience.phone : "",
     when: record.scheduledAt ? "later" : "asap",
     scheduledAt: toLocalInput(record.scheduledAt ?? defaultSchedule),
   };
@@ -172,17 +161,25 @@ export function Composer({
 }: ComposerProps) {
   // React Hook Form must re-run `register` after `reset()` (see ProductEditor).
   "use no memo";
+  const t = useCopy(notificationsCopy);
+  const c = t.composer;
+  const locale = useAdminLocale();
+  const words = notificationDataCopy[locale];
+  const fmt = useFormat();
   const toast = useToast();
   const idBase = useId();
+  const formRef = useRef<HTMLFormElement>(null);
   // The picked file travels with the FormData; `src` is its data URL, only for the preview.
   const [image, setImage] = useState<{ name: string; src: string; file: File } | null>(null);
   // Edit mode: the stored image stays unless the admin removes or replaces it.
   const [keepStoredImage, setKeepStoredImage] = useState(true);
   const [imageError, setImageError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const inFlight = useRef(false);
   // One key per compose form: reused on retries, renewed after each saved draft.
   const idempotency = useIdempotencyKey();
-  const [schema] = useState(() => buildSchema(now));
+  const schema = useMemo(() => composerSchema(now, locale), [now, locale]);
+  const resolver = useMemo(() => zodResolver(schema), [schema]);
 
   // The parent keys the composer by the edited campaign, so a mount is either
   // a fresh form (the demo's draft prefill, the customer card's recipient) or
@@ -197,7 +194,7 @@ export function Composer({
         linkUrl: draft?.link.kind === "url" ? draft.link.url : "",
         audience: recipient ? "one" : "all",
         segmentId: segments[0]?.id ?? "",
-        phone: recipient ? formatPhone(recipient.phone) : "",
+        phone: recipient?.phone ?? "",
         when: "asap",
         scheduledAt: toLocalInput(defaultSchedule),
       };
@@ -208,9 +205,20 @@ export function Composer({
     handleSubmit,
     reset,
     setError,
-    setValue,
     formState: { errors, isSubmitting },
-  } = useForm<Values>({ resolver: zodResolver(schema), defaultValues: defaults });
+  } = useForm<Values>({ resolver, defaultValues: defaults, shouldFocusError: false });
+  const labels = {
+    kind: c.kind,
+    title: c.title,
+    body: c.body,
+    link: c.link,
+    linkUrl: c.linkUrl,
+    audience: c.audience,
+    segmentId: c.group,
+    phone: c.phone,
+    scheduledAt: c.whenPicker,
+  };
+  const errorsUi = useRhfReveal<Values>({ formRef, labels, errors });
   const [title, body, audience, segmentId, when, scheduledAt, link, linkUrl] = useWatch({
     control,
     name: ["title", "body", "audience", "segmentId", "when", "scheduledAt", "link", "linkUrl"],
@@ -222,8 +230,9 @@ export function Composer({
       ? { kind: "url", url: linkUrl }
       : (linkOptions.find((l) => linkKey(l) === link) ?? { kind: "none" as const });
   const storedImage = editing && keepStoredImage && !image ? editing.imageUrl : null;
+  const previewAt = when === "later" ? fromLocalInput(scheduledAt) : null;
 
-  const submit = async (values: Values) => {
+  const save = async (values: Values) => {
     const scheduled = values.when === "later" ? fromLocalInput(values.scheduledAt) : null;
     const formData = new FormData();
     formData.set("kind", values.kind);
@@ -233,7 +242,7 @@ export function Composer({
     formData.set("linkUrl", selectedLink.kind === "url" ? values.linkUrl.trim() : "");
     formData.set("audience", values.audience);
     formData.set("segmentId", values.audience === "group" ? values.segmentId : "");
-    formData.set("phone", values.audience === "one" ? `+${phoneDigits(values.phone)}` : "");
+    formData.set("phone", values.audience === "one" ? values.phone : "");
     formData.set("scheduledAt", scheduled ?? "");
     if (image) formData.set("image", image.file, image.name);
     if (editing) {
@@ -249,7 +258,7 @@ export function Composer({
     );
     if (!result.ok) {
       // A message for a field this form does not show (e.g. a key the remap
-      // does not know) still reaches the admin as a toast.
+      // does not know, the image) still reaches the admin as a toast.
       const { fieldErrors, formError } = partitionFieldErrors(result, [
         "kind",
         "title",
@@ -261,35 +270,50 @@ export function Composer({
         ...(values.audience === "group" ? ["segmentId"] : []),
         ...(values.audience === "one" ? ["phone"] : []),
       ]);
+      const serverErrors: FieldErrors<Values> = {};
       for (const [path, message] of Object.entries(fieldErrors)) {
-        setError(path as Path<Values>, { message });
+        setError(path as Path<Values>, { type: "server", message });
+        serverErrors[path as keyof Values] = { type: "server", message };
       }
-      if (formError) toast({ tone: "info", title: "Saqlanmadi", description: formError });
+      if (formError) toast({ tone: "danger", title: c.notSaved, description: formError });
+      if (Object.keys(serverErrors).length > 0) errorsUi.onInvalid(serverErrors);
       return;
     }
+    errorsUi.clear();
     if (!editing) {
       reset({ ...defaults, title: "", body: "", audience: "all", phone: "" });
       if (image) setImage(null);
     }
     toast(
       editing
-        ? { title: "Qoralama yangilandi", description: "O‘zgarishdan keyin qayta test kerak" }
+        ? { tone: "success", title: c.updated, description: c.updatedNote }
         : {
-            title: "Qoralama saqlandi",
-            description: scheduled
-              ? `${formatDateTimeShort(scheduled)} ga so‘ralgan; test va tasdiqdan keyin yuboriladi`
-              : "Test va tasdiqdan keyin yuboriladi",
+            tone: "success",
+            title: c.saved,
+            description: scheduled ? c.savedFor(fmt.dateTimeShort(scheduled)) : c.savedAsap,
           },
     );
     onSaved(result.data, editing ? "updated" : "created");
+  };
+
+  const onValid = async (values: Values) => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    try {
+      // A promotion without a tap destination is asked about when it is tested or approved
+      // (`CampaignPanel`), not here: a draft may be saved half done.
+      await save(values);
+    } finally {
+      inFlight.current = false;
+    }
   };
 
   const onImage = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    // Checked before upload with the contract's messages; the server re-checks.
-    const problem = notificationImageProblem(file);
+    // Checked before upload with the contract's rules; the server re-checks.
+    const problem = notificationImageProblem(file, locale);
     if (problem) return setImageError(problem);
     setImageError(null);
     // The preview is the file's data URL (at most 5 MB after the check above); the file itself
@@ -303,50 +327,57 @@ export function Composer({
   };
 
   const audienceCards = [
-    { value: "all", label: "Barcha mijozlar", detail: `${formatNumber(totalDevices)} ta qurilma` },
+    { value: "all", label: c.audienceAll, detail: c.devices(totalDevices) },
     {
       value: "group",
-      label: "Guruh",
-      detail: segment ? `${segment.name} · ${formatNumber(segment.size)}` : "Guruh yo‘q",
+      label: c.audienceGroup,
+      detail: segment ? `${segment.name} · ${fmt.number(segment.size)}` : c.noGroups,
     },
     {
       value: "one",
-      label: "Bitta mijoz",
-      detail: recipient && audience === "one" ? recipient.name : "Telefon bo‘yicha qidirish",
+      label: c.audienceOne,
+      detail: recipient && audience === "one" ? recipient.name : c.byPhone,
     },
   ] as const;
+  const imageErrorId = `${idBase}-image-error`;
+  const busyReason = isSubmitting ? c.savingReason : null;
 
   return (
     <div id="composer" className="flex scroll-mt-4 flex-wrap items-start gap-4">
       <Card aria-labelledby={`${idBase}-new`} className="min-w-0 flex-[3_1_560px]">
-        <form noValidate onSubmit={handleSubmit(submit)} className="flex flex-col gap-4">
+        <form
+          ref={formRef}
+          noValidate
+          onSubmit={(event) => handleSubmit(onValid, errorsUi.onInvalid)(event)}
+          className="flex flex-col gap-4"
+        >
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <CardTitle id={`${idBase}-new`} className="text-heading">
-              {editing ? `Tahrirlash: «${editing.title}»` : "Yangi xabar"}
+            <CardTitle id={`${idBase}-new`} className="text-heading break-words">
+              {editing ? c.editTitle(editing.title) : c.newTitle}
             </CardTitle>
             <span className="text-caption font-normal text-ink-muted">
-              {editing
-                ? `${editing.revision}-tahrir · o‘zgarish test tasdig‘ini bekor qiladi`
-                : "Qoralama sifatida saqlanadi; yuborish test va tasdiqdan keyin"}
+              {editing ? c.editNote(t.revision(editing.revision)) : c.newNote}
             </span>
           </div>
 
-          <div className="flex flex-col gap-2">
+          <FormErrorSummary errors={errorsUi.summary} onSelect={errorsUi.select} />
+
+          <div className="flex flex-col gap-2" data-field="kind">
             <span aria-hidden="true" className={labelClass}>
-              Turi
+              {c.kind}
             </span>
             <Controller
               control={control}
               name="kind"
               render={({ field }) => (
                 <SegmentedControl<NotificationKind>
-                  label="Turi"
+                  label={c.kind}
                   size="sm"
                   value={field.value}
                   onChange={field.onChange}
                   options={[
-                    { value: "promo", label: NOTIFICATION_KIND_LABEL.promo },
-                    { value: "general", label: NOTIFICATION_KIND_LABEL.general },
+                    { value: "promo", label: words.kind.promo },
+                    { value: "general", label: words.kind.general },
                   ]}
                   className="self-start"
                 />
@@ -356,37 +387,57 @@ export function Composer({
           </div>
 
           <Field
-            label="Sarlavha"
+            label={c.title}
+            name="title"
             error={errors.title?.message}
             hint={
               <span className="block text-caption tabular-nums">
-                {title.length} / {TITLE_MAX}
+                {fmt.number(title.length)} / {fmt.number(TITLE_MAX)}
               </span>
             }
           >
-            {(c) => (
-              <TextInput {...c} {...register("title")} maxLength={TITLE_MAX} autoComplete="off" />
+            {(props) => (
+              <TextInput
+                {...props}
+                {...register("title")}
+                maxLength={TITLE_MAX}
+                autoComplete="off"
+              />
             )}
           </Field>
-          <Field label="Matn" error={errors.body?.message}>
-            {(c) => <TextArea {...c} {...register("body")} rows={3} maxLength={BODY_MAX} />}
+          <Field
+            label={c.body}
+            name="body"
+            error={errors.body?.message}
+            hint={
+              <span className="block text-caption tabular-nums">
+                {fmt.number(body.length)} / {fmt.number(BODY_MAX)}
+              </span>
+            }
+          >
+            {(props) => <TextArea {...props} {...register("body")} rows={3} maxLength={BODY_MAX} />}
           </Field>
 
           <div className="flex flex-wrap gap-3">
-            <div className="flex min-h-16 flex-[1_1_200px]">
+            <div
+              className="flex min-h-16 min-w-0 flex-[1_1_200px] rounded-md"
+              data-field="image"
+              data-invalid={imageError ? "true" : undefined}
+              tabIndex={imageError ? -1 : undefined}
+            >
               {image || storedImage ? (
-                <div className="flex flex-1 items-center gap-3 rounded-md border-[1.5px] border-line-strong px-3.5 py-2.5">
+                <div className="flex min-w-0 flex-1 items-center gap-3 rounded-md border-[1.5px] border-line-strong px-3.5 py-2.5">
                   {/* Local preview of an unsaved upload (data URL) or the stored image. */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={image?.src ?? storedImage ?? ""}
                     alt=""
-                    className="h-10 w-20 rounded-sm object-cover"
+                    className="h-10 w-20 shrink-0 rounded-sm object-cover"
                   />
                   <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="text-[14px] leading-5 font-bold text-ink">Rasm</span>
+                    <span className="text-[14px] leading-5 font-bold text-ink">{c.image}</span>
                     <span className="truncate text-caption font-normal text-ink-muted">
-                      {image?.name ?? "Saqlangan rasm"}
+                      {image?.name ?? c.storedImage}
                     </span>
                   </span>
                   <button
@@ -395,8 +446,8 @@ export function Composer({
                       setImage(null);
                       setKeepStoredImage(false);
                     }}
-                    aria-label="Rasmni olib tashlash"
-                    className="flex size-9 items-center justify-center rounded-md text-danger hover:bg-danger-soft"
+                    aria-label={c.removeImage}
+                    className="flex size-9 shrink-0 items-center justify-center rounded-md text-danger hover:bg-danger-soft"
                   >
                     <Icon name="trash" size={18} />
                   </button>
@@ -405,14 +456,13 @@ export function Composer({
                 <button
                   type="button"
                   onClick={() => fileRef.current?.click()}
-                  className="flex flex-1 items-center gap-3 rounded-md border-[1.5px] border-dashed border-line-strong px-3.5 py-2.5 text-left text-ink transition-colors duration-150 hover:bg-surface"
+                  aria-describedby={imageError ? imageErrorId : undefined}
+                  className={`flex flex-1 items-center gap-3 rounded-md border-[1.5px] border-dashed px-3.5 py-2.5 text-left text-ink transition-colors duration-150 hover:bg-surface ${imageError ? "border-danger" : "border-line-strong"}`}
                 >
                   <Icon name="image" size={22} className="shrink-0 text-gold-ink" />
                   <span className="flex flex-col">
-                    <span className="text-[14px] leading-5 font-bold">Rasm (ixtiyoriy)</span>
-                    <span className="text-caption font-normal text-ink-muted">
-                      JPEG, PNG yoki WebP · 5 MB gacha, 2:1
-                    </span>
+                    <span className="text-[14px] leading-5 font-bold">{c.imageOptional}</span>
+                    <span className="text-caption font-normal text-ink-muted">{c.imageHint}</span>
                   </span>
                 </button>
               )}
@@ -426,81 +476,84 @@ export function Composer({
                 onChange={onImage}
               />
             </div>
-            <Controller
-              control={control}
-              name="link"
-              render={({ field }) => (
-                <Combobox<string>
-                  label="Bosilganda ochiladigan sahifa"
-                  placeholder="Mahsulot nomi bo‘yicha qidirish"
-                  align="end"
-                  value={field.value}
-                  onValueChange={field.onChange}
-                  invalid={Boolean(errors.link)}
-                  describedBy={errors.link ? `${idBase}-link-error` : undefined}
-                  triggerClassName="h-auto min-h-16 flex-[1_1_200px] gap-3 border-[1.5px] px-3.5 py-2.5 text-left whitespace-normal"
-                  trigger={
-                    <>
-                      <Icon name="link" size={22} className="shrink-0 text-gold-ink" />
-                      <span className="flex flex-1 flex-col">
-                        <span className="text-[14px] leading-5 font-bold">
-                          {linkLabel(selectedLink)}
+            <div className="flex min-w-0 flex-[1_1_200px]" data-field="link">
+              <Controller
+                control={control}
+                name="link"
+                render={({ field }) => (
+                  <Combobox<string>
+                    label={c.link}
+                    placeholder={c.linkSearch}
+                    align="end"
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    invalid={Boolean(errors.link)}
+                    describedBy={errors.link ? `${idBase}-link-error` : undefined}
+                    triggerClassName="h-auto min-h-16 w-full min-w-0 gap-3 border-[1.5px] px-3.5 py-2.5 text-left whitespace-normal"
+                    trigger={
+                      <>
+                        <Icon name="link" size={22} className="shrink-0 text-gold-ink" />
+                        <span className="flex min-w-0 flex-1 flex-col">
+                          <span className="text-[14px] leading-5 font-bold">
+                            {c.linkKind[selectedLink.kind]}
+                          </span>
+                          <span className="text-caption font-normal [overflow-wrap:anywhere] break-words text-ink-muted">
+                            {selectedLink.kind === "product"
+                              ? selectedLink.label
+                              : selectedLink.kind === "url"
+                                ? selectedLink.url || c.linkEnterAddress
+                                : c.linkHome}
+                          </span>
                         </span>
-                        <span className="text-caption font-normal break-all text-ink-muted">
-                          {selectedLink.kind === "product"
-                            ? selectedLink.label
-                            : selectedLink.kind === "url"
-                              ? selectedLink.url || "Manzilni kiriting"
-                              : "Bosh sahifa"}
-                        </span>
-                      </span>
-                    </>
-                  }
-                  options={[
-                    ...linkOptions.slice(0, 1),
-                    { kind: "url" as const, url: "" },
-                    ...linkOptions.slice(1),
-                  ].map((option) => {
-                    const text =
-                      option.kind === "none"
-                        ? "Ilovaning bosh sahifasi"
-                        : option.kind === "url"
-                          ? "Havola (URL)"
-                          : `Mahsulot: ${option.label}`;
-                    return { value: linkKey(option), label: text, text };
-                  })}
-                />
-              )}
-            />
+                      </>
+                    }
+                    options={[
+                      ...linkOptions.slice(0, 1),
+                      { kind: "url" as const, url: "" },
+                      ...linkOptions.slice(1),
+                    ].map((option) => {
+                      const text =
+                        option.kind === "none"
+                          ? c.linkOption.none
+                          : option.kind === "url"
+                            ? c.linkOption.url
+                            : c.linkOption.product(option.label);
+                      return { value: linkKey(option), label: text, text };
+                    })}
+                  />
+                )}
+              />
+            </div>
           </div>
           {errors.link && (
             <InlineError id={`${idBase}-link-error`}>{errors.link.message}</InlineError>
           )}
+          {imageError && <InlineError id={imageErrorId}>{imageError}</InlineError>}
           {link === "url" && (
             <Field
-              label="Havola (URL)"
+              label={c.linkUrl}
+              name="linkUrl"
               error={errors.linkUrl?.message}
-              hint="Bildirishnoma bosilganda ilovada ochiladi. Faqat https:// bilan boshlanadigan to‘liq manzil."
+              hint={c.linkUrlHint}
             >
-              {(c) => (
+              {(props) => (
                 <TextInput
-                  {...c}
+                  {...props}
                   {...register("linkUrl")}
                   type="url"
                   inputMode="url"
                   autoComplete="off"
                   spellCheck={false}
                   maxLength={LINK_URL_MAX}
-                  placeholder="https://glowderma.uz/aksiya"
+                  placeholder={c.linkUrlPlaceholder}
                 />
               )}
             </Field>
           )}
-          {imageError && <InlineError>{imageError}</InlineError>}
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2" data-field="audience">
             <span id={`${idBase}-audience`} className={labelClass}>
-              Kimga
+              {c.audience}
             </span>
             <div
               role="radiogroup"
@@ -508,16 +561,16 @@ export function Composer({
               className="grid grid-cols-[repeat(auto-fit,minmax(min(160px,100%),1fr))] gap-2"
             >
               {audienceCards.map((card) => (
-                <label key={card.value} className="relative flex">
+                <label key={card.value} className="relative flex min-w-0">
                   <input
                     type="radio"
                     value={card.value}
                     {...register("audience")}
                     className="peer absolute inset-0 m-0 cursor-pointer appearance-none rounded-md focus-visible:outline-none"
                   />
-                  <span className="pointer-events-none flex min-h-16 w-full flex-col items-start gap-0.5 rounded-md border border-line-strong bg-surface-raised px-3.5 py-2.5 text-ink transition-colors duration-150 peer-checked:border-2 peer-checked:border-gold peer-checked:bg-gold-soft peer-hover:peer-not-checked:bg-surface peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-gold-ink peer-checked:[&>span:last-child]:text-ink">
+                  <span className="pointer-events-none flex min-h-16 w-full min-w-0 flex-col items-start gap-0.5 rounded-md border border-line-strong bg-surface-raised px-3.5 py-2.5 text-ink transition-colors duration-150 peer-checked:border-2 peer-checked:border-gold peer-checked:bg-gold-soft peer-hover:peer-not-checked:bg-surface peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-gold-ink peer-checked:[&>span:last-child]:text-ink">
                     <span className="text-[14px] leading-5 font-bold">{card.label}</span>
-                    <span className="text-caption font-normal text-ink-muted tabular-nums">
+                    <span className="max-w-full truncate text-caption font-normal text-ink-muted tabular-nums">
                       {card.detail}
                     </span>
                   </span>
@@ -530,82 +583,81 @@ export function Composer({
           {audience === "group" && (
             <div className="flex flex-wrap items-center gap-3">
               {segments.length > 0 && (
-                <Controller
-                  control={control}
+                <Field
+                  label={c.group}
                   name="segmentId"
-                  render={({ field }) => (
-                    <SelectMenu<string>
-                      label="Guruh"
-                      value={field.value}
-                      onValueChange={field.onChange}
-                      trigger={`Guruh: ${segment?.name ?? ""}`}
+                  error={errors.segmentId?.message}
+                  className="w-[320px] max-w-full"
+                >
+                  {(props) => (
+                    <FormSelect
+                      {...props}
+                      control={control}
+                      name="segmentId"
                       options={segments.map((s) => ({
                         value: s.id,
-                        label: `${s.name} · ${formatNumber(s.size)}`,
+                        label: s.name,
+                        description: c.devices(s.size),
                       }))}
                     />
                   )}
-                />
+                </Field>
               )}
               <Link
                 href="/admin/customers/groups"
                 className="text-body-sm font-semibold text-ink underline decoration-gold underline-offset-4"
               >
-                {segments.length > 0 ? "Guruhlarni boshqarish" : "Guruh yaratish"}
+                {segments.length > 0 ? c.manageGroups : c.createGroup}
               </Link>
-              {errors.segmentId && (
+              {segments.length === 0 && errors.segmentId && (
                 <InlineError className="basis-full">{errors.segmentId.message}</InlineError>
               )}
             </div>
           )}
           {audience === "one" && (
-            <Field label="Mijoz telefoni" error={errors.phone?.message} className="max-w-[320px]">
-              {(c) => (
-                <TextInput
-                  {...c}
-                  {...register("phone", {
-                    onChange: (event) => setValue("phone", maskPhone(event.target.value)),
-                  })}
-                  type="tel"
-                  inputMode="tel"
-                  autoComplete="off"
-                  placeholder="+998 90 123 45 67"
-                  className="tabular-nums"
-                />
-              )}
+            <Field
+              label={c.phone}
+              name="phone"
+              error={errors.phone?.message}
+              className="max-w-[320px]"
+            >
+              {(props) => <FormPhoneInput {...props} control={control} name="phone" />}
             </Field>
           )}
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-start gap-3">
             <Controller
               control={control}
               name="when"
               render={({ field }) => (
                 <SegmentedControl<"asap" | "later">
-                  label="Yuborish vaqti"
+                  label={c.when}
                   size="sm"
                   value={field.value}
                   onChange={field.onChange}
                   options={[
-                    { value: "asap", label: "Tasdiqlangach" },
-                    { value: "later", label: "Rejalashtirish" },
+                    { value: "asap", label: c.asap },
+                    { value: "later", label: c.later },
                   ]}
                 />
               )}
             />
             {when === "later" && (
-              <label className="flex h-11 items-center gap-2 rounded-md border-[1.5px] border-line-strong px-3 text-ink focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-gold-ink has-[[aria-invalid=true]]:border-danger">
-                <Icon name="calendar" size={18} className="text-gold-ink" />
-                <span className="sr-only">Yuborish vaqti (Toshkent)</span>
-                <input
-                  type="datetime-local"
-                  {...register("scheduledAt")}
-                  min={toLocalInput(now)}
-                  aria-invalid={errors.scheduledAt ? true : undefined}
-                  aria-describedby={errors.scheduledAt ? `${idBase}-when-error` : undefined}
-                  className="bg-transparent text-[14px] font-semibold tabular-nums focus-visible:outline-none"
-                />
-              </label>
+              <Field
+                label={c.whenPicker}
+                name="scheduledAt"
+                error={errors.scheduledAt?.message}
+                className="w-[260px] max-w-full [&>label]:sr-only"
+              >
+                {(props) => (
+                  <FormDateTimePicker
+                    {...props}
+                    control={control}
+                    name="scheduledAt"
+                    min={toLocalInput(now)}
+                  />
+                )}
+              </Field>
             )}
             <span className="flex-1" />
             {editing && (
@@ -613,19 +665,16 @@ export function Composer({
                 type="button"
                 variant="outline"
                 onClick={onCancelEdit}
-                disabled={isSubmitting}
+                disabledReason={busyReason}
               >
-                Bekor
+                {c.cancelEdit}
               </Button>
             )}
-            <Button type="submit" className="px-5" disabled={isSubmitting} aria-busy={isSubmitting}>
+            <Button type="submit" className="px-5" busy={isSubmitting}>
               <Icon name={editing ? "check" : "send"} size={18} />
-              {isSubmitting ? "Saqlanmoqda…" : editing ? "Saqlash" : "Qoralama saqlash"}
+              {isSubmitting ? c.saving : editing ? c.save : c.saveDraft}
             </Button>
           </div>
-          {errors.scheduledAt && (
-            <InlineError id={`${idBase}-when-error`}>{errors.scheduledAt.message}</InlineError>
-          )}
         </form>
       </Card>
 
@@ -645,9 +694,9 @@ export function Composer({
         />
         <h2
           id={`${idBase}-preview`}
-          className="relative m-0 text-[11px] leading-[14px] font-bold tracking-[0.08em] text-banner-ink"
+          className="relative m-0 text-[11px] leading-[14px] font-bold tracking-[0.08em] text-banner-ink uppercase"
         >
-          TELEFONDA KO‘RINISHI
+          {c.previewHeading}
         </h2>
         <div className="relative mt-6 mb-8 flex gap-3 rounded-lg bg-[#fbf8f2f2] p-3.5 shadow-[0_18px_40px_-12px_#000000aa]">
           <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-[#2b2620] text-[#c9a24b]">
@@ -655,18 +704,16 @@ export function Composer({
           </span>
           <span className="flex min-w-0 flex-1 flex-col gap-0.5">
             <span className="flex justify-between gap-2 text-caption font-normal text-[#7a705d]">
-              <span className="font-bold">GLOW DERMA</span>
-              <span>
-                {when === "later" && scheduledAt
-                  ? formatDateTimeShort(fromLocalInput(scheduledAt))
-                  : "tasdiqlangach"}
+              <span className="font-bold uppercase">Glow Derma</span>
+              <span className="truncate">
+                {previewAt ? fmt.dateTimeShort(previewAt) : c.previewAsap}
               </span>
             </span>
-            <span className="text-[15px] leading-5 font-bold break-words text-[#2a2418]">
-              {title.trim() || "Sarlavha"}
+            <span className="text-[15px] leading-5 font-bold [overflow-wrap:anywhere] break-words text-[#2a2418]">
+              {title.trim() || c.previewTitle}
             </span>
-            <span className="text-[14px] leading-5 break-words text-[#2a2418]">
-              {body.trim() || "Xabar matni shu yerda ko‘rinadi"}
+            <span className="line-clamp-4 text-[14px] leading-5 [overflow-wrap:anywhere] break-words text-[#2a2418]">
+              {body.trim() || c.previewBody}
             </span>
             {(image || storedImage) && (
               // eslint-disable-next-line @next/next/no-img-element
@@ -679,7 +726,7 @@ export function Composer({
           </span>
         </div>
         <p className="relative m-0 text-[12px] leading-[18px] text-banner-ink-soft">
-          Mijoz o‘z tilida ko‘radi: ruscha va inglizcha matnlar bo‘lmasa, o‘zbekchasi yuboriladi.
+          {c.previewNote}
         </p>
       </section>
     </div>

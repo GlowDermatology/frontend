@@ -4,13 +4,9 @@ import type {
   FulfilmentCounters,
   SeriesPoint,
 } from "@/domain/dashboard";
-import {
-  formatDayMonthShort,
-  formatTime,
-  tashkentParts,
-  toLocalIsoDate,
-  WEEKDAYS_SHORT,
-} from "@/lib/format";
+import { dashboardDataCopy } from "@/domain/copy/dashboard";
+import { createFormatter, tashkentParts, toLocalIsoDate } from "@/lib/format";
+import type { Locale } from "@/lib/i18n/locales";
 
 import type { QueryValue } from "../client";
 import type { ApiDashboard, ApiDashboardBucket, ApiDashboardFulfilment } from "../types";
@@ -25,15 +21,6 @@ export function dashboardParams(query: DashboardQuery): Record<string, QueryValu
     ? { range: "custom", from: query.from, to: query.to }
     : { range: query.range };
 }
-
-const AXIS_NOTE = { hour: "Soatlar bo‘yicha", day: "Kunlar bo‘yicha" } as const;
-
-const ORDERS_NOTE: Record<DashboardData["range"], (n: number) => string> = {
-  today: (n) => `Kecha: ${n} ta`,
-  week: (n) => `O‘tgan hafta: ${n} ta`,
-  month: (n) => `O‘tgan oy: ${n} ta`,
-  custom: (n) => `Oldingi davr: ${n} ta`,
-};
 
 const empty = (b: ApiDashboardBucket) => b.orders === 0 && b.revenue === 0;
 
@@ -56,7 +43,10 @@ export function windowBuckets(
   return buckets.filter((b) => hour(b) >= first && hour(b) <= last);
 }
 
-export function mapDashboard(api: ApiDashboard): DashboardData {
+/** The answer in the admin language's words and date formats (`locale`, default Uzbek). */
+export function mapDashboard(api: ApiDashboard, locale: Locale = "uz"): DashboardData {
+  const fmt = createFormatter(locale);
+  const words = dashboardDataCopy[locale];
   const window = windowBuckets(api.buckets, api.bucket);
   const multiDayHours =
     api.bucket === "hour" && new Set(window.map((b) => toLocalIsoDate(b.start))).size > 1;
@@ -64,13 +54,13 @@ export function mapDashboard(api: ApiDashboard): DashboardData {
     if (api.bucket === "hour") {
       // Two-day custom ranges repeat the hours, so the day goes in front.
       return multiDayHours
-        ? `${formatDayMonthShort(b.start)}, ${formatTime(b.start)}`
-        : formatTime(b.start);
+        ? `${fmt.dayMonthShort(b.start)}, ${fmt.time(b.start)}`
+        : fmt.time(b.start);
     }
     if (api.range === "week") {
-      return `${WEEKDAYS_SHORT[tashkentParts(b.start).weekday]}, ${formatDayMonthShort(b.start)}`;
+      return `${fmt.weekdaysShort[tashkentParts(b.start).weekday]}, ${fmt.dayMonthShort(b.start)}`;
     }
-    return formatDayMonthShort(b.start);
+    return fmt.dayMonthShort(b.start);
   };
   const series: SeriesPoint[] = window.map((b) => ({
     label: label(b),
@@ -79,14 +69,14 @@ export function mapDashboard(api: ApiDashboard): DashboardData {
   }));
   const n = window.length;
   const axis = (b: ApiDashboardBucket | undefined): string =>
-    !b ? "" : api.bucket === "hour" ? label(b) : formatDayMonthShort(b.start);
+    !b ? "" : api.bucket === "hour" ? label(b) : fmt.dayMonthShort(b.start);
 
   return {
     range: api.range,
     from: api.from,
     to: api.to,
     bucket: api.bucket,
-    axisNote: AXIS_NOTE[api.bucket],
+    axisNote: words.axisNote[api.bucket],
     axisLabels: [axis(window[0]), axis(window[Math.floor((n - 1) / 2)]), axis(window[n - 1])],
     series,
     previousPeriodOrders: api.previous_period_orders,
@@ -94,7 +84,7 @@ export function mapDashboard(api: ApiDashboard): DashboardData {
       orders: api.stats.orders,
       revenue: api.stats.revenue,
       newCustomers: api.stats.new_customers,
-      ordersNote: ORDERS_NOTE[api.range](api.previous_period_orders),
+      ordersNote: words.ordersNote[api.range](api.previous_period_orders),
       totalCustomers: api.stats.total_customers,
       deletedCustomers: api.stats.deleted_customers,
       outOfStock: api.stats.out_of_stock,

@@ -1,3 +1,8 @@
+import { createFormatter } from "@/lib/format";
+import { isFilled, recommendedToAsk, textChanged } from "@/lib/forms/recommended-rules";
+import type { Locale } from "@/lib/i18n/locales";
+
+import { notificationDataCopy } from "./copy/notifications";
 import type { OrderStatus } from "./order";
 import type { ContentLanguage } from "./product";
 
@@ -58,7 +63,10 @@ export interface NotificationRecord {
   kind: NotificationKind;
   title: string;
   body: string;
+  /** The audience in Uzbek words ("Barcha · 4 751"); screens build theirs with `audienceText`. */
   audienceLabel: string;
+  /** The group's name for a group audience (content, never translated); `null` otherwise. */
+  audienceName: string | null;
   /** Devices the audience resolves to when the record was read (estimate until the send). */
   recipientCount: number;
   audience: NotificationAudience;
@@ -126,30 +134,41 @@ export interface NotificationHistoryQuery {
   pageSize: NotificationPageSize;
 }
 
-export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> = {
-  promo: "Aksiya",
-  general: "Umumiy",
-};
+/** Uzbek kind names (the source language); screens read `notificationDataCopy[locale].kind`. */
+export const NOTIFICATION_KIND_LABEL: Record<NotificationKind, string> =
+  notificationDataCopy.uz.kind;
 
-export const NOTIFICATION_STATE_LABEL: Record<NotificationState, string> = {
-  draft: "Qoralama",
-  tested: "Test tasdiqlangan",
-  scheduled: "Rejalashtirilgan",
-  sending: "Yuborilmoqda",
-  stopping: "To‘xtatilmoqda",
-  sent: "Yuborildi",
-  partially_sent: "Qisman yuborildi",
-  cancelled: "Bekor qilindi",
-  failed: "Yuborilmadi",
-};
+/** Uzbek state names; screens read `notificationDataCopy[locale].state`. */
+export const NOTIFICATION_STATE_LABEL: Record<NotificationState, string> =
+  notificationDataCopy.uz.state;
 
 export function isNotificationState(value: string): value is NotificationState {
   return (NOTIFICATION_STATES as ReadonlyArray<string>).includes(value);
 }
 
 /** The label of a state, or the raw value for one this build does not know (a newer backend). */
-export function notificationStateLabel(state: string): string {
-  return isNotificationState(state) ? NOTIFICATION_STATE_LABEL[state] : state;
+export function notificationStateLabel(state: string, locale: Locale = "uz"): string {
+  return isNotificationState(state) ? notificationDataCopy[locale].state[state] : state;
+}
+
+/**
+ * The audience of a campaign in words of the admin language: "Barcha · 4 751", "Doimiy mijozlar ·
+ * 612" (the group's own name), "Bitta mijoz · +998 90 123 45 67".
+ */
+export function audienceText(
+  record: Pick<NotificationRecord, "audience" | "audienceName" | "recipientCount">,
+  locale: Locale = "uz",
+): string {
+  const m = notificationDataCopy[locale].audience;
+  const fmt = createFormatter(locale);
+  switch (record.audience.type) {
+    case "one":
+      return `${m.one} · ${fmt.phone(record.audience.phone)}`;
+    case "group":
+      return `${record.audienceName || m.group} · ${fmt.number(record.recipientCount)}`;
+    default:
+      return `${m.all} · ${fmt.number(record.recipientCount)}`;
+  }
 }
 
 export type TemplateStatus = Exclude<OrderStatus, "awaiting_payment">;
@@ -180,15 +199,19 @@ export function unknownPlaceholders(text: string): string[] {
 /** Push image rules (contract §2.8 "product-image rules", §1.6 field codes). */
 export const NOTIFICATION_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 export const NOTIFICATION_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
-export const IMAGE_TOO_LARGE_MESSAGE = "Rasm 5 MB dan oshmasin.";
-export const IMAGE_TYPE_MESSAGE = "Faqat JPEG, PNG yoki WebP rasm.";
+export const IMAGE_TOO_LARGE_MESSAGE = notificationDataCopy.uz.imageTooLarge;
+export const IMAGE_TYPE_MESSAGE = notificationDataCopy.uz.imageType;
 
-/** The image problem of a picked file, or `null` when it can be sent. */
-export function notificationImageProblem(file: { type: string; size: number }): string | null {
+/** The image problem of a picked file in the admin language, or `null` when it can be sent. */
+export function notificationImageProblem(
+  file: { type: string; size: number },
+  locale: Locale = "uz",
+): string | null {
+  const m = notificationDataCopy[locale];
   if (!(NOTIFICATION_IMAGE_TYPES as ReadonlyArray<string>).includes(file.type)) {
-    return IMAGE_TYPE_MESSAGE;
+    return m.imageType;
   }
-  if (file.size > NOTIFICATION_IMAGE_MAX_BYTES) return IMAGE_TOO_LARGE_MESSAGE;
+  if (file.size > NOTIFICATION_IMAGE_MAX_BYTES) return m.imageTooLarge;
   return null;
 }
 
@@ -218,3 +241,42 @@ export const TITLE_MAX = 60;
 export const BODY_MAX = 180;
 /** A test device's label (`TestDevice.label`). */
 export const TEST_DEVICE_LABEL_MAX = 60;
+
+/**
+ * Fields a campaign should have but may go without (`RecommendedFieldsDialog`): a promotion that
+ * opens only the app's home page is easy to send by mistake, so its tap destination is asked for.
+ */
+export type CampaignRecommendedField = "link";
+
+export function campaignRecommendedMissing(values: {
+  kind: NotificationKind;
+  link: string;
+}): CampaignRecommendedField[] {
+  return values.kind === "promo" && values.link === "none" ? ["link"] : [];
+}
+
+/**
+ * The template languages left empty (`RecommendedFieldsDialog`): customers using them get the
+ * Uzbek text instead, which is allowed but rarely meant.
+ */
+export function templateRecommendedMissing(
+  texts: Record<ContentLanguage, string>,
+): Array<Exclude<ContentLanguage, "uz">> {
+  return (["ru", "en"] as const).filter((language) => texts[language].trim() === "");
+}
+
+/**
+ * The empty template languages worth asking about on this save (`recommendedToAsk`): a language
+ * the admin just emptied, or every empty one when the Uzbek text changed. `saved` = the stored
+ * texts.
+ */
+export function templateRecommendedToAsk(
+  texts: Record<ContentLanguage, string>,
+  saved: Record<ContentLanguage, string>,
+): Array<Exclude<ContentLanguage, "uz">> {
+  return recommendedToAsk(templateRecommendedMissing(texts), {
+    isNew: false,
+    filledBefore: (language) => isFilled(saved[language]),
+    sourceChanged: () => textChanged(saved.uz, texts.uz),
+  });
+}

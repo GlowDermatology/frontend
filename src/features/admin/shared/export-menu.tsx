@@ -7,8 +7,10 @@ import { Icon } from "@/components/ui/icon";
 import { ActionMenu } from "@/components/ui/menu";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
+import { useAdminLocale } from "@/lib/i18n/admin-context";
 
 import { browserActionEnv, currentPath, refreshSession } from "./action-client";
+import { sharedCopy } from "./copy";
 import { fetchExport, type ExportDownload } from "./export-download";
 
 /**
@@ -16,10 +18,13 @@ import { fetchExport, type ExportDownload } from "./export-download";
  * route handler (`/admin/<section>/export?…&format=csv|xlsx`), which streams
  * Django's file (api mode) or builds a local CSV (mock mode). The file is
  * fetched and saved from a blob, so a refused export (throttle, too many
- * rows, expired session, API down) shows the usual "Amal bajarilmadi" toast
- * instead of navigating the tab to the route's JSON answer.
+ * rows, expired session, API down) shows a danger toast «Eksport bajarilmadi»
+ * (a 429 a warning «Biroz kuting») instead of navigating the tab to the
+ * route's JSON answer. `label` defaults to «Eksport» in the admin language.
  */
-export function ExportMenu({ href, label = "Eksport" }: { href: string; label?: string }) {
+export function ExportMenu({ href, label }: { href: string; label?: string }) {
+  const locale = useAdminLocale();
+  const t = sharedCopy[locale].export;
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
@@ -32,17 +37,22 @@ export function ExportMenu({ href, label = "Eksport" }: { href: string; label?: 
     setBusy(true);
     try {
       const url = withFormat(format);
-      let result: ExportDownload = await fetchExport(url);
+      let result: ExportDownload = await fetchExport(url, undefined, locale);
       if (!result.ok && result.status === 401) {
         const env = browserActionEnv();
-        if (await refreshSession(env)) result = await fetchExport(url);
+        if (await refreshSession(env)) result = await fetchExport(url, undefined, locale);
         if (!result.ok && result.status === 401) {
           env.location.assign(`/admin/login?next=${encodeURIComponent(currentPath(env.location))}`);
           return;
         }
       }
       if (!result.ok) {
-        toast({ tone: "info", title: "Amal bajarilmadi", description: result.message });
+        const throttled = result.status === 429;
+        toast({
+          tone: throttled ? "warning" : "danger",
+          title: throttled ? t.throttledTitle : t.failedTitle,
+          description: result.message,
+        });
         return;
       }
       const objectUrl = URL.createObjectURL(result.blob);
@@ -63,16 +73,17 @@ export function ExportMenu({ href, label = "Eksport" }: { href: string; label?: 
 
   return (
     <ActionMenu
-      label="Eksport formati"
+      label={t.menu}
+      busy={busy}
       triggerClassName={buttonStyles({ variant: "secondary" })}
       trigger={
-        <span className="contents" aria-busy={busy}>
+        <span className="contents">
           <Icon
             name={busy ? "refresh" : "download"}
             size={18}
             className={cn(busy && "animate-spin")}
           />
-          {busy ? "Tayyorlanmoqda…" : label}
+          {busy ? t.preparing : (label ?? t.button)}
           <Icon name="chevron-down" size={16} />
         </span>
       }
@@ -80,7 +91,7 @@ export function ExportMenu({ href, label = "Eksport" }: { href: string; label?: 
         {
           key: "csv",
           label: "CSV",
-          hint: "Excel ochadi; UTF-8",
+          hint: t.csvHint,
           onSelect: () => void download("csv"),
         },
         {

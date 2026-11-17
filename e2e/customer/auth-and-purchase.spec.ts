@@ -80,7 +80,10 @@ test("phone sign-up, sign out from the header, sign in again on the known browse
   await page.getByRole("menuitem", { name: "Chiqish" }).click();
   await page.waitForURL((url) => url.pathname === "/");
   await ready(page);
-  await expect(page.getByRole("link", { name: "Kirish" })).toBeVisible();
+  // A visitor's account menu offers sign-in / sign-up (and the languages).
+  await page.getByRole("button", { name: "Hisob va til" }).click();
+  await expect(page.getByRole("menuitem", { name: "Kirish" })).toBeVisible();
+  await page.keyboard.press("Escape");
 
   // The device key survives sign-out: no new-device code this time.
   await page.goto("/kirish?next=%2Fcashback");

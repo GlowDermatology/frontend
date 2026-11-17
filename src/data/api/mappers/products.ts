@@ -1,13 +1,18 @@
+import { catalogDataCopy } from "@/domain/copy/catalog";
 import {
   CONTENT_LANGUAGES,
+  defaultImageLabel,
+  lastChangeText,
   PRODUCT_TEXT_FIELDS,
   type ContentLanguage,
   type Product,
   type ProductImage,
+  type ProductLastChange,
   type ProductTexts,
 } from "@/domain/product";
 import { seoPatch } from "@/domain/seo";
-import { formatDateTimeShort, formatNumber } from "@/lib/format";
+import { createFormatter } from "@/lib/format";
+import type { Locale } from "@/lib/i18n/locales";
 
 import type { CatalogStats, ProductListQuery } from "../../products";
 import type { ProductBaseline, ProductFormValues } from "../../products.schema";
@@ -41,38 +46,43 @@ export function mapProductTexts(texts: ApiProduct["texts"]): Record<ContentLangu
   return out;
 }
 
-/** `{id, url, thumbnail_url, position}` → `{id, src, label: "Rasm N"}`; `src` is the 400 px variant (the
- * image manager shows 160 px tiles; spec 2026-11-13-image-variants), the original from an older API. */
+/**
+ * `{id, url, thumbnail_url, position}` → `{id, src, label: "Rasm N"}`; `src` is the 400 px variant
+ * (the image manager shows 160 px tiles; spec 2026-11-13-image-variants), the original from an
+ * older API. The label is a data token (`defaultImageLabel`): the editor shows the photo by its
+ * place in the admin language.
+ */
 export function mapProductImage(image: ApiProductImage): ProductImage {
   return {
     id: idString(image.id),
     src: image.thumbnail_url ?? image.url,
-    label: `Rasm ${image.position + 1}`,
+    label: defaultImageLabel(image.position + 1),
   };
 }
 
-/** The last-change note per §5.2 (`price_changed` → "narx 175 000 → 185 000"). */
-export function lastChangeNote(change: ApiLastChange): string {
-  switch (change.kind) {
-    case "created":
-      return "mahsulot yaratildi";
-    case "price_changed":
-      return `narx ${formatNumber(change.old_price ?? 0)} → ${formatNumber(change.new_price ?? 0)}`;
-    case "activated":
-      return "faollashtirildi";
-    case "hidden":
-      return "yashirildi";
-    case "promo_added":
-      return "aksiyaga qo‘shildi";
-    case "promo_removed":
-      return "aksiyadan olindi";
-    case "updated":
-      return "ma’lumotlar yangilandi";
+/** `last_change` (§5.2) → the domain's change; no actor = the system (`by: null`). */
+export function mapLastChange(change: ApiLastChange): ProductLastChange {
+  const out: ProductLastChange = {
+    // Since M3 the Billz full sync hides products without an actor (§2.3).
+    by: change.actor?.display_name ?? null,
+    at: change.at,
+    kind: change.kind,
+  };
+  if (change.kind === "price_changed") {
+    out.oldPrice = change.old_price ?? 0;
+    out.newPrice = change.new_price ?? 0;
   }
+  out.note = lastChangeText(out, "uz");
+  return out;
 }
 
-/** Who a `last_change` without an actor is shown as. */
-export const SYSTEM_ACTOR = "Tizim";
+/** The last-change note per §5.2 (`price_changed` → "narx 175 000 → 185 000") in `locale`. */
+export function lastChangeNote(change: ApiLastChange, locale: Locale = "uz"): string {
+  return lastChangeText(mapLastChange(change), locale);
+}
+
+/** Who a `last_change` without an actor is shown as (Uzbek; the UI uses `lastChangeActor`). */
+export const SYSTEM_ACTOR = catalogDataCopy.uz.systemActor;
 
 export function mapProduct(api: ApiProduct): Product {
   const product: Product = {
@@ -98,32 +108,19 @@ export function mapProduct(api: ApiProduct): Product {
   // tables and pickers (≤44 px): the 400 px variant when the API sends one
   const mainImageUrl = api.main_image_thumbnail_url ?? api.main_image_url;
   if (mainImageUrl) product.mainImageUrl = mainImageUrl;
-  if (api.last_change) {
-    product.lastChange = {
-      // No actor = the system (since M3 the Billz full sync hides products, §2.3).
-      by: api.last_change.actor?.display_name ?? SYSTEM_ACTOR,
-      at: api.last_change.at,
-      note: lastChangeNote(api.last_change),
-    };
-  }
+  if (api.last_change) product.lastChange = mapLastChange(api.last_change);
   return product;
 }
 
 /**
  * "Sinxronlangan: …" label from `billz.last_sync_at` and the server's `now`
- * (§5.2): never → "hali sinxronlanmagan", <60 s → "hozirgina", <60 min →
- * "N daqiqa oldin", <24 h → "N soat oldin", else the short date-time.
+ * (§5.2) in `locale`: never → "hali sinxronlanmagan", <60 s → "hozirgina",
+ * <60 min → "N daqiqa oldin", <24 h → "N soat oldin", else the short
+ * date-time (`fmt.ago`).
  */
-export function lastSyncLabel(lastSyncAt: string | null, now: Date): string {
-  if (!lastSyncAt) return "hali sinxronlanmagan";
-  const elapsed = Math.max(0, now.getTime() - Date.parse(lastSyncAt));
-  const seconds = Math.floor(elapsed / 1000);
-  if (seconds < 60) return "hozirgina";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} daqiqa oldin`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} soat oldin`;
-  return formatDateTimeShort(lastSyncAt);
+export function lastSyncLabel(lastSyncAt: string | null, now: Date, locale: Locale = "uz"): string {
+  if (!lastSyncAt) return catalogDataCopy[locale].neverSynced;
+  return createFormatter(locale).ago(lastSyncAt, now);
 }
 
 export function mapCatalogStats(api: ApiProductStats, now: Date): CatalogStats {

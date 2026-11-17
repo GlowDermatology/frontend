@@ -3,10 +3,13 @@
 import { z } from "zod";
 
 import { tashkentStart } from "@/domain/appointment";
+import { appointmentDataCopy, type AppointmentDataCopy } from "@/domain/copy/appointments";
+import { copyFor, getLocalized } from "@/lib/i18n/admin-locale";
 
 import {
   apiMutation,
   fieldErrorsFrom,
+  invalidFormMessage,
   guardAction,
   idempotencyKeySchema,
   sessionToken,
@@ -29,10 +32,7 @@ import { toActionResult } from "./api/mappers/errors";
 import type { ApiAppointmentReschedule } from "./api/types";
 import type { AppointmentDay, DayAppointment } from "./appointments";
 import {
-  bookingDateSchema,
-  cancelAppointmentSchema,
-  createAppointmentSchema,
-  rescheduleAppointmentSchema,
+  appointmentSchemas,
   type CancelAppointmentValues,
   type CreateAppointmentValues,
   type RescheduleAppointmentValues,
@@ -55,13 +55,23 @@ import type { ActionFailure, ActionResult } from "./types";
  *   band.") come back on the time field.
  *
  * Mock bodies live in `./mock/appointments.actions.ts` and answer the same
- * codes and messages from the fixtures.
+ * codes and messages from the fixtures. The actions' own messages and the
+ * schemas' follow the admin language (`appointmentDataCopy`).
  */
 
 export type AppointmentAction = "confirm" | "reject" | "attend";
 
 const idSchema = z.string().trim().min(1).max(64);
-const NOT_FOUND: ActionFailure = { ok: false, error: "Qabul topilmadi.", code: "not_found" };
+const notFound = (m: AppointmentDataCopy): ActionFailure => ({
+  ok: false,
+  error: m.notFound,
+  code: "not_found",
+});
+const specialistNotFound = (m: AppointmentDataCopy): ActionFailure => ({
+  ok: false,
+  error: m.specialistNotFound,
+  fieldErrors: { specialistId: m.specialistNotFound },
+});
 
 const statusSchema = z.object({
   id: idSchema,
@@ -81,9 +91,9 @@ export async function updateAppointment(
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
   const parsed = statusSchema.safeParse({ id, action, key });
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, await invalidFormMessage());
   if ((await dataSource()) === "api") {
-    if (apiId(parsed.data.id) === null) return NOT_FOUND;
+    if (apiId(parsed.data.id) === null) return notFound(await copyFor(appointmentDataCopy));
     return apiMutation("updateAppointment", async () => {
       try {
         const { data } = await apiAppointmentAction(
@@ -108,27 +118,21 @@ export async function createAppointment(
 ): Promise<ActionResult<DayAppointment>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
+  const [m, schemas] = await Promise.all([
+    copyFor(appointmentDataCopy),
+    getLocalized(appointmentSchemas),
+  ]);
   const parsedKey = idempotencyKeySchema.safeParse(key);
-  if (!parsedKey.success) return { ok: false, error: "Noto‘g‘ri so‘rov kaliti." };
-  const parsed = createAppointmentSchema.safeParse(values);
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  if (!parsedKey.success) return { ok: false, error: m.requestKey };
+  const parsed = schemas.create.safeParse(values);
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, await invalidFormMessage());
   const input = parsed.data;
   if ((await dataSource()) === "api") {
     const specialistId = apiId(input.specialistId);
     const serviceId = apiId(input.serviceId);
-    if (specialistId === null) {
-      return {
-        ok: false,
-        error: "Mutaxassis topilmadi.",
-        fieldErrors: { specialistId: "Mutaxassis topilmadi." },
-      };
-    }
+    if (specialistId === null) return specialistNotFound(m);
     if (serviceId === null) {
-      return {
-        ok: false,
-        error: "Xizmat topilmadi.",
-        fieldErrors: { serviceId: "Xizmat topilmadi." },
-      };
+      return { ok: false, error: m.serviceNotFound, fieldErrors: { serviceId: m.serviceNotFound } };
     }
     return apiMutation("createAppointment", async () => {
       try {
@@ -166,25 +170,23 @@ export async function rescheduleAppointment(
 ): Promise<ActionResult<DayAppointment>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
+  const [m, schemas] = await Promise.all([
+    copyFor(appointmentDataCopy),
+    getLocalized(appointmentSchemas),
+  ]);
   const parsedId = idSchema.safeParse(id);
-  if (!parsedId.success) return NOT_FOUND;
+  if (!parsedId.success) return notFound(m);
   const parsedKey = idempotencyKeySchema.safeParse(key);
-  if (!parsedKey.success) return { ok: false, error: "Noto‘g‘ri so‘rov kaliti." };
-  const parsed = rescheduleAppointmentSchema.safeParse(values);
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  if (!parsedKey.success) return { ok: false, error: m.requestKey };
+  const parsed = schemas.reschedule.safeParse(values);
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, await invalidFormMessage());
   const input = parsed.data;
   if ((await dataSource()) === "api") {
-    if (apiId(parsedId.data) === null) return NOT_FOUND;
+    if (apiId(parsedId.data) === null) return notFound(m);
     const body: ApiAppointmentReschedule = { start: tashkentStart(input.date, input.time) };
     if (input.specialistId !== baselineSpecialistId) {
       const specialistId = apiId(input.specialistId);
-      if (specialistId === null) {
-        return {
-          ok: false,
-          error: "Mutaxassis topilmadi.",
-          fieldErrors: { specialistId: "Mutaxassis topilmadi." },
-        };
-      }
+      if (specialistId === null) return specialistNotFound(m);
       body.specialist_id = specialistId;
     }
     return apiMutation("rescheduleAppointment", async () => {
@@ -212,14 +214,18 @@ export async function cancelAppointment(
 ): Promise<ActionResult<DayAppointment>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
+  const [m, schemas] = await Promise.all([
+    copyFor(appointmentDataCopy),
+    getLocalized(appointmentSchemas),
+  ]);
   const parsedId = idSchema.safeParse(id);
-  if (!parsedId.success) return NOT_FOUND;
+  if (!parsedId.success) return notFound(m);
   const parsedKey = idempotencyKeySchema.safeParse(key);
-  if (!parsedKey.success) return { ok: false, error: "Noto‘g‘ri so‘rov kaliti." };
-  const parsed = cancelAppointmentSchema.safeParse(values);
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  if (!parsedKey.success) return { ok: false, error: m.requestKey };
+  const parsed = schemas.cancel.safeParse(values);
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, await invalidFormMessage());
   if ((await dataSource()) === "api") {
-    if (apiId(parsedId.data) === null) return NOT_FOUND;
+    if (apiId(parsedId.data) === null) return notFound(m);
     return apiMutation("cancelAppointment", async () => {
       try {
         const { data } = await apiCancelAppointment(
@@ -248,8 +254,8 @@ export async function loadAppointmentDay(
 ): Promise<ActionResult<AppointmentDay>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
-  const parsed = bookingDateSchema.safeParse(date);
-  if (!parsed.success) return { ok: false, error: "Sanani tanlang." };
+  const parsed = (await getLocalized(appointmentSchemas)).date.safeParse(date);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "" };
   if ((await dataSource()) === "api") {
     try {
       const { data } = await apiAppointmentDayFresh(sessionToken(guard.session), parsed.data);

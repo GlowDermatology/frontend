@@ -1,6 +1,8 @@
 import { expect, type Page } from "@playwright/test";
 
+import { saveAnyway } from "./catalog-helpers";
 import { heading, toast } from "./helpers";
+import { pickerValue } from "./ui";
 
 /**
  * Shared steps of the campaign specs (notifications.spec.ts,
@@ -44,7 +46,9 @@ export async function saveDraft(
   if (audience === "one") {
     // The customer card's "Xabar yuborish" prefills the recipient.
     await expect(page.getByRole("radio", { name: /Bitta mijoz/ })).toBeChecked();
-    await expect(page.getByLabel("Mijoz telefoni").first()).toHaveValue(/^\+998/);
+    // The phone field shows the national part ("90 123 45 67"); its form value is `+998…`.
+    await expect(page.getByLabel("Mijoz telefoni").first()).not.toHaveValue("");
+    expect(await pickerValue(page.locator("#composer"), "Mijoz telefoni")).toMatch(/^\+998\d{9}$/);
   } else {
     await expect(page.getByRole("radio", { name: /Barcha mijozlar/ })).toBeChecked();
   }
@@ -52,11 +56,19 @@ export async function saveDraft(
   await page.getByLabel("Matn").fill("E2E: qoralama, test va tasdiqsiz yuborilmaydi.");
   if (requested) {
     await page.getByRole("radio", { name: "Rejalashtirish" }).check();
-    const when = page.getByLabel("Yuborish vaqti (Toshkent)");
-    await expect(when).toHaveValue(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
+    const when = page.getByLabel("Yuborish vaqti (Toshkent)", { exact: true });
+    // The picker shows "DD.MM.YYYY HH:MM"; the suggested slot is its form value.
+    await expect(when).toBeVisible();
+    expect(await pickerValue(page, "Yuborish vaqti (Toshkent)")).toMatch(
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/,
+    );
     await when.fill(FAR_FUTURE);
+    await when.blur();
   }
   await page.getByRole("button", { name: "Qoralama saqlash" }).click();
+  // The missing deep link is asked about at the test / approval, not here (`saveAnyway` only
+  // answers a question if one opens).
+  await saveAnyway(page, toast(page, "Qoralama saqlandi"));
   await expect(toast(page, "Qoralama saqlandi")).toBeVisible();
 }
 

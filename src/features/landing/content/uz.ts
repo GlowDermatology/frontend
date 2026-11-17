@@ -202,7 +202,6 @@ export const uz = {
     privacy: "Maxfiylik siyosati",
     terms: "Foydalanish shartlari",
     copyright: "© 2026 Glow Derma",
-    languages: "O‘zbekcha · Русский · English",
   },
 };
 

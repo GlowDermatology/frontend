@@ -13,9 +13,12 @@ import type {
   NotificationRecord,
   TestDevice,
 } from "@/domain/notification";
+import { scrollBehavior } from "@/lib/forms/reveal";
+import { useCopy } from "@/lib/i18n/admin-context";
 
 import { CAMPAIGN_PANEL_ID, CampaignPanel } from "./campaign-panel";
 import { Composer } from "./composer";
+import { notificationsCopy } from "./copy";
 import { detailsButtonId, HistoryTable } from "./history-table";
 import { TestDevicesCard } from "./test-devices-card";
 
@@ -80,6 +83,7 @@ export function NotificationsView({
   approvalDelayMinutes,
   testDevices: initialDevices,
 }: NotificationsViewProps) {
+  const t = useCopy(notificationsCopy);
   const [historySource, setHistorySource] = useState(historyPage);
   const [history, setHistory] = useState<ReadonlyArray<NotificationRecord>>(historyPage.items);
   if (historyPage !== historySource) {
@@ -122,7 +126,7 @@ export function NotificationsView({
     // The panel sits above the history: bring it into view and give it focus.
     requestAnimationFrame(() => {
       const panel = document.getElementById(CAMPAIGN_PANEL_ID);
-      panel?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      panel?.scrollIntoView({ block: "nearest", behavior: scrollBehavior() });
       panel?.focus({ preventScroll: true });
     });
   };
@@ -130,9 +134,9 @@ export function NotificationsView({
   return (
     <>
       <div className="flex flex-col gap-1">
-        <span className="text-body-sm text-ink-muted">Push bildirishnomalar · Firebase</span>
+        <span className="text-body-sm text-ink-muted">{t.page.eyebrow}</span>
         <h1 className="m-0 font-serif text-display leading-10 tracking-normal text-ink">
-          Bildirishnomalar
+          {t.page.title}
         </h1>
       </div>
 
@@ -171,7 +175,7 @@ export function NotificationsView({
           onDrop={dropRecord}
           onEdit={(record) => {
             setEditing(record);
-            document.getElementById("composer")?.scrollIntoView({ behavior: "smooth" });
+            document.getElementById("composer")?.scrollIntoView({ behavior: scrollBehavior() });
           }}
           onClose={closePanel}
         />

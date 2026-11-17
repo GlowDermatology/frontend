@@ -4,12 +4,14 @@ import { useEffect, useRef, useState, useTransition } from "react";
 
 import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { AlertDialog, AlertDialogCancel } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button, buttonStyles } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { ActionMenu, type ActionMenuItem } from "@/components/ui/menu";
 import { useToast } from "@/components/ui/toast";
 import { changeOrderStatus, loadOrder, retryShipment } from "@/data/orders.actions";
 import type { ActionResult } from "@/data/types";
+import { orderLabelsCopy } from "@/domain/copy/orders";
 import {
   isYandexDelivery,
   refundStateLine,
@@ -19,21 +21,17 @@ import {
 } from "@/domain/order";
 import { dispatchPhase, pollProgressLabel } from "@/domain/order-dispatch";
 import { cn } from "@/lib/cn";
-import { formatDateTimeLong } from "@/lib/format";
+import { useAdminLocale, useCopy } from "@/lib/i18n/admin-context";
+import { useFormat } from "@/lib/i18n/admin-hooks";
 
 import { runAction } from "../shared/action-client";
 import { useIdempotencyKey } from "../shared/idempotency";
-import { FULFILMENT_LABEL, ORDER_STATUS_META, OrderStatusBadge } from "../shared/status";
+import { ORDER_STATUS_META } from "../shared/status";
 import { CancelOrderDialog } from "./cancel-order-dialog";
 import { ConfirmReturnDialog } from "./confirm-return-dialog";
+import { ordersCopy, type OrdersCopy } from "./copy";
 import { OpenIssuesSection, OrderDeliveryCard } from "./delivery-card";
-import {
-  DISPATCH_TIMEOUT_TOAST,
-  dispatchOffer,
-  dispatchToast,
-  withOpenIssue,
-  type DispatchToast,
-} from "./delivery-view";
+import { dispatchOffer, dispatchTimeoutToast, dispatchToast, withOpenIssue } from "./delivery-view";
 import { DispatchDialog } from "./dispatch-dialog";
 import { initialDispatchProgress, pollDispatch, type DispatchProgress } from "./dispatch-poll";
 import { IncidentDialog } from "./incident-dialog";
@@ -48,33 +46,31 @@ import {
 import { isStaleRefusal } from "./refusals";
 import { pollShipment } from "./shipment-poll";
 
-const CHANNEL_LABEL: Record<Order["channel"], string> = {
-  ios: "Mobil ilova (iOS)",
-  android: "Mobil ilova (Android)",
-  web: "Veb-sayt",
-};
-
-function transitionHint(order: Order, status: OrderStatus): string {
-  if (status === "delivered" && order.fulfilment === "pickup") return "Mijoz do‘kondan olib ketdi";
+function transitionHint(order: Order, status: OrderStatus, t: OrdersCopy["detail"]): string {
+  if (status === "delivered" && order.fulfilment === "pickup") return t.hintPickup;
   // Listed by the server for a Yandex order only while a `parcel_unaccounted` issue is open.
-  if (isYandexDelivery(order)) return "Yandex posilkani kuzatmayapti, mijoz olgan bo‘lsa";
-  return "BTS webhook kelmagan bo‘lsa";
+  if (isYandexDelivery(order)) return t.hintYandex;
+  return t.hintBts;
 }
 
-function noTransitionsMessage(status: OrderStatus, yandex: boolean): string {
+function noTransitionsMessage(
+  status: OrderStatus,
+  yandex: boolean,
+  t: OrdersCopy["detail"],
+): string {
   // Plan decision 8: a Yandex order follows the courier's statuses, never a manual step.
   if (yandex && (status === "processing" || status === "handed_to_courier")) {
-    return "Yandex buyurtmasining holati kuryer holatidan avtomatik yangilanadi.";
+    return t.noTransitionYandex;
   }
   switch (status) {
     case "awaiting_payment":
-      return "To‘lov tasdiqlangach holat avtomatik «Jarayonda»ga o‘tadi.";
+      return t.noTransitionAwaiting;
     case "delivered":
-      return "Yetkazilgan buyurtma holati o‘zgarmaydi.";
+      return t.noTransitionDelivered;
     case "cancelled":
-      return "Bekor qilingan buyurtma holati o‘zgarmaydi.";
+      return t.noTransitionCancelled;
     default:
-      return "Hozircha qo‘lda o‘tish mumkin emas.";
+      return t.noTransition;
   }
 }
 
@@ -101,6 +97,12 @@ interface OrderDetailViewProps {
  * response — with the API, that response is the updated order resource.
  */
 export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailViewProps) {
+  const locale = useAdminLocale();
+  const copy = useCopy(ordersCopy);
+  const t = copy.detail;
+  const tt = copy.toast;
+  const labels = useCopy(orderLabelsCopy);
+  const fmt = useFormat();
   const [order, setOrder] = useState(initialOrder);
   const [now, setNow] = useState(initialNow);
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -135,10 +137,6 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
     if (isStaleRefusal(result)) await reload();
   };
 
-  const showToast = (message: DispatchToast | null) => {
-    if (message) toast(message);
-  };
-
   /** Starts (or restarts) the status poll of a dispatched order. */
   const startDispatchPoll = () => {
     setProgress(initialDispatchProgress());
@@ -147,11 +145,11 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
 
   const apply = (result: ActionResult<Order>, success: { title: string; description?: string }) => {
     if (!result.ok) {
-      toast({ tone: "info", title: "Amal bajarilmadi", description: result.error });
+      toast({ tone: "danger", title: tt.failed, description: result.error });
       return false;
     }
     replaceOrder(result.data);
-    toast(success);
+    toast({ tone: "success", ...success });
     return true;
   };
 
@@ -170,11 +168,7 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
     }).then((outcome) => {
       if (outcome.kind === "aborted") return;
       if (outcome.kind === "timeout") {
-        toast({
-          tone: "info",
-          title: "BTS javobi hali kelmadi",
-          description: "So‘rov navbatda. Sahifani birozdan so‘ng yangilang.",
-        });
+        toast({ tone: "warning", title: tt.btsWaiting, description: tt.btsWaitingHint });
         return;
       }
       setOrder(outcome.order);
@@ -183,19 +177,15 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
       toast(
         shipment.state === "created"
           ? {
-              title: "BTS buyurtmasi yaratildi",
-              description: `Yetkazish raqami ${shipment.trackingNumber}`,
+              tone: "success",
+              title: tt.btsCreated,
+              description: tt.tracking(shipment.trackingNumber),
             }
-          : {
-              tone: "info",
-              title: "BTS ga yuborilmadi",
-              description:
-                "Urinish muvaffaqiyatsiz tugadi. Manzilni tekshirib, qayta urinib ko‘ring.",
-            },
+          : { tone: "danger", title: tt.btsFailed, description: tt.btsFailedHint },
       );
     });
     return () => controller.abort();
-  }, [awaitingShipment, orderId, toast]);
+  }, [awaitingShipment, orderId, toast, tt]);
 
   // After "Kuryer chaqirish" (202, stage `courier_requested`): re-read the order every 10 s
   // for at most 3 minutes while Yandex searches; any other stage or a dispatch issue ends it.
@@ -211,16 +201,16 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
       if (outcome.kind === "aborted") return;
       setProgress(null);
       if (outcome.kind === "timeout") {
-        toast(DISPATCH_TIMEOUT_TOAST);
+        toast(dispatchTimeoutToast(locale));
         return;
       }
       setOrder(outcome.order);
       setNow((current) => latestEventAt(outcome.order, current));
-      const message = dispatchToast(outcome.phase, outcome.order);
+      const message = dispatchToast(outcome.phase, outcome.order, locale);
       if (message) toast(message);
     });
     return () => controller.abort();
-  }, [dispatchPoll, orderId, toast]);
+  }, [dispatchPoll, orderId, toast, locale]);
 
   const [confirmStatus, setConfirmStatus] = useState<OrderStatus | null>(null);
   const [confirmShown, setConfirmShown] = useState<OrderStatus | null>(null);
@@ -233,9 +223,9 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
         await runAction((csrf) => changeOrderStatus(order.id, status, statusKey.key, csrf)),
       );
       apply(result, {
-        title: "Holat yangilandi",
+        title: tt.statusUpdated,
         description: result.ok
-          ? `«${ORDER_STATUS_META[status].label}» · ${result.data.history[0]?.note ?? ""}`
+          ? tt.statusUpdatedLine(labels.status[status], result.data.history[0]?.note ?? "")
           : undefined,
       });
       await reloadIfStale(result);
@@ -255,14 +245,8 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
       const ok = apply(
         result,
         shipment?.state === "created"
-          ? {
-              title: "BTS buyurtmasi yaratildi",
-              description: `Yetkazish raqami ${shipment.trackingNumber}`,
-            }
-          : {
-              title: "BTS ga yuborildi",
-              description: "Natija kelishi bilan sahifa yangilanadi.",
-            },
+          ? { title: tt.btsCreated, description: tt.tracking(shipment.trackingNumber) }
+          : { title: tt.btsSent, description: tt.btsSentHint },
       );
       await reloadIfStale(result);
       setPendingAction(null);
@@ -273,15 +257,16 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
 
   const statusItems: ActionMenuItem[] = order.availableActions.transitions.map((status) => ({
     key: status,
-    label: ORDER_STATUS_META[status].label,
-    hint: transitionHint(order, status),
+    label: labels.status[status],
+    hint: transitionHint(order, status, t),
     // Gap ADM-14.1: a forward transition cannot be undone and pushes to the customer.
     onSelect: () => setConfirmStatus(status),
   }));
 
   const { shipment } = order;
   const yandex = isYandexDelivery(order);
-  const dispatch = dispatchOffer(order);
+  const dispatch = dispatchOffer(order, locale);
+  const busyReason = pending && t.busyReason;
   const searching = yandex && dispatchPhase(order).kind === "searching";
   const polling = progress !== null;
   const issuesSection = order.delivery ? (
@@ -293,10 +278,10 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
           variant="secondary"
           size="sm"
           onClick={() => setIncidentOpen(true)}
-          disabled={pending}
+          disabledReason={busyReason}
         >
           <Icon name="alert-circle" size={16} />
-          Hodisa qayd etish
+          {t.reportIncident}
         </Button>
       }
     />
@@ -305,7 +290,7 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
   return (
     <>
       <Breadcrumbs
-        items={[{ label: "Buyurtmalar", href: "/admin/orders" }, { label: `№${order.id}` }]}
+        items={[{ label: copy.title, href: "/admin/orders" }, { label: t.crumb(order.id) }]}
       />
 
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -316,29 +301,30 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
               tabIndex={-1}
               className="m-0 font-serif text-display leading-10 tracking-normal text-ink tabular-nums focus:outline-none"
             >
-              Buyurtma №{order.id}
+              {t.heading(order.id)}
             </h1>
-            <OrderStatusBadge status={order.status} />
+            <Badge tone={ORDER_STATUS_META[order.status].tone}>{labels.status[order.status]}</Badge>
           </div>
           <p className="m-0 text-body-sm text-ink-muted">
-            <time dateTime={order.createdAt}>{formatDateTimeLong(order.createdAt)}</time> ·{" "}
-            {CHANNEL_LABEL[order.channel]} · {FULFILMENT_LABEL[order.fulfilment]}
+            <time dateTime={order.createdAt}>{fmt.dateTimeLong(order.createdAt)}</time> ·{" "}
+            {labels.channel[order.channel]} · {labels.fulfilment[order.fulfilment]}
           </p>
         </div>
 
         <div className="flex flex-wrap gap-2">
+          {/* While a change runs the menu is busy: focusable, says so, does not open. */}
           <ActionMenu
-            label="Yangi holat"
+            label={t.statusMenu}
             items={statusItems}
-            empty={noTransitionsMessage(order.status, yandex)}
-            disabled={pending}
+            busy={pending}
+            empty={noTransitionsMessage(order.status, yandex, t)}
             triggerClassName={cn(
               buttonStyles({ variant: "secondary", className: headerButton }),
               "data-[state=open]:bg-surface",
             )}
             trigger={
               <>
-                {pendingAction === "status" ? "Saqlanmoqda…" : "Holatni o‘zgartirish"}
+                {pending && pendingAction === "status" ? t.saving : t.changeStatus}
                 <Icon name="chevron-down" size={16} />
               </>
             }
@@ -346,21 +332,25 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
 
           {polling ? (
             <span className="flex flex-col items-start gap-1">
-              <button
-                type="button"
-                disabled
+              <Button
+                variant="dashed"
+                className={headerButton}
+                busy
                 aria-describedby="dispatch-progress"
-                className="inline-flex h-11 items-center gap-2 rounded-md border border-dashed border-line-strong px-4 text-label font-bold text-ink-muted"
               >
-                <Icon name="refresh" size={18} className="animate-spin" />
-                Kuryer qidirilmoqda…
-              </button>
+                <Icon
+                  name="refresh"
+                  size={18}
+                  className="animate-spin motion-reduce:animate-none"
+                />
+                {t.searching}
+              </Button>
               <span
                 id="dispatch-progress"
                 role="status"
                 className="text-[12px] leading-4 text-ink-muted tabular-nums"
               >
-                Holat har 10 soniyada tekshiriladi · {pollProgressLabel(progress.elapsedMs)}
+                {t.pollLine(pollProgressLabel(progress.elapsedMs))}
               </span>
             </span>
           ) : searching ? (
@@ -368,17 +358,17 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
               variant="secondary"
               className={headerButton}
               onClick={startDispatchPoll}
-              disabled={pending}
-              title="Yandex kuryer qidirmoqda"
+              disabledReason={busyReason}
+              title={busyReason ? undefined : t.checkStatusHint}
             >
               <Icon name="refresh" size={18} />
-              Holatni tekshirish
+              {t.checkStatus}
             </Button>
           ) : dispatch ? (
             <Button
               className={headerButton}
               onClick={() => setDispatchOpen(true)}
-              disabled={pending}
+              disabledReason={busyReason}
             >
               <Icon name="truck" size={18} />
               {dispatch.label}
@@ -390,48 +380,40 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
               variant="secondary"
               className={headerButton}
               onClick={() => setReturnOpen(true)}
-              disabled={pending}
+              disabledReason={busyReason}
             >
               <Icon name="store" size={18} />
-              Qaytganini tasdiqlash
+              {t.confirmReturn}
             </Button>
           )}
 
           {yandex ? null : awaitingShipment ? (
-            <button
-              type="button"
-              disabled
-              aria-live="polite"
-              className="inline-flex h-11 items-center gap-2 rounded-md border border-dashed border-line-strong px-4 text-label font-bold text-ink-muted"
-            >
-              <Icon name="refresh" size={18} className="animate-spin" />
-              BTS ga yuborilmoqda…
-            </button>
+            <Button variant="dashed" className={headerButton} busy aria-live="polite">
+              <Icon name="refresh" size={18} className="animate-spin motion-reduce:animate-none" />
+              {t.btsSending}
+            </Button>
           ) : order.availableActions.retryShipment ? (
             <Button
               variant="secondary"
               className={headerButton}
               onClick={runShipmentRetry}
-              disabled={pending}
-              aria-busy={pendingAction === "shipment"}
+              busy={pendingAction === "shipment"}
+              disabledReason={pending && pendingAction !== "shipment" && t.busyReason}
             >
               <Icon name="truck" size={18} />
-              {pendingAction === "shipment" ? "Yuborilmoqda…" : "BTS ga yuborish"}
+              {pendingAction === "shipment" ? t.sending : t.sendToBts}
             </Button>
           ) : order.fulfilment === "delivery" ? (
-            <button
-              type="button"
-              disabled
-              title={
-                shipment.state === "created"
-                  ? "BTS ga avtomatik yuborilgan"
-                  : "To‘lov tasdiqlangach avtomatik yuboriladi"
+            <Button
+              variant="dashed"
+              className={headerButton}
+              disabledReason={
+                shipment.state === "created" ? t.sentToBtsReason : t.notSentToBtsReason
               }
-              className="inline-flex h-11 items-center gap-2 rounded-md border border-dashed border-line-strong px-4 text-label font-bold text-ink-muted"
             >
               <Icon name="truck" size={18} />
-              {shipment.state === "created" ? "BTS ga yuborilgan" : "BTS ga yuborilmagan"}
-            </button>
+              {shipment.state === "created" ? t.sentToBts : t.notSentToBts}
+            </Button>
           ) : null}
 
           {order.availableActions.cancel && (
@@ -439,10 +421,10 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
               variant="danger"
               className={headerButton}
               onClick={() => setCancelOpen(true)}
-              disabled={pending}
+              disabledReason={busyReason}
             >
               <Icon name="close" size={18} className="text-danger" />
-              Bekor qilish
+              {t.cancel}
             </Button>
           )}
         </div>
@@ -460,7 +442,7 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
             (yandex ? (
               <OrderDeliveryCard
                 order={order}
-                disabled={pending}
+                disabledReason={busyReason}
                 onMarkDelivered={() => setConfirmStatus("delivered")}
               >
                 {issuesSection}
@@ -477,23 +459,17 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
         onOpenChange={(open) => {
           if (!open) setConfirmStatus(null);
         }}
-        title={
-          confirmShown
-            ? `Holatni «${ORDER_STATUS_META[confirmShown].label}» ga o‘zgartirasizmi?`
-            : ""
-        }
+        title={confirmShown ? t.confirmTitle(labels.status[confirmShown]) : ""}
         description={
           <p className="m-0 text-[14px] leading-5 text-ink">
-            {yandex &&
-              confirmShown === "delivered" &&
-              "Yandex bu posilkani kuzatmayapti: faqat mijoz olganini aniq bilsangiz belgilang. "}
-            Buyurtma №{order.id} mijozi push xabar oladi. Bu amalni qaytarib bo‘lmaydi.
+            {yandex && confirmShown === "delivered" && `${t.confirmYandex} `}
+            {t.confirmPush(order.id)}
           </p>
         }
       >
         <div className="mt-1.5 flex flex-wrap justify-end gap-2">
           <AlertDialogCancel className={buttonStyles({ variant: "outline" })}>
-            Bekor qilish
+            {t.back}
           </AlertDialogCancel>
           <Button
             onClick={() => {
@@ -502,7 +478,7 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
               if (status) runStatusChange(status);
             }}
           >
-            Holatni o‘zgartirish
+            {t.changeStatus}
           </Button>
         </div>
       </AlertDialog>
@@ -523,15 +499,14 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
               }),
             );
             toast({
-              title: created ? "Hodisa qayd etildi" : "Ochiq hodisa yangilandi",
-              description: issue.urgent
-                ? "Shoshilinch: xodimlarga xabar yuborildi."
-                : "Muammolar ro‘yxatiga qo‘shildi.",
+              tone: "success",
+              title: created ? tt.incidentCreated : tt.incidentUpdated,
+              description: issue.urgent ? tt.incidentUrgent : tt.incidentQueued,
             });
           }}
           onStale={(message) => {
             setIncidentOpen(false);
-            toast({ tone: "info", title: "Amal bajarilmadi", description: message });
+            toast({ tone: "danger", title: tt.failed, description: message });
             void runAction((csrf) => loadOrder(order.id, csrf)).then((fresh) => {
               if (fresh.ok) replaceOrder(fresh.data);
             });
@@ -555,14 +530,18 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
           replaceOrder(cancelled);
           setCancelOpen(false);
           toast({
-            title: "Buyurtma bekor qilindi",
-            description: newRefund
-              ? refundStateLine(refund)
-              : "Band qilingan mahsulotlar bo‘shatildi",
+            tone: "success",
+            title: tt.cancelled,
+            description: newRefund ? refundStateLine(refund, locale) : tt.cancelledReleased,
           });
         }}
         onRefused={(outcome) => {
-          toast({ tone: "info", title: outcome.title, description: outcome.message });
+          toast({
+            // Yandex was asked to bring the parcel back: a step, not a failure.
+            tone: outcome.kind === "return_requested" ? "warning" : "danger",
+            title: outcome.title,
+            description: outcome.message,
+          });
           // `return_requested`: Yandex was asked to bring the parcel back; the order (and its new
           // `return_pending` issue) is re-read, the cancel is pressed again once Yandex confirms.
           if (outcome.kind !== "retry") {
@@ -580,12 +559,13 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
             setDispatchOpen(false);
             replaceOrder(next);
             const phase = dispatchPhase(next);
-            showToast(dispatchToast(phase, next));
+            const message = dispatchToast(phase, next, locale);
+            if (message) toast(message);
             if (phase.kind === "searching") startDispatchPoll();
           }}
           onStale={(title, message) => {
             setDispatchOpen(false);
-            toast({ tone: "info", title, description: message });
+            toast({ tone: "danger", title, description: message });
             void reload();
           }}
           onReload={() => void reload()}
@@ -604,16 +584,15 @@ export function OrderDetailView({ initialOrder, now: initialNow }: OrderDetailVi
             setReturnOpen(false);
             replaceOrder(next);
             toast({
-              title: "Posilka qaytgani tasdiqlandi",
+              tone: "success",
+              title: tt.returnConfirmed,
               description:
-                next.status === "cancelled"
-                  ? "«Qaytish kutilmoqda» yopildi; buyurtma bekor qilinganicha qoladi."
-                  : "Posilka omborda. Kerak bo‘lsa, kuryerni qayta chaqiring yoki buyurtmani bekor qiling.",
+                next.status === "cancelled" ? tt.returnConfirmedCancelled : tt.returnConfirmedOpen,
             });
           }}
           onStale={(title, message) => {
             setReturnOpen(false);
-            toast({ tone: "info", title, description: message });
+            toast({ tone: "danger", title, description: message });
             void reload();
           }}
         />

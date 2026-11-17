@@ -6,8 +6,10 @@ import {
   type OrderStatus,
   type Refund,
 } from "@/domain/order";
+import { orderDataCopy, orderHistoryCopy, orderLabelsCopy } from "@/domain/copy/orders";
 import type { DispatchInput } from "@/domain/order-dispatch";
-import { formatNumber } from "@/lib/format";
+import { createFormatter } from "@/lib/format";
+import type { Locale } from "@/lib/i18n/locales";
 
 import { referenceNow } from "../config";
 import type { ActionResult } from "../types";
@@ -20,33 +22,24 @@ import { getOrder } from "./orders.queries";
  * the order up in the fixtures by id (never trusting a client-supplied
  * object), applies the contract's effects (§2.2) and returns the updated
  * order; nothing is persisted, so a reload restores the dataset. Refusals
- * use the contract's codes and messages.
+ * use the contract's codes and the backend's messages in the admin language
+ * (`orderDataCopy`), the history rows the mapper's words (`orderHistoryCopy`).
  */
 
-const NOT_FOUND: ActionResult<never> = {
+const notFound = (locale: Locale): ActionResult<never> => ({
   ok: false,
-  error: "Topilmadi.",
+  error: orderDataCopy[locale].notFound,
   code: "not_found",
-};
-
-const STATUS_TITLE: Record<OrderStatus, string> = {
-  awaiting_payment: "To‘lov kutilmoqda",
-  processing: "Jarayonda",
-  handed_to_courier: "Kuryerga topshirildi",
-  delivered: "Yetkazildi",
-  cancelled: "Bekor qilindi",
-};
+});
 
 const withActions = (order: Order): Order => ({ ...order, availableActions: orderActions(order) });
 
 /** The backend's Uzbek messages (INTERFACES-dispatch, INTERFACES-cancel). */
-export const MESSAGE_DISPATCH_REFUSED = "Bu buyurtma uchun kuryer chaqirib bo‘lmaydi.";
-export const MESSAGE_DISPATCH_NO_REVIEW = "Bu buyurtmada tasdiqlanadigan narx yo‘q.";
-export const MESSAGE_DISPATCH_TOO_HEAVY = "Jo‘natma bu yetkazish usuli uchun juda og‘ir.";
-export const MESSAGE_YANDEX_RETURN_REQUESTED =
-  "Yandexdan posilkani omborga qaytarish so‘raldi. Buyurtma hali bekor qilinmadi: Yandex qaytarishni tasdiqlagach, bekor qilishni qayta bosing.";
-export const MESSAGE_RETURN_NOT_CONFIRMABLE =
-  "Qaytayotgan posilka yo‘q: qaytishni tasdiqlab bo‘lmaydi.";
+export const MESSAGE_DISPATCH_REFUSED = orderDataCopy.uz.dispatchRefused;
+export const MESSAGE_DISPATCH_NO_REVIEW = orderDataCopy.uz.dispatchNoReview;
+export const MESSAGE_DISPATCH_TOO_HEAVY = orderDataCopy.uz.dispatchTooHeavy;
+export const MESSAGE_YANDEX_RETURN_REQUESTED = orderDataCopy.uz.yandexReturnRequested;
+export const MESSAGE_RETURN_NOT_CONFIRMABLE = orderDataCopy.uz.returnNotConfirmable;
 
 /** Yandex class limits (courier 10 kg, express 20 kg), as `request_dispatch` checks them. */
 const WEIGHT_LIMIT_G = { standard: 10_000, express: 20_000 } as const;
@@ -66,16 +59,22 @@ const yandexOf = (order: Order): OrderDelivery | null =>
  * state); an open claim before pickup is cancelled at "Yandex" with the
  * order; a returning / returned parcel needs no carrier call.
  */
-export async function cancelOrder(orderId: number, reason: string): Promise<ActionResult<Order>> {
+export async function cancelOrder(
+  orderId: number,
+  reason: string,
+  locale: Locale = "uz",
+): Promise<ActionResult<Order>> {
   await delay(450);
-  const order = await getOrder(orderId);
-  if (!order) return NOT_FOUND;
+  const m = orderDataCopy[locale];
+  const h = orderHistoryCopy[locale];
+  const order = await getOrder(orderId, locale);
+  if (!order) return notFound(locale);
   if (!order.availableActions.cancel) {
-    return { ok: false, error: "Bu buyurtmani bekor qilib bo‘lmaydi.", code: "not_cancellable" };
+    return { ok: false, error: m.notCancellable, code: "not_cancellable" };
   }
   const yandex = yandexOf(order);
   if (yandex?.stage && PICKED_UP.has(yandex.stage)) {
-    return { ok: false, error: MESSAGE_YANDEX_RETURN_REQUESTED, code: "return_requested" };
+    return { ok: false, error: m.yandexReturnRequested, code: "return_requested" };
   }
   const carrierCancelled = yandex
     ? yandex.stage !== null && CLAIM_BEFORE_PICKUP.has(yandex.stage)
@@ -96,25 +95,27 @@ export async function cancelOrder(orderId: number, reason: string): Promise<Acti
     : null;
   const reversals = order.cashback
     .filter((e) => e.kind !== "reversal")
-    .map((e) => ({ kind: "reversal" as const, amount: -e.amount, label: "Qarama-qarshi yozuv" }));
+    .map((e) => ({ kind: "reversal" as const, amount: -e.amount, label: h.cashbackReversal }));
   const effects = [
-    refund ? "to‘lov qaytarish so‘rovi yuborildi" : null,
-    reversals.length > 0 ? "cashback yozuvlari qaytarildi" : null,
+    refund ? h.refundRequestSent : null,
+    reversals.length > 0 ? h.cashbackReversed : null,
   ].filter(Boolean);
   const note = [
-    "Administrator",
+    h.admin,
     effects.length > 0 ? effects.join(", ") : null,
-    carrierCancelled
-      ? yandex
-        ? "Yandex buyurtmasi bekor qilindi"
-        : "BTS buyurtmasi bekor qilindi"
-      : null,
+    carrierCancelled ? (yandex ? h.yandexCancelled : h.btsCancelled) : null,
     reason,
   ]
     .filter(Boolean)
     .join(" · ");
   const history: Order["history"] = [
-    { at, title: STATUS_TITLE.cancelled, source: "admin", status: "cancelled", note },
+    {
+      at,
+      title: orderLabelsCopy[locale].status.cancelled,
+      source: "admin",
+      status: "cancelled",
+      note,
+    },
     ...order.history,
   ];
   return {
@@ -138,12 +139,18 @@ export async function cancelOrder(orderId: number, reason: string): Promise<Acti
 export async function changeOrderStatus(
   orderId: number,
   status: OrderStatus,
+  locale: Locale = "uz",
 ): Promise<ActionResult<Order>> {
   await delay(450);
-  const order = await getOrder(orderId);
-  if (!order) return NOT_FOUND;
+  const h = orderHistoryCopy[locale];
+  const order = await getOrder(orderId, locale);
+  if (!order) return notFound(locale);
   if (!order.availableActions.transitions.includes(status)) {
-    return { ok: false, error: "Bu holatga o‘tib bo‘lmaydi.", code: "invalid_transition" };
+    return {
+      ok: false,
+      error: orderDataCopy[locale].invalidTransition,
+      code: "invalid_transition",
+    };
   }
   const pickupHandOver = status === "delivered" && order.fulfilment === "pickup";
   return {
@@ -154,12 +161,12 @@ export async function changeOrderStatus(
       history: [
         {
           at: referenceNow().toISOString(),
-          title: STATUS_TITLE[status],
+          title: orderLabelsCopy[locale].status[status],
           source: "admin",
           status,
           note: pickupHandOver
-            ? "Administrator · mijozga topshirildi"
-            : "Administrator · holat qo‘lda o‘zgartirildi · mijozga push yuborildi",
+            ? `${h.admin} · ${h.handedToCustomer}`
+            : `${h.admin} · ${h.changedByHand} · ${h.pushSent}`,
         },
         ...order.history,
       ],
@@ -173,12 +180,16 @@ export async function changeOrderStatus(
  * outbox, so it answers with the created parcel right away (the view handles
  * both).
  */
-export async function retryShipment(orderId: number): Promise<ActionResult<Order>> {
+export async function retryShipment(
+  orderId: number,
+  locale: Locale = "uz",
+): Promise<ActionResult<Order>> {
   await delay(700);
-  const order = await getOrder(orderId);
-  if (!order) return NOT_FOUND;
+  const h = orderHistoryCopy[locale];
+  const order = await getOrder(orderId, locale);
+  if (!order) return notFound(locale);
   if (!order.availableActions.retryShipment) {
-    return { ok: false, error: "BTS ga qayta yuborib bo‘lmaydi.", code: "invalid_transition" };
+    return { ok: false, error: orderDataCopy[locale].retryRefused, code: "invalid_transition" };
   }
   const trackingNumber = String(48_214_000 + (order.id % 1000));
   const at = referenceNow().toISOString();
@@ -196,9 +207,9 @@ export async function retryShipment(orderId: number): Promise<ActionResult<Order
       history: [
         {
           at,
-          title: "BTS buyurtmasi yaratildi",
+          title: h.btsCreated,
           source: "admin",
-          note: `Qo‘lda yuborildi · yetkazish raqami ${trackingNumber}`,
+          note: h.sentByHand(trackingNumber),
         },
         ...order.history,
       ],
@@ -217,24 +228,27 @@ export async function retryShipment(orderId: number): Promise<ActionResult<Order
 export async function dispatchOrder(
   orderId: number,
   input: DispatchInput,
+  locale: Locale = "uz",
 ): Promise<ActionResult<Order>> {
   await delay(600);
-  const order = await getOrder(orderId);
-  if (!order) return NOT_FOUND;
+  const m = orderDataCopy[locale];
+  const h = orderHistoryCopy[locale];
+  const order = await getOrder(orderId, locale);
+  if (!order) return notFound(locale);
   const delivery = yandexOf(order);
   if (!delivery || !order.availableActions.dispatch) {
-    return { ok: false, error: MESSAGE_DISPATCH_REFUSED, code: "invalid_transition" };
+    return { ok: false, error: m.dispatchRefused, code: "invalid_transition" };
   }
   const method = input.method ?? delivery.method ?? "standard";
   if (input.weightG > WEIGHT_LIMIT_G[method]) {
-    return { ok: false, error: MESSAGE_DISPATCH_TOO_HEAVY, code: "too_heavy" };
+    return { ok: false, error: m.dispatchTooHeavy, code: "too_heavy" };
   }
   const approvedPrice = input.approvedPrice ?? null;
   if (
     approvedPrice !== null &&
     !delivery.openIssues.some((issue) => issue.kind === "dispatch_review")
   ) {
-    return { ok: false, error: MESSAGE_DISPATCH_NO_REVIEW, code: "conflict" };
+    return { ok: false, error: m.dispatchNoReview, code: "conflict" };
   }
   const at = referenceNow().toISOString();
   const next = demoDispatched(delivery, {
@@ -260,13 +274,13 @@ export async function dispatchOrder(
       history: [
         {
           at,
-          title: "Kuryer chaqirildi",
+          title: h.courierCalled,
           source: "admin",
           note: [
-            "Administrator",
+            h.admin,
             `Yandex ${DELIVERY_METHOD_LABEL[method]}`,
-            `${formatNumber(input.weightG)} g`,
-            "demo: kuryer darhol biriktirildi",
+            orderLabelsCopy[locale].grams(createFormatter(locale).number(input.weightG)),
+            h.demoCourierAssigned,
           ].join(" · "),
         },
         ...order.history,
@@ -279,13 +293,22 @@ export async function dispatchOrder(
  * Mock "Qaytganini tasdiqlash" (plan §3.8): a returning / returned parcel is
  * back; the `return_pending` issue is resolved and the order status stays.
  */
-export async function confirmReturn(orderId: number, note: string): Promise<ActionResult<Order>> {
+export async function confirmReturn(
+  orderId: number,
+  note: string,
+  locale: Locale = "uz",
+): Promise<ActionResult<Order>> {
   await delay(450);
-  const order = await getOrder(orderId);
-  if (!order) return NOT_FOUND;
+  const h = orderHistoryCopy[locale];
+  const order = await getOrder(orderId, locale);
+  if (!order) return notFound(locale);
   const delivery = yandexOf(order);
   if (!delivery || !order.availableActions.confirmReturn) {
-    return { ok: false, error: MESSAGE_RETURN_NOT_CONFIRMABLE, code: "invalid_transition" };
+    return {
+      ok: false,
+      error: orderDataCopy[locale].returnNotConfirmable,
+      code: "invalid_transition",
+    };
   }
   const at = referenceNow().toISOString();
   const next: Order = {
@@ -294,9 +317,9 @@ export async function confirmReturn(orderId: number, note: string): Promise<Acti
     history: [
       {
         at,
-        title: "Jo‘natma omborga qaytdi",
+        title: h.returned,
         source: "admin",
-        note: ["Qaytish qo‘lda tasdiqlandi", note.trim() || null].filter(Boolean).join(" · "),
+        note: [h.returnConfirmedByHand, note.trim() || null].filter(Boolean).join(" · "),
       },
       ...order.history,
     ],

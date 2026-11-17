@@ -15,5 +15,9 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
+    // The persistent module cache keys a transformed file by its own content, so a test that
+    // discovers files with `import.meta.glob` (copy-parity.test.ts) would keep the list of copy
+    // modules it saw first and miss every module added later. Transform from scratch instead.
+    fsModuleCache: false,
   },
 });

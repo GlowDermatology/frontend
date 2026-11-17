@@ -1,0 +1,186 @@
+import { createFormatter, pluralEn, pluralRu } from "@/lib/format";
+import type { CopySet } from "@/lib/i18n/copy";
+
+/**
+ * Texts of /admin/audit-log (uz / ru / en). Action and object labels live in
+ * `src/domain/copy/audit.ts`; stored audit data is never translated.
+ */
+const uzN = createFormatter("uz").number;
+const ruN = createFormatter("ru").number;
+const enN = createFormatter("en").number;
+
+const uz = {
+  title: "Harakatlar jurnali",
+  entries: (n: number) => `${uzN(n)} ta yozuv`,
+  you: (name: string) => `${name} (siz)`,
+  empty: { title: "Yozuv topilmadi", text: "Filtrlarni o‘zgartirib ko‘ring." },
+  tier: {
+    staff:
+      "Sizga biznes yozuvlari va o‘zingizning kirish hamda eksportlaringiz ko‘rinadi. IP manzillar menejerlarga ko‘rinadi.",
+    manager:
+      "Sizga biznes yozuvlari, xodimlar boshqaruvi va barcha xodimlarning kirishlari ko‘rinadi.",
+    superuser: "Sizga barcha yozuvlar, jumladan tizim yozuvlari ko‘rinadi.",
+  },
+  tierBadge: { staff: "Oddiy xodim", manager: "Menejer", superuser: "Superadmin" },
+  toolbar: {
+    label: "Filtrlar",
+    actor: "Xodim",
+    action: "Amal",
+    actionSearch: "Amal yoki kodni qidiring…",
+    objectType: "Obyekt turi",
+    objectSearch: "Obyekt turini qidiring…",
+    objectId: "Obyekt ID",
+    requestId: "So‘rov ID",
+    requestIdPlaceholder: "masalan 6f1c2a0e",
+    requestIdSearch: "So‘rov ID bo‘yicha qidirish",
+    requestIdClear: "So‘rov ID ni tozalash",
+    requestIdShort: "Kamida 8 ta belgi kiriting.",
+    requestIdChars: "Faqat lotin harflari, raqamlar va chiziqcha (-).",
+    all: "Hammasi",
+    clear: "Filtrlarni tozalash",
+    byRequest: "Bitta so‘rov yozuvlari ko‘rsatilmoqda",
+  },
+  table: {
+    label: "Harakatlar jurnali jadvali",
+    at: "Sana",
+    actor: "Xodim",
+    action: "Amal",
+    object: "Obyekt",
+    objectId: "Obyekt ID",
+    ip: "IP",
+    requestId: "So‘rov ID",
+    details: "Tafsilotlar",
+    ascending: ", eskisidan yangisiga",
+    descending: ", yangisidan eskisiga",
+    detailsOf: (label: string) => `${label} — ma’lumotlar`,
+    copy: "Nusxalash",
+    copyRequestId: "So‘rov ID ni nusxalash",
+    copied: "So‘rov ID nusxalandi",
+    copyFailed: "Nusxalab bo‘lmadi",
+    copyFailedText: "Brauzer buferga yozishga ruxsat bermadi: ID ni belgilab, o‘zingiz nusxalang.",
+    sameRequest: "Shu so‘rov yozuvlari",
+    sameRequestOf: (id: string) => `${id} so‘rovining barcha yozuvlari`,
+    none: "—",
+  },
+  export: {
+    header: ["ID", "Sana", "Xodim", "Amal", "Obyekt", "Obyekt ID", "IP", "So‘rov ID"],
+  },
+};
+
+export const auditLogCopy = {
+  uz,
+  ru: {
+    title: "Журнал действий",
+    entries: (n: number) => `${ruN(n)} ${pluralRu(n, ["запись", "записи", "записей"])}`,
+    you: (name: string) => `${name} (вы)`,
+    empty: { title: "Записи не найдены", text: "Попробуйте изменить фильтры." },
+    tier: {
+      staff:
+        "Вам видны деловые записи, а также ваши собственные входы и экспорты. IP-адреса видят менеджеры.",
+      manager: "Вам видны деловые записи, управление сотрудниками и входы всех сотрудников.",
+      superuser: "Вам видны все записи, включая системные.",
+    },
+    tierBadge: { staff: "Сотрудник", manager: "Менеджер", superuser: "Суперадминистратор" },
+    toolbar: {
+      label: "Фильтры",
+      actor: "Сотрудник",
+      action: "Действие",
+      actionSearch: "Найдите действие или код…",
+      objectType: "Тип объекта",
+      objectSearch: "Найдите тип объекта…",
+      objectId: "ID объекта",
+      requestId: "ID запроса",
+      requestIdPlaceholder: "например 6f1c2a0e",
+      requestIdSearch: "Искать по ID запроса",
+      requestIdClear: "Очистить ID запроса",
+      requestIdShort: "Введите не менее 8 символов.",
+      requestIdChars: "Только латинские буквы, цифры и дефис (-).",
+      all: "Все",
+      clear: "Сбросить фильтры",
+      byRequest: "Показаны записи одного запроса",
+    },
+    table: {
+      label: "Таблица журнала действий",
+      at: "Дата",
+      actor: "Сотрудник",
+      action: "Действие",
+      object: "Объект",
+      objectId: "ID объекта",
+      ip: "IP",
+      requestId: "ID запроса",
+      details: "Подробности",
+      ascending: ", от старых к новым",
+      descending: ", от новых к старым",
+      detailsOf: (label: string) => `${label} — данные`,
+      copy: "Копировать",
+      copyRequestId: "Копировать ID запроса",
+      copied: "ID запроса скопирован",
+      copyFailed: "Не удалось скопировать",
+      copyFailedText: "Браузер не разрешил запись в буфер: выделите ID и скопируйте вручную.",
+      sameRequest: "Записи этого запроса",
+      sameRequestOf: (id: string) => `Все записи запроса ${id}`,
+      none: "—",
+    },
+    export: {
+      header: ["ID", "Дата", "Сотрудник", "Действие", "Объект", "ID объекта", "IP", "ID запроса"],
+    },
+  },
+  en: {
+    title: "Audit log",
+    entries: (n: number) => `${enN(n)} ${pluralEn(n, ["entry", "entries"])}`,
+    you: (name: string) => `${name} (you)`,
+    empty: { title: "No entries found", text: "Try changing the filters." },
+    tier: {
+      staff:
+        "You see business entries plus your own sign-ins and exports. IP addresses are visible to managers.",
+      manager: "You see business entries, staff management and every staff member’s sign-ins.",
+      superuser: "You see every entry, system entries included.",
+    },
+    tierBadge: { staff: "Staff member", manager: "Manager", superuser: "Superuser" },
+    toolbar: {
+      label: "Filters",
+      actor: "Staff member",
+      action: "Action",
+      actionSearch: "Search an action or code…",
+      objectType: "Object type",
+      objectSearch: "Search an object type…",
+      objectId: "Object ID",
+      requestId: "Request ID",
+      requestIdPlaceholder: "e.g. 6f1c2a0e",
+      requestIdSearch: "Search by request ID",
+      requestIdClear: "Clear the request ID",
+      requestIdShort: "Enter at least 8 characters.",
+      requestIdChars: "Latin letters, digits and hyphens (-) only.",
+      all: "All",
+      clear: "Clear filters",
+      byRequest: "Showing the entries of one request",
+    },
+    table: {
+      label: "Audit log table",
+      at: "Date",
+      actor: "Staff member",
+      action: "Action",
+      object: "Object",
+      objectId: "Object ID",
+      ip: "IP",
+      requestId: "Request ID",
+      details: "Details",
+      ascending: ", oldest first",
+      descending: ", newest first",
+      detailsOf: (label: string) => `${label} — data`,
+      copy: "Copy",
+      copyRequestId: "Copy the request ID",
+      copied: "Request ID copied",
+      copyFailed: "Could not copy",
+      copyFailedText: "The browser refused clipboard access: select the ID and copy it yourself.",
+      sameRequest: "Entries of this request",
+      sameRequestOf: (id: string) => `All entries of request ${id}`,
+      none: "—",
+    },
+    export: {
+      header: ["ID", "Date", "Staff member", "Action", "Object", "Object ID", "IP", "Request ID"],
+    },
+  },
+} satisfies CopySet<typeof uz>;
+
+export type AuditLogCopy = (typeof auditLogCopy)["uz"];

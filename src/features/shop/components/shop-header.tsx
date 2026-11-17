@@ -1,20 +1,20 @@
 import Link from "next/link";
-import { Suspense } from "react";
 
-import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/cn";
 import type { Locale } from "@/lib/i18n/locales";
 
 import type { ShopDictionary } from "../content";
 import { shopPath } from "../routing/routes";
-import { AccountLink, CartLink, InboxLink, ShopMenu } from "./header-islands";
-import { LanguageSwitcher, LanguageSwitcherFallback } from "./language-switcher";
+import { AccountLink, CartLink, HeaderSearch, InboxLink, ShopMenu } from "./header-islands";
+import { LanguageLinks } from "./language-switcher";
 import { gutter, textLink } from "./layout-primitives";
 
 /**
  * Storefront header: static (prerendered into every page's shell), with
- * small client islands for the language switch, the account and cart links
- * and the small-screen menu.
+ * small client islands for the product search (a field; an icon on phones),
+ * the account menu (sign-in / sign-up or the private sections, and the
+ * language list with flags), the cart and inbox links and the small-screen
+ * menu (links and the same language list).
  */
 export function ShopHeader({ locale, dict }: { locale: Locale; dict: ShopDictionary }) {
   const links = [
@@ -51,23 +51,14 @@ export function ShopHeader({ locale, dict }: { locale: Locale; dict: ShopDiction
         </nav>
 
         <div className="flex items-center gap-1 sm:gap-2">
-          <div className="hidden sm:block">
-            <Suspense
-              fallback={
-                <LanguageSwitcherFallback current={locale} label={dict.header.languageLabel} />
-              }
-            >
-              <LanguageSwitcher current={locale} label={dict.header.languageLabel} />
-            </Suspense>
-          </div>
-          <Link
-            href={shopPath(locale, { kind: "catalog" })}
-            aria-label={dict.header.search}
-            title={dict.header.search}
-            className="inline-flex size-11 items-center justify-center rounded-md text-ink transition-colors duration-150 hover:bg-gold-soft"
-          >
-            <Icon name="search" size={22} />
-          </Link>
+          <HeaderSearch
+            action={shopPath(locale, { kind: "catalog" })}
+            label={dict.header.searchLabel}
+            placeholder={dict.header.searchPlaceholder}
+            submitLabel={dict.header.search}
+            openLabel={dict.header.searchOpen}
+            closeLabel={dict.header.searchClose}
+          />
           <InboxLink locale={locale} />
           <AccountLink locale={locale} />
           <CartLink locale={locale} label={dict.header.cart} />
@@ -75,15 +66,7 @@ export function ShopHeader({ locale, dict }: { locale: Locale; dict: ShopDiction
             links={links}
             openLabel={dict.header.menuOpen}
             closeLabel={dict.header.menuClose}
-            language={
-              <Suspense
-                fallback={
-                  <LanguageSwitcherFallback current={locale} label={dict.header.languageLabel} />
-                }
-              >
-                <LanguageSwitcher current={locale} label={dict.header.languageLabel} />
-              </Suspense>
-            }
+            language={<LanguageLinks current={locale} label={dict.header.languageLabel} />}
           />
         </div>
       </div>

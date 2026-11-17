@@ -10,6 +10,7 @@ import type { Locale } from "@/lib/i18n/locales";
 
 import type { ShopDictionary } from "../content";
 import { shopPath } from "../routing/routes";
+import { LanguageLinks } from "./language-switcher";
 import { gutter, textLink } from "./layout-primitives";
 
 const footerLink = cn("text-[15px] leading-[22px] font-semibold text-ink", textLink);
@@ -110,7 +111,7 @@ export function ShopFooter({ locale, dict }: { locale: Locale; dict: ShopDiction
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-6 text-body-sm text-ink-muted">
           <span>{dict.footer.copyright(2026)}</span>
-          <span>{dict.footer.languages}</span>
+          <LanguageLinks current={locale} label={dict.footer.languagesLabel} layout="inline" />
         </div>
       </div>
     </footer>

@@ -2,31 +2,30 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { SearchInput } from "@/components/ui/field";
 import { SelectMenu } from "@/components/ui/menu";
 import type { OrderAttention, OrderListQuery, OrderPeriod } from "@/data/orders";
+import { orderLabelsCopy } from "@/domain/copy/orders";
 import {
-  SHIPMENT_STAGE_LABEL,
   SHIPMENT_STAGES,
   type DeliveryProvider,
   type FulfilmentMethod,
   type PaymentStatus,
   type ShipmentStage,
 } from "@/domain/order";
+import { useCopy } from "@/lib/i18n/admin-context";
 
 import { DateRangeFields } from "../shared/date-range-fields";
 import { useListNavigation } from "../shared/list-transition";
-import { FULFILMENT_LABEL, PAYMENT_STATUS_META } from "../shared/status";
+import { ordersCopy } from "./copy";
 import { DEFAULT_PERIOD, PAGE_SIZES, hasActiveFilters, orderListHref } from "./query";
 
 type All = "all";
 
 const PROVIDER_FILTER_LABEL: Record<DeliveryProvider, string> = { yandex: "Yandex", bts: "BTS" };
-const ATTENTION_LABEL: Record<OrderAttention, string> = {
-  open: "Ochiq muammo bor",
-  urgent: "Shoshilinch",
-};
+const PAYMENTS: ReadonlyArray<PaymentStatus> = ["pending", "paid", "failed", "refunded"];
 
 interface OrdersToolbarProps {
   query: OrderListQuery;
@@ -42,6 +41,9 @@ interface OrdersToolbarProps {
  * period picked clears the days.
  */
 export function OrdersToolbar({ query, periodLabels, customerName }: OrdersToolbarProps) {
+  const t = useCopy(ordersCopy);
+  const tb = t.toolbar;
+  const labels = useCopy(orderLabelsCopy);
   const { navigate } = useListNavigation();
   const [search, setSearch] = useState(query.q ?? "");
   const lastSubmitted = useRef(query.q ?? "");
@@ -63,14 +65,15 @@ export function OrdersToolbar({ query, periodLabels, customerName }: OrdersToolb
   return (
     <div className="flex flex-wrap items-center gap-2.5 border-b border-line p-4">
       <SearchInput
-        label="Buyurtma raqami, telefon yoki mijoz ismi"
-        placeholder="№, telefon yoki ism"
+        label={tb.searchLabel}
+        placeholder={tb.searchPlaceholder}
         value={search}
+        maxLength={100}
         onChange={(event) => setSearch(event.target.value)}
         wrapperClassName="max-w-[320px] flex-[1_1_240px] gap-2 bg-transparent px-3"
       />
       <SelectMenu<OrderPeriod>
-        label="Davr"
+        label={tb.period}
         trigger={
           <>
             <Icon name="calendar" size={18} />
@@ -85,32 +88,29 @@ export function OrdersToolbar({ query, periodLabels, customerName }: OrdersToolb
         }))}
       />
       <SelectMenu<FulfilmentMethod | All>
-        label="Olish usuli"
-        trigger={`Olish usuli: ${query.fulfilment ? FULFILMENT_LABEL[query.fulfilment] : "Hammasi"}`}
+        label={tb.fulfilment}
+        trigger={`${tb.fulfilmentPrefix} ${query.fulfilment ? labels.fulfilment[query.fulfilment] : t.all}`}
         value={query.fulfilment ?? "all"}
         onValueChange={(value) => update({ fulfilment: value === "all" ? undefined : value })}
         options={[
-          { value: "all", label: "Hammasi" },
-          { value: "delivery", label: FULFILMENT_LABEL.delivery },
-          { value: "pickup", label: FULFILMENT_LABEL.pickup },
+          { value: "all", label: t.all },
+          { value: "delivery", label: labels.fulfilment.delivery },
+          { value: "pickup", label: labels.fulfilment.pickup },
         ]}
       />
       <SelectMenu<PaymentStatus | All>
-        label="To‘lov holati"
-        trigger={`To‘lov: ${query.payment ? PAYMENT_STATUS_META[query.payment].label : "Hammasi"}`}
+        label={tb.payment}
+        trigger={`${tb.paymentPrefix} ${query.payment ? labels.paymentStatus[query.payment] : t.all}`}
         value={query.payment ?? "all"}
         onValueChange={(value) => update({ payment: value === "all" ? undefined : value })}
         options={[
-          { value: "all", label: "Hammasi" },
-          ...(["pending", "paid", "failed", "refunded"] as const).map((value) => ({
-            value,
-            label: PAYMENT_STATUS_META[value].label,
-          })),
+          { value: "all", label: t.all },
+          ...PAYMENTS.map((value) => ({ value, label: labels.paymentStatus[value] })),
         ]}
       />
       <SelectMenu<DeliveryProvider | All>
-        label="Yetkazuvchi"
-        trigger={`Yetkazuvchi: ${query.provider ? PROVIDER_FILTER_LABEL[query.provider] : "Hammasi"}`}
+        label={tb.provider}
+        trigger={`${tb.providerPrefix} ${query.provider ? PROVIDER_FILTER_LABEL[query.provider] : t.all}`}
         value={query.provider ?? "all"}
         onValueChange={(value) =>
           // A stage is a Yandex stage: it goes with any other choice.
@@ -120,32 +120,38 @@ export function OrdersToolbar({ query, periodLabels, customerName }: OrdersToolb
           })
         }
         options={[
-          { value: "all", label: "Hammasi" },
+          { value: "all", label: t.all },
           { value: "yandex", label: PROVIDER_FILTER_LABEL.yandex },
           { value: "bts", label: PROVIDER_FILTER_LABEL.bts },
         ]}
       />
       {query.provider === "yandex" && (
         <SelectMenu<ShipmentStage | All>
-          label="Yandex bosqichi"
-          trigger={`Bosqich: ${query.stage ? SHIPMENT_STAGE_LABEL[query.stage] : "Hammasi"}`}
+          label={tb.stage}
+          trigger={`${tb.stagePrefix} ${query.stage ? labels.shipmentStage[query.stage] : t.all}`}
           value={query.stage ?? "all"}
           onValueChange={(value) => update({ stage: value === "all" ? undefined : value })}
           options={[
-            { value: "all", label: "Hammasi" },
-            ...SHIPMENT_STAGES.map((value) => ({ value, label: SHIPMENT_STAGE_LABEL[value] })),
+            { value: "all", label: t.all },
+            ...SHIPMENT_STAGES.map((value) => ({ value, label: labels.shipmentStage[value] })),
           ]}
         />
       )}
       <SelectMenu<OrderAttention | All>
-        label="Yetkazish muammolari"
-        trigger={`Muammo: ${query.attention ? ATTENTION_LABEL[query.attention] : "Hammasi"}`}
+        label={tb.attention}
+        trigger={`${tb.attentionPrefix} ${
+          query.attention === "open"
+            ? tb.attentionOpen
+            : query.attention === "urgent"
+              ? tb.attentionUrgent
+              : t.all
+        }`}
         value={query.attention ?? "all"}
         onValueChange={(value) => update({ attention: value === "all" ? undefined : value })}
         options={[
-          { value: "all", label: "Hammasi" },
-          { value: "open", label: ATTENTION_LABEL.open },
-          { value: "urgent", label: ATTENTION_LABEL.urgent },
+          { value: "all", label: t.all },
+          { value: "open", label: tb.attentionOpen },
+          { value: "urgent", label: tb.attentionUrgent },
         ]}
       />
       <DateRangeFields
@@ -157,44 +163,44 @@ export function OrdersToolbar({ query, periodLabels, customerName }: OrdersToolb
         <button
           type="button"
           onClick={() => update({ customer: undefined })}
-          className="inline-flex h-9 items-center gap-1.5 rounded-full border border-line-strong px-3 text-label text-ink hover:bg-gold-soft"
+          className="inline-flex h-9 max-w-[280px] items-center gap-1.5 rounded-full border border-line-strong px-3 text-label text-ink hover:bg-gold-soft"
         >
-          Mijoz: {customerName ?? `#${query.customer}`}
-          <Icon name="close" size={14} />
-          <span className="sr-only">— filtrni olib tashlash</span>
+          <span className="truncate">{tb.customer(customerName ?? `#${query.customer}`)}</span>
+          <Icon name="close" size={14} className="shrink-0" />
+          <span className="sr-only">{tb.removeFilter}</span>
         </button>
       )}
       <span className="flex-1" />
-      <button
-        type="button"
-        disabled={!hasActiveFilters(query)}
+      <Button
+        variant="ghost"
+        disabledReason={!hasActiveFilters(query) && tb.clearReason}
         onClick={() => {
           setSearch("");
           lastSubmitted.current = "";
           navigate(orderListHref({ period: DEFAULT_PERIOD, pageSize: query.pageSize }));
         }}
-        className="inline-flex h-11 items-center gap-2 rounded-md px-[18px] text-label font-bold whitespace-nowrap text-ink transition-colors duration-150 hover:bg-gold-soft disabled:cursor-default disabled:text-ink-muted disabled:hover:bg-transparent"
       >
         <Icon name="close" size={18} />
-        Filtrlarni tozalash
-      </button>
+        {tb.clear}
+      </Button>
     </div>
   );
 }
 
 export function PageSizeMenu({ query }: { query: OrderListQuery }) {
+  const t = useCopy(ordersCopy);
   const { navigate } = useListNavigation();
   return (
     <SelectMenu<string>
-      label="Sahifadagi qatorlar"
+      label={t.toolbar.pageSize}
       align="end"
-      trigger={`${query.pageSize} ta qator`}
+      trigger={t.toolbar.rows(query.pageSize)}
       triggerClassName="h-9 gap-1.5 px-3 text-[13px] leading-[18px] font-semibold"
       value={String(query.pageSize)}
       onValueChange={(value) =>
         navigate(orderListHref({ ...query, pageSize: Number(value), page: 1 }))
       }
-      options={PAGE_SIZES.map((size) => ({ value: String(size), label: `${size} ta qator` }))}
+      options={PAGE_SIZES.map((size) => ({ value: String(size), label: t.toolbar.rows(size) }))}
     />
   );
 }

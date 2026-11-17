@@ -15,6 +15,17 @@ const apiFetch = vi.fn();
 const cachedGet = vi.fn();
 
 vi.mock("next/server", () => ({ connection: vi.fn(async () => undefined) }));
+/** The admin language the requests carry (cookie `gd_admin_language`; unset = Uzbek). */
+const adminLanguage = vi.hoisted(() => ({ value: undefined as string | undefined }));
+vi.mock("next/headers", () => ({
+  cookies: async () => ({
+    get: (name: string) =>
+      name === "gd_admin_language" && adminLanguage.value
+        ? { name, value: adminLanguage.value }
+        : undefined,
+  }),
+  headers: async () => new Headers(),
+}));
 vi.mock("next/cache", () => ({ refresh: () => refresh() }));
 vi.mock("./auth", () => ({
   verifyStaff: (options?: VerifyStaffOptions) => verifyStaff(options),
@@ -58,6 +69,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  adminLanguage.value = undefined;
   if (originalSource === undefined) delete process.env.GLOWDERMA_DATA_SOURCE;
   else process.env.GLOWDERMA_DATA_SOURCE = originalSource;
 });

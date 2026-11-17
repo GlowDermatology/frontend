@@ -3,6 +3,7 @@ import type { Refund } from "@/domain/order";
 import type { PaymentRecord } from "@/domain/payment";
 
 import { shouldRenewKey } from "../shared/idempotency";
+import { paymentsCopy, type PaymentsCopy } from "./copy";
 import {
   isClickNoPaydocRefusal,
   isClickStillPaidRefusal,
@@ -90,7 +91,15 @@ export type StepOutcome =
   /** Nothing changed (busy order, Click's 503 or test mode, network): say why, keep the key. */
   | { type: "retryable"; notice: DialogNotice };
 
-export function nextStep(op: RefundOperation, result: ActionResult<PaymentRecord>): StepOutcome {
+/** What the dialog says when Click did not answer the status check (503), in Uzbek. */
+export const CLICK_UNAVAILABLE_MESSAGE = paymentsCopy.uz.dialog.unavailable;
+
+/** `t` = the board's copy in the admin language (Uzbek by default, for tests). */
+export function nextStep(
+  op: RefundOperation,
+  result: ActionResult<PaymentRecord>,
+  t: PaymentsCopy = paymentsCopy.uz,
+): StepOutcome {
   if (result.ok) return { type: "done", payment: result.data };
   // Only the first close step moves on; the payout step's own answer never
   // advances again. The notice is the backend's answer: Click's "still paid"
@@ -109,7 +118,7 @@ export function nextStep(op: RefundOperation, result: ActionResult<PaymentRecord
   if (isStaleRefundRefusal(result)) return { type: "stale", message: result.error };
   return {
     type: "retryable",
-    notice: { tone: "error", text: refundRefusalMessage(op.kind, result) },
+    notice: { tone: "error", text: refundRefusalMessage(op.kind, result, t.dialog.unavailable) },
   };
 }
 
@@ -181,20 +190,20 @@ export function canSubmit(state: RefundDialogState, pending: boolean): boolean {
 }
 
 /** The toast after a success. */
-export function successToast(op: RefundOperation): { title: string; description: string } {
-  const order = `Buyurtma №${op.payment.orderId}`;
-  if (op.kind === "retry") return { title: "Qaytarish qayta yuborildi", description: order };
+export function successToast(
+  op: RefundOperation,
+  t: PaymentsCopy = paymentsCopy.uz,
+): { title: string; description: string } {
+  const order = t.toast.order(op.payment.orderId);
+  if (op.kind === "retry") return { title: t.toast.retried, description: order };
   if (op.kind === "close") {
     // Without the payout, a close only succeeds when Click reported the payment reversed.
     return op.manualPayout
-      ? { title: "Qaytarish yakunlandi", description: order }
-      : {
-          title: "Qaytarish yakunlandi",
-          description: `${order}: Click pulni mijozga qaytardi — qo‘lda to‘lash kerak emas.`,
-        };
+      ? { title: t.toast.closed, description: order }
+      : { title: t.toast.closed, description: t.toast.reversedByClick(op.payment.orderId) };
   }
   return {
-    title: op.state === "succeeded" ? "Qaytarish yakunlandi" : "Qaytarish bajarilmadi deb yopildi",
+    title: op.state === "succeeded" ? t.toast.closed : t.toast.markedFailed,
     description: order,
   };
 }

@@ -11,7 +11,18 @@ import type { StaffSession } from "./auth";
 const verifyStaff = vi.fn<() => Promise<StaffSession>>();
 const apiFetchRaw = vi.fn();
 
+const adminLanguage: { value: string | null } = { value: null };
+
 vi.mock("next/server", () => ({ connection: vi.fn(async () => undefined) }));
+vi.mock("next/headers", () => ({
+  cookies: async () => ({
+    get: (name: string) =>
+      name === "gd_admin_language" && adminLanguage.value
+        ? { name, value: adminLanguage.value }
+        : undefined,
+  }),
+  headers: async () => new Headers(),
+}));
 vi.mock("./auth", () => ({ verifyStaff: () => verifyStaff() }));
 vi.mock("./api/client", () => ({
   apiFetchRaw: (...args: unknown[]) => apiFetchRaw(...args),
@@ -37,6 +48,7 @@ function options(overrides: Partial<ExportRouteOptions> = {}): ExportRouteOption
 }
 
 beforeEach(() => {
+  adminLanguage.value = null;
   process.env.GLOWDERMA_DATA_SOURCE = "api";
   verifyStaff.mockReset();
   apiFetchRaw.mockReset();
@@ -164,5 +176,22 @@ describe("exportRoute", () => {
       'attachment; filename="mahsulotlar.csv"',
     );
     expect(await response.text()).toContain('"\'=Serum"');
+  });
+
+  it("words its own texts in the admin language (401 message, mock CSV yes/no)", async () => {
+    adminLanguage.value = "ru";
+    verifyStaff.mockResolvedValue({ ok: false, reason: "no_session" });
+    expect(await (await exportRoute(options())).json()).toMatchObject({
+      message: "Требуется авторизация.",
+    });
+
+    adminLanguage.value = "en";
+    delete process.env.GLOWDERMA_DATA_SOURCE;
+    verifyStaff.mockResolvedValue({ ok: true, mode: "mock" });
+    const csv = await (
+      await exportRoute(options({ mock: async () => ({ header: ["A"], rows: [[true], [false]] }) }))
+    ).text();
+    expect(csv).toContain('"Yes"');
+    expect(csv).toContain('"No"');
   });
 });

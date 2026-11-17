@@ -3,7 +3,7 @@
 import { useId, useRef, useState, type ReactNode } from "react";
 
 import { Rings } from "@/components/brand/rings";
-import { Button, buttonStyles } from "@/components/ui/button";
+import { Button, buttonStyles, IconButton } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import { AlertDialog, AlertDialogCancel } from "@/components/ui/dialog";
 import { Icon } from "@/components/ui/icon";
@@ -19,25 +19,28 @@ import {
   editorBaseline,
   formatPercent,
   tierWarningsText,
+  versionAuthorText,
+  versionPeriodText,
+  versionSummaryText,
   type CashbackPolicy,
   type CashbackTier,
   type PolicyVersion,
   type RateBasis,
 } from "@/domain/cashback";
 import { cn } from "@/lib/cn";
-import {
-  formatDateLong,
-  formatDateTimeLong,
-  formatDayMonth,
-  formatMillions,
-  formatNumber,
-  formatSom,
-  tashkentParts,
-} from "@/lib/format";
+import { revealFirstError } from "@/lib/forms/reveal";
+import { tashkentParts } from "@/lib/format";
+import { useAdminLocale, useCopy } from "@/lib/i18n/admin-context";
+import { useFormat } from "@/lib/i18n/admin-hooks";
+import type { Locale } from "@/lib/i18n/locales";
 
 import { runAction } from "../shared/action-client";
 import { partitionFieldErrors } from "../shared/field-errors";
 import { useIdempotencyKey } from "../shared/idempotency";
+import { cashbackCopy } from "./copy";
+
+/** The policy allows at most 20 tiers (contract §2.7). */
+const MAX_TIERS = 20;
 
 /** The sample customer from the design: 19.5 mln lifetime, 1 mln purchase. */
 const SAMPLE = {
@@ -55,8 +58,23 @@ interface TierDraft {
   percent: string;
 }
 
-const toDraft = (tiers: ReadonlyArray<CashbackTier>): TierDraft[] =>
-  tiers.map((t) => ({ ...t, percent: formatPercent(t.percent) }));
+const toDraft = (tiers: ReadonlyArray<CashbackTier>, locale: Locale): TierDraft[] =>
+  tiers.map((t) => ({ ...t, percent: formatPercent(t.percent, locale) }));
+
+/** What the draft would save, for "has anything changed?" (percents as basis points). */
+function draftSignature(
+  tiers: ReadonlyArray<Pick<TierDraft, "from" | "to" | "percent">>,
+  basis: RateBasis,
+  earn: boolean,
+  effectiveFrom: string,
+): string {
+  return JSON.stringify([
+    tiers.map((t) => [t.from, t.to, basisPoints(t.percent.trim().replace(/[.,]$/, ""))]),
+    basis,
+    earn,
+    effectiveFrom,
+  ]);
+}
 
 /**
  * The typed percent as a number with at most two decimals (read as integer
@@ -83,8 +101,6 @@ function monthStart(iso: string, offset: number): string {
   return `${year}-${month}-01T00:00:00+05:00`;
 }
 
-const mln = (value: number) => formatMillions(value);
-
 interface CashbackEditorProps {
   /** The version in force. */
   policy: CashbackPolicy;
@@ -101,8 +117,14 @@ export function CashbackEditor({
   versions: initialVersions,
   nextEffectiveFrom,
 }: CashbackEditorProps) {
+  const t = useCopy(cashbackCopy);
+  const locale = useAdminLocale();
+  const fmt = useFormat();
+  const mln = fmt.millions;
+  const pct = (value: number | string) => formatPercent(value, locale);
   const toast = useToast();
   const idBase = useId();
+  const tiersRef = useRef<HTMLDivElement>(null);
   // The draft starts from, and Reset restores, the latest saved version: the
   // scheduled one when there is one (`editorBaseline`). After a save that is
   // the new version, both locally and in the refreshed props.
@@ -126,7 +148,7 @@ export function CashbackEditor({
   const [serverErrors, setServerErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const inFlight = useRef(false);
-  const [tiers, setTiers] = useState(() => toDraft(baseline.tiers));
+  const [tiers, setTiers] = useState(() => toDraft(baseline.tiers, locale));
   const [basis, setBasis] = useState<RateBasis>(baseline.basis);
   const [earnOnCashbackPaid, setEarnOnCashbackPaid] = useState(baseline.earnOnCashbackPaid);
   const [effectiveFrom, setEffectiveFrom] = useState(nextEffectiveFrom);
@@ -140,6 +162,14 @@ export function CashbackEditor({
     parsed.filter((t) => !(t.percent > 0 && t.percent <= 100)).map((t) => t.id),
   );
   const hasError = analysis.overlaps.length > 0 || badPercent.size > 0 || tiers.length === 0;
+  const dirty =
+    draftSignature(tiers, basis, earnOnCashbackPaid, effectiveFrom) !==
+    draftSignature(
+      toDraft(baseline.tiers, "en"),
+      baseline.basis,
+      baseline.earnOnCashbackPaid,
+      nextEffectiveFrom,
+    );
 
   const rules = { basis, earnOnCashbackPaid, tiers: parsed };
   const sample = calculateCashback(SAMPLE, rules);
@@ -166,31 +196,39 @@ export function CashbackEditor({
         id: `tier-${crypto.randomUUID()}`,
         from,
         to: null,
-        percent: formatPercent(percent),
+        percent: pct(percent),
       },
     ]);
   };
 
   const resetDraft = () => {
     clearServerErrors();
-    setTiers(toDraft(baseline.tiers));
+    setTiers(toDraft(baseline.tiers, locale));
     setBasis(baseline.basis);
     setEarnOnCashbackPaid(baseline.earnOnCashbackPaid);
     setEffectiveFrom(nextEffectiveFrom);
   };
 
+  /** Scroll to, focus and mark the first invalid tier field (or the tiers card itself). */
   const focusFirstInvalid = () =>
-    window.requestAnimationFrame(() =>
-      document
-        .querySelector<HTMLElement>(`[data-tiers="${idBase}"] [aria-invalid="true"]`)
-        ?.focus(),
-    );
+    window.requestAnimationFrame(() => {
+      void revealFirstError(tiersRef.current?.closest<HTMLElement>("section") ?? tiersRef.current);
+    });
+  const errorCount = analysis.invalid.size + badPercent.size + (tiers.length === 0 ? 1 : 0);
+  const refuse = () => {
+    toast({
+      tone: "danger",
+      title: t.fixFirst,
+      description: t.fixFirstText(Math.max(1, errorCount)),
+    });
+    focusFirstInvalid();
+  };
 
   // ADM-14.1: a policy version is never edited afterwards; confirm before it is created.
   const [confirmOpen, setConfirmOpen] = useState(false);
   const askSave = () => {
     if (hasError) {
-      focusFirstInvalid();
+      refuse();
       return;
     }
     setConfirmOpen(true);
@@ -200,7 +238,7 @@ export function CashbackEditor({
     setConfirmOpen(false);
     if (inFlight.current) return;
     if (hasError) {
-      focusFirstInvalid();
+      refuse();
       return;
     }
     inFlight.current = true;
@@ -226,7 +264,7 @@ export function CashbackEditor({
       setServerErrors(fieldErrors);
       setFormError(Object.keys(fieldErrors).length > 0 ? message : null);
       if (Object.keys(fieldErrors).length > 0) focusFirstInvalid();
-      toast({ tone: "info", title: "Saqlanmadi", description: result.error });
+      toast({ tone: "danger", title: t.failed, description: result.error });
       return;
     }
     const saved = result.data;
@@ -240,19 +278,28 @@ export function CashbackEditor({
               ...v,
               scheduled: false,
               state: "superseded" as const,
-              period: v.period.endsWith("almashtirildi") ? v.period : `${v.period} · almashtirildi`,
+              // Rows without structured detail keep their Uzbek period with the mark.
+              period: v.period.endsWith("almashtirildi") ? v.period : `${v.period} · almashtirildi`, // i18n-ignore
             }
           : v,
       ),
     ]);
     toast({
-      title: `Siyosat v${saved.version.version} saqlandi`,
-      description: `${formatDayMonth(saved.policy.effectiveFrom)}dan boshlab yangi xaridlarga qo‘llanadi${
-        saved.supersededVersion ? ` · v${saved.supersededVersion} almashtirildi` : ""
-      }`,
+      tone: "success",
+      title: t.saved(saved.version.version),
+      description: [
+        t.savedText(fmt.dayMonth(saved.policy.effectiveFrom)),
+        saved.supersededVersion ? t.replaced(saved.supersededVersion) : "",
+      ]
+        .filter(Boolean)
+        .join(" · "),
     });
     if (saved.warnings?.length) {
-      toast({ tone: "info", title: "Eslatma", description: tierWarningsText(saved.warnings) });
+      toast({
+        tone: "warning",
+        title: t.warnings,
+        description: tierWarningsText(saved.warnings, locale),
+      });
     }
   };
 
@@ -261,16 +308,17 @@ export function CashbackEditor({
 
   const overlapNotes = analysis.overlaps.map((o) =>
     o.kind === "empty-range"
-      ? `${mln(o.tier.from)} dan katta “gacha” kerak`
-      : `${mln(o.previous.from)}–${o.previous.to === null ? "∞" : mln(o.previous.to)} va ${mln(o.next.from)} dan boshlanuvchi daraja`,
+      ? t.overlapEmpty(mln(o.tier.from))
+      : t.overlapPair(
+          `${mln(o.previous.from)}–${o.previous.to === null ? "∞" : mln(o.previous.to)}`,
+          mln(o.next.from),
+        ),
   );
   const gapNote = [
     analysis.gaps.length > 0
-      ? `${analysis.gaps.map((g) => `${mln(g.from)} – ${mln(g.to)} so‘m`).join(", ")} oralig‘i uchun foiz yo‘q.`
+      ? t.gapText(analysis.gaps.map((g) => t.gapRange(mln(g.from), mln(g.to))).join(", "))
       : "",
-    analysis.uncoveredAbove !== null
-      ? `${mln(analysis.uncoveredAbove)} so‘mdan yuqori xaridlar uchun foiz belgilanmagan — bunday mijozlarga qaysi foiz qo‘llanadi? “Gacha” maydonini bo‘sh qoldirsangiz, oxirgi daraja cheksiz bo‘ladi.`
-      : "",
+    analysis.uncoveredAbove !== null ? t.aboveText(mln(analysis.uncoveredAbove)) : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -283,21 +331,25 @@ export function CashbackEditor({
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
           <span className="text-body-sm text-ink-muted tabular-nums">
-            Faol siyosat: v{policy.version} · {formatDateLong(policy.effectiveFrom)} dan
-            {scheduled && ` · v${scheduled.version} rejalashtirilgan`}
-            {` · Tahrir v${baseline.version} asosida`}
+            {t.activeLine(policy.version, fmt.dateLong(policy.effectiveFrom))}
+            {scheduled && ` · ${t.scheduledLine(scheduled.version)}`}
+            {` · ${t.baseLine(baseline.version)}`}
           </span>
           <h1 className="m-0 font-serif text-display leading-10 tracking-normal text-ink">
-            Cashback sozlamalari
+            {t.title}
           </h1>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="ghost" onClick={resetDraft} disabled={saving}>
-            O‘zgarishlarni bekor qilish
+          <Button
+            variant="ghost"
+            onClick={resetDraft}
+            disabledReason={saving ? t.savingReason : !dirty && t.nothingToReset}
+          >
+            {t.reset}
           </Button>
-          <Button className="px-5" onClick={askSave} disabled={saving} aria-busy={saving}>
+          <Button className="px-5" onClick={askSave} busy={saving}>
             <Icon name="check" size={18} />
-            {saving ? "Saqlanmoqda…" : "Yangi versiyani saqlash"}
+            {saving ? t.saving : t.save}
           </Button>
         </div>
       </div>
@@ -307,23 +359,24 @@ export function CashbackEditor({
           <Card aria-labelledby={`${idBase}-tiers`} className="flex flex-col gap-3.5">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <CardTitle id={`${idBase}-tiers`} className="text-heading">
-                Darajalar
+                {t.tiers}
               </CardTitle>
-              <span className="text-caption font-normal text-ink-muted">
-                Mijozning jami xaridlari (do‘kon + onlayn) bo‘yicha
-              </span>
+              <span className="text-caption font-normal text-ink-muted">{t.tiersHint}</span>
             </div>
 
             {analysis.overlaps.length > 0 && (
               <Notice tone="danger" role="alert">
-                <b>Darajalar ustma-ust tushmoqda.</b> {overlapNotes.join("; ")}. Saqlashdan oldin
-                chegaralarni to‘g‘rilang.
+                <b>{t.overlapTitle}</b> {overlapNotes.join("; ")}. {t.overlapFix}
               </Notice>
             )}
             {badPercent.size > 0 && (
               <Notice tone="danger" role="alert">
-                <b>Foiz noto‘g‘ri.</b> Har bir daraja foizi 0 dan katta va 100 dan oshmasligi kerak
-                (ko‘pi bilan 2 ta kasr raqam, masalan 0,57).
+                <b>{t.percentTitle}</b> {t.percentText}
+              </Notice>
+            )}
+            {tiers.length === 0 && (
+              <Notice tone="danger" role="alert">
+                <b>{t.noTiersTitle}</b> {t.noTiersText}
               </Notice>
             )}
             {formError && (
@@ -333,27 +386,31 @@ export function CashbackEditor({
             )}
             {scheduled && (
               <Notice tone="warning" role="status">
-                <b>
-                  v{scheduled.version} {formatDateLong(scheduled.effectiveFrom)} dan kuchga kirishi
-                  rejalashtirilgan.
-                </b>{" "}
-                Yangi versiya saqlansa, u almashtiriladi.
+                <b>{t.scheduledTitle(scheduled.version, fmt.dateLong(scheduled.effectiveFrom))}</b>{" "}
+                {t.scheduledText}
               </Notice>
             )}
             {gapNote && (
               <Notice tone="warning" role="status">
-                <b>Qoplanmagan oraliq:</b> {gapNote}
+                <b>{t.gapTitle}</b> {gapNote}
               </Notice>
             )}
 
-            <div data-tiers={idBase} className="flex flex-col gap-3.5">
+            <div
+              ref={tiersRef}
+              data-tiers={idBase}
+              data-field="tiers"
+              data-invalid={tiers.length === 0 ? "true" : undefined}
+              tabIndex={tiers.length === 0 ? -1 : undefined}
+              className="flex flex-col gap-3.5 rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-gold-ink"
+            >
               <div
                 aria-hidden="true"
-                className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_112px_44px] gap-2.5 px-0.5 text-[11px] leading-[14px] font-bold tracking-[0.06em] text-ink-muted"
+                className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_112px_44px] gap-2.5 px-0.5 text-[11px] leading-[14px] font-bold tracking-[0.06em] text-ink-muted uppercase"
               >
-                <span>DAN, SO‘M</span>
-                <span>GACHA, SO‘M</span>
-                <span>FOIZ</span>
+                <span>{t.columnFrom}</span>
+                <span>{t.columnTo}</span>
+                <span>{t.columnPercent}</span>
               </div>
               {tiers.map((tier, index) => {
                 const invalid = analysis.invalid.has(tier.id);
@@ -367,16 +424,16 @@ export function CashbackEditor({
                   <div key={tier.id} className="flex flex-col gap-1.5">
                     <div
                       role="group"
-                      aria-label={`${n}-daraja`}
+                      aria-label={t.tier(n)}
                       aria-describedby={rowErrors.length > 0 ? errorId : undefined}
                       className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_112px_44px] items-center gap-2.5"
                     >
                       <input
                         type="text"
                         inputMode="numeric"
-                        aria-label={`${n}-daraja: dan, so‘m`}
+                        aria-label={t.tierFrom(n)}
                         aria-invalid={invalid || Boolean(fromError) || undefined}
-                        value={formatNumber(tier.from)}
+                        value={fmt.number(tier.from)}
                         onChange={(e) =>
                           update(tier.id, { from: Number(digits(e.target.value) || 0) })
                         }
@@ -385,10 +442,10 @@ export function CashbackEditor({
                       <input
                         type="text"
                         inputMode="numeric"
-                        aria-label={`${n}-daraja: gacha, so‘m (bo‘sh — cheksiz)`}
+                        aria-label={t.tierTo(n)}
                         aria-invalid={invalid || Boolean(toError) || undefined}
-                        placeholder="Cheksiz"
-                        value={tier.to === null ? "" : formatNumber(tier.to)}
+                        placeholder={t.unbounded}
+                        value={tier.to === null ? "" : fmt.number(tier.to)}
                         onChange={(e) => {
                           const value = digits(e.target.value);
                           update(tier.id, { to: value ? Number(value) : null });
@@ -404,7 +461,7 @@ export function CashbackEditor({
                         <input
                           type="text"
                           inputMode="decimal"
-                          aria-label={`${n}-daraja: foiz`}
+                          aria-label={t.tierPercent(n)}
                           aria-invalid={
                             badPercent.has(tier.id) || Boolean(percentError) || undefined
                           }
@@ -420,17 +477,17 @@ export function CashbackEditor({
                           %
                         </span>
                       </span>
-                      <button
-                        type="button"
+                      <IconButton
                         onClick={() => {
                           clearServerErrors();
-                          setTiers((current) => current.filter((t) => t.id !== tier.id));
+                          setTiers((current) => current.filter((row) => row.id !== tier.id));
                         }}
-                        aria-label={`${n}-darajani o‘chirish`}
-                        className="flex size-11 items-center justify-center rounded-md text-danger transition-colors duration-150 hover:bg-danger-soft"
+                        aria-label={t.removeTier(n)}
+                        disabledReason={tiers.length === 1 && t.lastTierReason}
+                        className="text-danger hover:bg-danger-soft hover:text-danger"
                       >
                         <Icon name="trash" size={18} />
-                      </button>
+                      </IconButton>
                     </div>
                     {rowErrors.length > 0 && (
                       <p
@@ -445,66 +502,54 @@ export function CashbackEditor({
                 );
               })}
             </div>
-            <button
-              type="button"
+            <Button
+              variant="dashed"
               onClick={addTier}
-              className="inline-flex h-11 items-center gap-2 self-start rounded-md border-[1.5px] border-dashed border-line-strong px-3.5 text-label font-bold text-ink transition-colors duration-150 hover:bg-surface"
+              disabledReason={tiers.length >= MAX_TIERS && t.maxTiersReason}
+              className="self-start"
             >
               <Icon name="plus" size={18} />
-              Daraja qo‘shish
-            </button>
+              {t.addTier}
+            </Button>
           </Card>
 
           <Card aria-labelledby={`${idBase}-rules`} className="flex flex-col">
             <CardTitle id={`${idBase}-rules`} className="mb-1.5 text-heading">
-              Hisoblash qoidalari
+              {t.rules}
             </CardTitle>
-            <RuleRow
-              title="Foizni qaysi summa belgilaydi"
-              description="Mijoz chegarani kesib o‘tgan xaridning o‘ziga qaysi foiz qo‘llanadi"
-            >
+            <RuleRow title={t.basisTitle} description={t.basisText}>
               <SegmentedControl<RateBasis>
-                label="Foiz asosi"
+                label={t.basisLabel}
                 size="sm"
                 value={basis}
                 onChange={setBasis}
                 options={[
-                  { value: "before_purchase", label: "Xariddan oldingi jami" },
-                  { value: "with_purchase", label: "Xarid bilan birga" },
+                  { value: "before_purchase", label: t.basisBefore },
+                  { value: "with_purchase", label: t.basisWith },
                 ]}
               />
             </RuleRow>
-            <RuleRow
-              title="Cashback bilan to‘langan qismga cashback"
-              description={
-                earnOnCashbackPaid
-                  ? "Yoqilgan: balansdan to‘langan summa ham cashback oladi"
-                  : "O‘chirilgan: faqat pul bilan to‘langan qismdan hisoblanadi"
-              }
-            >
+            <RuleRow title={t.paidTitle} description={earnOnCashbackPaid ? t.paidOn : t.paidOff}>
               <Switch
                 checked={earnOnCashbackPaid}
                 onCheckedChange={setEarnOnCashbackPaid}
-                aria-label="Cashback bilan to‘langan qismga cashback"
+                aria-label={t.paidTitle}
               />
             </RuleRow>
-            <RuleRow
-              title="Aksiyadagi mahsulotlar"
-              description="Mahsulot kartasidagi “Aksiya” belgisi bo‘yicha"
-            >
-              <Locked>Cashback hisoblanmaydi</Locked>
+            <RuleRow title={t.promoTitle} description={t.promoText}>
+              <Locked note={t.locked}>{t.promoValue}</Locked>
             </RuleRow>
-            <RuleRow title="Balans muddati" description="Do‘konda ham, ilovada ham ishlatiladi">
-              <Locked>Muddatsiz</Locked>
+            <RuleRow title={t.expiryTitle} description={t.expiryText}>
+              <Locked note={t.locked}>{t.expiryValue}</Locked>
             </RuleRow>
             <RuleRow
-              title="Kuchga kirish sanasi"
-              description="Shu sanadan keyingi xaridlarga qo‘llanadi; avvalgilari o‘zgarmaydi"
+              title={t.effectiveTitle}
+              description={t.effectiveText}
               error={serverErrors.effectiveFrom}
               last
             >
               <SelectMenu<string>
-                label="Kuchga kirish sanasi"
+                label={t.effectiveTitle}
                 align="end"
                 value={effectiveFrom}
                 onValueChange={(value) => {
@@ -518,12 +563,12 @@ export function CashbackEditor({
                 trigger={
                   <>
                     <Icon name="calendar" size={18} className="text-gold-ink" />
-                    {formatDateTimeLong(effectiveFrom)}
+                    {fmt.dateTimeLong(effectiveFrom)}
                   </>
                 }
                 options={effectiveOptions.map((iso) => ({
                   value: iso,
-                  label: formatDateTimeLong(iso),
+                  label: fmt.dateTimeLong(iso),
                 }))}
               />
             </RuleRow>
@@ -545,47 +590,52 @@ export function CashbackEditor({
               className="absolute -top-[120px] -right-[120px] size-[300px]"
             />
             <span className="relative text-[11px] leading-[14px] font-bold tracking-[0.08em] text-banner-ink">
-              TEKSHIRISH
+              {t.simOverline}
             </span>
             <h2 id={`${idBase}-sim`} className="relative m-0 text-heading text-banner-ink-soft">
-              Namuna: 19,5 mln so‘m xaridi bor mijoz
+              {t.simTitle(fmt.som(SAMPLE.lifetimeBefore))}
             </h2>
             <p className="relative m-0 text-[14px] leading-[22px] text-banner-ink-soft tabular-nums">
-              Yangi xarid {formatNumber(SAMPLE.amount)} so‘m, shundan{" "}
-              {formatNumber(SAMPLE.promoAmount)} aksiyada, {formatNumber(SAMPLE.paidWithCashback)}{" "}
-              cashback bilan to‘lanadi.
+              {t.simText(
+                fmt.som(SAMPLE.amount),
+                fmt.som(SAMPLE.promoAmount),
+                fmt.som(SAMPLE.paidWithCashback),
+              )}
             </p>
             <dl
               aria-live="polite"
               className="relative m-0 flex flex-col gap-2 rounded-md bg-white/6 p-3.5 tabular-nums"
             >
               <div className="flex justify-between text-body-sm text-banner-ink-soft">
-                <dt>Hisoblanadigan summa</dt>
-                <dd className="m-0 font-bold">{formatSom(sample.eligible)}</dd>
+                <dt>{t.simEligible}</dt>
+                <dd className="m-0 font-bold">{fmt.som(sample.eligible)}</dd>
               </div>
               <div className="flex justify-between text-body-sm text-banner-ink-soft">
-                <dt>Qo‘llanadigan foiz</dt>
+                <dt>{t.simPercent}</dt>
                 <dd className="m-0 font-bold">
-                  {sample.percent === null ? "daraja yo‘q" : `${formatPercent(sample.percent)}%`}
+                  {sample.percent === null ? t.simNoTier : `${pct(sample.percent)}%`}
                 </dd>
               </div>
               <span aria-hidden="true" className="h-px bg-banner-ink-soft/20" />
               <div className="flex justify-between text-[15px] leading-5 text-banner-ink">
-                <dt>Cashback</dt>
+                <dt>{t.simCashback}</dt>
                 <dd className="m-0 font-bold">
-                  {sample.percent === null ? "—" : `+${formatSom(sample.amount)}`}
+                  {sample.percent === null ? "—" : `+${fmt.som(sample.amount)}`}
                 </dd>
               </div>
             </dl>
             <p className="relative m-0 text-caption font-normal text-banner-ink-soft">
-              Qoidalarni o‘zgartiring — natija shu yerda yangilanadi.
+              {t.simHint}
             </p>
           </section>
 
           <Card aria-labelledby={`${idBase}-versions`} className="flex flex-col gap-3">
             <CardTitle id={`${idBase}-versions`} className="text-heading">
-              Versiyalar tarixi
+              {t.versions}
             </CardTitle>
+            {versions.length === 0 && (
+              <p className="m-0 text-body-sm text-ink-muted">{t.noVersions}</p>
+            )}
             <ol className="m-0 flex list-none flex-col gap-3 p-0">
               {versions.map((version) => (
                 <li key={version.version} className="flex gap-3">
@@ -599,21 +649,25 @@ export function CashbackEditor({
                           : "bg-line text-ink",
                     )}
                   >
-                    v{version.version}
+                    {`v${version.version}`}
                   </span>
-                  <span className="flex flex-col gap-0.5">
-                    <span className="text-body-sm font-bold text-ink">{version.summary}</span>
+                  <span className="flex min-w-0 flex-col gap-0.5">
+                    <span className="text-body-sm font-bold break-words text-ink">
+                      {versionSummaryText(version, locale)}
+                    </span>
                     <span className="text-caption font-normal text-ink-muted tabular-nums">
-                      {version.author} · {version.period}
-                      {version.active ? " · faol" : version.scheduled ? " · rejalashtirilgan" : ""}
+                      {versionAuthorText(version, locale)} · {versionPeriodText(version, locale)}
+                      {version.active
+                        ? ` · ${t.versionActive}`
+                        : version.scheduled
+                          ? ` · ${t.versionScheduled}`
+                          : ""}
                     </span>
                   </span>
                 </li>
               ))}
             </ol>
-            <p className="m-0 text-caption font-normal text-ink-muted">
-              Har bir cashback yozuvi qaysi versiya bo‘yicha hisoblanganini saqlaydi.
-            </p>
+            <p className="m-0 text-caption font-normal text-ink-muted">{t.versionsNote}</p>
           </Card>
         </div>
       </div>
@@ -621,19 +675,18 @@ export function CashbackEditor({
       <AlertDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        title="Yangi cashback versiyasini saqlaysizmi?"
+        title={t.confirmTitle}
         description={
           <p className="m-0 text-[14px] leading-5 text-ink">
-            {formatDayMonth(effectiveFrom)}dan boshlab yangi xaridlarga shu foizlar qo‘llanadi.
-            Saqlangan versiyani keyin o‘zgartirib bo‘lmaydi: faqat yangisini qo‘shish mumkin.
+            {t.confirmText(fmt.dayMonth(effectiveFrom))}
           </p>
         }
       >
         <div className="mt-1.5 flex flex-wrap justify-end gap-2">
           <AlertDialogCancel className={buttonStyles({ variant: "outline" })}>
-            Bekor qilish
+            {t.cancel}
           </AlertDialogCancel>
-          <Button onClick={save}>Saqlash</Button>
+          <Button onClick={save}>{t.confirm}</Button>
         </div>
       </AlertDialog>
     </>
@@ -702,12 +755,12 @@ function RuleRow({
   );
 }
 
-function Locked({ children }: { children: ReactNode }) {
+function Locked({ children, note }: { children: ReactNode; note: string }) {
   return (
     <span className="inline-flex items-center gap-2 text-body-sm font-bold text-ink">
       <Icon name="lock" size={16} className="text-ink-muted" />
       {children}
-      <span className="sr-only">(o‘zgartirib bo‘lmaydi)</span>
+      <span className="sr-only">{note}</span>
     </span>
   );
 }

@@ -8,6 +8,7 @@ import {
   type PolicyVersion,
   type TierWarning,
 } from "@/domain/cashback";
+import { cashbackDataCopy } from "@/domain/copy/cashback";
 
 import type { CashbackSettings } from "../../cashback";
 import type {
@@ -58,13 +59,12 @@ export function mapPolicyVersion(
   all: ReadonlyArray<ApiPolicyVersion>,
 ): PolicyVersion {
   const previous = previousOf(api, all);
+  const tiers = api.tiers.map(mapPolicyTier);
+  const previousTiers = previous?.tiers.map(mapPolicyTier) ?? null;
   return {
     version: api.version,
-    summary: policySummary(
-      api.tiers.map(mapPolicyTier),
-      previous?.tiers.map(mapPolicyTier) ?? null,
-    ),
-    author: api.author?.display_name || "Tizim",
+    summary: policySummary(tiers, previousTiers),
+    author: api.author?.display_name || cashbackDataCopy.uz.system,
     period: policyPeriod({
       effectiveFrom: api.effective_from,
       effectiveTo: api.effective_to,
@@ -73,6 +73,13 @@ export function mapPolicyVersion(
     active: api.state === "active",
     scheduled: api.state === "scheduled",
     state: api.state,
+    detail: {
+      tiers,
+      previous: previousTiers,
+      effectiveFrom: api.effective_from,
+      effectiveTo: api.effective_to,
+      author: api.author?.display_name || null,
+    },
   };
 }
 

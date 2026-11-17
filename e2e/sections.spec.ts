@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 
+import { shellCopy } from "../src/features/admin/shell/copy";
 import { NAV_ITEMS } from "../src/features/admin/shell/nav-items";
 import { BASE_URL } from "./env";
 import { heading, watchPage } from "./helpers";
@@ -29,7 +30,9 @@ test.beforeAll(async ({ playwright }) => {
 const ALERTS_POLL = "/admin/delivery-issues/alerts";
 
 for (const item of NAV_ITEMS) {
-  test(`${item.label} renders from the API without errors`, async ({ page }) => {
+  test(`${shellCopy.uz.nav[item.section]} renders from the API without errors`, async ({
+    page,
+  }) => {
     const isQueue = item.href === "/admin/delivery-issues";
     test.skip(
       isQueue && !issueQueue,

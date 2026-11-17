@@ -1,0 +1,502 @@
+import { pluralEn, pluralRu } from "@/lib/format";
+import type { CopySet } from "@/lib/i18n/copy";
+
+/**
+ * The appointments board (day / week / month), the visit panel and the booking dialog
+ * (DESIGN §B, §G). Uzbek is the source language; «qabul» = приём = appointment.
+ */
+const uz = {
+  title: "Qabullar",
+  pending: (n: number) => `${n} ta so‘rov tasdiq kutmoqda`,
+  pendingNone: "Barcha so‘rovlar ko‘rib chiqildi",
+  pendingNext: (when: string) => `eng yaqini ${when}`,
+
+  header: {
+    toolbar: "Jadval boshqaruvi",
+    viewSwitch: "Ko‘rinish",
+    views: { day: "Kun", week: "Hafta", month: "Oy" },
+    prev: { day: "Oldingi kun", week: "Oldingi hafta", month: "Oldingi oy" },
+    next: { day: "Keyingi kun", week: "Keyingi hafta", month: "Keyingi oy" },
+    today: "Bugun",
+    showsToday:
+      "Bugungi davr allaqachon ko‘rsatilmoqda. Boshqa davrga o‘tish uchun strelkalardan yoki sana tanlashdan foydalaning.",
+    jumpTo: "Sanaga o‘tish",
+    period: "Ko‘rsatilgan davr",
+    specialist: "Mutaxassis",
+    allSpecialists: "Barcha mutaxassislar",
+    add: "Qabul qo‘shish",
+    addDisabled:
+      "Faol mutaxassis yo‘q. Avval «Mutaxassislar» sahifasida mutaxassis qo‘shing yoki faollashtiring.",
+    specialistsLink: "Mutaxassislar sahifasi",
+    loading: "Jadval yuklanmoqda…",
+  },
+
+  status: {
+    requested: "Tasdiq kutilmoqda",
+    confirmed: "Tasdiqlangan",
+    rejected: "Rad etildi",
+    attended: "Keldi",
+    cancelled: "Bekor qilindi",
+  },
+  legend: {
+    label: "Belgilar",
+    requested: "Tasdiq kutilmoqda",
+    confirmed: "Tasdiqlangan",
+    attended: "Keldi",
+    rejected: "Rad etilgan",
+    cancelled: "Bekor qilingan",
+    unavailable: "Bo‘sh emas",
+  },
+  role: { Dermatolog: "Dermatolog", Kosmetolog: "Kosmetolog" },
+  inactive: "Nofaol",
+  blocks: { busy: "Band qilingan", off: "Ish vaqti emas", dayOff: "Ish kuni emas" },
+  via: { ilova: "ilova", administrator: "administrator" },
+  deletedCustomer: "O‘chirilgan mijoz",
+  until: (time: string) => `${time} gacha`,
+
+  day: {
+    label: "Kunlik jadval",
+    columns: "Mutaxassislar ustunlari",
+    specialistColumn: (name: string) => `${name} jadvali`,
+    empty: "Bu kunga qabullar yo‘q.",
+    noSpecialists: "Bu kunga ko‘rsatiladigan mutaxassis yo‘q.",
+  },
+
+  week: {
+    label: "Haftalik jadval",
+    columns: "Hafta kunlari",
+    dayColumn: (day: string) => `${day}: qabullar`,
+    openDay: (day: string) => `${day} — kun jadvalini ochish`,
+    more: (n: number, day: string) => `Yana ${n} ta qabul, ${day} — kun jadvalida ko‘rish`,
+    dayOff: "Ish kuni emas",
+    empty: "Bu haftada qabullar yo‘q.",
+    now: "Hozir",
+  },
+
+  month: {
+    label: "Oylik ko‘rinish",
+    visits: (n: number) => `${n} ta qabul`,
+    noVisits: "qabul yo‘q",
+    dayOff: "ish kuni emas",
+    today: "bugun",
+    counts: {
+      requested: (n: number) => `${n} ta tasdiq kutilmoqda`,
+      confirmed: (n: number) => `${n} ta tasdiqlangan`,
+      attended: (n: number) => `${n} ta keldi`,
+      rejected: (n: number) => `${n} ta rad etilgan`,
+      cancelled: (n: number) => `${n} ta bekor qilingan`,
+    },
+    hint: "Kunni bosing — o‘sha kunning jadvali ochiladi.",
+  },
+
+  panel: {
+    title: "Qabul",
+    choose: "Jadvaldan qabulni tanlang.",
+    service: "Xizmat",
+    specialist: "Mutaxassis",
+    time: "Vaqt",
+    price: "Narx",
+    atBooking: "bron paytidagi",
+    payment: "To‘lov",
+    paymentNotSet: "Qoida hali belgilanmagan",
+    request: "So‘rov",
+    confirm: "Tasdiqlash",
+    reschedule: "Vaqtni o‘zgartirish",
+    reject: "Rad etish",
+    confirmHint: "Tasdiqlangach mijozga push yuboriladi.",
+    attend: "Keldi deb belgilash",
+    move: "Ko‘chirish",
+    cancel: "Qabulni bekor qilish",
+    cancelling: "Bekor qilinmoqda…",
+    back: "Orqaga",
+    attendTitle: "Mijoz keldi deb belgilaysizmi?",
+    attendBody: (name: string, time: string) =>
+      `${name}ning ${time} dagi qabuli «Keldi» deb yakunlanadi. Bu amalni qaytarib bo‘lmaydi.`,
+    rejectTitle: "Qabulni rad etasizmi?",
+    rejectBody: (name: string, time: string) =>
+      `${name}ning ${time} dagi qabuli rad etiladi va mijozga xabar yuboriladi.`,
+    cancelTitle: "Qabulni bekor qilasizmi?",
+    cancelBody: (name: string, when: string) =>
+      `${name}ning ${when} dagi qabuli bekor qilinadi, vaqt bo‘shaydi va mijozga xabar yuboriladi.`,
+    reason: "Sabab (ixtiyoriy)",
+  },
+
+  toast: {
+    failed: "Amal bajarilmadi",
+    confirmed: "Qabul tasdiqlandi",
+    confirmedBody: "Mijozga push yuborildi",
+    rejected: "Qabul rad etildi",
+    rejectedBody: "Mijozga xabar yuborildi",
+    attended: "Keldi deb belgilandi",
+    cancelled: "Qabul bekor qilindi",
+    booked: "Qabul yozildi",
+    moved: "Qabul ko‘chirildi",
+    showDay: "Kunni ko‘rish",
+  },
+
+  booking: {
+    titleCreate: "Yangi qabul",
+    titleMove: "Qabul vaqtini o‘zgartirish",
+    descriptionCreate: "Qabul darhol tasdiqlangan holatda yoziladi; mijozga push yuborilmaydi.",
+    specialist: "Mutaxassis",
+    service: "Xizmat",
+    phone: "Mijoz telefoni",
+    phoneHint: "Ilovada ro‘yxatdan o‘tgan mijoz raqami.",
+    date: "Sana",
+    time: "Vaqt",
+    note: "Izoh (ixtiyoriy)",
+    noteHint: "Faqat xodimlar ko‘radi.",
+    chooseTime: "Vaqtni tanlang",
+    taken: "Band: boshqa qabul yoki tanaffus bilan to‘qnashadi",
+    noSlots: {
+      loading: "Jadval yuklanmoqda — biroz kuting.",
+      pickDate: "Avval sanani tanlang.",
+      failed: "Jadvalni yuklab bo‘lmadi — sanani qayta tanlang.",
+      dayOff: "Mutaxassis bu kuni ishlamaydi — boshqa sana yoki mutaxassisni tanlang.",
+      full: "Bu kunga bo‘sh vaqt qolmadi — boshqa sanani tanlang.",
+    },
+    workingHours: (start: string, end: string, duration: string) =>
+      `Ish vaqti ${start}–${end}, ${duration}`,
+    respecialist: (duration: string, price: string) =>
+      `Mutaxassis almashsa narx va davomiylik uning narxidan olinadi: ${duration} · ${price}.`,
+    cancel: "Bekor qilish",
+    saving: "Saqlanmoqda…",
+    savingWait: "Qabul saqlanmoqda — tugashini kuting.",
+    submitCreate: "Qabulni yozish",
+    submitMove: "Ko‘chirish",
+  },
+};
+
+export const appointmentsCopy = {
+  uz,
+  ru: {
+    title: "Приёмы",
+    pending: (n: number) =>
+      `${n} ${pluralRu(n, ["запрос ожидает", "запроса ожидают", "запросов ожидают"])} подтверждения`,
+    pendingNone: "Все запросы рассмотрены",
+    pendingNext: (when: string) => `ближайший ${when}`,
+
+    header: {
+      toolbar: "Управление расписанием",
+      viewSwitch: "Вид",
+      views: { day: "День", week: "Неделя", month: "Месяц" },
+      prev: { day: "Предыдущий день", week: "Предыдущая неделя", month: "Предыдущий месяц" },
+      next: { day: "Следующий день", week: "Следующая неделя", month: "Следующий месяц" },
+      today: "Сегодня",
+      showsToday:
+        "Текущий период уже показан. Чтобы перейти к другому, используйте стрелки или выбор даты.",
+      jumpTo: "Перейти к дате",
+      period: "Показанный период",
+      specialist: "Специалист",
+      allSpecialists: "Все специалисты",
+      add: "Добавить приём",
+      addDisabled:
+        "Нет активных специалистов. Сначала добавьте или активируйте специалиста на странице «Специалисты».",
+      specialistsLink: "Страница специалистов",
+      loading: "Загружаем расписание…",
+    },
+
+    status: {
+      requested: "Ожидает подтверждения",
+      confirmed: "Подтверждён",
+      rejected: "Отклонён",
+      attended: "Пришёл",
+      cancelled: "Отменён",
+    },
+    legend: {
+      label: "Обозначения",
+      requested: "Ожидает подтверждения",
+      confirmed: "Подтверждён",
+      attended: "Пришёл",
+      rejected: "Отклонён",
+      cancelled: "Отменён",
+      unavailable: "Занято",
+    },
+    role: { Dermatolog: "Дерматолог", Kosmetolog: "Косметолог" },
+    inactive: "Неактивен",
+    blocks: { busy: "Занято", off: "Нерабочее время", dayOff: "Нерабочий день" },
+    via: { ilova: "приложение", administrator: "администратор" },
+    deletedCustomer: "Удалённый клиент",
+    until: (time: string) => `до ${time}`,
+
+    day: {
+      label: "Расписание на день",
+      columns: "Колонки специалистов",
+      specialistColumn: (name: string) => `Расписание: ${name}`,
+      empty: "На этот день приёмов нет.",
+      noSpecialists: "На этот день нет специалистов для показа.",
+    },
+
+    week: {
+      label: "Расписание на неделю",
+      columns: "Дни недели",
+      dayColumn: (day: string) => `${day}: приёмы`,
+      openDay: (day: string) => `${day} — открыть расписание дня`,
+      more: (n: number, day: string) =>
+        `Ещё ${n} ${pluralRu(n, ["приём", "приёма", "приёмов"])}, ${day} — смотреть в расписании дня`,
+      dayOff: "Нерабочий день",
+      empty: "На этой неделе приёмов нет.",
+      now: "Сейчас",
+    },
+
+    month: {
+      label: "Вид на месяц",
+      visits: (n: number) => `${n} ${pluralRu(n, ["приём", "приёма", "приёмов"])}`,
+      noVisits: "приёмов нет",
+      dayOff: "нерабочий день",
+      today: "сегодня",
+      counts: {
+        requested: (n: number) => `ожидают подтверждения: ${n}`,
+        confirmed: (n: number) => `подтверждено: ${n}`,
+        attended: (n: number) => `пришли: ${n}`,
+        rejected: (n: number) => `отклонено: ${n}`,
+        cancelled: (n: number) => `отменено: ${n}`,
+      },
+      hint: "Нажмите на день, чтобы открыть его расписание.",
+    },
+
+    panel: {
+      title: "Приём",
+      choose: "Выберите приём в расписании.",
+      service: "Услуга",
+      specialist: "Специалист",
+      time: "Время",
+      price: "Цена",
+      atBooking: "на момент записи",
+      payment: "Оплата",
+      paymentNotSet: "Правило ещё не задано",
+      request: "Запрос",
+      confirm: "Подтвердить",
+      reschedule: "Изменить время",
+      reject: "Отклонить",
+      confirmHint: "После подтверждения клиент получит push-уведомление.",
+      attend: "Отметить «Пришёл»",
+      move: "Перенести",
+      cancel: "Отменить приём",
+      cancelling: "Отменяем…",
+      back: "Назад",
+      attendTitle: "Отметить, что клиент пришёл?",
+      attendBody: (name: string, time: string) =>
+        `Приём клиента ${name} в ${time} будет завершён со статусом «Пришёл». Это действие нельзя отменить.`,
+      rejectTitle: "Отклонить приём?",
+      rejectBody: (name: string, time: string) =>
+        `Приём клиента ${name} в ${time} будет отклонён, клиент получит уведомление.`,
+      cancelTitle: "Отменить приём?",
+      cancelBody: (name: string, when: string) =>
+        `Приём клиента ${name} (${when}) будет отменён, время освободится, клиент получит уведомление.`,
+      reason: "Причина (необязательно)",
+    },
+
+    toast: {
+      failed: "Действие не выполнено",
+      confirmed: "Приём подтверждён",
+      confirmedBody: "Клиенту отправлено push-уведомление",
+      rejected: "Приём отклонён",
+      rejectedBody: "Клиенту отправлено уведомление",
+      attended: "Отмечено «Пришёл»",
+      cancelled: "Приём отменён",
+      booked: "Приём записан",
+      moved: "Приём перенесён",
+      showDay: "Открыть день",
+    },
+
+    booking: {
+      titleCreate: "Новый приём",
+      titleMove: "Изменить время приёма",
+      descriptionCreate:
+        "Приём сразу записывается подтверждённым; push-уведомление клиенту не отправляется.",
+      specialist: "Специалист",
+      service: "Услуга",
+      phone: "Телефон клиента",
+      phoneHint: "Номер клиента, зарегистрированного в приложении.",
+      date: "Дата",
+      time: "Время",
+      note: "Комментарий (необязательно)",
+      noteHint: "Видят только сотрудники.",
+      chooseTime: "Выберите время",
+      taken: "Занято: пересекается с другим приёмом или перерывом",
+      noSlots: {
+        loading: "Загружаем расписание — подождите немного.",
+        pickDate: "Сначала выберите дату.",
+        failed: "Не удалось загрузить расписание — выберите дату ещё раз.",
+        dayOff: "Специалист в этот день не работает — выберите другую дату или специалиста.",
+        full: "На этот день свободного времени не осталось — выберите другую дату.",
+      },
+      workingHours: (start: string, end: string, duration: string) =>
+        `Рабочее время ${start}–${end}, ${duration}`,
+      respecialist: (duration: string, price: string) =>
+        `При смене специалиста цена и длительность берутся из его прайса: ${duration} · ${price}.`,
+      cancel: "Отмена",
+      saving: "Сохраняем…",
+      savingWait: "Приём сохраняется — дождитесь окончания.",
+      submitCreate: "Записать",
+      submitMove: "Перенести",
+    },
+  },
+  en: {
+    title: "Appointments",
+    pending: (n: number) =>
+      `${n} ${pluralEn(n, ["request awaits", "requests await"])} confirmation`,
+    pendingNone: "All requests have been handled",
+    pendingNext: (when: string) => `next ${when}`,
+
+    header: {
+      toolbar: "Schedule controls",
+      viewSwitch: "View",
+      views: { day: "Day", week: "Week", month: "Month" },
+      prev: { day: "Previous day", week: "Previous week", month: "Previous month" },
+      next: { day: "Next day", week: "Next week", month: "Next month" },
+      today: "Today",
+      showsToday:
+        "The current period is already shown. Use the arrows or the date picker to go elsewhere.",
+      jumpTo: "Go to date",
+      period: "Shown period",
+      specialist: "Specialist",
+      allSpecialists: "All specialists",
+      add: "Add appointment",
+      addDisabled:
+        "There is no active specialist. Add or activate a specialist on the Specialists page first.",
+      specialistsLink: "Specialists page",
+      loading: "Loading the schedule…",
+    },
+
+    status: {
+      requested: "Awaiting confirmation",
+      confirmed: "Confirmed",
+      rejected: "Rejected",
+      attended: "Attended",
+      cancelled: "Cancelled",
+    },
+    legend: {
+      label: "Legend",
+      requested: "Awaiting confirmation",
+      confirmed: "Confirmed",
+      attended: "Attended",
+      rejected: "Rejected",
+      cancelled: "Cancelled",
+      unavailable: "Unavailable",
+    },
+    role: { Dermatolog: "Dermatologist", Kosmetolog: "Cosmetologist" },
+    inactive: "Inactive",
+    blocks: { busy: "Blocked", off: "Off hours", dayOff: "Day off" },
+    via: { ilova: "app", administrator: "administrator" },
+    deletedCustomer: "Deleted customer",
+    until: (time: string) => `until ${time}`,
+
+    day: {
+      label: "Day schedule",
+      columns: "Specialist columns",
+      specialistColumn: (name: string) => `${name}: schedule`,
+      empty: "No appointments on this day.",
+      noSpecialists: "No specialist to show for this day.",
+    },
+
+    week: {
+      label: "Week schedule",
+      columns: "Days of the week",
+      dayColumn: (day: string) => `${day}: appointments`,
+      openDay: (day: string) => `${day} — open the day schedule`,
+      more: (n: number, day: string) =>
+        `${n} more ${pluralEn(n, ["appointment", "appointments"])}, ${day} — see the day schedule`,
+      dayOff: "Day off",
+      empty: "No appointments this week.",
+      now: "Now",
+    },
+
+    month: {
+      label: "Month view",
+      visits: (n: number) => `${n} ${pluralEn(n, ["appointment", "appointments"])}`,
+      noVisits: "no appointments",
+      dayOff: "day off",
+      today: "today",
+      counts: {
+        requested: (n: number) => `${n} awaiting confirmation`,
+        confirmed: (n: number) => `${n} confirmed`,
+        attended: (n: number) => `${n} attended`,
+        rejected: (n: number) => `${n} rejected`,
+        cancelled: (n: number) => `${n} cancelled`,
+      },
+      hint: "Select a day to open its schedule.",
+    },
+
+    panel: {
+      title: "Appointment",
+      choose: "Select an appointment in the schedule.",
+      service: "Service",
+      specialist: "Specialist",
+      time: "Time",
+      price: "Price",
+      atBooking: "at booking",
+      payment: "Payment",
+      paymentNotSet: "No rule set yet",
+      request: "Request",
+      confirm: "Confirm",
+      reschedule: "Change time",
+      reject: "Reject",
+      confirmHint: "Once confirmed, the customer gets a push notification.",
+      attend: "Mark as attended",
+      move: "Reschedule",
+      cancel: "Cancel appointment",
+      cancelling: "Cancelling…",
+      back: "Back",
+      attendTitle: "Mark the customer as attended?",
+      attendBody: (name: string, time: string) =>
+        `${name}'s appointment at ${time} will be closed as attended. This cannot be undone.`,
+      rejectTitle: "Reject the appointment?",
+      rejectBody: (name: string, time: string) =>
+        `${name}'s appointment at ${time} will be rejected and the customer notified.`,
+      cancelTitle: "Cancel the appointment?",
+      cancelBody: (name: string, when: string) =>
+        `${name}'s appointment on ${when} will be cancelled, the time freed and the customer notified.`,
+      reason: "Reason (optional)",
+    },
+
+    toast: {
+      failed: "The action failed",
+      confirmed: "Appointment confirmed",
+      confirmedBody: "A push notification was sent to the customer",
+      rejected: "Appointment rejected",
+      rejectedBody: "The customer was notified",
+      attended: "Marked as attended",
+      cancelled: "Appointment cancelled",
+      booked: "Appointment booked",
+      moved: "Appointment rescheduled",
+      showDay: "Show the day",
+    },
+
+    booking: {
+      titleCreate: "New appointment",
+      titleMove: "Change the appointment time",
+      descriptionCreate:
+        "The appointment is booked as confirmed right away; no push notification is sent to the customer.",
+      specialist: "Specialist",
+      service: "Service",
+      phone: "Customer phone",
+      phoneHint: "The number of a customer registered in the app.",
+      date: "Date",
+      time: "Time",
+      note: "Note (optional)",
+      noteHint: "Visible to staff only.",
+      chooseTime: "Choose a time",
+      taken: "Taken: overlaps another appointment or a break",
+      noSlots: {
+        loading: "Loading the schedule — please wait a moment.",
+        pickDate: "Choose a date first.",
+        failed: "The schedule could not be loaded — choose the date again.",
+        dayOff: "The specialist does not work on this day — choose another date or specialist.",
+        full: "No free time is left on this day — choose another date.",
+      },
+      workingHours: (start: string, end: string, duration: string) =>
+        `Working hours ${start}–${end}, ${duration}`,
+      respecialist: (duration: string, price: string) =>
+        `With another specialist the price and duration come from their price list: ${duration} · ${price}.`,
+      cancel: "Cancel",
+      saving: "Saving…",
+      savingWait: "The appointment is being saved — please wait for it to finish.",
+      submitCreate: "Book appointment",
+      submitMove: "Reschedule",
+    },
+  },
+} satisfies CopySet<typeof uz>;
+
+export type AppointmentsCopy = (typeof appointmentsCopy)["uz"];

@@ -12,7 +12,6 @@ import { seeOther } from "@/data/auth/html-page";
 import { safeNext } from "@/data/auth/next-param";
 import { authorizeUrl, newFlow, sealFlow, type OAuthIntent } from "@/data/auth/oauth";
 import { allowFlowStart, oauthKey } from "@/data/auth/oauth-env";
-import { OAUTH_THROTTLED_MESSAGE, OAUTH_UNREACHABLE_MESSAGE } from "@/data/auth/oauth-errors";
 import {
   enabledProvider,
   notFoundPage,
@@ -21,7 +20,10 @@ import {
   withNotice,
 } from "@/data/auth/oauth-route";
 import { verifyOAuthSession } from "@/data/auth/oauth-session";
+import { authDataCopy } from "@/domain/copy/auth";
 import { serverEnv } from "@/lib/env.server";
+import { ADMIN_LOCALE_COOKIE, parseAdminLocale } from "@/lib/i18n/admin-locale-cookie";
+import { LOCALE_INFO } from "@/lib/i18n/locales";
 
 /**
  * `GET /admin/auth/oauth/{provider}/start?intent=login|link&next=` (contract
@@ -50,8 +52,12 @@ export async function GET(
   ctx: RouteContext<"/admin/auth/oauth/[provider]/start">,
 ) {
   const { provider: param } = await ctx.params;
+  // The admin language of this browser (`gd_admin_language`, `Path=/admin`).
+  const locale = parseAdminLocale(request.cookies.get(ADMIN_LOCALE_COOKIE)?.value);
+  const m = authDataCopy[locale];
+  const lang = LOCALE_INFO[locale].htmlLang;
   const enabled = enabledProvider(param);
-  if (!enabled) return notFoundPage();
+  if (!enabled) return notFoundPage(m.page, lang);
   const { provider, config } = enabled;
 
   const params = request.nextUrl.searchParams;
@@ -60,7 +66,7 @@ export async function GET(
 
   const redirectUri = redirectUriFor(request, provider, secure);
   const clientId = config.clientIds[provider];
-  if (!redirectUri || !clientId) return notFoundPage();
+  if (!redirectUri || !clientId) return notFoundPage(m.page, lang);
 
   const nowMs = Date.now();
   if (!allowFlowStart(clientIpFrom(request.headers), nowMs)) {
@@ -68,9 +74,7 @@ export async function GET(
       intent === "link"
         ? "/admin/settings"
         : `/admin/login?next=${encodeURIComponent(safeNext(params.get("next")))}`;
-    return seeOther(
-      withNotice(back, { kind: "error", provider, message: OAUTH_THROTTLED_MESSAGE }, nowMs),
-    );
+    return seeOther(withNotice(back, { kind: "error", provider, message: m.throttled }, nowMs));
   }
   let sid: string | null = null;
   let renewed: SessionCookie | null = null;
@@ -85,11 +89,7 @@ export async function GET(
       }
       if (!session.ok) {
         return seeOther(
-          withNotice(
-            "/admin/settings",
-            { kind: "error", provider, message: OAUTH_UNREACHABLE_MESSAGE },
-            nowMs,
-          ),
+          withNotice("/admin/settings", { kind: "error", provider, message: m.unreachable }, nowMs),
         );
       }
       sid = session.sid;

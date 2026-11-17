@@ -197,6 +197,5 @@ export const en = {
     privacy: "Privacy policy",
     terms: "Terms of use",
     copyright: "© 2026 Glow Derma",
-    languages: "O‘zbekcha · Русский · English",
   },
 } satisfies LandingDictionary;

@@ -11,6 +11,7 @@ import {
   type Refund,
   type RefundState,
 } from "./order";
+import { paymentDataCopy } from "./copy/payments";
 
 export interface PaymentRecord {
   id: number;
@@ -107,8 +108,7 @@ export interface RefundOperations {
  * Click, then close it again with `manual_payout`. The backend's own text;
  * the board recognises the answer by it.
  */
-export const CLICK_STILL_PAID_MESSAGE =
-  "Click to‘lovni qaytarmagan. Avval mijozga qo‘lda to‘lang, so‘ng «qo‘lda to‘landi» belgisi bilan yakunlang yoki qaytarishni qayta urinib ko‘ring.";
+export const CLICK_STILL_PAID_MESSAGE = paymentDataCopy.uz.clickStillPaid;
 
 /**
  * The 409 `conflict` of closing a failed Click refund whose payment has no
@@ -116,8 +116,7 @@ export const CLICK_STILL_PAID_MESSAGE =
  * says "Click to‘lovni qaytarmagan" here; staff pay the customer by hand and
  * close it with `manual_payout`. The backend's own text.
  */
-export const CLICK_NO_PAYDOC_MESSAGE =
-  "Bu to‘lovda Click to‘lov raqami yo‘q, shuning uchun Click’dan holatini tekshirib bo‘lmaydi. Mijozga qo‘lda to‘lang, so‘ng «qo‘lda to‘landi» belgisi bilan yakunlang.";
+export const CLICK_NO_PAYDOC_MESSAGE = paymentDataCopy.uz.clickNoPaydoc;
 
 /** Whether `refund` may be closed as a failed Click refund (the guard of `…/resolve/`, M2). */
 export function canCloseFailedRefund(

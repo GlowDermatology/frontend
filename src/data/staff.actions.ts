@@ -2,7 +2,14 @@
 
 import { z } from "zod";
 
-import type { StaffAccountRow, StaffCredentials } from "@/domain/staff";
+import { staffDataCopy } from "@/domain/copy/staff";
+import {
+  STAFF_INVITE_STATES,
+  type StaffAccountRow,
+  type StaffCredentials,
+  type StaffPasswordDelivery,
+} from "@/domain/staff";
+import { copyFor, getAdminLocale, getLocalized } from "@/lib/i18n/admin-locale";
 
 import {
   apiMutation,
@@ -11,31 +18,45 @@ import {
   idempotencyKeySchema,
   sessionToken,
 } from "./action-guard";
-import { apiCreateStaff, apiPatchStaff, apiResetStaffPassword, apiStaffAction } from "./api/admin";
+import {
+  apiCreateStaff,
+  apiPatchStaff,
+  apiResetStaffPassword,
+  apiSendStaffPasswordLink,
+  apiStaffAction,
+} from "./api/admin";
 import { toActionResult } from "./api/mappers/errors";
-import { mapStaffCredentials, mapStaffRow } from "./api/mappers/staff";
+import { mapStaffCredentials, mapStaffLinkSent, mapStaffRow } from "./api/mappers/staff";
 import * as mock from "./mock/staff.actions";
 import { dataSource } from "./source";
 import {
-  inviteStaffSchema,
   staffIdSchema,
-  updateStaffSchema,
+  staffSchemas,
   type InviteStaffValues,
+  type ResetStaffValues,
   type UpdateStaffValues,
 } from "./staff.schema";
 import type { ActionResult } from "./types";
 
 /**
- * Staff management (contract §2.16, gap FND-4), manager only — the server
- * answers 403 to anyone else. Invitation and password reset answer the
- * temporary password once (`StaffCredentials`); it is handed to the dialog
- * and never stored. The 409 `conflict` refusals (own account, last active
- * manager, superuser) come back with the server's message.
+ * Staff management (contract §2.16, gap FND-4, DESIGN §E), manager only — the server answers 403
+ * to anyone else. Invitation and password reset take a `delivery` (temporary password, e-mailed
+ * link or both) and answer the temporary password once and/or the link's expiry
+ * (`StaffCredentials`); the password is handed to the dialog and never stored. The 409
+ * `conflict` refusals (own account, last active manager, superuser, no e-mail) come back with the
+ * server's message, in the admin language (`Accept-Language`).
  *
- * `snapshot` is the row as the screen shows it, used by the demo only (it
- * keeps no rows, so an account invited in the demo is known by it alone);
- * the API never sees it.
+ * `snapshot` is the row as the screen shows it, used by the demo only (it keeps no rows, so an
+ * account invited in the demo is known by it alone); the API never sees it.
  */
+
+const inviteSchema = z
+  .object({
+    state: z.enum(STAFF_INVITE_STATES),
+    sentAt: z.string().max(40).nullable(),
+    expiresAt: z.string().max(40).nullable(),
+  })
+  .nullable();
 
 const snapshotSchema = z
   .object({
@@ -48,11 +69,12 @@ const snapshotSchema = z
     lastLoginAt: z.string().max(40).nullable(),
     linkedProviders: z.array(z.string().max(20)).max(5),
     createdAt: z.string().max(40).nullable(),
+    mustChangePassword: z.boolean(),
+    passwordChangedAt: z.string().max(40).nullable(),
+    mfaEnabled: z.boolean(),
+    invite: inviteSchema,
   })
   .optional();
-
-const BAD_KEY = { ok: false as const, error: "Noto‘g‘ri so‘rov kaliti." };
-const NOT_FOUND = { ok: false as const, error: "Xodim topilmadi.", code: "not_found" };
 
 /** Demo ids are `<n>` or `draft-<uuid>`; the API's are integers. */
 const anyIdSchema = z.string().regex(/^(?:[1-9]\d{0,17}|draft-[0-9a-f-]{36})$/);
@@ -62,6 +84,17 @@ function demoSnapshot(id: string, snapshot: unknown): StaffAccountRow | undefine
   return parsed.success && parsed.data?.id === id ? parsed.data : undefined;
 }
 
+/** The refusals every action shares (bad id, bad key), in the admin language. */
+async function refusals() {
+  const m = await copyFor(staffDataCopy);
+  return {
+    badKey: { ok: false as const, error: m.requestKey },
+    notFound: { ok: false as const, error: m.notFound, code: "not_found" },
+    badRequest: { ok: false as const, error: m.badRequest },
+    checkFields: m.checkFields,
+  };
+}
+
 export async function inviteStaff(
   values: InviteStaffValues,
   key: string,
@@ -69,28 +102,32 @@ export async function inviteStaff(
 ): Promise<ActionResult<StaffCredentials>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
-  if (!idempotencyKeySchema.safeParse(key).success) return BAD_KEY;
-  const parsed = inviteStaffSchema.safeParse(values);
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  const r = await refusals();
+  if (!idempotencyKeySchema.safeParse(key).success) return r.badKey;
+  const parsed = (await getLocalized(staffSchemas)).invite.safeParse(values);
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, r.checkFields);
+  const data = { ...parsed.data, language: parsed.data.language ?? (await getAdminLocale()) };
   if ((await dataSource()) === "api") {
     return apiMutation("inviteStaff", async () => {
       try {
-        const { data } = await apiCreateStaff(
+        const { data: answer } = await apiCreateStaff(
           sessionToken(guard.session),
           {
-            email: parsed.data.email,
-            full_name: parsed.data.fullName,
-            is_manager: parsed.data.isManager,
+            email: data.email,
+            full_name: data.fullName,
+            is_manager: data.isManager,
+            delivery: data.delivery,
+            language: data.language,
           },
           key,
         );
-        return { ok: true, data: mapStaffCredentials(data) };
+        return { ok: true, data: mapStaffCredentials(answer) };
       } catch (error) {
         return toActionResult(error);
       }
     });
   }
-  return mock.inviteStaff(parsed.data);
+  return mock.inviteStaff(data);
 }
 
 export async function updateStaff(
@@ -103,13 +140,15 @@ export async function updateStaff(
 ): Promise<ActionResult<StaffAccountRow>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
-  if (!anyIdSchema.safeParse(id).success) return NOT_FOUND;
-  if (!idempotencyKeySchema.safeParse(key).success) return BAD_KEY;
-  const parsed = updateStaffSchema.safeParse(values);
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
-  const base = updateStaffSchema.safeParse(baseline);
+  const r = await refusals();
+  if (!anyIdSchema.safeParse(id).success) return r.notFound;
+  if (!idempotencyKeySchema.safeParse(key).success) return r.badKey;
+  const schema = (await getLocalized(staffSchemas)).update;
+  const parsed = schema.safeParse(values);
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, r.checkFields);
+  const base = schema.safeParse(baseline);
   if ((await dataSource()) === "api") {
-    if (!staffIdSchema.safeParse(id).success) return NOT_FOUND;
+    if (!staffIdSchema.safeParse(id).success) return r.notFound;
     // Only what changed (a resent unchanged role would still be checked).
     const body: { full_name?: string; is_manager?: boolean } = {};
     if (!base.success || base.data.fullName !== parsed.data.fullName) {
@@ -130,7 +169,7 @@ export async function updateStaff(
   return mock.updateStaff(id, parsed.data, demoSnapshot(id, snapshot));
 }
 
-/** `deactivate/` (key required: revokes every session) or `reactivate/`. */
+/** `deactivate/` (key required: revokes every session and open link) or `reactivate/`. */
 export async function setStaffActive(
   id: string,
   active: boolean,
@@ -140,11 +179,12 @@ export async function setStaffActive(
 ): Promise<ActionResult<StaffAccountRow>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
-  if (!anyIdSchema.safeParse(id).success) return NOT_FOUND;
-  if (!idempotencyKeySchema.safeParse(key).success) return BAD_KEY;
-  if (typeof active !== "boolean") return { ok: false, error: "Noto‘g‘ri so‘rov." };
+  const r = await refusals();
+  if (!anyIdSchema.safeParse(id).success) return r.notFound;
+  if (!idempotencyKeySchema.safeParse(key).success) return r.badKey;
+  if (typeof active !== "boolean") return r.badRequest;
   if ((await dataSource()) === "api") {
-    if (!staffIdSchema.safeParse(id).success) return NOT_FOUND;
+    if (!staffIdSchema.safeParse(id).success) return r.notFound;
     return apiMutation(active ? "reactivateStaff" : "deactivateStaff", async () => {
       try {
         const { data } = await apiStaffAction(
@@ -162,8 +202,50 @@ export async function setStaffActive(
   return mock.setStaffActive(id, active, demoSnapshot(id, snapshot));
 }
 
-/** `reset-password/` (key required): a new temporary password, every session revoked. */
+/**
+ * `reset-password/` (key required): a new temporary password and/or an e-mailed link
+ * (`values.delivery`); the account must set its own password at the next sign-in and every
+ * session is revoked.
+ */
 export async function resetStaffPassword(
+  id: string,
+  values: ResetStaffValues,
+  key: string,
+  csrf: string,
+  snapshot?: unknown,
+): Promise<ActionResult<StaffCredentials>> {
+  const guard = await guardAction(csrf);
+  if (!guard.ok) return guard;
+  const r = await refusals();
+  if (!anyIdSchema.safeParse(id).success) return r.notFound;
+  if (!idempotencyKeySchema.safeParse(key).success) return r.badKey;
+  const parsed = (await getLocalized(staffSchemas)).reset.safeParse(values);
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, r.checkFields);
+  const delivery: StaffPasswordDelivery = parsed.data.delivery;
+  if ((await dataSource()) === "api") {
+    if (!staffIdSchema.safeParse(id).success) return r.notFound;
+    return apiMutation("resetStaffPassword", async () => {
+      try {
+        const { data } = await apiResetStaffPassword(
+          sessionToken(guard.session),
+          id,
+          { delivery },
+          key,
+        );
+        return { ok: true, data: mapStaffCredentials(data) };
+      } catch (error) {
+        return toActionResult(error);
+      }
+    });
+  }
+  return mock.resetStaffPassword(id, delivery, demoSnapshot(id, snapshot));
+}
+
+/**
+ * «Havolani qayta yuborish» (`send-password-link/`, key optional, sent): a fresh single-use link
+ * to the account's e-mail; earlier links are revoked, the password and sessions stay.
+ */
+export async function sendStaffPasswordLink(
   id: string,
   key: string,
   csrf: string,
@@ -171,18 +253,19 @@ export async function resetStaffPassword(
 ): Promise<ActionResult<StaffCredentials>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
-  if (!anyIdSchema.safeParse(id).success) return NOT_FOUND;
-  if (!idempotencyKeySchema.safeParse(key).success) return BAD_KEY;
+  const r = await refusals();
+  if (!anyIdSchema.safeParse(id).success) return r.notFound;
+  if (!idempotencyKeySchema.safeParse(key).success) return r.badKey;
   if ((await dataSource()) === "api") {
-    if (!staffIdSchema.safeParse(id).success) return NOT_FOUND;
-    return apiMutation("resetStaffPassword", async () => {
+    if (!staffIdSchema.safeParse(id).success) return r.notFound;
+    return apiMutation("sendStaffPasswordLink", async () => {
       try {
-        const { data } = await apiResetStaffPassword(sessionToken(guard.session), id, key);
-        return { ok: true, data: mapStaffCredentials(data) };
+        const { data } = await apiSendStaffPasswordLink(sessionToken(guard.session), id, key);
+        return { ok: true, data: mapStaffLinkSent(data) };
       } catch (error) {
         return toActionResult(error);
       }
     });
   }
-  return mock.resetStaffPassword(id, demoSnapshot(id, snapshot));
+  return mock.sendStaffPasswordLink(id, demoSnapshot(id, snapshot));
 }

@@ -238,6 +238,83 @@ export const APPOINTMENTS: ReadonlyArray<MockAppointment> = [
   ...surroundingDays(),
 ];
 
+/** The days the hand-made fixture week covers (`DESIGN_DAY` − 3 … + 4). */
+export const FIXTURE_FROM = addDays(DESIGN_DAY, -3);
+export const FIXTURE_TO = addDays(DESIGN_DAY, 4);
+
+/** The demo clinic is closed on Sundays (no specialist works). */
+export function isClosedDay(day: string): boolean {
+  return new Date(at(day, "12:00")).getUTCDay() === 0;
+}
+
+/** Prefix of the synthetic visits' ids: `x-YYYY-MM-DD-<column>-<index>`. */
+const SYNTHETIC = "x-";
+
+/**
+ * Visits of a day outside the fixture week, so the week and month boards have
+ * content wherever they are paged to. Seeded by the date: the same day always
+ * holds the same visits (and the same ids), on every build. Days before the
+ * design day are history (mostly «Keldi», a few cancelled or rejected), later
+ * ones are confirmed with the odd cancellation; none is a request, so the
+ * pending summary keeps counting the fixture's requests only.
+ */
+export function syntheticDay(day: string): MockAppointment[] {
+  if (isClosedDay(day)) return [];
+  const random = createRandom(Number(day.replaceAll("-", "")));
+  const past = day < DESIGN_DAY;
+  const result: MockAppointment[] = [];
+  ["s-1", "s-2", "s-3"].forEach((specialistId, column) => {
+    const slots = random
+      .shuffle(["09:00", "09:30", "10:30", "11:30", "13:00", "14:30", "15:30", "16:30"])
+      .slice(0, random.int(0, 4));
+    slots.sort().forEach((start, index) => {
+      const cosmetic = column === 2 ? random.pick(COSMETOLOGY) : null;
+      const service = cosmetic ?? (random.chance(0.6) ? CONSULTATION : FOLLOW_UP);
+      const price = cosmetic ? cosmetic.price : service === CONSULTATION ? 150_000 : 100_000;
+      const roll = random.next();
+      const status: Appointment["status"] = past
+        ? roll < 0.1
+          ? "cancelled"
+          : roll < 0.16
+            ? "rejected"
+            : "attended"
+        : roll < 0.12
+          ? "cancelled"
+          : "confirmed";
+      result.push(
+        make(
+          `${SYNTHETIC}${day}-${column}-${index}`,
+          specialistId,
+          random.pick(CUSTOMERS.slice(12)).id,
+          service,
+          day,
+          start,
+          price,
+          status,
+          at(addDays(day, -2), "17:45"),
+        ),
+      );
+    });
+  });
+  return result;
+}
+
+/** Every mock visit starting on `day` (Tashkent): the fixture's inside its week, else synthetic. */
+export function appointmentsOn(day: string): MockAppointment[] {
+  if (day >= FIXTURE_FROM && day <= FIXTURE_TO) {
+    return APPOINTMENTS.filter((a) => a.start.startsWith(day));
+  }
+  return syntheticDay(day);
+}
+
+/** A mock visit by id: the fixture's, or a synthetic one rebuilt from the day in its id. */
+export function findAppointment(id: string): MockAppointment | undefined {
+  const fixture = APPOINTMENTS.find((a) => a.id === id);
+  if (fixture || !id.startsWith(SYNTHETIC)) return fixture;
+  const day = id.slice(SYNTHETIC.length, SYNTHETIC.length + 10);
+  return syntheticDay(day).find((a) => a.id === id);
+}
+
 const booking = (service: Service, price: number): BookingService => ({
   id: service.id,
   name: service.name,

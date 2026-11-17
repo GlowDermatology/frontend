@@ -1,4 +1,6 @@
+import { segmentCopy } from "@/domain/copy/segments";
 import type { MemberRef, Segment } from "@/domain/segment";
+import { copyFor } from "@/lib/i18n/admin-locale";
 
 import { referenceNow } from "../config";
 import type { SegmentFormValues } from "../segments.schema";
@@ -14,28 +16,36 @@ import { MOCK_MEMBERS, MOCK_SEGMENTS } from "./segments";
  * unknown customers) checked against the fixtures; nothing is persisted.
  */
 
-const NOT_FOUND: ActionFailure = { ok: false, error: "Guruh topilmadi.", code: "not_found" };
+/** The backend's answers, in the admin language (the API sends them translated too). */
+const texts = () => copyFor(segmentCopy);
+
+const notFound = async (): Promise<ActionFailure> => ({
+  ok: false,
+  error: (await texts()).actions.notFound,
+  code: "not_found",
+});
 
 /** The seeded "Doimiy mijozlar" group has a scheduled campaign (notification 4). */
 const SCHEDULED_TARGETS = new Set(["1"]);
 
-function uniqueName(name: string, exceptId?: string): ActionFailure | null {
+async function uniqueName(name: string, exceptId?: string): Promise<ActionFailure | null> {
+  const t = await texts();
   const taken = MOCK_SEGMENTS.some(
     (s) => s.id !== exceptId && s.name.trim().toLowerCase() === name.trim().toLowerCase(),
   );
   return taken
     ? {
         ok: false,
-        error: "Maydonlarni tekshiring.",
+        error: t.actions.checkFields,
         code: "validation_error",
-        fieldErrors: { name: "Bu qiymat band." },
+        fieldErrors: { name: t.mock.nameTaken },
       }
     : null;
 }
 
 export async function createSegment(values: SegmentFormValues): Promise<ActionResult<Segment>> {
   await delay(400);
-  const taken = uniqueName(values.name);
+  const taken = await uniqueName(values.name);
   if (taken) return taken;
   const now = referenceNow().toISOString();
   return {
@@ -59,8 +69,8 @@ export async function updateSegment(
 ): Promise<ActionResult<Segment>> {
   await delay(400);
   const segment = MOCK_SEGMENTS.find((s) => s.id === id);
-  if (!segment) return NOT_FOUND;
-  const taken = uniqueName(values.name, id);
+  if (!segment) return notFound();
+  const taken = await uniqueName(values.name, id);
   if (taken) return taken;
   return {
     ok: true,
@@ -75,9 +85,9 @@ export async function updateSegment(
 
 export async function deleteSegment(id: string): Promise<ActionResult<{ id: string }>> {
   await delay(400);
-  if (!MOCK_SEGMENTS.some((s) => s.id === id)) return NOT_FOUND;
+  if (!MOCK_SEGMENTS.some((s) => s.id === id)) return notFound();
   if (SCHEDULED_TARGETS.has(id)) {
-    return { ok: false, error: "Rejalashtirilgan xabar bu guruhga yuboriladi.", code: "conflict" };
+    return { ok: false, error: (await texts()).mock.scheduled, code: "conflict" };
   }
   return { ok: true, data: { id } };
 }
@@ -94,22 +104,23 @@ export async function addSegmentMembers(
 ): Promise<ActionResult<Segment>> {
   await delay(400);
   const segment = MOCK_SEGMENTS.find((s) => s.id === id);
-  if (!segment) return NOT_FOUND;
+  if (!segment) return notFound();
+  const t = await texts();
   const errors: Record<string, string> = {};
   const resolved = new Set<string>();
   for (const ref of ids) {
     if (CUSTOMERS.some((c) => c.id === ref.value)) resolved.add(ref.value);
-    else errors[`entries.${ref.row}`] = "Topilmadi.";
+    else errors[`entries.${ref.row}`] = t.mock.idNotFound;
   }
   for (const ref of phones) {
     const customer = CUSTOMERS.find((c) => c.phone === ref.value);
     if (customer && !DELETED_CUSTOMER_IDS.has(customer.id)) resolved.add(customer.id);
-    else errors[`entries.${ref.row}`] = "Bu raqam bilan mijoz topilmadi.";
+    else errors[`entries.${ref.row}`] = t.mock.phoneNotFound;
   }
   if (Object.keys(errors).length > 0) {
     return {
       ok: false,
-      error: "Maydonlarni tekshiring.",
+      error: t.actions.checkFields,
       code: "validation_error",
       fieldErrors: errors,
     };
@@ -131,12 +142,13 @@ export async function removeSegmentMember(
   customerId: string,
 ): Promise<ActionResult<{ id: string; customerId: string }>> {
   await delay(400);
+  const t = await texts();
   const entry = MOCK_MEMBERS[id];
   if (!entry || !entry.members.some((m) => m.id === customerId)) {
-    return { ok: false, error: "Topilmadi.", code: "not_found" };
+    return { ok: false, error: t.mock.memberNotFound, code: "not_found" };
   }
   if (!entry.manual.includes(customerId)) {
-    return { ok: false, error: "Mijoz guruhga qoida orqali kiradi.", code: "conflict" };
+    return { ok: false, error: t.mock.ruleMember, code: "conflict" };
   }
   return { ok: true, data: { id, customerId } };
 }

@@ -5,6 +5,7 @@ import type {
   ApiAppointmentCancel,
   ApiAppointmentCreate,
   ApiAppointmentItem,
+  ApiAppointmentRange,
   ApiAppointmentReschedule,
   ApiAppointmentsMeta,
   ApiDaySchedule,
@@ -14,6 +15,7 @@ import type {
   ApiNotificationMeta,
   ApiNotificationRecord,
   ApiPaginatedAuditLog,
+  ApiAuditFacets,
   ApiPaginatedCustomers,
   ApiPaginatedNotifications,
   ApiPaginatedSegments,
@@ -26,7 +28,9 @@ import type {
   ApiStaffCreate,
   ApiStaffCredentials,
   ApiStaffMember,
+  ApiStaffLinkSent,
   ApiStaffPatch,
+  ApiStaffResetPassword,
   ApiStatusTemplate,
   ApiTemplateStatus,
   ApiTemplateUpdate,
@@ -52,6 +56,18 @@ const id = (value: string | number) => encodeURIComponent(String(value));
 
 export function apiAppointmentDay(token: string, date: string) {
   return cachedGet<ApiDaySchedule>(`${BASE}/appointments/`, { date }, token);
+}
+
+/**
+ * `GET appointments/range/`: per-day status counts of `from`…`to` (Tashkent
+ * days, inclusive; ≤ 42 days), with `detail=full` (≤ 7 days) also every
+ * specialist's day schedule and the appointments.
+ */
+export function apiAppointmentRange(
+  token: string,
+  query: { from: string; to: string; specialist_id?: number; detail?: "counts" | "full" },
+) {
+  return cachedGet<ApiAppointmentRange>(`${BASE}/appointments/range/`, query, token);
 }
 
 /** Uncached: the booking dialog re-reads another day through a Server Action. */
@@ -374,6 +390,11 @@ export function apiListAuditLog(token: string, params: Record<string, QueryValue
   return cachedGet<ApiPaginatedAuditLog>(`${BASE}/audit-log/`, params, token);
 }
 
+/** What the audit log shows the signed-in staff member (tier, IP visibility, visible prefixes). */
+export function apiAuditFacets(token: string) {
+  return cachedGet<ApiAuditFacets>(`${BASE}/audit-log/facets/`, undefined, token);
+}
+
 export function apiNavCounts(token: string) {
   return cachedGet<ApiNavCounts>(`${BASE}/nav-counts/`, undefined, token);
 }
@@ -429,8 +450,24 @@ export function apiStaffAction(
   });
 }
 
-export function apiResetStaffPassword(token: string, staffId: string, idempotencyKey: string) {
+/** `delivery` picks the temporary password, the e-mailed link or both (DESIGN §E). */
+export function apiResetStaffPassword(
+  token: string,
+  staffId: string,
+  body: ApiStaffResetPassword,
+  idempotencyKey: string,
+) {
   return apiFetch<ApiStaffCredentials>(`${BASE}/staff/${id(staffId)}/reset-password/`, {
+    method: "POST",
+    body,
+    token,
+    idempotencyKey,
+  });
+}
+
+/** Resends a single-use password link to the account's e-mail; earlier links are revoked. */
+export function apiSendStaffPasswordLink(token: string, staffId: string, idempotencyKey: string) {
+  return apiFetch<ApiStaffLinkSent>(`${BASE}/staff/${id(staffId)}/send-password-link/`, {
     method: "POST",
     body: {},
     token,

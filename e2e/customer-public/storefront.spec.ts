@@ -45,9 +45,11 @@ test("browse home → catalog → product → switch language", async ({ page })
   await expect(page).toHaveURL(/\/katalog$/);
   await expect(page.getByRole("heading", { level: 1, name: "Katalog" })).toBeVisible();
 
-  // The Uzbek o‘ mark typed as an ASCII apostrophe still finds "ko‘pik".
-  await page.getByRole("searchbox").fill("ko'pik");
-  await page.getByRole("button", { name: "Qidirish" }).click();
+  // The Uzbek o‘ mark typed as an ASCII apostrophe still finds "ko‘pik" (the catalog's own
+  // search field; the header has another one, tested below).
+  const main = page.getByRole("main");
+  await main.getByRole("searchbox").fill("ko'pik");
+  await main.getByRole("button", { name: "Qidirish" }).click();
   await expect(page).toHaveURL(/q=ko%27pik|q=ko'pik/);
   await expect(page.getByText(/bo‘yicha \d+ ta mahsulot/)).toBeVisible();
   const first = page.getByRole("main").getByRole("heading", { level: 2 }).getByRole("link").first();
@@ -66,13 +68,42 @@ test("browse home → catalog → product → switch language", async ({ page })
   expect(ld.join("")).toContain('"priceCurrency":"UZS"');
   const segment = new URL(page.url()).pathname.split("/").pop();
 
-  await page.getByRole("link", { name: "Русский" }).first().click();
+  // Languages live in the account menu (guests too), with flags; same page, filters kept.
+  await page.getByRole("button", { name: "Hisob va til" }).click();
+  await expect(page.getByRole("menuitem", { name: "Kirish" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Ro‘yxatdan o‘tish" })).toBeVisible();
+  await page.getByRole("menuitem", { name: "Русский" }).click();
   await expect(page).toHaveURL(new RegExp(`/ru/products/${segment}$`));
   await expect(page.locator("html")).toHaveAttribute("lang", "ru");
   await expect(page.locator('link[rel="alternate"][hreflang="x-default"]')).toHaveAttribute(
     "href",
     new RegExp(`/mahsulotlar/${segment}$`),
   );
+});
+
+test("the header search submits to the catalog (a field, an icon on phones)", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("search", { name: "Mahsulot qidirish" }).getByRole("searchbox").fill("krem");
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/katalog\?q=krem$/);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/ru");
+  await page.getByRole("button", { name: "Открыть поиск" }).click();
+  const field = page.getByRole("search", { name: "Поиск товаров" }).getByRole("searchbox");
+  await expect(field).toBeFocused();
+  await field.fill("spf");
+  await page.getByRole("button", { name: "Поиск", exact: true }).click();
+  await expect(page).toHaveURL(/\/ru\/catalog\?q=spf$/);
+
+  // The phone menu lists the languages with flags too.
+  await page.getByRole("button", { name: "Открыть меню" }).click();
+  await expect(
+    page
+      .getByRole("banner")
+      .getByRole("navigation", { name: "Язык" })
+      .getByRole("link", { name: "English" }),
+  ).toHaveAttribute("href", "/en/catalog?q=spf");
 });
 
 test("legacy numeric URLs and private pages", async ({ page, request }) => {

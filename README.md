@@ -72,14 +72,18 @@ src/
   app/                       Routes only (thin). Three root layouts:
     (uz)/                      "/"            Uzbek landing (static)
     (intl)/[locale]/           "/ru", "/en"   other landing languages (static)
-    admin/                     "/admin/**"    admin panel (noindex, own <html>)
+    admin/                     "/admin/**"    admin panel (noindex, own <html>); (panel)/ holds the
+                                              shell layout and every panel page, login/ set-password/
+                                              change-password/ mfa/ auth/ sit outside it
     global-not-found.tsx       branded 404 for unmatched URLs
     robots.ts, sitemap.ts, icon.svg, apple-icon.png
   components/
-    ui/                      Design-system primitives: Button, Badge, Field/TextInput/AffixInput,
-                             SegmentedControl, Switch, Dialog/AlertDialog, SelectMenu/ActionMenu,
-                             Toast, Card, Breadcrumbs, Avatar, ScrollRegion, Icon (the design's
-                             own 24px stroke icon set)
+    ui/                      Design-system primitives: Button/IconButton (busy, disabledReason),
+                             Badge, Field/TextInput/AffixInput, Select/Combobox, SegmentedControl,
+                             Switch, Dialog/AlertDialog (layer host), SelectMenu/ActionMenu,
+                             Tooltip, Toast, Calendar and date/time/range pickers, PhoneInput,
+                             FormErrorSummary, form-controls (RHF), Card, Breadcrumbs, Avatar,
+                             ScrollRegion, Icon (the design's own 24px stroke icon set), copy.ts
     brand/                   ProductArt (the board's product illustrations), Rings, 404 view
   features/
     landing/                 Sections, copy dictionaries (uz/ru/en), i18n, metadata
@@ -100,17 +104,35 @@ src/
                                ApiError, mappers (+ recorded fixtures), generated schema
     mock/                      deterministic fixtures, *.queries.ts and *.actions.ts mock bodies
     config.ts                  client-safe constants (DEMO_NOW, referenceNow() for mock internals)
-  lib/                       cn (clsx + tailwind-merge), deterministic uz formatting, fonts
+  lib/                       cn (clsx + tailwind-merge), deterministic formatting (createFormatter
+                             uz/ru/en), i18n/ (admin locale cookie, copy sets, localized schemas),
+                             forms/ (error reveal, RHF summary, recommended fields), datetime, phone, fonts
 ```
 
 **Rendering**
 
 - `cacheComponents` is on, so Partial Prerendering is the default.
 - The landing pages are fully static (○), with `ensureStatic` on the landing page segment.
-- Admin pages prerender the shell (sidebar, header) and stream the data-dependent body inside `<Suspense>` (◐).
+- The admin shell lives in one layout, `src/app/admin/(panel)/layout.tsx`: `<Suspense fallback={<ShellSkeleton />}><LocalizedShell>…</LocalizedShell></Suspense>`. The static prerender holds only `ShellSkeleton` (a language-neutral sidebar/header placeholder, `aria-busy`); `LocalizedShell` reads the admin language cookie at request time and streams the localized sidebar, header, toast and tooltip providers around the page. Every panel page lives in the `(panel)` route group (URLs unchanged) and streams its data-dependent body in its own `<Suspense>` with a `PageSkeleton` (◐). The sign-in, set-password, change-password and MFA pages sit outside the group, with their own frame.
 - The body sits inside a content-level error boundary (`ContentErrorBoundary`, `catchError` from `next/error`, in `features/admin/shell/content-error.tsx`): a board whose data or rendering fails shows "Bo‘limni yuklab bo‘lmadi" with "Qayta urinish" (`retry()`) inside `<main>`, focus moves to its heading, and the sidebar, header and mobile menu stay usable; `redirect()` / `notFound()` pass through. `src/app/admin/error.tsx` still catches failures of the shell itself.
+- An unknown `/admin/…` address (`(panel)/[...rest]/page.tsx` → `notFound()`) and a missing order, customer, product or specialist render the localized «Sahifa topilmadi» body (`PanelNotFound`) **inside the shell**, so the navigation stays available. It is streamed, so the answer is HTTP 200 with `noindex` (the routing-level `global-not-found` 404 is for URLs outside `/admin`).
 - Components are Server Components by default. Client components are limited to interactive leaves: forms, dialogs, menus, charts, the schedule and tabs.
 - List screens keep filters, sorting and pagination in the URL, so links are shareable and map 1:1 to DRF query parameters. Navigation runs in transitions, so the old rows dim instead of flashing a skeleton.
+
+**Admin languages (uz / ru / en).** The panel, its server messages and its exports follow the staff member's language.
+
+- The language is the `gd_admin_language` cookie (`Path=/admin`, one year, not HttpOnly; `src/lib/i18n/admin-locale-cookie.ts`), Uzbek when absent. Sign-in sets it from the account's `language`; Settings › «Til» saves both the account (`PATCH auth/me/`) and the cookie; the sign-in page's small switch sets the cookie only. `<html lang>` follows it (inline head script in `app/admin/layout.tsx`, `HtmlLang`).
+- Server code reads it with `getAdminLocale()` / `copyFor(copy)` / `getFormat()` (`src/lib/i18n/admin-locale.ts`, inside Suspense, metadata, Server Actions and route handlers); client components use `useCopy(copy)` / `useFormat()` (the shell's `AdminLocaleProvider`).
+- Texts live in copy modules, `{ uz, ru, en } satisfies CopySet<typeof uz>`: one `copy.ts` (or `*-copy.ts`) per feature folder, `features/admin/shared/copy.ts`, `features/admin/shell/copy.ts` (incl. page titles), `components/ui/copy.ts`, `src/domain/copy/*.ts` (domain labels, mock refusals), `src/data/copy.ts` (Server Action / API client / export texts), `src/lib/i18n/validation-copy.ts` (shared zod messages; schemas are `localized(…)` per language). Numbers, money and dates go through `createFormatter(locale)` (`src/lib/format.ts`), never `Intl`.
+- The API client sends `Accept-Language: <admin language>` on every admin call, so the backend's `message` / `errors[].message` and export headers arrive translated and are shown as they are. Behaviour never depends on a message's words: refusals are told apart by their error `code`.
+- Two tests hold the line: `src/features/admin/copy-parity.test.ts` (every copy module: same keys and function arity in all three languages, no empty text, Russian in Cyrillic, no Cyrillic in uz/en, no Uzbek ‘ in en) and `src/features/admin/i18n-guard.test.ts` (a TypeScript AST scan of `src/features/admin`, `src/components/ui`, `src/app/admin`, `src/domain`, `src/data` that fails on JSX text, literal `aria-label` / `title` / `placeholder` / `label` / `alt`, and any Uzbek-marked or Cyrillic literal outside a copy module; `MIGRATED_DIRS = "all"`, with a short justified `PENDING` list and `// i18n-ignore` for deliberate exceptions). Content (product names, campaign texts, audit data) is never translated.
+
+**Admin UI kit rules** (`src/components/ui`, DESIGN §A).
+
+- No native `<select>`, date/time inputs or phone inputs: `Select` / `SelectMenu` / `Combobox`, `DatePicker` / `TimePicker` / `DateTimePicker` / `DateRangePicker`, `PhoneInput` (and the RHF `Form*` wrappers in `form-controls.tsx`).
+- No raw `disabled` on a control: a running request is `busy` (focusable, `aria-busy`), an unavailable action has a `disabledReason` — why + what to do — which keeps it focusable with `aria-disabled`, reads the reason out and shows it in a tooltip (`Button`, `IconButton`, `Select`, `Combobox`, `ActionMenu` items and trigger, pickers, `PhoneInput`, `Switch`, `SegmentedControl` options).
+- Errors are revealed: forms put `Field name=…` on their fields and call `useErrorReveal` (local state) or `useRhfReveal` (React Hook Form, `shouldFocusError: false`): the first invalid field (or a non-input box with `data-field` + `data-invalid`, e.g. the product images) is scrolled to, focused and ringed, with a `FormErrorSummary` linking every field; recommended-but-empty fields ask «Baribir saqlash?» (`useRecommendedConfirm`).
+- Toasts: `success` / `info` in the polite region, `warning` / `danger` (every failure) in a `role="alert"` region; every toast carries `data-toast` and `data-tone`.
 
 **Styling**
 
@@ -197,12 +219,18 @@ The customer website is the storefront above plus the signed-in pages, served by
 
 ### Environment variables
 
+The admin UX release (admin languages, staff invite and forced password change, panel MFA) adds **no new required variable**: the only new ones are the four mock-only preview switches `GLOWDERMA_MOCK_*` below (all listed in `.env.example`). The e-mailed staff links are configured on the backend (`ADMIN_PANEL_URL`, e-mail settings).
+
 "Prod" says whether a production deployment must set the variable. "Read" says when it takes effect: a **build** value is baked by `next build` and changes only with a new build, while a **runtime** value is read per request.
 
 | Variable                              | Default                                                       | Prod                                         | Read              | Purpose                                                                                                                                                                                                                                                                                           |
 | ------------------------------------- | ------------------------------------------------------------- | -------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `NEXT_PUBLIC_SITE_URL`                | `VERCEL_PROJECT_PRODUCTION_URL`, then `http://localhost:3000` | **yes** (the image build refuses without it) | build (inlined)   | Canonical origin: metadata, canonical/hreflang, Open Graph, JSON-LD, `sitemap.xml`, `robots.txt`.                                                                                                                                                                                                 |
 | `GLOWDERMA_DATA_SOURCE`               | `mock`                                                        | **yes** (`api`)                              | runtime           | `mock` serves the admin fixtures and the static landing; `api` talks to Django and turns the storefront on. One build serves both.                                                                                                                                                                |
+| `GLOWDERMA_MOCK_SUPERUSER`            | `true`                                                        | no (mock only)                               | runtime           | Mock mode: `false` previews the ordinary admin's notifications page.                                                                                                                                                                                                                              |
+| `GLOWDERMA_MOCK_MUST_CHANGE`          | `false`                                                       | no (mock only)                               | runtime           | Mock mode: `true` previews the forced password change (`/admin/change-password`).                                                                                                                                                                                                                 |
+| `GLOWDERMA_MOCK_EMAIL_INVITE`         | `true`                                                        | no (mock only)                               | runtime           | Mock mode: `false` previews the staff dialogs without e-mailed password links (as when the backend's e-mail is not configured).                                                                                                                                                                   |
+| `GLOWDERMA_MOCK_MFA`                  | `false`                                                       | no (mock only)                               | runtime           | Mock mode: `true` gives the demo account the admin panel MFA (code `123456`).                                                                                                                                                                                                                     |
 | `GLOWDERMA_API_URL`                   | none                                                          | **yes** (api mode)                           | runtime           | Django origin, no trailing slash, e.g. `http://api:8000`.                                                                                                                                                                                                                                         |
 | `GLOWDERMA_INTERNAL_SECRET`           | none                                                          | **yes** (api mode)                           | runtime           | Sent as `X-GD-Internal-Secret`; must equal Django `INTERNAL_API_SECRET`. Also keys the signed OAuth flow cookie, so every instance shares it. Never expose it to the browser.                                                                                                                     |
 | `GLOWDERMA_ALLOWED_ORIGINS`           | none (same-origin only)                                       | **yes** (the image build refuses without it) | build + runtime   | Exact `host[:port]` list allowed to call Server Actions and the auth/refresh/logout routes. List **every** host that serves pages: storefront host(s) and admin host, e.g. `glowderma.uz,www.glowderma.uz,admin.glowderma.uz`. If a storefront host is missing, every customer action is refused. |
@@ -243,6 +271,7 @@ The `E2E_*` variables of the Playwright suite are listed in `e2e/README.md`.
 - No customer cookie is set and no request leaves the server.
 - `/admin` runs on the in-memory demo dataset, including products with slugs, SEO texts and a «SEO holati» checklist computed by the same rules as the backend's `catalog/seo.py`, and a customer with demo «Faol seanslar».
 - Mutations compute the next state without saving it, so a reload restores the dataset. Every admin page shows the "Demo ma’lumotlar" marker.
+- Preview switches (mock mode only, ignored in api mode): `GLOWDERMA_MOCK_SUPERUSER=false` (the ordinary admin's notifications page), `GLOWDERMA_MOCK_MUST_CHANGE=true` (every admin page goes to `/admin/change-password` until the demo password is changed in this browser), `GLOWDERMA_MOCK_EMAIL_INVITE=false` (the staff dialogs show the e-mailed link option disabled, with its reason, as when e-mail is not configured), `GLOWDERMA_MOCK_MFA=true` (the demo account has the admin panel MFA: the demo sign-in asks for the code `123456` or a recovery code `gdemo-10001` … `gdemo-10010`, Settings shows it on).
 
 ---
 

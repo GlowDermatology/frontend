@@ -8,8 +8,9 @@ import {
   type FulfilmentMethod,
   type PaymentStatus,
 } from "@/domain/order";
-import { MONTHS, tashkentParts } from "@/lib/format";
+import { tashkentParts, type AdminFormatter } from "@/lib/format";
 
+import type { OrdersCopy } from "./copy";
 import {
   firstParam,
   isoDateParam,
@@ -82,12 +83,32 @@ export function orderListHref(query: Partial<OrderListQuery>, base = "/admin/ord
   })}` as Route;
 }
 
-export function periodLabel(period: OrderPeriod, now: Date): string {
-  if (period === "today") return "Bugun";
-  if (period === "week") return "Oxirgi 7 kun";
-  if (period === "all") return "Barcha sana";
-  const p = tashkentParts(now);
-  return p.day === 1 ? `1-${MONTHS[p.month]}` : `1–${p.day}-${MONTHS[p.month]}`;
+/**
+ * The period menu's words: "Bugun", "Oxirgi 7 kun", "Barcha sana", and the calendar month to
+ * date as a day range ("1–24-oktyabr", "1–24 октября", "1–24 October"; the 1st alone on day one).
+ */
+export function periodLabel(
+  period: OrderPeriod,
+  now: Date,
+  t: OrdersCopy,
+  fmt: AdminFormatter,
+): string {
+  if (period !== "month") return t.toolbar.periods[period];
+  const day = fmt.dayMonth(now);
+  return tashkentParts(now).day === 1 ? day : `1–${day}`;
+}
+
+/** "1–10 / 128": the rows the page shows of all, in the admin language's digits. */
+export function pageRangeLabel(
+  page: number,
+  pageSize: number,
+  total: number,
+  fmt: AdminFormatter,
+): string {
+  if (total <= 0) return "0 / 0";
+  const from = Math.min(total, (page - 1) * pageSize + 1);
+  const to = Math.min(total, page * pageSize);
+  return `${fmt.number(from)}–${fmt.number(to)} / ${fmt.number(total)}`;
 }
 
 export function hasActiveFilters(query: OrderListQuery): boolean {

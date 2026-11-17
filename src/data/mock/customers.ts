@@ -215,6 +215,14 @@ function fromOrders(id: string): Customer {
             : entry.kind === "reversal"
               ? "Buyurtma bekor qilindi · cashback qaytarildi"
               : `${entry.label.replace("1% × ", "")} so‘m · 1%`,
+        origin: {
+          type: "order",
+          ref: String(order.id),
+          actor: null,
+          base: entry.kind === "credit" ? entry.amount * 100 : null,
+          percent: entry.kind === "credit" ? 1 : null,
+          reason: null,
+        },
         amount: entry.amount,
       });
     }
@@ -245,6 +253,14 @@ function fromOrders(id: string): Customer {
       kind: "credit",
       source: `Billz savdo S-${80_000 + Number(id) * 7}`,
       note: `Chek ${formatNumber(store)} so‘m · 1%`,
+      origin: {
+        type: "billz_sale",
+        ref: `S-${80_000 + Number(id) * 7}`,
+        actor: null,
+        base: store,
+        percent: 1,
+        reason: null,
+      },
       amount: credit,
     });
     purchases.push({

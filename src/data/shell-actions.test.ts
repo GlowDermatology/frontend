@@ -18,6 +18,11 @@ const cachedGet = vi.fn();
 
 vi.mock("next/server", () => ({ connection: vi.fn(async () => undefined) }));
 vi.mock("next/cache", () => ({ refresh: () => refresh() }));
+// No request scope here: the admin language falls back to Uzbek (no `gd_admin_language` cookie).
+vi.mock("next/headers", () => ({
+  cookies: async () => ({ get: () => undefined }),
+  headers: async () => new Headers(),
+}));
 vi.mock("./auth", () => ({
   verifyStaff: (options?: VerifyStaffOptions) => verifyStaff(options),
   requireApiToken: async () => "t",

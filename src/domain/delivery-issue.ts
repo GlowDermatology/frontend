@@ -3,6 +3,9 @@
  * the courier-dispatch switch. Framework-free; the mappers turn the admin
  * API's `DeliveryIssue` / `Suspension` into these shapes.
  */
+import type { Locale } from "@/lib/i18n/locales";
+
+import { deliveryIssueCopy } from "./copy/delivery-issues";
 import type { DeliveryIssueKind } from "./order";
 
 export const ISSUE_STATES = ["open", "resolved"] as const;
@@ -63,25 +66,8 @@ export const ISSUE_NOTE_MIN = 3;
 export const ISSUE_NOTE_MAX = 1000;
 export const SUSPENSION_NOTE_MAX = 300;
 
-const MONEY_KEY = /(price|fee|amount|total|difference|cost)$/;
+const MONEY_KEY = /(price|fee|amount|total|difference|cost|increase|loss)$/;
 const WEIGHT_KEY = /_g$/;
-
-/** Uzbek names of the `details` keys the backend writes; others are shown as their key. */
-const DETAIL_LABEL: Record<string, string> = {
-  claim_id: "Yandex buyurtmasi",
-  claim_number: "Urinish",
-  quote_fee: "Mijoz to‘lagan",
-  carrier_price: "Yandex taxmini",
-  offer_price: "Yandex taklifi",
-  approved_price: "Tasdiqlangan narx",
-  paid_fee: "Mijoz to‘lagan",
-  difference: "Farq",
-  cost_difference: "Farq",
-  carrier_status: "Yandex holati",
-  reason: "Sabab",
-  weight_g: "Og‘irlik",
-  minutes: "Daqiqa",
-};
 
 export interface IssueDetailLine {
   key: string;
@@ -96,7 +82,9 @@ export interface IssueDetailLine {
  * skipped, `null` and `""` too), money keys marked for so‘m formatting —
  * the amounts are the server's, never recomputed here.
  */
-export function issueDetailLines(details: unknown): IssueDetailLine[] {
+export function issueDetailLines(details: unknown, locale: Locale = "uz"): IssueDetailLine[] {
+  // Names of the `details` keys the backend writes; others are shown as their key.
+  const names = deliveryIssueCopy[locale].detail as Record<string, string>;
   if (typeof details !== "object" || details === null || Array.isArray(details)) return [];
   const lines: IssueDetailLine[] = [];
   for (const [key, value] of Object.entries(details as Record<string, unknown>)) {
@@ -110,7 +98,12 @@ export function issueDetailLines(details: unknown): IssueDetailLine[] {
         : typeof value === "number" && WEIGHT_KEY.test(key)
           ? "grams"
           : "text";
-    lines.push({ key, label: DETAIL_LABEL[key] ?? key, value, kind });
+    lines.push({
+      key,
+      label: (Object.hasOwn(names, key) ? names[key] : undefined) ?? key,
+      value,
+      kind,
+    });
   }
   return lines;
 }

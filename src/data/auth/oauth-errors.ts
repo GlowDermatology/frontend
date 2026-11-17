@@ -1,10 +1,10 @@
-import { LINK_NEEDS_PASSWORD_MESSAGE } from "@/domain/settings";
+import { authDataCopy, type AuthDataCopy } from "@/domain/copy/auth";
 
 import { isApiError, type ApiError } from "../api/errors";
 import { OAUTH_NOTICE_MAX_MESSAGE_LENGTH } from "./oauth";
 
 /**
- * The Uzbek text the login page or the account card shows when Django
+ * The text (in the admin language: pass `m`, Uzbek by default) the login page or the account card shows when Django
  * refuses a social sign-in or link (contract §2.1). The backend's own
  * message wins wherever it is meaningful to the admin:
  * `social_account_not_allowed` ("Bu hisob administrator sifatida ro‘yxatdan
@@ -19,28 +19,28 @@ import { OAUTH_NOTICE_MAX_MESSAGE_LENGTH } from "./oauth";
  * sign-in too.
  */
 
-export const OAUTH_FAILED_MESSAGE = "Ijtimoiy tarmoq orqali kirish amalga oshmadi.";
-export const OAUTH_UNREACHABLE_MESSAGE = "API bilan bog‘lanib bo‘lmadi.";
-export const OAUTH_UNEXPECTED_MESSAGE = "Kutilmagan xato.";
-export const OAUTH_THROTTLED_MESSAGE = "Juda ko‘p urinish. Birozdan so‘ng qayta urinib ko‘ring.";
+/** The Uzbek texts (the default language). */
+export const OAUTH_FAILED_MESSAGE = authDataCopy.uz.oauthFailed;
+export const OAUTH_UNREACHABLE_MESSAGE = authDataCopy.uz.unreachable;
+export const OAUTH_UNEXPECTED_MESSAGE = authDataCopy.uz.unexpected;
+export const OAUTH_THROTTLED_MESSAGE = authDataCopy.uz.throttled;
 
-export function oauthErrorMessage(error: unknown): string {
-  if (!isApiError(error)) return OAUTH_UNEXPECTED_MESSAGE;
-  if (error.status === 0) return OAUTH_UNREACHABLE_MESSAGE;
+export function oauthErrorMessage(error: unknown, m: AuthDataCopy = authDataCopy.uz): string {
+  if (!isApiError(error)) return m.unexpected;
+  if (error.status === 0) return m.unreachable;
   if (error.status === 429) {
-    return error.retryAfter === undefined
-      ? OAUTH_THROTTLED_MESSAGE
-      : `Juda ko‘p urinish. ${error.retryAfter} soniyadan so‘ng qayta urinib ko‘ring.`;
+    return error.retryAfter === undefined ? m.throttled : m.throttledFor(error.retryAfter);
   }
-  if (error.code === "validation_error") return OAUTH_FAILED_MESSAGE;
+  if (error.code === "validation_error") return m.oauthFailed;
   // An answer without the contract's envelope (an edge page, a 502).
   if (error.code.startsWith("http_") || error.code === "invalid_json") {
-    return error.status >= 500 ? OAUTH_UNREACHABLE_MESSAGE : OAUTH_FAILED_MESSAGE;
+    return error.status >= 500 ? m.unreachable : m.oauthFailed;
   }
   // A message the notice could not carry (`openNotice` drops it) would leave
-  // the page without any error at all.
+  // the page without any error at all. The backend's own message is already
+  // in the admin language (`Accept-Language`).
   const message = error.body.message;
-  if (!message || message.length > OAUTH_NOTICE_MAX_MESSAGE_LENGTH) return OAUTH_FAILED_MESSAGE;
+  if (!message || message.length > OAUTH_NOTICE_MAX_MESSAGE_LENGTH) return m.oauthFailed;
   return message;
 }
 
@@ -53,14 +53,14 @@ export function oauthErrorMessage(error: unknown): string {
  * M3 the card hides «Bog‘lash» for such a session (`Me.auth_method`); this
  * mapping stays for a link started anyway (an old tab, a hand-typed URL).
  */
-export const OAUTH_LINK_NEEDS_PASSWORD_MESSAGE = LINK_NEEDS_PASSWORD_MESSAGE;
+export const OAUTH_LINK_NEEDS_PASSWORD_MESSAGE = authDataCopy.uz.linkNeedsPassword;
 
 /** `oauthErrorMessage` for the link flow: a 403 asks for a password sign-in first. */
-export function oauthLinkErrorMessage(error: unknown): string {
+export function oauthLinkErrorMessage(error: unknown, m: AuthDataCopy = authDataCopy.uz): string {
   if (isApiError(error) && error.status === 403 && error.code === "permission_denied") {
-    return OAUTH_LINK_NEEDS_PASSWORD_MESSAGE;
+    return m.linkNeedsPassword;
   }
-  return oauthErrorMessage(error);
+  return oauthErrorMessage(error, m);
 }
 
 /**

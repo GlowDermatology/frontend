@@ -3,10 +3,10 @@ import type { ProductStatus } from "@/domain/product";
 
 /**
  * Category names come from the data (`getCategories()` → `Category.name.uz`,
- * see `categoryLabel` in `@/domain/category`); only the status labels are
- * static (contract §5.8).
+ * see `categoryLabel` in `@/domain/category`); the status labels live in
+ * `productsCopy.status` (contract §5.8), their badge tones here.
  */
-export const PRODUCT_STATUS_META: Record<ProductStatus, { label: string; tone: Tone }> = {
-  active: { label: "Faol", tone: "success" },
-  hidden: { label: "Yashirin", tone: "neutral" },
+export const PRODUCT_STATUS_TONE: Record<ProductStatus, Tone> = {
+  active: "success",
+  hidden: "neutral",
 };

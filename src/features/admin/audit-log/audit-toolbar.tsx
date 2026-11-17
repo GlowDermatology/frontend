@@ -1,172 +1,256 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useRef, useState } from "react";
 
-import { Button } from "@/components/ui/button";
-import { Select, TextInput } from "@/components/ui/field";
+import { Button, IconButton } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
+import { TextInput } from "@/components/ui/field";
 import { Icon } from "@/components/ui/icon";
-import { SelectMenu } from "@/components/ui/menu";
+import { Select } from "@/components/ui/select";
 import {
-  AUDIT_ACTION_LABELS,
-  AUDIT_OBJECT_LABELS,
-  auditActionsByGroup,
+  AUDIT_REQUEST_ID_MAX,
+  auditActionLabel,
+  auditObjectLabel,
+  auditRequestIdProblem,
+  parseAuditRequestId,
+  type AuditFacets,
   type AuditFilters,
 } from "@/domain/audit";
+import { cn } from "@/lib/cn";
+import { revealFirstError } from "@/lib/forms/reveal";
+import { useAdminLocale, useCopy } from "@/lib/i18n/admin-context";
 
 import { useListNavigation } from "../shared/list-transition";
-import { auditHref } from "./query";
+import { MAX_FILTER_YEAR, MIN_FILTER_YEAR } from "../shared/url-state";
+import { auditLogCopy } from "./copy";
+import {
+  auditActionOptions,
+  auditActorOptions,
+  auditObjectOptions,
+  type ActorOption,
+} from "./options";
+import { auditHref, hasAuditFilters } from "./query";
 
-export interface ActorOption {
-  id: string;
-  name: string;
-}
+export type { ActorOption };
 
-const ACTIONS = Object.keys(AUDIT_ACTION_LABELS);
-const ACTION_GROUPS = auditActionsByGroup(ACTIONS);
-const OBJECT_TYPES = Object.keys(AUDIT_OBJECT_LABELS).sort((a, b) =>
-  (AUDIT_OBJECT_LABELS[a] ?? a).localeCompare(AUDIT_OBJECT_LABELS[b] ?? b),
-);
+const FILTER_MIN = `${MIN_FILTER_YEAR}-01-01`;
+const FILTER_MAX = `${MAX_FILTER_YEAR}-12-31`;
 
-const smallControl = "h-10 text-[14px]";
+const caption = "text-caption text-ink-muted";
+/** Every toolbar control is the kit's 44px height, so the two rows line up. */
+const smallControl = "h-11 text-[14px]";
 
 /**
- * Filters of the audit log; every change is a URL navigation inside the
- * list transition (rows dim instead of flashing a skeleton). The actor list
- * is the active staff directory (`GET staff/`, contract §2.16).
+ * Filters of the audit log (DESIGN §D). Every change is a URL navigation inside the list
+ * transition (rows dim instead of flashing a skeleton). The actor list is the active staff
+ * directory; the action and object lists come from the viewer's facets (grouped, searchable);
+ * the request id is searched on Enter or with the search button (8–64 of `[A-Za-z0-9-]`, a
+ * prefix of the full id is enough).
  */
 export function AuditToolbar({
   filters,
   actors,
+  facets,
 }: {
   filters: AuditFilters;
   actors: ActorOption[];
+  facets: AuditFacets;
 }) {
+  const t = useCopy(auditLogCopy).toolbar;
+  const locale = useAdminLocale();
   const { navigate } = useListNavigation();
+  const id = useId();
+  const requestForm = useRef<HTMLFormElement>(null);
   const [objectId, setObjectId] = useState(filters.objectId ?? "");
+  const [requestId, setRequestId] = useState(filters.requestId ?? "");
+  const [requestError, setRequestError] = useState<string | null>(null);
   const update = (patch: Partial<AuditFilters>) =>
     navigate(auditHref({ ...filters, ...patch, page: 1 }));
-  const actorName = actors.find((a) => a.id === filters.actor)?.name;
-  const active =
-    filters.actor ||
-    filters.action ||
-    filters.objectType ||
-    filters.objectId ||
-    filters.dateFrom ||
-    filters.dateTo;
+
+  const actionLabel = filters.action ? auditActionLabel(filters.action, locale) : t.all;
+  const objectLabel = filters.objectType ? auditObjectLabel(filters.objectType, locale) : t.all;
+
+  const searchRequest = () => {
+    const problem = auditRequestIdProblem(requestId);
+    if (problem) {
+      setRequestError(problem === "short" ? t.requestIdShort : t.requestIdChars);
+      // After React marks the field invalid: scroll to, focus and shake it.
+      window.requestAnimationFrame(() => void revealFirstError(requestForm.current));
+      return;
+    }
+    setRequestError(null);
+    const next = parseAuditRequestId(requestId);
+    if (next !== filters.requestId) update({ requestId: next });
+  };
+
+  const errorId = `${id}-request-error`;
 
   return (
-    <div className="flex flex-wrap items-end gap-2.5 border-b border-line p-4">
-      <SelectMenu<string>
-        label="Xodim"
-        trigger={`Xodim: ${filters.actor ? (actorName ?? `#${filters.actor}`) : "Hammasi"}`}
-        value={filters.actor ?? "all"}
-        onValueChange={(value) => update({ actor: value === "all" ? undefined : value })}
-        options={[
-          { value: "all", label: "Hammasi" },
-          ...actors.map((actor) => ({ value: actor.id, label: actor.name })),
-        ]}
-      />
-      <label className="flex min-w-[220px] flex-[1_1_220px] flex-col gap-1">
-        <span className="text-caption text-ink-muted">Amal</span>
-        <Select
-          aria-label="Amal"
-          className={smallControl}
+    <div
+      role="group"
+      aria-label={t.label}
+      className="flex flex-col gap-3 border-b border-line p-4 sm:p-5"
+    >
+      <div className="flex flex-wrap items-end gap-2.5">
+        <Select<string>
+          variant="filter"
+          className="max-sm:w-full"
+          aria-label={t.actor}
+          prefix={`${t.actor}:`}
+          value={filters.actor ?? ""}
+          onValueChange={(value) => update({ actor: value || undefined })}
+          options={auditActorOptions(actors, t.all)}
+        />
+        <Combobox<string>
+          label={t.action}
+          placeholder={t.actionSearch}
+          trigger={
+            <span className="flex min-w-0 items-baseline gap-1">
+              <span className="shrink-0 text-ink-muted">{t.action}:</span>
+              <span className="truncate">{actionLabel}</span>
+            </span>
+          }
+          triggerClassName="max-w-[320px] justify-between max-sm:w-full max-sm:max-w-none"
           value={filters.action ?? ""}
-          onChange={(event) => update({ action: event.target.value || undefined })}
-        >
-          <option value="">Hammasi</option>
-          {ACTION_GROUPS.map((group) => (
-            <optgroup key={group.label} label={group.label}>
-              {group.actions.map((action) => (
-                <option key={action} value={action}>
-                  {AUDIT_ACTION_LABELS[action]}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-          {filters.action && !ACTIONS.includes(filters.action) && (
-            <option value={filters.action}>{filters.action}</option>
-          )}
-        </Select>
-      </label>
-      <label className="flex min-w-[180px] flex-[1_1_180px] flex-col gap-1">
-        <span className="text-caption text-ink-muted">Obyekt</span>
-        <Select
-          aria-label="Obyekt turi"
-          className={smallControl}
+          onValueChange={(value) => update({ action: value || undefined })}
+          options={auditActionOptions(facets, locale, t.all, filters.action)}
+        />
+        <Combobox<string>
+          label={t.objectType}
+          placeholder={t.objectSearch}
+          trigger={
+            <span className="flex min-w-0 items-baseline gap-1">
+              <span className="shrink-0 text-ink-muted">{t.objectType}:</span>
+              <span className="truncate">{objectLabel}</span>
+            </span>
+          }
+          triggerClassName="max-w-[280px] justify-between max-sm:w-full max-sm:max-w-none"
           value={filters.objectType ?? ""}
-          onChange={(event) => update({ objectType: event.target.value || undefined })}
-        >
-          <option value="">Hammasi</option>
-          {OBJECT_TYPES.map((type) => (
-            <option key={type} value={type}>
-              {AUDIT_OBJECT_LABELS[type]} ({type})
-            </option>
-          ))}
-          {filters.objectType && !OBJECT_TYPES.includes(filters.objectType) && (
-            <option value={filters.objectType}>{filters.objectType}</option>
-          )}
-        </Select>
-      </label>
-      <form
-        className="flex w-[140px] flex-col gap-1"
-        onSubmit={(event) => {
-          event.preventDefault();
-          update({ objectId: objectId.trim() || undefined });
-        }}
-      >
-        <label className="flex flex-col gap-1">
-          <span className="text-caption text-ink-muted">Obyekt ID</span>
-          <TextInput
-            name="object_id"
-            className={smallControl}
-            value={objectId}
-            maxLength={64}
-            onChange={(event) => setObjectId(event.target.value)}
-            onBlur={() => {
-              if ((objectId.trim() || undefined) !== filters.objectId) {
-                update({ objectId: objectId.trim() || undefined });
-              }
-            }}
-            enterKeyHint="search"
-          />
-        </label>
-      </form>
-      <label className="flex flex-col gap-1">
-        <span className="text-caption text-ink-muted">Sanadan</span>
-        <TextInput
-          type="date"
-          name="date_from"
-          className={`${smallControl} tabular-nums`}
-          value={filters.dateFrom ?? ""}
-          max={filters.dateTo}
-          onChange={(event) => update({ dateFrom: event.target.value || undefined })}
+          onValueChange={(value) => update({ objectType: value || undefined })}
+          options={auditObjectOptions(facets, locale, t.all, filters.objectType)}
         />
-      </label>
-      <label className="flex flex-col gap-1">
-        <span className="text-caption text-ink-muted">Sanagacha</span>
-        <TextInput
-          type="date"
-          name="date_to"
-          className={`${smallControl} tabular-nums`}
-          value={filters.dateTo ?? ""}
-          min={filters.dateFrom}
-          onChange={(event) => update({ dateTo: event.target.value || undefined })}
+        <DateRangePicker
+          from={filters.dateFrom}
+          to={filters.dateTo}
+          onCommit={(patch) => update(patch)}
+          min={FILTER_MIN}
+          max={FILTER_MAX}
+          presets={["today", "yesterday", "last7", "last30", "thisMonth"]}
         />
-      </label>
-      {active && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => {
-            setObjectId("");
-            navigate(auditHref({ ordering: filters.ordering, page: 1 }));
+      </div>
+
+      <div className="flex flex-wrap items-start gap-2.5">
+        <form
+          className="flex w-[140px] flex-col gap-1 max-sm:w-full"
+          onSubmit={(event) => {
+            event.preventDefault();
+            update({ objectId: objectId.trim() || undefined });
           }}
         >
-          <Icon name="close" size={16} />
-          Filtrlarni tozalash
-        </Button>
-      )}
+          <label className="flex flex-col gap-1">
+            <span className={caption}>{t.objectId}</span>
+            <TextInput
+              name="object_id"
+              className={cn(smallControl, "font-mono")}
+              value={objectId}
+              maxLength={64}
+              autoComplete="off"
+              onChange={(event) => setObjectId(event.target.value)}
+              onBlur={() => {
+                if ((objectId.trim() || undefined) !== filters.objectId) {
+                  update({ objectId: objectId.trim() || undefined });
+                }
+              }}
+              enterKeyHint="search"
+            />
+          </label>
+        </form>
+
+        <form
+          ref={requestForm}
+          role="search"
+          noValidate
+          className="flex min-w-[240px] flex-[1_1_300px] flex-col gap-1 sm:max-w-[420px]"
+          onSubmit={(event) => {
+            event.preventDefault();
+            searchRequest();
+          }}
+        >
+          <label htmlFor={`${id}-request`} className={caption}>
+            {t.requestId}
+          </label>
+          <span
+            data-reveal-box
+            className={cn(
+              "flex h-11 items-center gap-1 rounded-md border-[1.5px] border-line-strong bg-surface-raised pr-1 pl-3 transition-colors duration-150 focus-within:border-gold-ink",
+              requestError && "border-danger focus-within:border-danger",
+            )}
+          >
+            <Icon name="search" size={16} className="shrink-0 text-ink-muted" />
+            <input
+              id={`${id}-request`}
+              name="request_id"
+              value={requestId}
+              maxLength={AUDIT_REQUEST_ID_MAX}
+              autoComplete="off"
+              spellCheck={false}
+              enterKeyHint="search"
+              placeholder={t.requestIdPlaceholder}
+              aria-invalid={requestError ? true : undefined}
+              aria-describedby={requestError ? errorId : undefined}
+              onChange={(event) => {
+                setRequestId(event.target.value);
+                if (requestError) setRequestError(null);
+              }}
+              className="min-w-0 flex-1 bg-transparent font-mono text-[13px] text-ink placeholder:font-sans placeholder:text-ink-muted focus-visible:outline-none"
+            />
+            {(requestId || filters.requestId) && (
+              <IconButton
+                size="sm"
+                aria-label={t.requestIdClear}
+                onClick={() => {
+                  setRequestId("");
+                  setRequestError(null);
+                  if (filters.requestId) update({ requestId: undefined });
+                }}
+                className="size-8"
+              >
+                <Icon name="close" size={16} />
+              </IconButton>
+            )}
+            <IconButton type="submit" size="sm" aria-label={t.requestIdSearch} className="size-8">
+              <Icon name="arrow-right" size={16} />
+            </IconButton>
+          </span>
+          {requestError && (
+            <span
+              id={errorId}
+              className="flex items-start gap-1.5 text-body-sm font-semibold text-ink"
+            >
+              <Icon name="alert-circle" size={16} className="mt-px shrink-0 text-danger" />
+              {requestError}
+            </span>
+          )}
+        </form>
+
+        {hasAuditFilters(filters) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mt-5"
+            onClick={() => {
+              setObjectId("");
+              setRequestId("");
+              setRequestError(null);
+              navigate(auditHref({ ordering: filters.ordering, page: 1 }));
+            }}
+          >
+            <Icon name="close" size={16} />
+            {t.clear}
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

@@ -15,7 +15,7 @@ export const PHONE_PATTERN = /^\+998\d{9}$/;
  * has no national digits. Without a "+", a leading 998 is the country code
  * only when more than nine digits were given ("998901234567").
  */
-function nationalDigits(input: string): string {
+export function nationalDigits(input: string): string {
   const value = input.trim();
   let digits: string;
   if (value.startsWith("+")) {
@@ -52,4 +52,39 @@ export function normalizePhone(input: string): string {
   if (digits.length === 12 && digits.startsWith("998")) return `+${digits}`;
   if (digits.length === 9 && !trimmed.startsWith("+")) return `+998${digits}`;
   return trimmed.replace(/[\s()-]/g, "");
+}
+
+/**
+ * The national part as the phone input shows it beside its fixed "+998":
+ * "901234567" → "90 123 45 67", partial numbers keep the shape so far
+ * ("90123" → "90 123"). Takes anything `nationalDigits` reads.
+ */
+export function formatNationalPhone(input: string): string {
+  const digits = nationalDigits(input);
+  return [digits.slice(0, 2), digits.slice(2, 5), digits.slice(5, 7), digits.slice(7, 9)]
+    .filter(Boolean)
+    .join(" ");
+}
+
+/**
+ * The phone input's value for the national digits typed so far: "" for none,
+ * "+998" + digits otherwise (E.164 once all nine are there, `PHONE_PATTERN`
+ * fails on a partial number, so the form's validation names it).
+ */
+export function phoneValue(input: string): string {
+  const digits = nationalDigits(input);
+  return digits ? `+998${digits}` : "";
+}
+
+/** Caret position just after the `count`-th digit of `text` (0 → start). */
+export function caretAfterDigits(text: string, count: number): number {
+  if (count <= 0) return 0;
+  let seen = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    if (/\d/.test(text[index]!)) {
+      seen += 1;
+      if (seen === count) return index + 1;
+    }
+  }
+  return text.length;
 }

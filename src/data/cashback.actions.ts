@@ -9,6 +9,8 @@ import {
   type PolicyVersion,
   type TierWarning,
 } from "@/domain/cashback";
+import { cashbackDataCopy, type CashbackDataCopy } from "@/domain/copy/cashback";
+import { getAdminLocale } from "@/lib/i18n/admin-locale";
 
 import {
   apiMutation,
@@ -47,27 +49,27 @@ export interface SavedPolicy {
   warnings?: TierWarning[];
 }
 
-const DECIMALS_MESSAGE = "Ko‘pi bilan 2 ta kasr raqam.";
-
-const tierSchema = z.object({
-  id: z.string().trim().min(1).max(64),
-  from: z.int("Butun son kiriting.").min(0, "Qiymat 0 dan kam bo‘lmasin."),
-  to: z.int("Butun son kiriting.").min(1).nullable(),
-  percent: z
-    .number({ error: "Foizni kiriting." })
-    .gt(0, "Foiz 0 dan katta bo‘lsin.")
-    .max(100, "Foiz 100 dan oshmasin.")
-    // Integer basis points, read with a tolerance (0.57 is 0.5699… in binary).
-    .refine((value) => basisPoints(value) !== null, { error: DECIMALS_MESSAGE }),
-});
-
-const draftSchema = z.object({
-  version: z.int().min(0),
-  effectiveFrom: z.iso.datetime({ offset: true, error: "Kuchga kirish sanasini tanlang." }),
-  basis: z.enum(["before_purchase", "with_purchase"]),
-  earnOnCashbackPaid: z.boolean(),
-  tiers: z.array(tierSchema).max(20, "Ko‘pi bilan 20 ta daraja."),
-});
+/** The draft's schema in one admin language (messages from `cashbackDataCopy`). */
+function draftSchemaFor(m: CashbackDataCopy) {
+  const tier = z.object({
+    id: z.string().trim().min(1).max(64),
+    from: z.int(m.integer).min(0, m.notNegative),
+    to: z.int(m.integer).min(1).nullable(),
+    percent: z
+      .number({ error: m.enterPercent })
+      .gt(0, m.percentPositive)
+      .max(100, m.percentMax)
+      // Integer basis points, read with a tolerance (0.57 is 0.5699… in binary).
+      .refine((value) => basisPoints(value) !== null, { error: m.decimals }),
+  });
+  return z.object({
+    version: z.int().min(0),
+    effectiveFrom: z.iso.datetime({ offset: true, error: m.chooseEffective }),
+    basis: z.enum(["before_purchase", "with_purchase"]),
+    earnOnCashbackPaid: z.boolean(),
+    tiers: z.array(tier).max(20, m.maxTiers),
+  });
+}
 
 /** `GET cashback/policy/` right after a save, uncached, so the new row gets its real summary. */
 async function readSaved(token: string, version: number): Promise<PolicyVersion | null> {
@@ -86,16 +88,15 @@ export async function saveCashbackPolicy(
 ): Promise<ActionResult<SavedPolicy>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
+  const m = cashbackDataCopy[await getAdminLocale()];
   const parsedKey = idempotencyKeySchema.safeParse(key);
-  if (!parsedKey.success) return { ok: false, error: "Noto‘g‘ri so‘rov kaliti." };
-  const parsed = draftSchema.safeParse(draft);
-  if (!parsed.success) return fieldErrorsFrom(parsed.error, "Darajalarni tekshiring.");
+  if (!parsedKey.success) return { ok: false, error: m.badKey };
+  const parsed = draftSchemaFor(m).safeParse(draft);
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, m.checkTiers);
   // Cross-row rules come from the domain (the editor shows the same notices).
   const { tiers } = parsed.data;
-  if (tiers.length === 0) return { ok: false, error: "Kamida bitta daraja kerak." };
-  if (analyzeTiers(tiers).overlaps.length > 0) {
-    return { ok: false, error: "Darajalar ustma-ust tushmoqda." };
-  }
+  if (tiers.length === 0) return { ok: false, error: m.needTier };
+  if (analyzeTiers(tiers).overlaps.length > 0) return { ok: false, error: m.overlap };
   if ((await dataSource()) === "api") {
     return apiMutation("saveCashbackPolicy", async () => {
       const token = sessionToken(guard.session);
@@ -107,8 +108,8 @@ export async function saveCashbackPolicy(
         );
         const fallback: PolicyVersion = {
           version: data.version.version,
-          summary: "Yangi versiya",
-          author: data.version.author?.display_name || "Tizim",
+          summary: m.newVersion,
+          author: data.version.author?.display_name || m.system,
           period: "",
           active: data.version.state === "active",
           scheduled: data.version.state === "scheduled",

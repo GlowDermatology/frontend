@@ -1,0 +1,88 @@
+import type { CopySet } from "@/lib/i18n/copy";
+
+/**
+ * The sign-in's second step (`/admin/mfa`, DESIGN §E "MFA") and the code input shared with the
+ * Settings dialogs. Uzbek is the source language.
+ */
+const uz = {
+  meta: { title: "Ikki bosqichli tasdiqlash" },
+  title: "Ikki bosqichli tasdiqlash",
+  lead: "Parol to‘g‘ri. Endi autentifikator ilovasidagi 6 xonali kodni kiriting.",
+  leadRecovery:
+    "Saqlab qo‘ygan zaxira kodlaringizdan birini kiriting. Har bir kod bir marta ishlaydi.",
+  code: "Tasdiqlash kodi",
+  codeHint: "Kod har 30 soniyada yangilanadi.",
+  recovery: "Zaxira kod",
+  recoveryHint: "xxxxx-xxxxx ko‘rinishida; katta-kichik harf va chiziqcha farq qilmaydi.",
+  recoveryPlaceholder: "xxxxx-xxxxx",
+  useRecovery: "Zaxira kod bilan kirish",
+  useApp: "Ilovadagi kod bilan kirish",
+  submit: "Tasdiqlash",
+  submitting: "Tekshirilmoqda…",
+  back: "Kirish sahifasiga qaytish",
+  failed: "Kirib bo‘lmadi",
+  remaining: (clock: string) => `Kodni kiritish uchun ${clock} qoldi`,
+  remainingSoon: "Vaqt tugayapti: bir daqiqadan kam qoldi.",
+  expiredTitle: "Kirish muddati tugadi",
+  expiredLead:
+    "Xavfsizlik uchun ikkinchi bosqich 5 daqiqa amal qiladi. Email va parolni qaytadan kiriting.",
+  expiredReason: "Kirish muddati tugadi. «Kirish sahifasiga qaytish»ni bosing.",
+  waitReason: (clock: string) => `Juda ko‘p urinish. ${clock} dan so‘ng qayta urinib ko‘ring.`,
+  help: "Telefoningiz yonida emasmi? Zaxira kodlardan birini kiriting. Ular ham bo‘lmasa, menejerga murojaat qiling: u MFA ni o‘chirib beradi.",
+  demo: "Demo rejimi: kod 123456, zaxira kodlar gdemo-10001 … gdemo-10010.",
+};
+
+export const mfaStepCopy = {
+  uz,
+  ru: {
+    meta: { title: "Двухэтапная проверка" },
+    title: "Двухэтапная проверка",
+    lead: "Пароль верный. Теперь введите 6-значный код из приложения-аутентификатора.",
+    leadRecovery: "Введите один из сохранённых резервных кодов. Каждый код срабатывает один раз.",
+    code: "Код подтверждения",
+    codeHint: "Код обновляется каждые 30 секунд.",
+    recovery: "Резервный код",
+    recoveryHint: "Вида xxxxx-xxxxx; регистр букв и дефисы не важны.",
+    recoveryPlaceholder: "xxxxx-xxxxx",
+    useRecovery: "Войти с резервным кодом",
+    useApp: "Войти с кодом из приложения",
+    submit: "Подтвердить",
+    submitting: "Проверяем…",
+    back: "Вернуться ко входу",
+    failed: "Не удалось войти",
+    remaining: (clock: string) => `На ввод кода осталось ${clock}`,
+    remainingSoon: "Время истекает: осталось меньше минуты.",
+    expiredTitle: "Время входа истекло",
+    expiredLead: "Ради безопасности второй шаг действует 5 минут. Введите email и пароль ещё раз.",
+    expiredReason: "Время входа истекло. Нажмите «Вернуться ко входу».",
+    waitReason: (clock: string) => `Слишком много попыток. Повторите через ${clock}.`,
+    help: "Телефона нет под рукой? Введите один из резервных кодов. Если их тоже нет, обратитесь к менеджеру: он отключит MFA.",
+    demo: "Демо-режим: код 123456, резервные коды gdemo-10001 … gdemo-10010.",
+  },
+  en: {
+    meta: { title: "Two-step verification" },
+    title: "Two-step verification",
+    lead: "Your password is correct. Now enter the 6-digit code from your authenticator app.",
+    leadRecovery: "Enter one of the recovery codes you saved. Each code works once.",
+    code: "Verification code",
+    codeHint: "The code changes every 30 seconds.",
+    recovery: "Recovery code",
+    recoveryHint: "Like xxxxx-xxxxx; letter case and dashes do not matter.",
+    recoveryPlaceholder: "xxxxx-xxxxx",
+    useRecovery: "Use a recovery code instead",
+    useApp: "Use the code from your app",
+    submit: "Verify",
+    submitting: "Checking…",
+    back: "Back to sign-in",
+    failed: "Could not sign in",
+    remaining: (clock: string) => `${clock} left to enter the code`,
+    remainingSoon: "Time is running out: less than a minute left.",
+    expiredTitle: "The sign-in has expired",
+    expiredLead:
+      "For your security the second step lasts 5 minutes. Enter your email and password again.",
+    expiredReason: "The sign-in has expired. Press “Back to sign-in”.",
+    waitReason: (clock: string) => `Too many attempts. Try again in ${clock}.`,
+    help: "Phone not at hand? Enter one of your recovery codes. If you have none, ask a manager: they can turn off MFA for you.",
+    demo: "Demo mode: code 123456, recovery codes gdemo-10001 … gdemo-10010.",
+  },
+} satisfies CopySet<typeof uz>;

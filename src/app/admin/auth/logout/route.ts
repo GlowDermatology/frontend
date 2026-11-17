@@ -6,7 +6,9 @@ import { cookieNames } from "@/data/auth/cookie-names";
 import { clearSessionCookies } from "@/data/auth/cookies";
 import { csrfMatches } from "@/data/auth/csrf";
 import { isSameOriginRequest } from "@/data/auth/same-origin";
+import { authDataCopy } from "@/domain/copy/auth";
 import { serverEnv } from "@/lib/env.server";
+import { ADMIN_LOCALE_COOKIE, parseAdminLocale } from "@/lib/i18n/admin-locale-cookie";
 import { parseAllowedOrigins } from "@/lib/origins";
 
 /**
@@ -37,9 +39,10 @@ function seeOther(location: string): NextResponse {
 }
 
 /** One envelope for both CSRF defences, so a probe cannot tell which one fired. */
-function csrfRejected(): NextResponse {
+function csrfRejected(request: NextRequest): NextResponse {
+  const m = authDataCopy[parseAdminLocale(request.cookies.get(ADMIN_LOCALE_COOKIE)?.value)];
   return NextResponse.json(
-    { code: "csrf_mismatch", message: "Sahifani yangilab, qayta urinib ko‘ring.", errors: [] },
+    { code: "csrf_mismatch", message: m.staleForm, errors: [] },
     { status: 403, headers: NO_STORE },
   );
 }
@@ -83,11 +86,11 @@ export async function POST(request: NextRequest) {
     requestHost: request.headers.get("x-forwarded-host") ?? request.headers.get("host"),
     allowedOrigins: parseAllowedOrigins(process.env.GLOWDERMA_ALLOWED_ORIGINS),
   });
-  if (!sameOrigin) return csrfRejected();
+  if (!sameOrigin) return csrfRejected(request);
 
   const input = await readInput(request);
   const presented = request.headers.get("x-csrf-token") ?? input.csrf;
-  if (!csrfMatches(request.cookies.get(names.csrf)?.value, presented)) return csrfRejected();
+  if (!csrfMatches(request.cookies.get(names.csrf)?.value, presented)) return csrfRejected(request);
 
   let scope: LogoutScope = "current";
   if (input.scope !== undefined && input.scope !== "") {

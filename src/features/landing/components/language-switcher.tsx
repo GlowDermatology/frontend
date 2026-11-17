@@ -1,20 +1,23 @@
+import { LocaleFlag } from "@/components/brand/locale-flag";
 import { cn } from "@/lib/cn";
 
 import { LOCALE_INFO, LOCALES, localePath, type Locale } from "../i18n";
 
-interface LanguageSwitcherProps {
+interface LanguageLinksProps {
   current: Locale;
   label: string;
+  className?: string;
 }
 
 /**
- * UZ / RU / EN pill. Plain anchors on purpose: each language is a separate,
- * statically generated document (different root layout and `<html lang>`).
+ * The landing's language links with flags, at the foot of the page: plain anchors (no JavaScript
+ * needed), each language being a separate, statically generated document (`<html lang>`). The
+ * header offers the same choice in a menu (`LanguageMenu`).
  */
-export function LanguageSwitcher({ current, label }: LanguageSwitcherProps) {
+export function LanguageLinks({ current, label, className }: LanguageLinksProps) {
   return (
-    <nav aria-label={label}>
-      <ul className="m-0 flex list-none gap-0.5 rounded-full border border-line p-1">
+    <nav aria-label={label} className={className}>
+      <ul className="m-0 flex list-none flex-wrap gap-x-5 gap-y-2 p-0">
         {LOCALES.map((locale) => {
           const active = locale === current;
           return (
@@ -25,14 +28,12 @@ export function LanguageSwitcher({ current, label }: LanguageSwitcherProps) {
                 lang={locale}
                 aria-current={active ? "true" : undefined}
                 className={cn(
-                  "flex h-9 min-w-11 items-center justify-center rounded-full px-2.5 text-[12px] leading-none font-bold tracking-[0.04em] no-underline transition-colors duration-150",
-                  active
-                    ? "bg-ink text-surface"
-                    : "text-ink-muted hover:bg-gold-soft hover:text-ink",
+                  "flex min-h-6 items-center gap-2 text-body-sm no-underline transition-colors duration-150",
+                  active ? "font-bold text-ink" : "text-ink-muted hover:text-ink",
                 )}
               >
-                <span aria-hidden="true">{LOCALE_INFO[locale].short}</span>
-                <span className="sr-only">{LOCALE_INFO[locale].name}</span>
+                <LocaleFlag locale={locale} className="h-3 w-[18px]" />
+                {LOCALE_INFO[locale].name}
               </a>
             </li>
           );

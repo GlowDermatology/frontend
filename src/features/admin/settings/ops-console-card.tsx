@@ -1,5 +1,8 @@
 import { buttonStyles } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
+import { Icon } from "@/components/ui/icon";
+
+import type { SettingsCopy } from "./copy";
 
 /**
  * The store settings, contacts and legal texts (terms, privacy policy,
@@ -8,18 +11,29 @@ import { Card, CardTitle } from "@/components/ui/card";
  * points there: `consoleUrl` is `GLOWDERMA_OPS_CONSOLE_URL` normalised to
  * end with `/` (`serverEnv.opsConsoleUrl()`), or `null` when unset.
  */
-export function OpsConsoleCard({ consoleUrl }: { consoleUrl: string | null }) {
+export function OpsConsoleCard({
+  consoleUrl,
+  t,
+}: {
+  consoleUrl: string | null;
+  /** `settingsCopy[locale].store` (a server component: the page passes its language's texts). */
+  t: SettingsCopy["store"];
+}) {
   const href = opsConsoleSettingsUrl(consoleUrl);
   return (
-    <Card aria-labelledby="ops-console-title" className="flex flex-col gap-4">
-      <CardTitle id="ops-console-title" className="text-heading">
-        Do‘kon sozlamalari
-      </CardTitle>
-      <p className="m-0 text-body-sm text-ink-muted">
-        Do‘kon sozlamalari, aloqa ma’lumotlari va huquqiy matnlar (foydalanish shartlari, maxfiylik
-        siyosati, qabul qoidalari) endi ops konsolda tahrirlanadi: u ikki bosqichli tasdiqlash (2FA)
-        bilan himoyalangan va har bir o‘zgarish audit jurnaliga yoziladi.
-      </p>
+    <Card aria-labelledby="ops-console-title" className="flex flex-col gap-4 p-6">
+      <div className="flex items-start gap-3.5">
+        <span
+          aria-hidden="true"
+          className="flex size-10 shrink-0 items-center justify-center rounded-full bg-gold-soft text-gold-ink"
+        >
+          <Icon name="store" size={20} />
+        </span>
+        <div className="flex min-w-0 flex-col gap-1">
+          <CardTitle id="ops-console-title">{t.title}</CardTitle>
+          <p className="m-0 text-body-sm [text-wrap:pretty] text-ink-muted">{t.lead}</p>
+        </div>
+      </div>
       {href ? (
         <a
           href={href}
@@ -27,13 +41,11 @@ export function OpsConsoleCard({ consoleUrl }: { consoleUrl: string | null }) {
           rel="noopener noreferrer"
           className={buttonStyles({ variant: "secondary", className: "self-start" })}
         >
-          Ops konsolda ochish
-          <span className="sr-only"> (yangi oynada ochiladi)</span>
+          {t.open}
+          <span className="sr-only">{t.newWindow}</span>
         </a>
       ) : (
-        <p className="m-0 text-body-sm text-ink-muted">
-          Konsol manzili sozlanmagan (GLOWDERMA_OPS_CONSOLE_URL).
-        </p>
+        <p className="m-0 text-body-sm text-ink-muted">{t.missing}</p>
       )}
     </Card>
   );

@@ -1,60 +1,38 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { Suspense, type ReactNode } from "react";
+import { Suspense } from "react";
 
-import { Card } from "@/components/ui/card";
 import { verifyStaff } from "@/data/auth";
 import { cookieNames } from "@/data/auth/cookie-names";
 import { safeNext } from "@/data/auth/next-param";
 import { OAUTH_PROVIDER_LABEL } from "@/data/auth/oauth";
 import { oauthConfig, requestNotice } from "@/data/auth/oauth-env";
+import { mockMfaState } from "@/data/mfa";
+import { storefrontEnabled } from "@/data/shop/mode";
+import { staffAuthCopy } from "@/features/admin/auth/copy";
 import { LoginForm } from "@/features/admin/auth/login-form";
-import { Skeleton } from "@/features/admin/shared/skeleton";
+import {
+  StaffAuthFallback,
+  StaffAuthFrame,
+  StaffAuthHeading,
+  StaffAuthSkeleton,
+} from "@/features/admin/auth/staff-auth-frame";
 import { serverEnv } from "@/lib/env.server";
+import { copyFor } from "@/lib/i18n/admin-locale";
 
-export const metadata: Metadata = { title: "Kirish" };
-
-/** Centered card without the admin shell; the brand block matches the sidebar. */
-function LoginCard({ children }: { children: ReactNode }) {
-  return (
-    <main className="flex min-h-dvh items-center justify-center bg-surface p-4 text-ink">
-      <Card className="flex w-full max-w-[400px] flex-col gap-6 p-6 sm:p-8">
-        <div className="flex flex-col gap-1">
-          <div className="flex items-baseline gap-2.5">
-            <span className="font-serif text-title text-ink">Glow Derma</span>
-            <span className="text-overline text-ink-muted uppercase">Admin</span>
-          </div>
-          <h1 className="m-0 text-[16px] leading-[22px] font-bold text-ink">Tizimga kirish</h1>
-        </div>
-        {children}
-      </Card>
-    </main>
-  );
-}
-
-function LoginFallback() {
-  return (
-    <div role="status" aria-live="polite" className="flex flex-col gap-5">
-      <span className="sr-only">Yuklanmoqda…</span>
-      <div className="flex flex-col gap-2">
-        <Skeleton className="h-4 w-16 rounded-sm" />
-        <Skeleton className="h-11 rounded-md" />
-      </div>
-      <div className="flex flex-col gap-2">
-        <Skeleton className="h-4 w-16 rounded-sm" />
-        <Skeleton className="h-11 rounded-md" />
-      </div>
-      <Skeleton className="h-[52px] rounded-md" />
-    </div>
-  );
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await copyFor(staffAuthCopy);
+  return { title: t.meta.title };
 }
 
 /**
  * Request-time part: reads `next`, bounces a browser that already has a valid
  * session, and hands the current csrf cookie, the enabled social sign-in
  * providers (`GLOWDERMA_OAUTH_PROVIDERS`) and a failed social sign-in's
- * signed `?oauth=` notice (the backend's message) to the form.
+ * signed `?oauth=` notice (the backend's message) to the form, and the
+ * localized `?notice=password_set` after an e-mailed link set the password, or
+ * `?notice=mfa_expired` after the MFA step ended (DESIGN §E).
  */
 async function LoginGate({
   searchParams,
@@ -64,10 +42,13 @@ async function LoginGate({
   const query = await searchParams;
   const next = safeNext(query.next);
   const session = await verifyStaff();
-  if (session.ok) redirect(next);
+  // Mock mode has no sessions (the admin is open); with the demo's MFA on the form stays, so the
+  // sign-in's second step can be previewed (`GLOWDERMA_MOCK_MFA`, DESIGN §E).
+  if (session.ok && !(session.mode === "mock" && (await mockMfaState()).enabled)) redirect(next);
   const csrf = (await cookies()).get(cookieNames(serverEnv.cookieSecure()).csrf)?.value ?? "";
   const notice = await requestNotice(query.oauth);
   const config = oauthConfig();
+  const t = await copyFor(staffAuthCopy);
   const providers = config.providers.map((id) => ({
     id,
     label: OAUTH_PROVIDER_LABEL[id],
@@ -79,17 +60,39 @@ async function LoginGate({
       csrf={csrf}
       providers={providers}
       providersAreFake={config.mode === "fake"}
-      notice={notice?.kind === "error" ? notice.message : null}
+      notice={
+        notice?.kind === "error"
+          ? notice.message
+          : query.notice === "mfa_expired"
+            ? t.notices.mfaExpired
+            : null
+      }
+      success={query.notice === "password_set" ? t.notices.passwordSet : null}
     />
   );
 }
 
-export default function LoginPage({ searchParams }: PageProps<"/admin/login">) {
+/**
+ * `/admin/login` in the shared sign-in design (DESIGN §F): the still life, the staff card with the
+ * brand and the small language switch, «Mijoz | Xodim» (the customer link only while the
+ * storefront is served), the heading, then the form once the session check is done.
+ */
+async function LoginScreen({ searchParams }: PageProps<"/admin/login">) {
+  const [t, withCustomer] = await Promise.all([copyFor(staffAuthCopy), storefrontEnabled()]);
   return (
-    <LoginCard>
-      <Suspense fallback={<LoginFallback />}>
+    <StaffAuthFrame withCustomerLink={withCustomer}>
+      <StaffAuthHeading title={t.form.title} lead={t.form.lead} />
+      <Suspense fallback={<StaffAuthSkeleton fields={2} />}>
         <LoginGate searchParams={searchParams} />
       </Suspense>
-    </LoginCard>
+    </StaffAuthFrame>
+  );
+}
+
+export default function LoginPage(props: PageProps<"/admin/login">) {
+  return (
+    <Suspense fallback={<StaffAuthFallback />}>
+      <LoginScreen {...props} />
+    </Suspense>
   );
 }

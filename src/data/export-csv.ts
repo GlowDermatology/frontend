@@ -1,6 +1,9 @@
 import "server-only";
 
+import type { Locale } from "@/lib/i18n/locales";
+
 import { contentDisposition } from "./api/mappers/export";
+import { dataCopy } from "./copy";
 
 /**
  * Local CSV files for mock mode, in the API's own format (contract §1.8):
@@ -15,18 +18,25 @@ export type CsvCell = string | number | boolean | null | undefined;
 const FORMULA_START = /^[=+\-@\t\r]/;
 const E164_PHONE = /^\+[1-9]\d{6,14}$/;
 
-export function csvCell(value: CsvCell): string {
+/** One quoted cell; a boolean is worded "Ha" / "Yo‘q" in `locale` (the API's yes/no words). */
+export function csvCell(value: CsvCell, locale: Locale = "uz"): string {
   if (value === null || value === undefined) return '""';
   if (typeof value === "number") return `"${String(value)}"`;
-  if (typeof value === "boolean") return `"${value ? "Ha" : "Yo‘q"}"`;
+  if (typeof value === "boolean") return `"${value ? dataCopy[locale].yes : dataCopy[locale].no}"`;
   const safe = FORMULA_START.test(value) && !E164_PHONE.test(value) ? `'${value}` : value;
   return `"${safe.replace(/"/g, '""')}"`;
 }
 
-export function csvDocument(header: ReadonlyArray<string>, rows: ReadonlyArray<CsvCell[]>): string {
+export function csvDocument(
+  header: ReadonlyArray<string>,
+  rows: ReadonlyArray<CsvCell[]>,
+  locale: Locale = "uz",
+): string {
   return (
     "﻿" +
-    [header, ...rows].map((row) => row.map((cell) => csvCell(cell)).join(";")).join("\r\n") +
+    [header, ...rows]
+      .map((row) => row.map((cell) => csvCell(cell, locale)).join(";"))
+      .join("\r\n") +
     "\r\n"
   );
 }
@@ -36,8 +46,9 @@ export function csvResponse(
   name: string,
   header: ReadonlyArray<string>,
   rows: ReadonlyArray<CsvCell[]>,
+  locale: Locale = "uz",
 ): Response {
-  return new Response(csvDocument(header, rows), {
+  return new Response(csvDocument(header, rows, locale), {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": contentDisposition(`${name}.csv`),

@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { Route } from "next";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
@@ -70,6 +71,23 @@ export async function verifyStaff(options: VerifyStaffOptions = {}): Promise<Sta
 
 export type VerifiedStaff = Extract<StaffSession, { ok: true }>;
 
+export interface RequireStaffOptions {
+  /**
+   * The forced password change itself (`/admin/change-password`): an account that must set its
+   * own password first is let through instead of being sent there. Every other caller leaves it
+   * out.
+   */
+  allowPasswordChangePending?: boolean;
+}
+
+/** The forced password change page (DESIGN §E). */
+export const CHANGE_PASSWORD_PATH = "/admin/change-password";
+
+/** `/admin/change-password?next=…` for the current request's path (`x-gd-next`). */
+export function changePasswordHref(next: string): Route {
+  return `${CHANGE_PASSWORD_PATH}?next=${encodeURIComponent(safeNext(next))}` as Route;
+}
+
 /**
  * For page content components: returns the session or redirects. An expired
  * access token goes to `/admin/auth/refresh?next=…` (the proxy normally does
@@ -81,10 +99,21 @@ export type VerifiedStaff = Extract<StaffSession, { ok: true }>;
  * page passing its own path: it includes the query string, survives page
  * refactors, and falls back to `/admin` when the header is absent (e.g. a
  * render that did not pass through the proxy).
+ *
+ * The forced password change (DESIGN §E): when `auth/me/` (cached per request,
+ * shared with the shell) says `must_change_password`, every page goes to
+ * `/admin/change-password?next=…` — the backend refuses its data with 403
+ * `password_change_required` anyway. In mock mode `GLOWDERMA_MOCK_MUST_CHANGE`
+ * previews it.
  */
-export async function requireStaff(): Promise<VerifiedStaff> {
+export async function requireStaff(options: RequireStaffOptions = {}): Promise<VerifiedStaff> {
   const session = await verifyStaff();
-  if (session.ok) return session;
+  if (session.ok) {
+    if (!options.allowPasswordChangePending && (await getMe())?.must_change_password) {
+      redirect(changePasswordHref((await headers()).get(NEXT_PATH_HEADER) ?? "/admin"));
+    }
+    return session;
+  }
   const next = encodeURIComponent(safeNext((await headers()).get(NEXT_PATH_HEADER)));
   if (session.reason === "expired") redirect(`/admin/auth/refresh?next=${next}`);
   redirect(`/admin/login?next=${next}`);
@@ -105,7 +134,10 @@ export async function requireApiToken(): Promise<string> {
 /**
  * Shown in mock mode, matching the design's sidebar user block.
  * `is_superuser` follows `GLOWDERMA_MOCK_SUPERUSER` (default true) at request
- * time, so the demo can show the ordinary admin's notifications page too.
+ * time, so the demo can show the ordinary admin's notifications page too;
+ * `must_change_password` follows `GLOWDERMA_MOCK_MUST_CHANGE` (default false)
+ * and `capabilities.staff_email_invite` `GLOWDERMA_MOCK_EMAIL_INVITE` (default
+ * true).
  */
 export const MOCK_ME: Me = {
   // The demo staff list's Administrator (`src/data/mock/staff.ts`), so the
@@ -118,7 +150,17 @@ export const MOCK_ME: Me = {
   linked_providers: [],
   session_expires_at: "",
   auth_method: "password",
+  language: "uz",
+  must_change_password: false,
+  mfa_enabled: false,
+  capabilities: { staff_email_invite: true },
 };
+
+/**
+ * Mock mode: set by the demo's forced password change, so `GLOWDERMA_MOCK_MUST_CHANGE` stops
+ * gating this browser once the demo password was "changed" (Path=/admin, session cookie).
+ */
+export const MOCK_PASSWORD_SET_COOKIE = "gd_mock_password_set";
 
 /**
  * The signed-in staff member (`GET auth/me/`), cached per request. `null` when
@@ -128,7 +170,15 @@ export const MOCK_ME: Me = {
 export const getMe = cache(async (): Promise<Me | null> => {
   const session = await verifyStaff();
   if (!session.ok) return null;
-  if (session.mode === "mock") return { ...MOCK_ME, is_superuser: serverEnv.mockSuperuser() };
+  if (session.mode === "mock") {
+    const changed = (await cookies()).get(MOCK_PASSWORD_SET_COOKIE) !== undefined;
+    return {
+      ...MOCK_ME,
+      is_superuser: serverEnv.mockSuperuser(),
+      must_change_password: serverEnv.mockMustChange() && !changed,
+      capabilities: { staff_email_invite: serverEnv.mockEmailInvite() },
+    };
+  }
   try {
     return (await apiMe(session.token)).data;
   } catch (error) {

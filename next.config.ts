@@ -150,6 +150,12 @@ const nextConfig: NextConfig = {
       // chunk by chunk; nginx honours this header and stops buffering.
       { source: "/:path*", headers: [{ key: "X-Accel-Buffering", value: "no" }] },
       { source: "/admin/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
+      // The e-mailed password link page (DESIGN §E): no Referer to anything it loads or links
+      // (the proxy sets the same on its answers and on the redirect that strips the token).
+      {
+        source: "/admin/set-password",
+        headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
+      },
     ];
   },
   turbopack: {

@@ -2,14 +2,16 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
-import { Button, buttonStyles } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { DetailRow } from "@/components/ui/card";
 import { Dialog, DialogClose } from "@/components/ui/dialog";
 import { AffixInput, Field } from "@/components/ui/field";
+import { FormErrorSummary } from "@/components/ui/form-errors";
 import { Icon } from "@/components/ui/icon";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { loadOpenIssue } from "@/data/delivery-issues.actions";
 import { dispatchOrder } from "@/data/orders.actions";
+import { orderDataCopy, orderLabelsCopy } from "@/domain/copy/orders";
 import {
   carrierLabel,
   DELIVERY_METHOD_LABEL,
@@ -27,11 +29,14 @@ import {
   type DispatchInput,
   type DispatchReview,
 } from "@/domain/order-dispatch";
-import { formatSom } from "@/lib/format";
+import { revealFirstError, useErrorReveal } from "@/lib/forms/reveal";
+import { useCopy } from "@/lib/i18n/admin-context";
+import { useFormat } from "@/lib/i18n/admin-hooks";
 
 import { runAction } from "../shared/action-client";
 import { useIdempotencyKey } from "../shared/idempotency";
 import { dispatchRefusal, rememberMethodRefusal } from "./carrier-refusals";
+import { ordersCopy } from "./copy";
 import { dispatchOffer } from "./delivery-view";
 
 interface DispatchDialogProps {
@@ -52,60 +57,60 @@ type ReviewLoad = { issueId: number; review: DispatchReview | null; failed: bool
 
 /** A server amount (never computed here), or a dash. */
 function Amount({ value }: { value: number | null }) {
+  const fmt = useFormat();
   return value === null ? (
     <span className="text-ink-muted">—</span>
   ) : (
-    <span className="tabular-nums">{formatSom(value)}</span>
+    <span className="tabular-nums">{fmt.som(value)}</span>
   );
 }
 
 function ReviewSummary({ review }: { review: DispatchReview }) {
+  const t = useCopy(ordersCopy).dispatch;
+  const fmt = useFormat();
   return (
     <>
-      <p className="m-0 text-body-sm text-ink">{reviewReasonLabel(review.code)}</p>
+      <p className="m-0 text-body-sm text-ink">{reviewReasonLabel(review.code, fmt.locale)}</p>
       <dl className="m-0 flex flex-col gap-1.5">
-        <DetailRow label="Mijoz to‘lagan" className="leading-5">
+        <DetailRow label={t.paidFee} className="leading-5">
           <Amount value={review.paidFee} />
         </DetailRow>
-        <DetailRow label="Checkout taxmini" className="leading-5">
+        <DetailRow label={t.estimate} className="leading-5">
           <Amount value={review.estimatePrice} />
         </DetailRow>
-        <DetailRow label="Yandex taklifi" className="leading-5">
+        <DetailRow label={t.offer} className="leading-5">
           <span className="font-bold">
             <Amount value={review.offerPrice} />
           </span>
         </DetailRow>
         {review.increase !== null && (
-          <DetailRow label="Taxmindan oshishi" className="leading-5">
+          <DetailRow label={t.increase} className="leading-5">
             <Amount value={review.increase} />
           </DetailRow>
         )}
         {review.loss !== null && (
-          <DetailRow label="Zarar" className="leading-5">
+          <DetailRow label={t.loss} className="leading-5">
             <Amount value={review.loss} />
           </DetailRow>
         )}
         {review.approvedPrice !== null && (
-          <DetailRow label="Avval tasdiqlangan" className="leading-5">
+          <DetailRow label={t.approvedBefore} className="leading-5">
             <Amount value={review.approvedPrice} />
           </DetailRow>
         )}
       </dl>
       {review.warnings.length > 0 && (
-        <p className="m-0 text-[12px] leading-[18px] text-ink">
-          Yandex ogohlantirishlari:{" "}
+        <p className="m-0 text-[12px] leading-[18px] break-words text-ink">
+          {t.warnings}{" "}
           {review.warnings.map((code, index) => (
-            <span key={code}>
+            <span key={`${code}-${index}`}>
               {index > 0 ? ", " : ""}
               <code>{code}</code>
             </span>
           ))}
         </p>
       )}
-      <p className="m-0 text-[12px] leading-[18px] text-ink-muted">
-        Narxlarni server hisoblagan. Mijoz to‘lagan narx o‘zgarmaydi; tasdiqlasangiz, yangi
-        chaqiruvda shu narxgacha bo‘lgan taklif qabul qilinadi.
-      </p>
+      <p className="m-0 text-[12px] leading-[18px] text-ink-muted">{t.reviewNote}</p>
     </>
   );
 }
@@ -129,9 +134,13 @@ export function DispatchDialog({
   onReload,
   onCancelOrder,
 }: DispatchDialogProps) {
+  const t = useCopy(ordersCopy).dispatch;
+  const labels = useCopy(orderLabelsCopy);
+  const data = useCopy(orderDataCopy);
+  const fmt = useFormat();
   const delivery = order.delivery;
   const current: DeliveryMethod | null = delivery?.method ?? null;
-  const offer = dispatchOffer(order);
+  const offer = dispatchOffer(order, fmt.locale);
   const reviewRef = offer?.review ?? null;
 
   const [contents, setContents] = useState(false);
@@ -161,8 +170,8 @@ export function DispatchDialog({
     }
   }
   const busy = useRef(false);
-  const weightInput = useRef<HTMLInputElement>(null);
-  const contentsInput = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const reveal = useErrorReveal(formRef);
   const idempotency = useIdempotencyKey();
 
   const orderId = order.id;
@@ -211,14 +220,14 @@ export function DispatchDialog({
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (busy.current) return;
-    const parsed = parseParcelWeight(weight);
+    const parsed = parseParcelWeight(weight, fmt.locale);
     const nextErrors = {
-      contents: contents ? undefined : "Jo‘natma tarkibini tekshirganingizni tasdiqlang.",
+      contents: contents ? undefined : data.confirmContents,
       weight: parsed.ok ? undefined : parsed.message,
     };
     if (nextErrors.contents || nextErrors.weight) {
       setErrors(nextErrors);
-      (nextErrors.contents ? contentsInput : weightInput).current?.focus();
+      reveal();
       return;
     }
     if (!parsed.ok) return;
@@ -242,11 +251,11 @@ export function DispatchDialog({
       onDispatched(result.data, input);
       return;
     }
-    const refusal = dispatchRefusal(result);
+    const refusal = dispatchRefusal(result, fmt.locale);
     switch (refusal.kind) {
       case "field":
         setErrors({ [refusal.field === "contents" ? "contents" : "weight"]: refusal.message });
-        (refusal.field === "contents" ? contentsInput : weightInput).current?.focus();
+        reveal();
         return;
       case "stale":
         reset();
@@ -264,14 +273,19 @@ export function DispatchDialog({
   };
 
   const submitLabel = pending
-    ? "Yuborilmoqda…"
+    ? t.sending
     : switched
-      ? `Yandex ${DELIVERY_METHOD_LABEL[chosen!]} bilan chaqirish`
+      ? t.callWith(DELIVERY_METHOD_LABEL[chosen!])
       : approving
-        ? `Taklifni tasdiqlash · ${formatSom(approvable!)}`
+        ? t.approve(fmt.som(approvable!))
         : reviewRef
-          ? "Qayta chaqirish"
-          : "Kuryer chaqirish";
+          ? t.recall
+          : t.call;
+
+  const summary = [
+    errors.contents ? { name: "contents", label: t.contentsShort, message: errors.contents } : null,
+    errors.weight ? { name: "weight", label: t.weightShort, message: errors.weight } : null,
+  ].filter((item) => item !== null);
 
   return (
     <Dialog
@@ -281,31 +295,35 @@ export function DispatchDialog({
         if (!next) reset();
         onOpenChange(next);
       }}
-      title={`Buyurtma №${order.id}: kuryer chaqirish`}
-      description={`${carrierLabel(order)} kuryeri chaqiriladi. Yandex taklifi chegaradan oshsa, kuryer chaqirilmaydi va narx sizga tasdiqlash uchun qaytadi.`}
+      title={t.title(order.id)}
+      description={t.description(carrierLabel(order, fmt.locale))}
       className="max-w-[540px]"
     >
-      <form noValidate onSubmit={onSubmit} className="flex flex-col gap-3.5">
+      <form ref={formRef} noValidate onSubmit={onSubmit} className="flex flex-col gap-3.5">
+        {summary.length > 1 && (
+          <FormErrorSummary
+            errors={summary}
+            onSelect={(name) => void revealFirstError(formRef.current, { name })}
+          />
+        )}
         {reviewRef && (
           <section
             aria-labelledby="dispatch-review-title"
             className="flex flex-col gap-2 rounded-md bg-warning-soft px-3.5 py-3"
           >
             <h3 id="dispatch-review-title" className="m-0 text-body-sm font-bold text-ink">
-              Narxni tasdiqlash kerak
+              {t.review}
             </h3>
             {reviewLoading ? (
               <p className="m-0 text-body-sm text-ink-muted" aria-live="polite">
-                Taklif ma’lumotlari yuklanmoqda…
+                {t.reviewLoading}
               </p>
             ) : review ? (
               <ReviewSummary review={review} />
             ) : (
               <div className="flex flex-wrap items-center gap-2">
                 <p className="m-0 text-body-sm text-ink">
-                  {reviewState?.failed
-                    ? "Taklif ma’lumotlarini yuklab bo‘lmadi."
-                    : "Ko‘rib chiqiladigan taklif topilmadi."}
+                  {reviewState?.failed ? t.reviewFailed : t.reviewMissing}
                 </p>
                 {reviewState?.failed && (
                   <Button
@@ -318,7 +336,7 @@ export function DispatchDialog({
                     }}
                   >
                     <Icon name="refresh" size={14} />
-                    Qayta yuklash
+                    {t.reload}
                   </Button>
                 )}
               </div>
@@ -326,23 +344,24 @@ export function DispatchDialog({
           </section>
         )}
 
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-1.5" data-field="contents">
           <label className="flex items-start gap-2 text-[14px] leading-5 font-semibold text-ink">
             <input
-              ref={contentsInput}
               type="checkbox"
+              name="contents"
               checked={contents}
-              onChange={(event) => setContents(event.target.checked)}
+              onChange={(event) => {
+                setContents(event.target.checked);
+                if (event.target.checked) setErrors((e) => ({ ...e, contents: undefined }));
+              }}
               aria-invalid={errors.contents ? true : undefined}
               aria-describedby={errors.contents ? "dispatch-contents-error" : undefined}
               required
               className="mt-0.5 size-4 shrink-0 accent-gold-ink"
             />
             <span className="flex flex-col gap-0.5">
-              Jo‘natma tarkibini tekshirdim (majburiy)
-              <span className="text-caption font-normal text-ink-muted">
-                Mahsulotlar buyurtmaga mos, qadoq butun va yopilgan.
-              </span>
+              {t.contents}
+              <span className="text-caption font-normal text-ink-muted">{t.contentsHint}</span>
             </span>
           </label>
           {errors.contents && (
@@ -356,53 +375,50 @@ export function DispatchDialog({
           )}
         </div>
 
-        <Field
-          label="Jo‘natma og‘irligi (majburiy)"
-          hint="Tarozida tortilgan og‘irlik, 1 dan 20 000 g gacha."
-          error={errors.weight}
-        >
-          {(control) => (
-            <AffixInput
-              {...control}
-              ref={weightInput}
-              suffix="g"
-              inputMode="numeric"
-              autoComplete="off"
-              required
-              aria-required="true"
-              value={weight}
-              onChange={(event) => setWeight(event.target.value)}
-              placeholder="Masalan: 650"
-              className="max-w-[220px]"
-            />
-          )}
-        </Field>
+        <div data-field="weight">
+          <Field label={t.weight} hint={t.weightHint} error={errors.weight}>
+            {(control) => (
+              <AffixInput
+                {...control}
+                name="weight"
+                suffix={labels.grams("").trim()}
+                inputMode="numeric"
+                autoComplete="off"
+                required
+                aria-required="true"
+                value={weight}
+                maxLength={12}
+                onChange={(event) => setWeight(event.target.value)}
+                placeholder={t.weightPlaceholder}
+                className="max-w-[220px]"
+              />
+            )}
+          </Field>
+        </div>
 
         {methods && (
           <div className="flex flex-col gap-2">
             <span aria-hidden="true" className="text-label text-ink">
-              Yetkazish usuli
+              {t.method}
             </span>
             <SegmentedControl<DeliveryMethod>
-              label="Yetkazish usuli"
+              label={t.method}
               options={methods.map((value) => ({
                 value,
-                label: `Yandex ${DELIVERY_METHOD_LABEL[value]}${value === current ? " (joriy)" : ""}`,
+                label: `Yandex ${DELIVERY_METHOD_LABEL[value]}${value === current ? t.current : ""}`,
               }))}
               value={chosen ?? methods[0]!}
               onChange={setMethod}
               className="self-start"
             />
-            <p className="m-0 text-[12px] leading-[18px] text-ink-muted">
-              Mijoz to‘lagan yetkazish narxi usul o‘zgarsa ham o‘zgarmaydi.
-            </p>
+            <p className="m-0 text-[12px] leading-[18px] text-ink-muted">{t.methodNote}</p>
           </div>
         )}
 
         {formError && (
           <p
             role="alert"
-            className="m-0 flex items-start gap-1.5 text-body-sm font-semibold text-ink"
+            className="m-0 flex items-start gap-1.5 rounded-md bg-danger-soft px-3 py-2.5 text-body-sm font-semibold text-ink"
           >
             <Icon name="alert-circle" size={16} className="mt-px shrink-0 text-danger" />
             {formError}
@@ -415,19 +431,25 @@ export function DispatchDialog({
               type="button"
               variant="danger"
               className="mr-auto"
-              disabled={pending}
+              disabledReason={pending && t.busyReason}
               onClick={() => {
                 reset();
                 onCancelOrder();
               }}
             >
-              Buyurtmani bekor qilish
+              {t.cancelOrder}
             </Button>
           )}
-          <DialogClose disabled={pending} className={buttonStyles({ variant: "outline" })}>
-            Orqaga
+          <DialogClose asChild>
+            <Button type="button" variant="outline" disabledReason={pending && t.busyReason}>
+              {t.back}
+            </Button>
           </DialogClose>
-          <Button type="submit" disabled={pending || reviewLoading} aria-busy={pending}>
+          <Button
+            type="submit"
+            busy={pending}
+            disabledReason={!pending && reviewLoading && t.loadingReason}
+          >
             <Icon name="truck" size={18} />
             {submitLabel}
           </Button>

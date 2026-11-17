@@ -16,8 +16,16 @@ const DOT_SEGMENT = /^(?:\.|%2e){1,2}$/i;
 function isAdminPath(path: string): boolean {
   if (path === "/admin") return true;
   if (!path.startsWith("/admin/")) return false;
-  // A loop guard: landing on the login or auth routes after login makes no sense.
-  return !(path === "/admin/login" || path.startsWith("/admin/auth/") || path === "/admin/auth");
+  // A loop guard: landing on the login or auth routes after login makes no sense, nor on the
+  // own-password pages or the MFA step after the password step (DESIGN §E).
+  return !(
+    path === "/admin/login" ||
+    path === "/admin/mfa" ||
+    path.startsWith("/admin/auth/") ||
+    path === "/admin/auth" ||
+    path === "/admin/change-password" ||
+    path === "/admin/set-password"
+  );
 }
 
 /**

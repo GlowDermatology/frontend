@@ -96,3 +96,51 @@ describe("decideProxy", () => {
     ).toEqual({ kind: "refresh", next: "/admin", mintCsrf: false });
   });
 });
+
+describe("decideProxy: the e-mailed password link (DESIGN §E)", () => {
+  const TOKEN = "a".repeat(20) + "_-B9";
+
+  it("moves a token into its cookie with a redirect to the bare page, even without a session", () => {
+    expect(
+      decideProxy({
+        ...base,
+        pathname: "/admin/set-password",
+        search: `?token=${TOKEN}`,
+        accessToken: undefined,
+        hasCsrf: false,
+      }),
+    ).toEqual({
+      kind: "stash-token",
+      token: TOKEN,
+      location: "/admin/set-password",
+      mintCsrf: true,
+    });
+  });
+
+  it("clears a malformed token (empty string) instead of storing it", () => {
+    expect(
+      decideProxy({ ...base, pathname: "/admin/set-password", search: "?token=../../x" }),
+    ).toMatchObject({ kind: "stash-token", token: "" });
+  });
+
+  it("serves the bare page without a refresh bounce and asks for no referrer", () => {
+    expect(
+      decideProxy({ ...base, pathname: "/admin/set-password", search: "", accessToken: undefined }),
+    ).toEqual({ kind: "pass", mintCsrf: false, noReferrer: true });
+    // Its Server Action (POST) passes like every other.
+    expect(
+      decideProxy({ ...base, method: "POST", pathname: "/admin/set-password", search: "" }),
+    ).toEqual({ kind: "pass", mintCsrf: false });
+  });
+
+  it("treats the change page like any panel page (it needs a session)", () => {
+    expect(
+      decideProxy({
+        ...base,
+        pathname: "/admin/change-password",
+        search: "",
+        accessToken: undefined,
+      }),
+    ).toMatchObject({ kind: "refresh", next: "/admin" });
+  });
+});

@@ -1,13 +1,17 @@
 import { isApiError } from "@/data/api/errors";
 import { verifyStaff } from "@/data/auth";
+import { requestNow } from "@/data/now";
 import { type CatalogStats, getCatalogStats } from "@/data/products";
 import { cn } from "@/lib/cn";
+import { copyFor, getFormat } from "@/lib/i18n/admin-locale";
 
 import { Skeleton } from "../shared/skeleton";
+import { shellCopy } from "./copy";
 
 /**
  * Sidebar Billz block (contract §5.2): "Billz ulangan" / "Billz ulanmagan"
- * from `products/stats/`, with the last sync relative to the server's now.
+ * from `products/stats/`, with the last sync relative to the server's now
+ * in the admin language (`fmt.ago`).
  * Async and rendered inside `<Suspense>` so the shell stays prerendered;
  * without a session (login bounce in flight, 404 shell) it shows a neutral
  * line instead of redirecting from the sidebar. The block is decorative and
@@ -16,10 +20,13 @@ import { Skeleton } from "../shared/skeleton";
  * error boundary and taking the whole shell with it.
  */
 export async function BillzStatus() {
+  const t = (await copyFor(shellCopy)).billz;
   const session = await verifyStaff();
-  if (!session.ok) return <BillzStatusFallback label={BILLZ_STATUS_UNKNOWN} />;
+  if (!session.ok) return <BillzStatusFallback label={t.unknown} />;
   const stats = await loadStats();
-  if (!stats) return <BillzStatusFallback label={BILLZ_STATUS_UNKNOWN} />;
+  if (!stats) return <BillzStatusFallback label={t.unknown} />;
+  const [fmt, now] = await Promise.all([getFormat(), requestNow()]);
+  const synced = stats.lastSyncAt ? fmt.ago(stats.lastSyncAt, now) : t.neverSynced;
   return (
     <div className="flex flex-col gap-1.5 rounded-md bg-surface p-3">
       <span className="flex items-center gap-2 text-body-sm font-semibold text-ink">
@@ -27,16 +34,12 @@ export async function BillzStatus() {
           aria-hidden="true"
           className={cn("size-2 rounded-full", stats.billzConnected ? "bg-success" : "bg-danger")}
         />
-        {stats.billzConnected ? "Billz ulangan" : "Billz ulanmagan"}
+        {stats.billzConnected ? t.connected : t.disconnected}
       </span>
-      <span className="text-caption font-normal text-ink-muted">
-        Sinxronlangan: {stats.lastSyncLabel}
-      </span>
+      <span className="text-caption font-normal text-ink-muted">{t.synced(synced)}</span>
     </div>
   );
 }
-
-export const BILLZ_STATUS_UNKNOWN = "Billz holati noma’lum";
 
 /** `getCatalogStats()`, or `null` when the API answered with an error or did not answer. */
 export async function loadStats(): Promise<CatalogStats | null> {

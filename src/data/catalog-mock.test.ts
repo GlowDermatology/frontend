@@ -21,6 +21,18 @@ import { importFromBillz, saveProduct } from "./mock/products.actions";
 import { exportProducts, getCatalogStats } from "./mock/products.queries";
 
 vi.mock("./mock/delay", () => ({ delay: async () => undefined }));
+// The mock actions answer in the admin language (cookie `gd_admin_language`); the test
+// switches it through this holder (none = Uzbek).
+const adminLanguage = vi.hoisted(() => ({ value: undefined as string | undefined }));
+vi.mock("next/headers", () => ({
+  cookies: async () => ({
+    get: (name: string) =>
+      name === "gd_admin_language" && adminLanguage.value
+        ? { name, value: adminLanguage.value }
+        : undefined,
+  }),
+  headers: async () => new Headers(),
+}));
 
 /** The mock bodies of the catalog sections: coherent with the product fixtures and the contract. */
 describe("mock categories", () => {
@@ -255,6 +267,60 @@ describe("mock products: stats, export and import job", () => {
     expect(
       (await saveProduct(product.id, { ...values, billzId: product.billzId, price: 99_000 })).ok,
     ).toBe(true);
+  });
+});
+
+describe("mock answers in the admin language", () => {
+  it("refuses like the backend, in Russian and English", async () => {
+    try {
+      adminLanguage.value = "ru";
+      expect(await deleteCategory("serums")).toEqual({
+        ok: false,
+        error: "В категории есть товары.",
+        code: "conflict",
+      });
+      expect(await reorderBanners(["nope"])).toMatchObject({
+        error: "Список не совпадает с текущими элементами.",
+      });
+      adminLanguage.value = "en";
+      const product = PRODUCTS.find((p) => p.status === "active")!;
+      const result = await saveProduct(product.id, {
+        texts: product.texts,
+        price: product.price,
+        category: product.category ?? "",
+        billzId: "4607019999",
+        promo: product.promo,
+        status: "hidden",
+        images: [],
+        slug: "",
+        seo: emptySeo(),
+      });
+      expect(result).toMatchObject({ code: "provider_unavailable" });
+      expect(!result.ok && result.error).toMatch(/^Billz did not respond/);
+    } finally {
+      adminLanguage.value = undefined;
+    }
+  });
+
+  it("records the change as a kind the editor words in any language", async () => {
+    const product = PRODUCTS.find((p) => p.status === "active")!;
+    const saved = await saveProduct(product.id, {
+      texts: product.texts,
+      price: product.price + 1000,
+      category: product.category ?? "",
+      billzId: product.billzId,
+      promo: product.promo,
+      status: product.status,
+      images: product.images,
+      slug: product.slug,
+      seo: product.seo,
+    });
+    expect(saved.ok && saved.data.lastChange).toMatchObject({
+      by: "Administrator",
+      kind: "price_changed",
+      oldPrice: product.price,
+      newPrice: product.price + 1000,
+    });
   });
 });
 

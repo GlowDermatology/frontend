@@ -7,8 +7,10 @@ import { SearchInput } from "@/components/ui/field";
 import { Icon } from "@/components/ui/icon";
 import { searchProducts, type ProductPick } from "@/data/products.actions";
 import { cn } from "@/lib/cn";
+import { useCopy } from "@/lib/i18n/admin-context";
 
 import { runAction } from "../shared/action-client";
+import { bannersCopy } from "./copy";
 
 interface ProductPickerProps {
   /** Selected product id, or `null`. */
@@ -16,6 +18,8 @@ interface ProductPickerProps {
   onChange: (product: ProductPick | null) => void;
   error?: string;
   describedBy?: string;
+  /** The search box's id (the field's label points at it). */
+  id?: string;
 }
 
 /**
@@ -24,14 +28,15 @@ interface ProductPickerProps {
  * selection is shown as a chip with a "change" control; an initial `value`
  * is resolved by searching its id.
  */
-export function ProductPicker({ value, onChange, error, describedBy }: ProductPickerProps) {
+export function ProductPicker({ value, onChange, error, describedBy, id }: ProductPickerProps) {
+  const t = useCopy(bannersCopy).picker;
   const listId = useId();
   const [term, setTerm] = useState("");
   const [results, setResults] = useState<ProductPick[]>([]);
   // The picker mounts with the field's value (the dialog mounts fresh per
   // opening); a preselected id shows as "Mahsulot #id" until it is resolved.
   const [selected, setSelected] = useState<ProductPick | null>(() =>
-    value === null ? null : { id: value, name: `Mahsulot #${value}`, billzId: "" },
+    value === null ? null : { id: value, name: "", billzId: "" },
   );
   const [searching, setSearching] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -60,13 +65,13 @@ export function ProductPicker({ value, onChange, error, describedBy }: ProductPi
   // search matches a numeric term against `id` exactly (contract §2.3).
   const initialValue = useRef(value);
   useEffect(() => {
-    const id = initialValue.current;
-    if (id === null) return;
+    const initial = initialValue.current;
+    if (initial === null) return;
     let cancelled = false;
-    runAction((csrf) => searchProducts(id, csrf)).then((result) => {
+    runAction((csrf) => searchProducts(initial, csrf)).then((result) => {
       if (cancelled || !result.ok) return;
-      const found = result.data.find((product) => product.id === id);
-      if (found) setSelected((current) => (current?.id === id ? found : current));
+      const found = result.data.find((product) => product.id === initial);
+      if (found) setSelected((current) => (current?.id === initial ? found : current));
     });
     return () => {
       cancelled = true;
@@ -96,7 +101,9 @@ export function ProductPicker({ value, onChange, error, describedBy }: ProductPi
       >
         <Thumb src={selected.imageUrl} />
         <span className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate text-body-sm font-bold text-ink">{selected.name}</span>
+          <span className="truncate text-body-sm font-bold text-ink">
+            {selected.name || t.pending(selected.id)}
+          </span>
           <span className="text-caption font-normal text-ink-muted tabular-nums">
             ID {selected.id}
             {selected.billzId ? ` · Billz ${selected.billzId}` : ""}
@@ -104,13 +111,14 @@ export function ProductPicker({ value, onChange, error, describedBy }: ProductPi
         </span>
         <button
           type="button"
+          id={id}
           onClick={() => {
             setEditing(true);
             setTerm("");
           }}
-          className="text-body-sm font-bold text-ink underline-offset-4 hover:underline"
+          className="shrink-0 rounded-sm text-body-sm font-bold text-ink underline-offset-4 hover:underline"
         >
-          O‘zgartirish
+          {t.change}
         </button>
       </div>
     );
@@ -119,9 +127,11 @@ export function ProductPicker({ value, onChange, error, describedBy }: ProductPi
   return (
     <div className="flex flex-col gap-2" aria-describedby={describedBy}>
       <SearchInput
-        label="Mahsulot qidirish"
-        placeholder="Nomi, Billz ID yoki ID"
+        id={id}
+        label={t.search}
+        placeholder={t.placeholder}
         value={term}
+        maxLength={64}
         onChange={(event) => setTerm(event.target.value)}
         role="combobox"
         aria-expanded={results.length > 0}
@@ -133,13 +143,13 @@ export function ProductPicker({ value, onChange, error, describedBy }: ProductPi
       <div
         id={listId}
         role="listbox"
-        aria-label="Topilgan mahsulotlar"
+        aria-label={t.results}
         aria-busy={searching || undefined}
         className="max-h-[232px] overflow-y-auto rounded-md border border-line"
       >
         {results.length === 0 ? (
           <p className="m-0 px-3.5 py-3 text-body-sm text-ink-muted">
-            {message ?? (searching ? "Qidirilmoqda…" : "Faol mahsulot topilmadi.")}
+            {message ?? (searching ? t.searching : t.none)}
           </p>
         ) : (
           results.map((product) => (
@@ -155,7 +165,7 @@ export function ProductPicker({ value, onChange, error, describedBy }: ProductPi
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-body-sm font-semibold text-ink">{product.name}</span>
                 <span className="text-caption font-normal text-ink-muted tabular-nums">
-                  ID {product.id} · Billz {product.billzId}
+                  {`ID ${product.id} · Billz ${product.billzId}`}
                 </span>
               </span>
             </button>

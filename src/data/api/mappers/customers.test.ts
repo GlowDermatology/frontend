@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { versionAuthorText, versionPeriodText, versionSummaryText } from "@/domain/cashback";
+
 import adjustmentFixture from "../__fixtures__/cashback-adjustment.json";
 import policyScheduledFixture from "../__fixtures__/cashback-policy-scheduled.json";
 import policyFixture from "../__fixtures__/cashback-policy.json";
@@ -107,6 +109,14 @@ describe("mapCustomerCard (Malika, customer 5)", () => {
       orderId: 10248,
       policyVersion: 3,
       promoExcluded: true,
+      origin: {
+        type: "order",
+        ref: "10248",
+        actor: null,
+        base: 568_000,
+        percent: "1.00",
+        reason: null,
+      },
     });
     const byId = new Map(malika.ledger.map((e) => [e.id, e]));
     expect(byId.get("120")).toMatchObject({
@@ -246,7 +256,8 @@ describe("cashback policy (contract §5.4)", () => {
     ]);
     expect(settings.scheduled).toBeNull();
     expect(settings.nextEffectiveFrom).toBe("2026-11-01T00:00:00+05:00");
-    expect(settings.versions).toEqual([
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    expect(settings.versions.map(({ detail, ...row }) => row)).toEqual([
       {
         version: 3,
         summary: `30–50${NBSP}mln: 3% qo‘shildi`,
@@ -275,6 +286,20 @@ describe("cashback policy (contract §5.4)", () => {
         state: "expired",
       },
     ]);
+  });
+
+  it("words the history in the admin language from the structured detail", () => {
+    const settings = mapCashbackSettings(policyFixture as ApiCashbackPolicy);
+    const [v3, , v1] = settings.versions;
+    expect(versionSummaryText(v3!, "ru")).toBe(`добавлен уровень 30–50${NBSP}млн: 3%`);
+    expect(versionSummaryText(v3!, "en")).toBe("30–50M: 3% added");
+    expect(versionSummaryText(v1!, "en")).toBe("Initial: up to 20M: 1%");
+    expect(versionPeriodText(v1!, "ru")).toBe(`1${NBSP}июн – 14${NBSP}авг 2026`);
+    expect(versionPeriodText(v3!, "en")).toBe(`from 1${NBSP}Oct 2026`);
+    expect(versionAuthorText(v1!, "en")).toBe("System");
+    expect(versionPeriodText({ ...v3!, state: "superseded" }, "en")).toBe(
+      `from 1${NBSP}Oct 2026 · replaced`,
+    );
   });
 
   it("shows a scheduled version and bounds the active one at its start", () => {

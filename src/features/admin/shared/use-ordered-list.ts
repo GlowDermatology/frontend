@@ -4,7 +4,9 @@ import { useState } from "react";
 
 import type { ActionResult } from "@/data/types";
 import { moveItem } from "@/domain/category";
+import { useCopy } from "@/lib/i18n/admin-context";
 
+import { sharedCopy } from "./copy";
 import { createOrderSync } from "./order-sync";
 
 /**
@@ -34,6 +36,7 @@ interface ListState<T> {
 }
 
 export function useOrderedList<T>(server: T[], options: OrderedListOptions<T>) {
+  const t = useCopy(sharedCopy).reorder;
   const [source, setSource] = useState(server);
   const [list, setList] = useState<ListState<T>>({ items: server, confirmed: server });
   if (server !== source) {
@@ -63,7 +66,7 @@ export function useOrderedList<T>(server: T[], options: OrderedListOptions<T>) {
     if (from === to || moved === undefined) return false;
     setList((current) => ({ ...current, items: next }));
     sync.push(next.map(options.keyOf));
-    setAnnouncement(`${options.label(moved)} ${to + 1}-o‘ringa ko‘chirildi.`);
+    setAnnouncement(t.moved(options.label(moved), to + 1));
     return true;
   };
 

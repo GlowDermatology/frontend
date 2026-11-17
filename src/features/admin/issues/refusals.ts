@@ -1,5 +1,7 @@
 import type { ActionFailure } from "@/data/types";
 import { ISSUE_NOTE_MAX, ISSUE_NOTE_MIN } from "@/domain/delivery-issue";
+import type { Locale } from "@/lib/i18n/locales";
+import { validationCopy } from "@/lib/i18n/validation-copy";
 
 /**
  * How the issue dialogs (resolve, staff incident, dispatch switch) treat a
@@ -29,11 +31,15 @@ export function issueRefusal(result: ActionFailure, fields: ReadonlyArray<string
   return { kind: "retry", message: result.error };
 }
 
-/** The backend's note rule (3..1000 after trimming) with its Uzbek messages; `null` when valid. */
-export function noteError(note: string): string | null {
+/**
+ * The backend's note rule (3..1000 after trimming) with its messages in the admin language
+ * (Uzbek by default); `null` when valid.
+ */
+export function noteError(note: string, locale: Locale = "uz"): string | null {
+  const m = validationCopy[locale];
   const length = note.trim().length;
-  if (length === 0) return "Majburiy maydon.";
-  if (length < ISSUE_NOTE_MIN) return `Kamida ${ISSUE_NOTE_MIN} ta belgi kiriting.`;
-  if (length > ISSUE_NOTE_MAX) return `${ISSUE_NOTE_MAX} belgidan oshmasin.`;
+  if (length === 0) return m.required;
+  if (length < ISSUE_NOTE_MIN) return m.minChars(ISSUE_NOTE_MIN);
+  if (length > ISSUE_NOTE_MAX) return m.maxChars(ISSUE_NOTE_MAX);
   return null;
 }

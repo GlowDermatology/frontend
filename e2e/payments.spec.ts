@@ -7,7 +7,9 @@ import {
   setFakeClickScenario,
   type FakeClickScenario,
 } from "./backend-shell";
+import { paymentsCopy } from "../src/features/admin/payments/copy";
 import { cancelOrderThroughUi, heading, listedOrderIds, toast, watchPage } from "./helpers";
+import { expectDisabledReason } from "./ui";
 
 /**
  * Refund operations of the payments board against the seeded backend
@@ -134,7 +136,7 @@ test("Yakunlash on a refund Click still holds: Enter twice sends once, the payou
   const payout = page.getByRole("alertdialog", { name: "Mijozga qo‘lda to‘landimi?" });
   await expect(payout).toContainText("Click to‘lovni qaytarmagan");
   const payoutButton = payout.getByRole("button", { name: "Qo‘lda to‘landi" });
-  await expect(payoutButton).toBeDisabled();
+  await expectDisabledReason(payoutButton, paymentsCopy.uz.dialog.tickFirst);
   await expect(payout.getByRole("alert")).toBeFocused();
   await page.keyboard.press("Enter");
   await page.waitForTimeout(500);
@@ -238,7 +240,7 @@ test("Yakunlash on a failed refund without a Click payment id leads to the payou
   await expect(payout).not.toContainText("Click to‘lovni qaytarmagan");
   await expect(payout.getByRole("alert")).toBeFocused();
   const payoutButton = payout.getByRole("button", { name: "Qo‘lda to‘landi" });
-  await expect(payoutButton).toBeDisabled();
+  await expectDisabledReason(payoutButton, paymentsCopy.uz.dialog.tickFirst);
   await payout.getByRole("checkbox", { name: /qo‘lda to‘ladim$/ }).check();
   await payoutButton.click();
   await expect(payout).toBeHidden();

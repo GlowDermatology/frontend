@@ -8,33 +8,46 @@ import { useRef, useState, type FormEvent } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonStyles } from "@/components/ui/button";
-import { Dialog, DialogClose } from "@/components/ui/dialog";
+import { Dialog } from "@/components/ui/dialog";
+import { FormErrorSummary } from "@/components/ui/form-errors";
 import { Icon } from "@/components/ui/icon";
 import { ScrollRegion } from "@/components/ui/scroll-region";
 import { useToast } from "@/components/ui/toast";
 import { createSpecialist } from "@/data/clinic.actions";
-import { EMPTY_SPECIALIST, specialistFormSchema } from "@/data/clinic.schema";
+import { clinicSchemas, EMPTY_SPECIALIST } from "@/data/clinic.schema";
 import type { Page } from "@/data/types";
 import {
-  SPECIALIST_ROLE_LABEL,
+  specialistRecommendedMissing,
   workingDaysShort,
   type ClinicSpecialist,
   type SpecialistListQuery,
 } from "@/domain/clinic";
-import { formatNumber } from "@/lib/format";
+import { clinicDataCopy } from "@/domain/copy/clinic";
+import type { ContentLanguage } from "@/domain/product";
+import { useErrorReveal } from "@/lib/forms/reveal";
+import { useRecommendedConfirm } from "@/lib/forms/recommended";
+import { useAdminLocale, useCopy } from "@/lib/i18n/admin-context";
+import { useFormat, useLocalized } from "@/lib/i18n/admin-hooks";
 
+import { afterDialogsClose } from "../products/form-reveal";
 import { runAction } from "../shared/action-client";
 import { ExportMenu } from "../shared/export-menu";
 import { partitionFieldErrors } from "../shared/field-errors";
 import { useIdempotencyKey } from "../shared/idempotency";
 import { ListTransition } from "../shared/list-transition";
 import { PageHeader } from "../shared/page-header";
-import { Pagination, rangeLabel } from "../shared/pagination";
+import { Pagination } from "../shared/pagination";
+import { specialistsCopy } from "./copy";
 import { DirectoryPageSizeMenu, DirectoryToolbar } from "./directory-toolbar";
+import { errorItems, issuesToErrors, pageRangeText } from "./form-kit";
 import {
   experienceValue,
+  firstTextErrorLanguage,
   PROFILE_FIELDS,
+  PROFILE_ORDER,
+  profileFieldLabel,
   SpecialistProfileFields,
+  specialistRecommendedFields,
   type StaffOption,
 } from "./profile-fields";
 import { hasDirectoryFilters, specialistListHref } from "./query";
@@ -54,6 +67,11 @@ interface SpecialistsViewProps {
  * add the services and the hours.
  */
 export function SpecialistsView({ page, query, staffOptions, hasClinic }: SpecialistsViewProps) {
+  const copy = useCopy(specialistsCopy);
+  const t = copy.list;
+  const m = useCopy(clinicDataCopy);
+  const locale = useAdminLocale();
+  const fmt = useFormat();
   const toast = useToast();
   const router = useRouter();
   const [source, setSource] = useState(page);
@@ -70,8 +88,8 @@ export function SpecialistsView({ page, query, staffOptions, hasClinic }: Specia
   return (
     <>
       <PageHeader
-        eyebrow={`${formatNumber(page.total)} ta mutaxassis${filtered ? " topildi" : ""}`}
-        title="Mutaxassislar"
+        eyebrow={(filtered ? t.found : t.count)(page.total, fmt.number(page.total))}
+        title={t.title}
         actions={
           <>
             <ExportMenu
@@ -79,24 +97,22 @@ export function SpecialistsView({ page, query, staffOptions, hasClinic }: Specia
                 { ...query, page: undefined, pageSize: undefined },
                 "/admin/specialists/export",
               )}
+              label={copy.export}
             />
             <Link href="/admin/services" className={buttonStyles({ variant: "secondary" })}>
               <Icon name="sparkle" size={18} />
-              Xizmatlar
+              {t.services}
             </Link>
-            <button
-              type="button"
-              disabled={!hasClinic}
-              aria-describedby={hasClinic ? undefined : "no-clinic-hint"}
+            <Button
+              disabledReason={!hasClinic && t.noClinicReason}
               onClick={() => {
                 setInstance((n) => n + 1);
                 setOpen(true);
               }}
-              className={buttonStyles()}
             >
               <Icon name="plus" size={18} />
-              Yangi mutaxassis
-            </button>
+              {t.create}
+            </Button>
           </>
         }
       />
@@ -106,30 +122,29 @@ export function SpecialistsView({ page, query, staffOptions, hasClinic }: Specia
           className="m-0 flex items-start gap-2 rounded-md bg-warning-soft px-3.5 py-3 text-body-sm text-ink"
         >
           <Icon name="info" size={18} className="mt-px shrink-0 text-gold-ink" />
-          Avval pastdagi «Klinika» kartasida klinika nomi va manzilini saqlang: mutaxassis klinikaga
-          bog‘lanadi.
+          {t.noClinicHint}
         </p>
       )}
 
       <ListTransition className="group">
         <section
-          aria-label="Mutaxassislar ro‘yxati"
+          aria-label={t.listLabel}
           className="overflow-hidden rounded-lg bg-surface-raised shadow-sm"
         >
           <DirectoryToolbar kind="specialists" query={query} />
           {rows.length > 0 ? (
-            <ScrollRegion label="Mutaxassislar jadvali">
+            <ScrollRegion label={t.tableLabel}>
               <table className="data-table min-w-[960px] transition-opacity duration-150 group-data-[pending]:opacity-60">
-                <caption className="sr-only">Mutaxassislar</caption>
-                <thead>
+                <caption className="sr-only">{t.caption}</caption>
+                <thead className="uppercase">
                   <tr>
-                    <th scope="col">MUTAXASSIS</th>
-                    <th scope="col">XIZMATLAR</th>
-                    <th scope="col">ISH KUNLARI</th>
+                    <th scope="col">{t.specialist}</th>
+                    <th scope="col">{t.offers}</th>
+                    <th scope="col">{t.days}</th>
                     <th scope="col" className="text-right!">
-                      KELGUSI QABULLAR
+                      {t.upcoming}
                     </th>
-                    <th scope="col">HOLAT</th>
+                    <th scope="col">{t.status}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -153,21 +168,24 @@ export function SpecialistsView({ page, query, staffOptions, hasClinic }: Specia
                                 <Icon name="user" size={18} />
                               )}
                             </span>
-                            <span className="flex flex-col">
+                            <span className="flex min-w-0 flex-col">
                               {draft ? (
-                                <span className="font-bold text-ink">{row.name}</span>
+                                <span className="max-w-[260px] truncate font-bold text-ink">
+                                  {row.name}
+                                </span>
                               ) : (
                                 <Link
                                   href={`/admin/specialists/${row.id}` as Route}
-                                  className="font-bold text-ink no-underline hover:underline hover:decoration-gold hover:underline-offset-4"
+                                  title={row.name}
+                                  className="max-w-[260px] truncate font-bold text-ink no-underline hover:underline hover:decoration-gold hover:underline-offset-4"
                                 >
                                   {row.name}
                                 </Link>
                               )}
                               <span className="text-[12px] text-ink-muted">
-                                {SPECIALIST_ROLE_LABEL[row.role]}
+                                {m.role[row.role]}
                                 {row.experienceYears !== null
-                                  ? ` · ${row.experienceYears} yil`
+                                  ? ` · ${t.years(row.experienceYears, fmt.number(row.experienceYears))}`
                                   : ""}
                               </span>
                             </span>
@@ -179,24 +197,24 @@ export function SpecialistsView({ page, query, staffOptions, hasClinic }: Specia
                               {offers.map((s) => s.shortName).join(", ")}
                             </span>
                           ) : (
-                            <span className="text-ink-muted">Xizmat yo‘q</span>
+                            <span className="text-ink-muted">{t.noServices}</span>
                           )}
                         </td>
                         <td className="tabular-nums">
                           {row.workingHours.length > 0 ? (
-                            workingDaysShort(row.workingHours)
+                            workingDaysShort(row.workingHours, locale)
                           ) : (
-                            <span className="text-ink-muted">Jadval yo‘q</span>
+                            <span className="text-ink-muted">{t.noSchedule}</span>
                           )}
                         </td>
                         <td className="text-right tabular-nums">
-                          {formatNumber(row.upcomingAppointments)}
+                          {fmt.number(row.upcomingAppointments)}
                         </td>
                         <td>
                           {row.isActive ? (
-                            <Badge tone="success">Faol</Badge>
+                            <Badge tone="success">{m.status.active}</Badge>
                           ) : (
-                            <Badge tone="muted">Nofaol</Badge>
+                            <Badge tone="muted">{m.status.inactive}</Badge>
                           )}
                         </td>
                       </tr>
@@ -208,17 +226,15 @@ export function SpecialistsView({ page, query, staffOptions, hasClinic }: Specia
           ) : (
             <div className="flex flex-col items-center gap-2 px-6 py-16 text-center">
               <Icon name="user" size={28} className="text-ink-muted" />
-              <p className="m-0 text-subheading text-ink">Mutaxassis topilmadi</p>
+              <p className="m-0 text-subheading text-ink">{t.emptyTitle}</p>
               <p className="m-0 text-body-sm text-ink-muted">
-                {filtered
-                  ? "Qidiruv yoki filtrlarni o‘zgartirib ko‘ring."
-                  : "«Yangi mutaxassis» bilan birinchi mutaxassisni qo‘shing."}
+                {filtered ? copy.emptyFiltered : t.emptyAll}
               </p>
             </div>
           )}
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3">
             <span className="text-body-sm text-ink-muted tabular-nums">
-              {rangeLabel(page.page, page.pageSize, page.total)}
+              {pageRangeText(fmt, page.page, page.pageSize, page.total)}
             </span>
             <Pagination
               page={page.page}
@@ -237,10 +253,7 @@ export function SpecialistsView({ page, query, staffOptions, hasClinic }: Specia
         idempotency={idempotency}
         staffOptions={staffOptions}
         onCreated={(specialist) => {
-          toast({
-            title: "Mutaxassis qo‘shildi",
-            description: "Endi xizmatlar va ish vaqtini kiriting, so‘ng faollashtiring.",
-          });
+          toast({ tone: "success", title: t.created, description: t.createdText });
           if (specialist.id.startsWith("draft-")) {
             // The demo keeps nothing: the new row stays on this list only.
             setRows((current) => [...current, specialist]);
@@ -266,35 +279,53 @@ function CreateSpecialistDialog({
   staffOptions: ReadonlyArray<StaffOption>;
   onCreated: (specialist: ClinicSpecialist) => void;
 }) {
+  const copy = useCopy(specialistsCopy);
+  const t = copy.create;
+  const schemas = useLocalized(clinicSchemas);
+  const toast = useToast();
   const [values, setValues] = useState(EMPTY_SPECIALIST);
   const [experience, setExperience] = useState("");
+  const [language, setLanguage] = useState<ContentLanguage>("uz");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
   const formRef = useRef<HTMLFormElement>(null);
+  const reveal = useErrorReveal(formRef);
+  const recommended = useRecommendedConfirm();
+  const summary = errorItems(errors, (name) => profileFieldLabel(name, copy), PROFILE_ORDER);
 
-  const focusInvalid = () =>
-    requestAnimationFrame(() =>
-      formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(),
-    );
+  /** Shows `next`, switching the text tab to the first language with an error, then reveals. */
+  const showErrors = (next: Record<string, string>, message: string | null) => {
+    const failing = firstTextErrorLanguage(next);
+    if (failing && !next[`qualifications.${language}`] && !next[`bio.${language}`]) {
+      setLanguage(failing);
+    }
+    setErrors(next);
+    setFormError(message);
+    reveal();
+  };
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (inFlight.current) return;
-    const local = specialistFormSchema.safeParse({
+    const local = schemas.specialist.safeParse({
       ...values,
       experienceYears: experienceValue(experience),
     });
     if (!local.success) {
-      const next: Record<string, string> = {};
-      for (const issue of local.error.issues) next[issue.path.join(".")] ??= issue.message;
-      setErrors(next);
-      setFormError(null);
-      focusInvalid();
+      showErrors(issuesToErrors(local.error), null);
       return;
     }
     inFlight.current = true;
+    const missing = specialistRecommendedFields(specialistRecommendedMissing(local.data), copy);
+    if ((await recommended.confirm(missing)) === "fix") {
+      inFlight.current = false;
+      setLanguage("uz");
+      await afterDialogsClose();
+      reveal({ name: missing[0]!.name, shake: false });
+      return;
+    }
     setBusy(true);
     setErrors({});
     setFormError(null);
@@ -305,9 +336,12 @@ function CreateSpecialistDialog({
     setBusy(false);
     if (!result.ok) {
       const split = partitionFieldErrors(result, PROFILE_FIELDS);
-      setErrors(split.fieldErrors);
-      setFormError(split.formError);
-      focusInvalid();
+      showErrors(split.fieldErrors, split.formError);
+      toast({
+        tone: "danger",
+        title: copy.list.createFailed,
+        description: split.formError ?? result.error,
+      });
       return;
     }
     onOpenChange(false);
@@ -321,11 +355,19 @@ function CreateSpecialistDialog({
         if (busy) return;
         onOpenChange(next);
       }}
-      title="Yangi mutaxassis"
-      description="Mutaxassis nofaol holda qo‘shiladi: xizmatlar va ish vaqtini kiritgach, faollashtiring."
+      title={t.title}
+      description={t.description}
       className="max-w-[640px]"
     >
       <form ref={formRef} noValidate onSubmit={onSubmit} className="flex flex-col gap-4">
+        <FormErrorSummary
+          errors={summary}
+          onSelect={(name) => {
+            const failing = firstTextErrorLanguage({ [name]: "x" });
+            if (failing) setLanguage(failing);
+            reveal({ name });
+          }}
+        />
         <SpecialistProfileFields
           values={values}
           onChange={setValues}
@@ -334,8 +376,10 @@ function CreateSpecialistDialog({
           errors={errors}
           staffOptions={staffOptions}
           linkedStaff={null}
-          activeHint="Faol mutaxassis ilovada ko‘rinadi va unga yozilish mumkin."
+          activeHint={copy.profile.activeHint}
           savedSlug={null}
+          language={language}
+          onLanguageChange={setLanguage}
         />
         {formError && (
           <p
@@ -347,14 +391,20 @@ function CreateSpecialistDialog({
           </p>
         )}
         <div className="flex flex-wrap justify-end gap-2">
-          <DialogClose disabled={busy} className={buttonStyles({ variant: "outline" })}>
-            Bekor qilish
-          </DialogClose>
-          <Button type="submit" disabled={busy} aria-busy={busy}>
+          <Button
+            type="button"
+            variant="outline"
+            disabledReason={busy && copy.busyReason}
+            onClick={() => onOpenChange(false)}
+          >
+            {copy.cancel}
+          </Button>
+          <Button type="submit" busy={busy}>
             <Icon name="plus" size={18} />
-            {busy ? "Qo‘shilmoqda…" : "Qo‘shish"}
+            {busy ? t.submitting : t.submit}
           </Button>
         </div>
+        {recommended.dialog}
       </form>
     </Dialog>
   );

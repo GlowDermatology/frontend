@@ -4,8 +4,10 @@ import { Avatar } from "@/components/ui/avatar";
 import { getMe } from "@/data/auth";
 import { cookieNames } from "@/data/auth/cookie-names";
 import { serverEnv } from "@/lib/env.server";
+import { copyFor } from "@/lib/i18n/admin-locale";
 
 import { Skeleton } from "../shared/skeleton";
+import { shellCopy } from "./copy";
 import { staffInitials } from "./initials";
 import { LogoutButton } from "./logout-button";
 
@@ -14,7 +16,8 @@ import { LogoutButton } from "./logout-button";
  * rendered inside `<Suspense>` so the shell stays prerendered.
  */
 export async function SidebarUser() {
-  const me = await getMe();
+  const [me, copy] = await Promise.all([getMe(), copyFor(shellCopy)]);
+  const t = copy.user;
   const csrf = (await cookies()).get(cookieNames(serverEnv.cookieSecure()).csrf)?.value ?? "";
   const name = me?.display_name || "—";
 
@@ -24,10 +27,10 @@ export async function SidebarUser() {
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-body-sm font-bold text-ink">{name}</span>
         <span className="truncate text-caption font-normal text-ink-muted">
-          {me?.email ?? "Sessiya topilmadi"}
+          {me?.email ?? t.noSession}
         </span>
       </span>
-      <LogoutButton csrf={csrf} />
+      <LogoutButton csrf={csrf} label={t.logout} />
     </div>
   );
 }

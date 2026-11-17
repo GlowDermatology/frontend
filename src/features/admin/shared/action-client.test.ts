@@ -128,3 +128,30 @@ describe("runAction", () => {
     expect(invoke).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("runAction: the forced password change (DESIGN §E)", () => {
+  it("sends a 403 password_change_required to the change page with the current location", async () => {
+    const { env: e, fetchMock, assign } = env();
+    const failure: ActionResult<never> = {
+      ok: false,
+      error: "Avval parolingizni o‘zgartiring.",
+      code: "password_change_required",
+    };
+    expect(await runAction(async () => failure, e)).toBe(failure);
+    expect(assign).toHaveBeenCalledWith(
+      "/admin/change-password?next=%2Fadmin%2Forders%2F10248%3Ftab%3Dhistory",
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("also after a refresh retry", async () => {
+    const { env: e, assign } = env();
+    const invoke = vi
+      .fn<(csrf: string) => Promise<ActionResult<string>>>()
+      .mockResolvedValueOnce(EXPIRED)
+      .mockResolvedValueOnce({ ok: false, error: "x", code: "password_change_required" });
+    await runAction(invoke, e);
+    expect(assign).toHaveBeenCalledTimes(1);
+    expect(assign.mock.calls[0]![0]).toMatch(/^\/admin\/change-password\?next=/);
+  });
+});

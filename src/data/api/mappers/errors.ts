@@ -1,3 +1,6 @@
+import type { Locale } from "@/lib/i18n/locales";
+
+import { dataCopy } from "../../copy";
 import type { ActionResult } from "../../types";
 import { isApiError } from "../errors";
 import { camelKey } from "./common";
@@ -23,15 +26,12 @@ export const TOP_LEVEL_ERROR = null;
 
 /** `ActionResult.error` for a 401 that ends the session; the client refreshes or goes to login. */
 export const SESSION_EXPIRED = "session_expired";
-export const NETWORK_ERROR_MESSAGE = "API bilan bog‘lanib bo‘lmadi.";
-export const UNEXPECTED_ERROR_MESSAGE = "Kutilmagan xato.";
+/** Uzbek (the default); `toActionResult` words them in the request's language. */
+export const NETWORK_ERROR_MESSAGE = dataCopy.uz.network;
+export const UNEXPECTED_ERROR_MESSAGE = dataCopy.uz.unexpected;
 
 /** 401 codes that mean the session is gone (§1.2); `invalid_credentials` is not one. */
 const SESSION_CODES = new Set(["not_authenticated", "SESSION_EXPIRED", "SESSION_REPLACED"]);
-
-function throttledMessage(seconds: number): string {
-  return `Juda ko‘p urinish. ${seconds} soniyadan so‘ng qayta urinib ko‘ring.`;
-}
 
 /**
  * Whether an error is a 401 that ends the current session (as opposed to a
@@ -71,10 +71,13 @@ export function mapFieldPath(field: string, remap?: FieldRemap): string | null {
  * - 401 session codes → `error: "session_expired"` (see `isSessionExpired`);
  *   `invalid_credentials` keeps its message so the login form can show it.
  * - 429 → the contract template with the `Retry-After` seconds when present.
- * - transport failure (status 0) → "API bilan bog‘lanib bo‘lmadi.".
+ *
+ * The frontend's own texts follow `locale`, else the language the request asked the API for
+ * (`ApiError.locale`), else Uzbek.
+ * - transport failure (status 0) → `dataCopy.network` ("API bilan bog‘lanib bo‘lmadi.").
  * - everything else (409, 422, 503, 404, 5xx, …) → the envelope message.
  * - a non-`ApiError` is a bug, not an API outcome: it is logged and shown as
- *   "Kutilmagan xato." so the form never hangs.
+ *   `dataCopy.unexpected` so the form never hangs.
  *
  * `code` carries the machine-readable reason: `"session_expired"`,
  * `"network_error"` and `"unexpected_error"` for the client-side outcomes,
@@ -82,12 +85,13 @@ export function mapFieldPath(field: string, remap?: FieldRemap): string | null {
  * `not_found`, `conflict`, `invalid_transition`, `throttled`, …), which is
  * what `runAction` / `useIdempotencyKey` branch on.
  */
-export function toActionResult(error: unknown, remap?: FieldRemap): ActionFailure {
+export function toActionResult(error: unknown, remap?: FieldRemap, locale?: Locale): ActionFailure {
   if (!isApiError(error)) {
     console.error("[data] unexpected error in a Server Action", error);
-    return { ok: false, error: UNEXPECTED_ERROR_MESSAGE, code: "unexpected_error" };
+    return { ok: false, error: dataCopy[locale ?? "uz"].unexpected, code: "unexpected_error" };
   }
-  if (error.status === 0) return { ok: false, error: NETWORK_ERROR_MESSAGE, code: "network_error" };
+  const m = dataCopy[locale ?? error.locale ?? "uz"];
+  if (error.status === 0) return { ok: false, error: m.network, code: "network_error" };
   if (isSessionExpired(error)) return { ok: false, error: SESSION_EXPIRED, code: SESSION_EXPIRED };
 
   if (error.status === 400 && error.code === "validation_error") {
@@ -111,7 +115,7 @@ export function toActionResult(error: unknown, remap?: FieldRemap): ActionFailur
   }
 
   if (error.status === 429 && error.retryAfter !== undefined) {
-    return { ok: false, error: throttledMessage(error.retryAfter), code: error.code };
+    return { ok: false, error: m.throttled(error.retryAfter), code: error.code };
   }
   return { ok: false, error: error.body.message, code: error.code };
 }

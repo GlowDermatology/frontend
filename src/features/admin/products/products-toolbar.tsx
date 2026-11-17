@@ -4,14 +4,15 @@ import { useEffect, useRef, useState } from "react";
 
 import { SearchInput } from "@/components/ui/field";
 import { Icon } from "@/components/ui/icon";
-import { SelectMenu, filterTriggerClass } from "@/components/ui/menu";
+import { filterTriggerClass, Select, type SelectOption } from "@/components/ui/select";
 import type { ProductListQuery } from "@/data/products";
-import { categoryLabel, type Category } from "@/domain/category";
+import type { Category } from "@/domain/category";
 import type { ProductStatus } from "@/domain/product";
 import { cn } from "@/lib/cn";
+import { useCopy } from "@/lib/i18n/admin-context";
 
 import { useListNavigation } from "../shared/list-transition";
-import { PRODUCT_STATUS_META } from "./labels";
+import { productsCopy } from "./copy";
 import { hasActiveProductFilters, productListHref } from "./query";
 
 type All = "all";
@@ -23,6 +24,8 @@ interface ProductsToolbarProps {
 }
 
 export function ProductsToolbar({ query, categories }: ProductsToolbarProps) {
+  const copy = useCopy(productsCopy);
+  const t = copy.toolbar;
   const { navigate } = useListNavigation();
   const [search, setSearch] = useState(query.q ?? "");
   const lastSubmitted = useRef(query.q ?? "");
@@ -40,53 +43,57 @@ export function ProductsToolbar({ query, categories }: ProductsToolbarProps) {
   const update = (patch: Partial<ProductListQuery>) =>
     navigate(productListHref({ ...query, ...patch, page: 1 }));
 
-  const categoryTrigger =
-    query.category === "none"
-      ? "Tanlanmagan"
-      : query.category
-        ? categoryLabel(categories, query.category)
-        : "Hammasi";
+  const categoryOptions: SelectOption[] = [
+    { value: "all", label: t.all },
+    ...categories.map((category) => ({
+      value: category.slug,
+      label: category.name.uz || category.slug,
+      ...(category.isActive ? {} : { description: copy.editor.inactiveCategory }),
+    })),
+    { value: "none", label: t.noCategory },
+  ];
 
   return (
     <div className="flex flex-wrap items-center gap-2.5 border-b border-line p-4">
       <SearchInput
-        label="Nomi yoki shtrix-kod"
-        placeholder="Nomi, SKU yoki shtrix-kod"
+        label={t.search}
+        placeholder={t.searchPlaceholder}
         value={search}
+        maxLength={200}
         onChange={(event) => setSearch(event.target.value)}
         wrapperClassName="max-w-[320px] flex-[1_1_240px] gap-2 bg-transparent px-3"
       />
-      <SelectMenu<string>
-        label="Kategoriya"
-        trigger={`Kategoriya: ${categoryTrigger}`}
+      <Select<string>
+        variant="filter"
+        aria-label={t.category}
+        prefix={`${t.category}:`}
         value={query.category ?? "all"}
         onValueChange={(value) => update({ category: value === "all" ? undefined : value })}
-        options={[
-          { value: "all", label: "Hammasi" },
-          ...categories.map((category) => ({ value: category.slug, label: category.name.uz })),
-          { value: "none", label: "Tanlanmagan" },
-        ]}
+        options={categoryOptions}
+        className="max-w-[300px]"
       />
-      <SelectMenu<ProductStatus | All>
-        label="Holat"
-        trigger={`Holat: ${query.status ? PRODUCT_STATUS_META[query.status].label : "Hammasi"}`}
+      <Select<ProductStatus | All>
+        variant="filter"
+        aria-label={t.status}
+        prefix={`${t.status}:`}
         value={query.status ?? "all"}
         onValueChange={(value) => update({ status: value === "all" ? undefined : value })}
         options={[
-          { value: "all", label: "Hammasi" },
-          { value: "active", label: PRODUCT_STATUS_META.active.label },
-          { value: "hidden", label: PRODUCT_STATUS_META.hidden.label },
+          { value: "all", label: t.all },
+          { value: "active", label: copy.status.active },
+          { value: "hidden", label: copy.status.hidden },
         ]}
       />
-      <SelectMenu<"yes" | "no" | All>
-        label="Aksiya"
-        trigger={`Aksiya: ${query.promo === "yes" ? "Aksiyada" : query.promo === "no" ? "Aksiyasiz" : "Hammasi"}`}
+      <Select<"yes" | "no" | All>
+        variant="filter"
+        aria-label={t.promo}
+        prefix={`${t.promo}:`}
         value={query.promo ?? "all"}
         onValueChange={(value) => update({ promo: value === "all" ? undefined : value })}
         options={[
-          { value: "all", label: "Hammasi" },
-          { value: "yes", label: "Aksiyada" },
-          { value: "no", label: "Aksiyasiz" },
+          { value: "all", label: t.all },
+          { value: "yes", label: t.inPromo },
+          { value: "no", label: t.notInPromo },
         ]}
       />
       <button
@@ -96,7 +103,7 @@ export function ProductsToolbar({ query, categories }: ProductsToolbarProps) {
         className={cn(filterTriggerClass, "aria-pressed:border-ink aria-pressed:bg-danger-soft")}
       >
         <span aria-hidden="true" className="size-2 rounded-full bg-danger" />
-        Faqat tugaganlar
+        {t.outOfStock}
       </button>
       {hasActiveProductFilters(query) && (
         <button
@@ -109,7 +116,7 @@ export function ProductsToolbar({ query, categories }: ProductsToolbarProps) {
           className="inline-flex h-11 items-center gap-2 rounded-md px-3.5 text-label font-bold whitespace-nowrap text-ink transition-colors duration-150 hover:bg-gold-soft"
         >
           <Icon name="close" size={18} />
-          Filtrlarni tozalash
+          {t.clear}
         </button>
       )}
     </div>

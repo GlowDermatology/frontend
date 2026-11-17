@@ -1,4 +1,6 @@
 import type { Banner } from "@/domain/banner";
+import { catalogDataCopy, type CatalogDataCopy } from "@/domain/copy/catalog";
+import { copyFor } from "@/lib/i18n/admin-locale";
 
 import type { BannerFormValues } from "../banners.schema";
 import { referenceNow } from "../config";
@@ -16,14 +18,14 @@ import { delay } from "./delay";
 
 const byId = (id: string) => BANNERS.find((b) => b.id === id) ?? null;
 
-function linkErrors(values: BannerFormValues): Record<string, string> | null {
+function linkErrors(values: BannerFormValues, m: CatalogDataCopy): Record<string, string> | null {
   if (values.link.kind === "product") {
     const product = PRODUCTS.find((p) => p.id === values.link.productId);
-    if (!product || product.status !== "active") return { "link.productId": "Topilmadi." };
+    if (!product || product.status !== "active") return { "link.productId": m.notFoundShort };
   }
   if (values.link.kind === "category") {
     if (!CATEGORIES.some((c) => c.slug === values.link.category)) {
-      return { "link.category": "Topilmadi." };
+      return { "link.category": m.notFoundShort };
     }
   }
   return null;
@@ -71,8 +73,9 @@ export async function createBanner(
   image: File,
 ): Promise<ActionResult<Banner>> {
   await delay(500);
-  const fieldErrors = linkErrors(values);
-  if (fieldErrors) return { ok: false, error: "Maydonlarni tekshiring.", fieldErrors };
+  const m = await copyFor(catalogDataCopy);
+  const fieldErrors = linkErrors(values, m);
+  if (fieldErrors) return { ok: false, error: m.checkFields, fieldErrors };
   return { ok: true, data: apply(null, values, image) };
 }
 
@@ -83,21 +86,22 @@ export async function updateBanner(
   baseline: BannerFormValues | null = null,
 ): Promise<ActionResult<Banner>> {
   await delay(400);
+  const m = await copyFor(catalogDataCopy);
   const before = byId(id);
   if (!before && !id.startsWith("draft-")) {
-    return { ok: false, error: "Banner topilmadi.", code: "not_found" };
+    return { ok: false, error: m.bannerNotFound, code: "not_found" };
   }
   // Like the API: the link targets are checked only when the link is sent,
   // i.e. when it changed against the loaded banner.
-  const fieldErrors = linkChanged(baseline ?? before, values) ? linkErrors(values) : null;
-  if (fieldErrors) return { ok: false, error: "Maydonlarni tekshiring.", fieldErrors };
+  const fieldErrors = linkChanged(baseline ?? before, values) ? linkErrors(values, m) : null;
+  if (fieldErrors) return { ok: false, error: m.checkFields, fieldErrors };
   return { ok: true, data: apply(before ?? { ...apply(null, values, null), id }, values, image) };
 }
 
 export async function deleteBanner(id: string): Promise<ActionResult<{ id: string }>> {
   await delay(300);
   if (!byId(id) && !id.startsWith("draft-")) {
-    return { ok: false, error: "Banner topilmadi.", code: "not_found" };
+    return { ok: false, error: (await copyFor(catalogDataCopy)).bannerNotFound, code: "not_found" };
   }
   return { ok: true, data: { id } };
 }
@@ -107,6 +111,8 @@ export async function reorderBanners(ids: string[]): Promise<ActionResult<Banner
   await delay(200);
   const current = new Set(BANNERS.map((b) => b.id));
   const same = ids.length === current.size && ids.every((id) => current.has(id));
-  if (!same) return { ok: false, error: "Ro‘yxat joriy elementlarga mos emas.", code: "mismatch" };
+  if (!same) {
+    return { ok: false, error: (await copyFor(catalogDataCopy)).listMismatch, code: "mismatch" };
+  }
   return { ok: true, data: ids.map((id, position) => ({ ...byId(id)!, position })) };
 }

@@ -121,6 +121,26 @@ describe("apiFetch", () => {
     ]);
   });
 
+  it("sends the admin language of the request as Accept-Language (DESIGN §G)", async () => {
+    fetchMock.mockImplementation(async () => jsonResponse({}));
+    try {
+      requestHeaders.set("cookie", "gd_csrf=abc; gd_admin_language=ru");
+      await apiFetch("/x/");
+      expect(lastRequest(fetchMock).headers.get("accept-language")).toBe("ru");
+
+      // An explicit locale wins (e.g. a sign-in page that knows the chosen language).
+      await apiFetch("/x/", { locale: "en" });
+      expect(lastRequest(fetchMock).headers.get("accept-language")).toBe("en");
+
+      // Unknown values fall back to the source language.
+      requestHeaders.set("cookie", "gd_admin_language=de");
+      await apiFetch("/x/");
+      expect(lastRequest(fetchMock).headers.get("accept-language")).toBe("uz");
+    } finally {
+      requestHeaders.delete("cookie");
+    }
+  });
+
   it("falls back to x-real-ip and omits the IP header when neither is present", async () => {
     fetchMock.mockImplementation(async () => jsonResponse({}));
     await apiFetch("/x/");

@@ -30,6 +30,17 @@ vi.mock("next/headers", () => ({
   }),
   headers: async () => ({ get: (name: string) => requestHeaders.get(name) ?? null }),
 }));
+const me = vi.hoisted(() => ({ mustChange: false, calls: 0 }));
+vi.mock("./api/auth", () => ({
+  apiMe: async () => {
+    me.calls += 1;
+    return {
+      status: 200,
+      headers: new Headers(),
+      data: { id: 1, email: "a@glowderma.uz", must_change_password: me.mustChange },
+    };
+  },
+}));
 vi.mock("next/navigation", () => ({
   redirect: (location: string) => {
     throw new RedirectSignal(location);
@@ -64,6 +75,8 @@ beforeEach(() => {
   process.env.GLOWDERMA_COOKIE_SECURE = "false";
   cookieJar.clear();
   requestHeaders.clear();
+  me.mustChange = false;
+  me.calls = 0;
 });
 
 afterEach(() => {
@@ -135,5 +148,42 @@ describe("requireStaff (api mode)", () => {
   it("does not let an unsafe next path through", async () => {
     requestHeaders.set("x-gd-next", "https://evil.example/admin");
     expect(await redirectOf(requireStaff)).toBe("/admin/login?next=%2Fadmin");
+  });
+});
+
+describe("requireStaff: the forced password change (DESIGN §E)", () => {
+  it("sends an account that must change its password to the change page with next", async () => {
+    cookieJar.set(ACCESS, liveAccess());
+    me.mustChange = true;
+    requestHeaders.set("x-gd-next", "/admin/orders?status=new");
+    expect(await redirectOf(requireStaff)).toBe(
+      "/admin/change-password?next=%2Fadmin%2Forders%3Fstatus%3Dnew",
+    );
+    // The change page itself lets it through.
+    expect(await requireStaff({ allowPasswordChangePending: true })).toMatchObject({ ok: true });
+  });
+
+  it("never loops: the change page as next falls back to /admin", async () => {
+    cookieJar.set(ACCESS, liveAccess());
+    me.mustChange = true;
+    requestHeaders.set("x-gd-next", "/admin/change-password?next=%2Fadmin%2Fstaff");
+    expect(await redirectOf(requireStaff)).toBe("/admin/change-password?next=%2Fadmin");
+  });
+
+  it("previews the gate in mock mode until the demo password was changed in this browser", async () => {
+    process.env.GLOWDERMA_DATA_SOURCE = "mock";
+    const saved = process.env.GLOWDERMA_MOCK_MUST_CHANGE;
+    try {
+      delete process.env.GLOWDERMA_MOCK_MUST_CHANGE;
+      expect(await requireStaff()).toEqual({ ok: true, mode: "mock" });
+      process.env.GLOWDERMA_MOCK_MUST_CHANGE = "true";
+      expect(await redirectOf(requireStaff)).toBe("/admin/change-password?next=%2Fadmin");
+      cookieJar.set("gd_mock_password_set", "1");
+      expect(await requireStaff()).toEqual({ ok: true, mode: "mock" });
+      expect(me.calls).toBe(0);
+    } finally {
+      if (saved === undefined) delete process.env.GLOWDERMA_MOCK_MUST_CHANGE;
+      else process.env.GLOWDERMA_MOCK_MUST_CHANGE = saved;
+    }
   });
 });

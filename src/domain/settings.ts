@@ -1,3 +1,5 @@
+import { authDataCopy, type AuthDataCopy } from "./copy/auth";
+
 /** How the current session's sign-in was proven (contract §2.1 `Me.auth_method`, M3). */
 export type StaffAuthMethod = "password" | "google" | "facebook" | "apple";
 
@@ -25,20 +27,37 @@ export interface StaffAccount {
  * identity (contract §2.1: `link/` answers 403 otherwise, M2). The backend's
  * "Ruxsat yo‘q." does not say what to do, so the account card says it —
  * instead of «Bog‘lash» since M3 (`auth_method`), and after a refused link.
+ * Texts in `authDataCopy` (uz/ru/en); these constants are the Uzbek ones.
  */
-export const LINK_NEEDS_PASSWORD_MESSAGE =
-  "Ijtimoiy tarmoq orqali ochilgan sessiyada hisob bog‘lab bo‘lmaydi. Chiqing, email va parol bilan qayta kiring, so‘ng «Bog‘lash»ni bosing.";
+export const LINK_NEEDS_PASSWORD_MESSAGE = authDataCopy.uz.linkNeedsPassword;
 
 /** The same hint for a session whose sign-in the backend did not record (`auth_method` null). */
-export const LINK_NEEDS_NEW_SIGN_IN_MESSAGE =
-  "Bu sessiyada hisob bog‘lab bo‘lmaydi. Chiqing, email va parol bilan qayta kiring, so‘ng «Bog‘lash»ni bosing.";
+export const LINK_NEEDS_NEW_SIGN_IN_MESSAGE = authDataCopy.uz.linkNeedsNewSignIn;
 
 /**
  * Why this session cannot link a provider, or `null` when it may try: a
  * password sign-in, or a backend that does not report `auth_method` (before
  * M3), where Django's 403 is the guard and `oauthLinkErrorMessage` explains it.
+ * `m` picks the language (Uzbek by default).
  */
-export function linkBlockedMessage(authMethod: StaffAuthMethod | null | undefined): string | null {
+export function linkBlockedMessage(
+  authMethod: StaffAuthMethod | null | undefined,
+  m: Pick<AuthDataCopy, "linkNeedsPassword" | "linkNeedsNewSignIn"> = authDataCopy.uz,
+): string | null {
   if (authMethod === "password" || authMethod === undefined) return null;
-  return authMethod === null ? LINK_NEEDS_NEW_SIGN_IN_MESSAGE : LINK_NEEDS_PASSWORD_MESSAGE;
+  return authMethod === null ? m.linkNeedsNewSignIn : m.linkNeedsPassword;
+}
+
+/** The caller's admin panel MFA (contract §2.1 `GET auth/mfa/`, DESIGN §E "MFA"). */
+export interface MfaStatus {
+  enabled: boolean;
+  /** Unused recovery codes (0 while off). */
+  recoveryCodesLeft: number;
+}
+
+/** At or below this many unused recovery codes the Settings card warns (DESIGN §E). */
+export const LOW_RECOVERY_CODES = 3;
+
+export function recoveryCodesLow(status: MfaStatus): boolean {
+  return status.enabled && status.recoveryCodesLeft <= LOW_RECOVERY_CODES;
 }

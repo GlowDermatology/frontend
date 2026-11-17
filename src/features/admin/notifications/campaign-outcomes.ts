@@ -76,6 +76,8 @@ export interface CampaignEffects {
   replaceRecord: (record: NotificationRecord) => void;
   dropRecord: (campaignId: string) => void;
   toast: (toast: ToastInput) => void;
+  /** Title of the warning toast of a stale answer («Amal bajarilmadi», admin language). */
+  staleTitle: string;
 }
 
 export function applyCampaignOutcome(
@@ -91,7 +93,7 @@ export function applyCampaignOutcome(
     case "stale":
       effects.close();
       if (outcome.gone) effects.dropRecord(target.id);
-      effects.toast({ tone: "info", title: "Amal bajarilmadi", description: outcome.message });
+      effects.toast({ tone: "warning", title: effects.staleTitle, description: outcome.message });
       return;
     case "done":
       effects.close();

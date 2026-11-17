@@ -1,4 +1,6 @@
 import type { ActionResult } from "@/data/types";
+import { knownAdminLocale } from "@/lib/i18n/admin-locale-cookie";
+import type { Locale } from "@/lib/i18n/locales";
 import {
   currentPath,
   refreshSessionAt,
@@ -7,6 +9,7 @@ import {
   type ActionClientEnv,
 } from "@/lib/actions/action-client";
 
+import { sharedCopy } from "./copy";
 import { readCsrfCookie } from "./csrf";
 
 /**
@@ -20,12 +23,28 @@ import { readCsrfCookie } from "./csrf";
 export type { ActionClientEnv };
 export { currentPath };
 
-export const NETWORK_ERROR_MESSAGE = "API bilan bog‘lanib bo‘lmadi. Qayta urinib ko‘ring.";
+/** The Uzbek text; `runAction` words it in the page's language (`networkErrorMessage()`). */
+export const NETWORK_ERROR_MESSAGE = sharedCopy.uz.network;
 
-const ADMIN_ACTIONS: ActionClientConfig = {
+/**
+ * The admin language of the page: `<html lang>`, which the panel keeps in step with the
+ * `gd_admin_language` cookie (`HtmlLang`, the root layout's head script). Uzbek outside a browser.
+ */
+export function documentLocale(): Locale {
+  if (typeof document === "undefined") return "uz";
+  return knownAdminLocale(document.documentElement.lang) ?? "uz";
+}
+
+/** The synthetic `network_error` text in the page's language. */
+export function networkErrorMessage(locale: Locale = documentLocale()): string {
+  return sharedCopy[locale].network;
+}
+
+const ADMIN_ACTIONS: Omit<ActionClientConfig, "networkErrorMessage"> = {
   refreshPath: "/admin/auth/refresh",
   signInUrl: (next) => `/admin/login?next=${encodeURIComponent(next)}`,
-  networkErrorMessage: NETWORK_ERROR_MESSAGE,
+  // DESIGN §E: the backend's 403 `password_change_required` → the forced change page.
+  passwordChangeUrl: (next) => `/admin/change-password?next=${encodeURIComponent(next)}`,
 };
 
 /** The real browser environment (`fetch`, `location`, the `gd_csrf` cookie). */
@@ -45,5 +64,9 @@ export function runAction<T>(
   invoke: (csrf: string) => Promise<ActionResult<T>>,
   env: ActionClientEnv = browserActionEnv(),
 ): Promise<ActionResult<T>> {
-  return runActionWith(ADMIN_ACTIONS, invoke, env);
+  return runActionWith(
+    { ...ADMIN_ACTIONS, networkErrorMessage: networkErrorMessage() },
+    invoke,
+    env,
+  );
 }

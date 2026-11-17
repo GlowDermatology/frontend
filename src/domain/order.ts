@@ -5,6 +5,9 @@
  * change is appended to the status history with its source (system, BTS or
  * admin). Money is an integer number of so‘m (UZS).
  */
+import type { Locale } from "@/lib/i18n/locales";
+
+import { orderLabelsCopy } from "./copy/orders";
 import type { ProductArtRef } from "./product";
 
 export const ORDER_STATUSES = [
@@ -237,20 +240,11 @@ export interface Refund {
  * filter and the state badges. `manual_required` is a Click refund too since
  * M2, so its name does not say Payme; the instruction is `refundStateLine`.
  */
-export const REFUND_STATE_LABEL: Record<RefundState, string> = {
-  requested: "Qaytarish so‘raldi",
-  submitting: "Qaytarilmoqda",
-  succeeded: "Qaytarildi",
-  failed: "Qaytarib bo‘lmadi",
-  manual_required: "Qo‘lda qaytarish kerak",
-  unknown: "Holat noma’lum · tekshiring",
-};
+export const REFUND_STATE_LABEL: Record<RefundState, string> = orderLabelsCopy.uz.refundState;
 
 /** The §5.1 line of a `manual_required` refund, by provider (never assume Payme). */
-export const MANUAL_REFUND_LINE: Record<PaymentProvider, string> = {
-  payme: "Payme kabinetida qaytarish kerak",
-  click: "Mijozga qo‘lda to‘lang, so‘ng «Qaytarildi» deb belgilang",
-};
+export const MANUAL_REFUND_LINE: Record<PaymentProvider, string> =
+  orderLabelsCopy.uz.manualRefundLine;
 
 /**
  * The refund state line (contract §5.1 "Refund state", §7 item 3; also the
@@ -262,22 +256,21 @@ export const MANUAL_REFUND_LINE: Record<PaymentProvider, string> = {
  */
 export function refundStateLine(
   refund: Pick<Refund, "state" | "provider"> & { manualReason?: ManualRefundReason },
+  locale: Locale = "uz",
 ): string {
-  if (refund.state !== "manual_required") return REFUND_STATE_LABEL[refund.state];
+  const labels = orderLabelsCopy[locale];
+  if (refund.state !== "manual_required") return labels.refundState[refund.state];
   const payme =
     refund.manualReason === "payme" || (!refund.manualReason && refund.provider === "payme");
-  return MANUAL_REFUND_LINE[payme ? "payme" : "click"];
+  return labels.manualRefundLine[payme ? "payme" : "click"];
 }
 
 /**
  * The note suffix of a manual `refund_requested` row by `manual_reason`
  * (contract §5.1, without the leading " · ").
  */
-export const MANUAL_REFUND_NOTE: Record<ManualRefundReason, string> = {
-  payme: "Payme kabinetida qo‘lda qaytariladi",
-  no_paydoc: "Click to‘lov raqami yo‘q · qo‘lda to‘lanadi",
-  fake_mode: "Click sinov rejimida · qo‘lda to‘lanadi",
-};
+export const MANUAL_REFUND_NOTE: Record<ManualRefundReason, string> =
+  orderLabelsCopy.uz.manualRefundNote;
 
 /**
  * Why a refund that still needs a payout is paid by hand, when its line does
@@ -287,9 +280,12 @@ export const MANUAL_REFUND_NOTE: Record<ManualRefundReason, string> = {
  */
 export function manualRefundNote(
   refund: Pick<Refund, "state"> & { manualReason?: ManualRefundReason },
+  locale: Locale = "uz",
 ): string | null {
   if (refund.state !== "manual_required" || !refund.manualReason) return null;
-  return refund.manualReason === "payme" ? null : MANUAL_REFUND_NOTE[refund.manualReason];
+  return refund.manualReason === "payme"
+    ? null
+    : orderLabelsCopy[locale].manualRefundNote[refund.manualReason];
 }
 
 /**
@@ -459,51 +455,36 @@ export function shipmentPending(shipment: Shipment): boolean {
   return (shipment.state === "failed" || shipment.state === "not_created") && !!shipment.pending;
 }
 
-/* --- Carrier labels (Uzbek, as the backend's enum labels) --- */
+/* --- Carrier labels (the `uz` objects are the backend's enum labels) --- */
 
+/** The Yandex class names: the same words in every admin language. */
 export const DELIVERY_METHOD_LABEL: Record<DeliveryMethod, string> = {
   standard: "Standard",
   express: "Express",
 };
 
-export const SHIPMENT_STAGE_LABEL: Record<ShipmentStage, string> = {
-  awaiting_dispatch: "Kuryer chaqirilishini kutmoqda",
-  courier_requested: "Kuryer qidirilmoqda",
-  courier_assigned: "Kuryer biriktirildi",
-  courier_arrived: "Kuryer omborga keldi",
-  in_transit: "Yo‘lda",
-  at_destination: "Kuryer manzilda",
-  delivered: "Topshirildi",
-  returning: "Omborga qaytarilmoqda",
-  returned: "Omborga qaytdi",
-  cancelled: "Bekor qilindi",
-  failed: "Kuryer topilmadi yoki xato",
-};
+export const SHIPMENT_STAGE_LABEL: Record<ShipmentStage, string> = orderLabelsCopy.uz.shipmentStage;
 
-export const DELIVERY_ISSUE_KIND_LABEL: Record<DeliveryIssueKind, string> = {
-  dispatch_failed: "Kuryer chaqirilmadi",
-  dispatch_unknown: "Kuryer chaqiruvi noaniq",
-  dispatch_review: "Narxni tasdiqlash kerak",
-  delivery_failed: "Yetkazib bo‘lmadi",
-  return_pending: "Qaytish kutilmoqda",
-  preparation_overdue: "Tayyorlash kechikdi",
-  cancel_incomplete: "Bekor qilish tugallanmadi",
-  parcel_unaccounted: "Jo‘natma nazoratdan chiqdi",
-  incident: "Hodisa",
-};
+export const DELIVERY_ISSUE_KIND_LABEL: Record<DeliveryIssueKind, string> =
+  orderLabelsCopy.uz.issueKind;
 
 /** Kind of an API value this build may not know yet: shown as its code. */
-export function issueKindLabel(kind: string): string {
-  return (DELIVERY_ISSUE_KIND_LABEL as Record<string, string>)[kind] ?? kind;
+export function issueKindLabel(kind: string, locale: Locale = "uz"): string {
+  const labels = orderLabelsCopy[locale].issueKind as Record<string, string>;
+  return (Object.hasOwn(labels, kind) ? labels[kind] : undefined) ?? kind;
 }
 
 /**
  * Who carries the order, for the list and the cards: "Yandex Standard",
- * "Yandex Express", "Yandex" (method unknown), "BTS", or "Olib ketish" for
- * pickup. An order from an API without `delivery` is a BTS delivery.
+ * "Yandex Express", "Yandex" (method unknown), "BTS", or the pickup word
+ * («Olib ketish») for pickup. An order from an API without `delivery` is a
+ * BTS delivery.
  */
-export function carrierLabel(order: Pick<OrderSummary, "fulfilment" | "delivery">): string {
-  if (order.fulfilment === "pickup") return "Olib ketish";
+export function carrierLabel(
+  order: Pick<OrderSummary, "fulfilment" | "delivery">,
+  locale: Locale = "uz",
+): string {
+  if (order.fulfilment === "pickup") return orderLabelsCopy[locale].pickup;
   const delivery = order.delivery;
   if (delivery?.provider !== "yandex") return "BTS";
   return delivery.method ? `Yandex ${DELIVERY_METHOD_LABEL[delivery.method]}` : "Yandex";

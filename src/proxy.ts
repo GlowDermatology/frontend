@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { cookieNames } from "@/data/auth/cookie-names";
 import { csrfCookie, setCookie } from "@/data/auth/cookies";
 import { mintCsrf } from "@/data/auth/csrf";
+import { clearPasswordTokenCookie, passwordTokenCookie } from "@/data/auth/password-token";
 import { NEXT_PATH_HEADER, decideProxy } from "@/data/auth/proxy-decision";
 import { customerCookieNames } from "@/data/customer-auth/cookie-names";
 import {
@@ -19,14 +20,17 @@ import { shopPath } from "@/features/shop/routing/routes";
 /**
  * One proxy, two audiences.
  *
- * **Admin** (`/admin/**`, unchanged; spec "Frontend wiring › Auth ›
+ * **Admin** (`/admin/**`; spec "Frontend wiring › Auth ›
  * src/proxy.ts"). GET/HEAD only: in api mode a missing or near-expiry access
  * cookie is sent to the refresh route (307, `next` = path + query) unless the
  * backoff marker is set; the refresh cookie never reaches the proxy
  * (`Path=/admin/auth`), so it cannot refresh itself. In both modes it mints
  * the readable `gd_csrf` cookie when missing and stamps `x-gd-next` for
  * `requireStaff()`. Server Actions (POST) pass through: every action
- * verifies the session itself.
+ * verifies the session itself. The public `/admin/set-password` (DESIGN §E)
+ * is never bounced: a `?token=` is moved into its HttpOnly cookie with a 303
+ * to the bare page, and the page is served with `Referrer-Policy:
+ * no-referrer`.
  *
  * **Storefront** (everything else that is a page; `decideShopProxy`):
  * legacy numeric id URLs get a 301 to the slug (api mode), private pages get
@@ -79,11 +83,23 @@ function adminProxy(request: NextRequest, secure: boolean): NextResponse {
     );
     response = NextResponse.redirect(location, 307);
     response.headers.set("Cache-Control", "no-store");
+  } else if (decision.kind === "stash-token") {
+    // The e-mailed password link: the token moves into its HttpOnly cookie and the browser
+    // reloads the bare page (303), so it is neither in the address bar nor in the history.
+    response = NextResponse.redirect(new URL(decision.location, request.nextUrl), 303);
+    response.headers.set("Cache-Control", "no-store");
+    response.headers.set("Referrer-Policy", "no-referrer");
+    if (decision.token) {
+      setCookie(response.cookies, passwordTokenCookie({ secure, token: decision.token }));
+    } else {
+      clearPasswordTokenCookie(response.cookies, secure);
+    }
   } else {
     const requestHeaders = new Headers(request.headers);
     // Always overwritten, so a client-supplied value never reaches the DAL.
     requestHeaders.set(NEXT_PATH_HEADER, pathname + search);
     response = NextResponse.next({ request: { headers: requestHeaders } });
+    if (decision.noReferrer) response.headers.set("Referrer-Policy", "no-referrer");
   }
   if (decision.mintCsrf) setCookie(response.cookies, csrfCookie({ secure, value: mintCsrf() }));
   return response;

@@ -1,5 +1,8 @@
 import type { DispatchSuspension } from "@/domain/delivery-issue";
-import { formatDateTimeShort, tashkentParts } from "@/lib/format";
+import { createFormatter, tashkentParts } from "@/lib/format";
+import type { Locale } from "@/lib/i18n/locales";
+
+import { issuesCopy } from "./copy";
 
 /**
  * The courier-dispatch switch (`delivery/suspension/`, plan decision 13):
@@ -42,9 +45,17 @@ export function localInputValue(instant: string | Date): string {
 }
 
 /** "Kuryer chaqirish ishlayapti" / "To‘xtatilgan · 25-okt, 18:00 gacha" / "… · qo‘lda yoqilguncha". */
-export function suspensionLine(suspension: DispatchSuspension): string {
-  if (!suspension.suspended) return "Kuryer chaqirish ishlayapti";
+export function suspensionLine(suspension: DispatchSuspension, locale: Locale = "uz"): string {
+  const t = issuesCopy[locale].suspension;
+  if (!suspension.suspended) return t.working;
   return suspension.until
-    ? `To‘xtatilgan · ${formatDateTimeShort(suspension.until)} gacha`
-    : "To‘xtatilgan · qo‘lda yoqilguncha";
+    ? t.until(createFormatter(locale).dateTimeShort(suspension.until))
+    : t.manual;
+}
+
+/** Whether an aware `until` is not after `now` (the API refuses it: `in_past`). */
+export function untilInPast(until: string | null, now: string | Date): boolean {
+  if (until === null) return false;
+  const at = Date.parse(until);
+  return Number.isNaN(at) || at <= new Date(now).getTime();
 }

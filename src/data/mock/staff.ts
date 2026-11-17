@@ -5,9 +5,13 @@ import { paginate, type Page } from "../types";
 
 const t = (iso: string) => `${iso}+05:00`;
 
+const noInvite = { state: "none", sentAt: null, expiresAt: null } as const;
+
 /**
  * The demo's staff accounts (contract §2.16). The Administrator (id 1) is
- * the signed-in demo account (`MOCK_ME`) and a manager.
+ * the signed-in demo account (`MOCK_ME`) and a manager. The others show the
+ * row badges (DESIGN §E): Dilnoza has the panel authenticator on, Sardor was
+ * invited by e-mail and has not set a password yet, Malika's link expired.
  */
 export const MOCK_STAFF_ACCOUNTS: ReadonlyArray<StaffAccountRow> = [
   {
@@ -20,6 +24,10 @@ export const MOCK_STAFF_ACCOUNTS: ReadonlyArray<StaffAccountRow> = [
     lastLoginAt: t("2026-10-24T09:05:00"),
     linkedProviders: [],
     createdAt: t("2026-06-01T09:00:00"),
+    mustChangePassword: false,
+    passwordChangedAt: t("2026-06-01T09:20:00"),
+    mfaEnabled: false,
+    invite: noInvite,
   },
   {
     id: "2",
@@ -31,6 +39,14 @@ export const MOCK_STAFF_ACCOUNTS: ReadonlyArray<StaffAccountRow> = [
     lastLoginAt: t("2026-10-23T18:30:00"),
     linkedProviders: ["google"],
     createdAt: t("2026-07-14T10:00:00"),
+    mustChangePassword: false,
+    passwordChangedAt: t("2026-07-14T10:30:00"),
+    mfaEnabled: true,
+    invite: {
+      state: "used",
+      sentAt: t("2026-07-14T10:01:00"),
+      expiresAt: t("2026-07-17T10:00:00"),
+    },
   },
   {
     id: "3",
@@ -42,6 +58,14 @@ export const MOCK_STAFF_ACCOUNTS: ReadonlyArray<StaffAccountRow> = [
     lastLoginAt: null,
     linkedProviders: [],
     createdAt: t("2026-10-20T09:00:00"),
+    mustChangePassword: true,
+    passwordChangedAt: null,
+    mfaEnabled: false,
+    invite: {
+      state: "pending",
+      sentAt: t("2026-10-23T09:01:00"),
+      expiresAt: t("2026-10-26T09:00:00"),
+    },
   },
   {
     id: "4",
@@ -53,6 +77,29 @@ export const MOCK_STAFF_ACCOUNTS: ReadonlyArray<StaffAccountRow> = [
     lastLoginAt: t("2026-08-02T12:00:00"),
     linkedProviders: [],
     createdAt: t("2026-06-10T09:00:00"),
+    mustChangePassword: false,
+    passwordChangedAt: t("2026-06-10T11:00:00"),
+    mfaEnabled: false,
+    invite: noInvite,
+  },
+  {
+    id: "5",
+    displayName: "Malika Rahimova",
+    email: "malika@glowderma.uz",
+    fullName: "Malika Rahimova",
+    isActive: true,
+    isManager: false,
+    lastLoginAt: null,
+    linkedProviders: [],
+    createdAt: t("2026-10-15T14:00:00"),
+    mustChangePassword: true,
+    passwordChangedAt: null,
+    mfaEnabled: false,
+    invite: {
+      state: "expired",
+      sentAt: t("2026-10-15T14:01:00"),
+      expiresAt: t("2026-10-18T14:00:00"),
+    },
   },
 ];
 

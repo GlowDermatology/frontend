@@ -9,14 +9,20 @@ import { Breadcrumbs } from "@/components/ui/breadcrumbs";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
 import type { DayAppointment } from "@/data/appointments";
-import {
-  SPECIALIST_ROLE_LABEL,
-  type BlockedPeriod,
-  type ClinicService,
-  type ClinicSpecialist,
-  type HoursOverride,
+import type {
+  BlockedPeriod,
+  ClinicService,
+  ClinicSpecialist,
+  HoursOverride,
 } from "@/domain/clinic";
-import { formatDateTimeShort, formatNumber, toLocalIsoDate } from "@/lib/format";
+import { clinicDataCopy } from "@/domain/copy/clinic";
+import { toLocalIsoDate } from "@/lib/format";
+import { useCopy } from "@/lib/i18n/admin-context";
+import { useFormat } from "@/lib/i18n/admin-hooks";
+
+import { appointmentsCopy } from "../appointments/copy";
+import { customerName } from "../appointments/labels";
+import { specialistsCopy } from "./copy";
 
 import { HoursCard } from "./hours-card";
 import { OffersCard } from "./offers-card";
@@ -43,6 +49,9 @@ interface SpecialistDetailViewProps {
  * this does; only new bookings follow it.
  */
 export function SpecialistDetailView(props: SpecialistDetailViewProps) {
+  const t = useCopy(specialistsCopy).detail;
+  const m = useCopy(clinicDataCopy);
+  const fmt = useFormat();
   const [source, setSource] = useState(props.specialist);
   const [specialist, setSpecialist] = useState(props.specialist);
   if (props.specialist !== source) {
@@ -54,22 +63,25 @@ export function SpecialistDetailView(props: SpecialistDetailViewProps) {
   return (
     <>
       <Breadcrumbs
-        items={[{ label: "Mutaxassislar", href: "/admin/specialists" }, { label: specialist.name }]}
+        items={[{ label: t.crumbs, href: "/admin/specialists" }, { label: specialist.name }]}
       />
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-1">
           <span className="text-body-sm text-ink-muted">
-            {SPECIALIST_ROLE_LABEL[specialist.role]} · {formatNumber(bookable)} ta faol xizmat ·{" "}
-            {formatNumber(specialist.upcomingAppointments)} ta kelgusi qabul
+            {t.summary(
+              m.role[specialist.role],
+              fmt.number(bookable),
+              fmt.number(specialist.upcomingAppointments),
+            )}
           </span>
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="m-0 font-serif text-display leading-10 tracking-normal text-ink">
+            <h1 className="m-0 font-serif text-display leading-10 tracking-normal break-words text-ink">
               {specialist.name}
             </h1>
             {specialist.isActive ? (
-              <Badge tone="success">Faol</Badge>
+              <Badge tone="success">{m.status.active}</Badge>
             ) : (
-              <Badge tone="muted">Nofaol</Badge>
+              <Badge tone="muted">{m.status.inactive}</Badge>
             )}
           </div>
         </div>
@@ -77,8 +89,7 @@ export function SpecialistDetailView(props: SpecialistDetailViewProps) {
       {!specialist.isActive && (bookable === 0 || specialist.workingHours.length === 0) && (
         <p className="m-0 flex items-start gap-2 rounded-md bg-warning-soft px-3.5 py-3 text-body-sm text-ink">
           <Icon name="info" size={18} className="mt-px shrink-0 text-gold-ink" />
-          Mutaxassisga yozilish uchun kamida bitta faol xizmat va haftalik ish vaqti kerak; so‘ng
-          profilda «Faol»ni yoqing.
+          {t.notBookable}
         </p>
       )}
 
@@ -115,17 +126,17 @@ export function SpecialistDetailView(props: SpecialistDetailViewProps) {
 
 /** Open appointments ahead that the schedule no longer covers (§2.17 `conflicts/`). */
 function ConflictsCard({ conflicts }: { conflicts: ReadonlyArray<DayAppointment> }) {
+  const t = useCopy(specialistsCopy).detail;
+  const visits = useCopy(appointmentsCopy);
+  const fmt = useFormat();
   return (
     <Card aria-labelledby="conflicts-title" className="flex flex-col gap-3 border border-warning">
       <div className="flex flex-col gap-1">
         <CardTitle id="conflicts-title" className="flex items-center gap-2 text-heading">
           <Icon name="alert-triangle" size={20} className="text-warning" />
-          Jadvalga to‘g‘ri kelmaydigan qabullar
+          {t.conflictsTitle}
         </CardTitle>
-        <p className="m-0 text-body-sm text-ink-muted">
-          Bu qabullar o‘zgarmagan, lekin endi ish vaqtidan tashqarida. Ularni boshqa vaqtga yoki
-          mutaxassisga ko‘chiring yoki bekor qiling.
-        </p>
+        <p className="m-0 text-body-sm text-ink-muted">{t.conflictsText}</p>
       </div>
       <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
         {conflicts.map((visit) => (
@@ -135,15 +146,17 @@ function ConflictsCard({ conflicts }: { conflicts: ReadonlyArray<DayAppointment>
           >
             <span className="flex flex-col">
               <span className="font-semibold text-ink tabular-nums">
-                {formatDateTimeShort(visit.start)} · {visit.serviceShort}
+                {fmt.dateTimeShort(visit.start)} · {visit.serviceShort}
               </span>
-              <span className="text-caption font-normal text-ink-muted">{visit.customer.name}</span>
+              <span className="text-caption font-normal text-ink-muted">
+                {customerName(visits, visit.customer.name)}
+              </span>
             </span>
             <Link
               href={`/admin/appointments?date=${toLocalIsoDate(visit.start)}` as Route}
               className="text-[13px] font-bold text-ink underline decoration-line-strong underline-offset-4 hover:decoration-gold"
             >
-              Qabullar jadvalida ochish
+              {t.openBoard}
             </Link>
           </li>
         ))}

@@ -1,4 +1,9 @@
-import { formatPercent, type LedgerEntry } from "@/domain/cashback";
+import {
+  ledgerNoteText,
+  ledgerSourceText,
+  type LedgerEntry,
+  type LedgerOrigin,
+} from "@/domain/cashback";
 import type {
   Customer,
   CustomerListQuery,
@@ -7,7 +12,6 @@ import type {
   CustomerSort,
   CustomerTier,
 } from "@/domain/customer";
-import { formatNumber } from "@/lib/format";
 
 import type { QueryValue } from "../client";
 import type {
@@ -27,33 +31,31 @@ import { idString, nullToUndefined, customerContact } from "./common";
  * column, purchases' document labels, the server tier and balances.
  */
 
-/** `A(actor)`: the adjusting staff member, "Administrator" when the API sent none. */
-const actorLabel = (actor: ApiLedgerEntry["actor"]) => actor?.display_name || "Administrator";
-
-/** `LedgerEntry.source`: "Buyurtma №10231", "Billz savdo S-88213" or the adjusting staff member. */
-export function ledgerSource(api: ApiLedgerEntry): string {
-  const ref = api.source_ref ?? (api.order_id === null ? "" : String(api.order_id));
-  if (api.source_type === "order") return `Buyurtma №${ref}`;
-  if (api.source_type === "billz_sale") return `Billz savdo ${ref}`;
-  return actorLabel(api.actor);
+/** The structured source of a ledger row (§5.3), worded per language by the card. */
+export function ledgerOrigin(api: ApiLedgerEntry): LedgerOrigin {
+  return {
+    type: api.source_type,
+    ref: api.source_ref ?? (api.order_id === null ? "" : String(api.order_id)),
+    actor: api.actor?.display_name || null,
+    base: api.base,
+    percent: api.percent,
+    reason: api.reason,
+  };
 }
 
-/** `LedgerEntry.note` (§5.3): the credit base and rate, or the fixed debit/reversal text, or the reason. */
+/** `LedgerEntry.source` in Uzbek: "Buyurtma №10231", "Billz savdo S-88213" or the staff member. */
+export function ledgerSource(api: ApiLedgerEntry): string {
+  return ledgerSourceText({ source: "", origin: ledgerOrigin(api) });
+}
+
+/** `LedgerEntry.note` in Uzbek (§5.3): the credit base and rate, the fixed text, or the reason. */
 export function ledgerNote(api: ApiLedgerEntry): string {
-  switch (api.kind) {
-    case "credit": {
-      if (api.base === null || api.percent === null) return "";
-      const base = `${formatNumber(api.base)} so‘m · ${formatPercent(api.percent)}%`;
-      if (api.source_type === "billz_sale") return `Chek ${base}`;
-      return api.promo_excluded ? `${base} · aksiyasiz qism` : base;
-    }
-    case "debit":
-      return "To‘lovning bir qismi";
-    case "reversal":
-      return "Buyurtma bekor qilindi · cashback qaytarildi";
-    case "adjustment":
-      return api.reason ?? "";
-  }
+  return ledgerNoteText({
+    kind: api.kind,
+    note: "",
+    origin: ledgerOrigin(api),
+    promoExcluded: api.promo_excluded,
+  });
 }
 
 export function mapLedgerEntry(api: ApiLedgerEntry): LedgerEntry {
@@ -68,6 +70,7 @@ export function mapLedgerEntry(api: ApiLedgerEntry): LedgerEntry {
     orderId: nullToUndefined(api.order_id),
     policyVersion: nullToUndefined(api.policy_version),
     promoExcluded: api.promo_excluded,
+    origin: ledgerOrigin(api),
   };
 }
 

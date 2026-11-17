@@ -1,8 +1,10 @@
 import { requireStaff } from "@/data/auth";
 import { getSegment, listSegmentMembers } from "@/data/segments";
+import { copyFor } from "@/lib/i18n/admin-locale";
 
 import { AdminNotFound } from "../shared/admin-not-found";
 import { firstParam, positiveInt, type SearchParams } from "../shared/url-state";
+import { groupsCopy } from "./copy";
 import { MembersView } from "./members-view";
 
 /** Data boundary of /admin/customers/groups/[segmentId] (`?page=`). */
@@ -17,12 +19,13 @@ export async function MembersContent({
   const [{ segmentId }, query] = await Promise.all([params, searchParams]);
   const segment = await getSegment(segmentId);
   if (!segment) {
+    const t = await copyFor(groupsCopy);
     return (
       <AdminNotFound
-        title="Guruh topilmadi"
-        description="Guruh o‘chirilgan yoki manzil noto‘g‘ri."
+        title={t.members.notFoundTitle}
+        description={t.members.notFoundText}
         backHref="/admin/customers/groups"
-        backLabel="Guruhlar"
+        backLabel={t.crumbs.groups}
       />
     );
   }

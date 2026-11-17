@@ -7,6 +7,10 @@ import { CountPill } from "@/components/ui/badge";
 import { Icon } from "@/components/ui/icon";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
+import { issueKindLabel } from "@/domain/order";
+import { useAdminLocale, useCopy } from "@/lib/i18n/admin-context";
+
+import { shellCopy } from "./copy";
 
 import { attach, getServerSnapshot, getSnapshot, offerServerCount, subscribe } from "./issue-watch";
 
@@ -24,12 +28,19 @@ function useIssueCount(initial: number | null) {
  */
 export function IssuesAlertButton({ initial }: { initial: number | null }) {
   const toast = useToast();
-  useEffect(() => attach((item) => toast({ tone: "info", ...item })), [toast]);
+  const t = useCopy(shellCopy).issues;
+  const locale = useAdminLocale();
+  useEffect(
+    () =>
+      attach(
+        (item) => toast({ tone: "warning", ...item }),
+        t,
+        (kind) => issueKindLabel(kind, locale),
+      ),
+    [toast, t, locale],
+  );
   const { open, urgent } = useIssueCount(initial);
-  const label =
-    open === 0
-      ? "Yetkazish muammolari: ochiq muammo yo‘q"
-      : `Yetkazish muammolari: ${open} ta ochiq${urgent > 0 ? `, ${urgent} tasi shoshilinch` : ""}`;
+  const label = open === 0 ? t.none : t.some(open, urgent);
   return (
     <Link
       href="/admin/delivery-issues"
@@ -55,14 +66,13 @@ export function IssuesAlertButton({ initial }: { initial: number | null }) {
 
 /** The sidebar pill of «Muammolar», following the same poll. */
 export function IssuesNavPill({ initial }: { initial: number | null }) {
+  const t = useCopy(shellCopy).issues;
   const { open, urgent } = useIssueCount(initial);
   if (open === 0) return null;
   return (
     <>
       <CountPill className={cn(urgent > 0 && "bg-danger-strong text-white")}>{open}</CountPill>
-      <span className="sr-only">
-        {` — ${open} ta ochiq${urgent > 0 ? `, ${urgent} tasi shoshilinch` : ""}`}
-      </span>
+      <span className="sr-only">{t.pill(open, urgent)}</span>
     </>
   );
 }

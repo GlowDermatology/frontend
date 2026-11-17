@@ -6,20 +6,17 @@ import { isSessionExpired } from "@/data/api/mappers/errors";
 import type { OAuthCallbackRequest } from "@/data/api/types";
 import { cookieNames } from "@/data/auth/cookie-names";
 import {
-  accessCookie,
   clearOAuthFlowCookie,
   clearSessionCookies,
-  csrfCookie,
-  refreshCookie,
   setCookie,
   type SessionCookie,
 } from "@/data/auth/cookies";
-import { mintCsrf } from "@/data/auth/csrf";
 import { sameOriginBounce, seeOther } from "@/data/auth/html-page";
 import { decodeJwtPayload, isAccessLive } from "@/data/auth/jwt";
+import { MFA_STEP_PATH, isMfaChallengeAnswer, mfaChallengeCookie } from "@/data/auth/mfa-challenge";
 import {
-  CALLBACK_MESSAGES,
   OAUTH_PROVIDER_LABEL,
+  callbackMessages,
   checkCallback,
   nonceForExchange,
   oauthCookieName,
@@ -43,7 +40,12 @@ import {
   withNotice,
 } from "@/data/auth/oauth-route";
 import { renewAccess } from "@/data/auth/oauth-session";
+import { applyStaffSession } from "@/data/auth/session-cookies";
+import { MOCK_MFA_COOKIE, mockChallenge, readMockMfaState } from "@/data/mock/mfa";
+import { authDataCopy, type AuthDataCopy } from "@/domain/copy/auth";
 import { serverEnv } from "@/lib/env.server";
+import { ADMIN_LOCALE_COOKIE, parseAdminLocale } from "@/lib/i18n/admin-locale-cookie";
+import { LOCALE_INFO } from "@/lib/i18n/locales";
 
 /**
  * `GET /admin/auth/oauth/{provider}/callback?code=&state=` (contract §2.1).
@@ -57,7 +59,9 @@ import { serverEnv } from "@/lib/env.server";
  * 3. `intent=login`: `POST auth/oauth/{provider}/` with the code, the same
  *    `redirect_uri`, the PKCE verifier and (Google) the nonce; a 200 sets the
  *    access, refresh and rotated csrf cookies exactly like the password login
- *    and lands on the flow's `next`.
+ *    and lands on the flow's `next`; with the admin panel MFA on, the answer
+ *    is a challenge instead (DESIGN §E): it goes into the MFA step page's
+ *    HttpOnly cookie with `next`, and the browser continues at `/admin/mfa`.
  *    `intent=link`: `POST auth/oauth/{provider}/link/` with the current
  *    access token (renewed once through the refresh cookie, which this path
  *    receives, when it lapsed during the round trip) — only when that token
@@ -67,10 +71,12 @@ import { serverEnv } from "@/lib/env.server";
  *    issued before the process started not at all: replaying a
  *    captured cookie and callback URL reads as an expired request.
  * 4. Failures go back to the login page or the account card with a signed
- *    `?oauth=` notice carrying the backend's Uzbek message.
+ *    `?oauth=` notice carrying the message in the admin language (the
+ *    backend's, sent with `Accept-Language`, or this server's `authDataCopy`).
  *
- * Mock mode has no sessions and no Django: a login lands on `next`, a link
- * returns to the account card with a demo notice.
+ * Mock mode has no sessions and no Django: a login lands on `next` (or on the
+ * MFA step while the demo's MFA is on), a link returns to the account card
+ * with a demo notice.
  */
 
 interface Context {
@@ -78,6 +84,8 @@ interface Context {
   mode: OAuthMode;
   secure: boolean;
   nowMs: number;
+  /** The admin language's messages (`gd_admin_language`). */
+  m: AuthDataCopy;
 }
 
 function failure(ctx: Context, intent: "login" | "link", message: string, next = "/admin") {
@@ -117,6 +125,23 @@ function exchangeBody(
   return body;
 }
 
+/**
+ * The MFA step for a first step's challenge: its cookie (HttpOnly, Strict, `Path=/admin/mfa`)
+ * and a 303 there. The callback answered the same-origin bounce first, so the Strict cookie is
+ * sent with the step page's request.
+ */
+function toMfaStep(
+  ctx: Context,
+  answer: { challenge: string; challenge_expires_at: string },
+  next: string,
+): NextResponse | null {
+  const pending = mfaChallengeCookie({ secure: ctx.secure, answer, next, nowMs: ctx.nowMs });
+  if (!pending) return null;
+  const response = seeOther(MFA_STEP_PATH);
+  setCookie(response.cookies, pending);
+  return response;
+}
+
 async function login(ctx: Context, flow: OAuthFlow, body: OAuthCallbackRequest) {
   let data;
   try {
@@ -124,27 +149,16 @@ async function login(ctx: Context, flow: OAuthFlow, body: OAuthCallbackRequest) 
   } catch (error) {
     if (!isApiError(error)) throw error;
     logRefusal(ctx, "login", error);
-    return failure(ctx, "login", oauthErrorMessage(error), flow.next);
+    return failure(ctx, "login", oauthErrorMessage(error, ctx.m), flow.next);
   }
-  const access = accessCookie({
-    secure: ctx.secure,
-    token: data.access,
-    accessExpiresAt: data.access_expires_at,
-    nowMs: ctx.nowMs,
-  });
-  const refresh = refreshCookie({
-    secure: ctx.secure,
-    token: data.refresh,
-    refreshExpiresAt: data.refresh_expires_at,
-    nowMs: ctx.nowMs,
-  });
-  if (!access || !refresh) {
-    return failure(ctx, "login", "API bilan bog‘lanib bo‘lmadi.", flow.next);
+  if (isMfaChallengeAnswer(data)) {
+    return toMfaStep(ctx, data, flow.next) ?? failure(ctx, "login", ctx.m.unreachable, flow.next);
   }
   const response = seeOther(flow.next);
-  setCookie(response.cookies, access);
-  setCookie(response.cookies, refresh);
-  setCookie(response.cookies, csrfCookie({ secure: ctx.secure, value: mintCsrf() }));
+  // The same code path as the password login and the MFA step.
+  if (!applyStaffSession(response.cookies, data, ctx.secure, ctx.nowMs)) {
+    return failure(ctx, "login", ctx.m.unreachable, flow.next);
+  }
   return response;
 }
 
@@ -162,7 +176,7 @@ async function link(
     const response = seeOther(
       withNotice(
         "/admin/login?next=%2Fadmin%2Fsettings",
-        { kind: "error", provider: ctx.provider, message: "Sessiya tugadi. Qayta kiring." },
+        { kind: "error", provider: ctx.provider, message: ctx.m.sessionEnded },
         ctx.nowMs,
       ),
     );
@@ -179,7 +193,7 @@ async function link(
   const bound = (value: string | undefined) => sessionMatches(flow, decodeJwtPayload(value)?.sid);
   const notBound = () => {
     console.warn(`[oauth] ${ctx.provider} link refused: the flow belongs to another session`);
-    return withRenewed(failure(ctx, "link", CALLBACK_MESSAGES.state_mismatch));
+    return withRenewed(failure(ctx, "link", callbackMessages(ctx.m).state_mismatch));
   };
   const renew = async () => {
     renewed = await renewAccess(refreshToken, ctx.secure, ctx.nowMs);
@@ -208,7 +222,7 @@ async function link(
       }
       if (isSessionExpired(error)) return sessionEnded();
       logRefusal(ctx, "link", error);
-      return withRenewed(failure(ctx, "link", oauthLinkErrorMessage(error)));
+      return withRenewed(failure(ctx, "link", oauthLinkErrorMessage(error, ctx.m)));
     }
   }
 
@@ -219,7 +233,7 @@ async function link(
         {
           kind: "linked",
           provider: ctx.provider,
-          message: `${OAUTH_PROVIDER_LABEL[ctx.provider]} hisobi bog‘landi.`,
+          message: ctx.m.linked(OAUTH_PROVIDER_LABEL[ctx.provider]),
         },
         ctx.nowMs,
       ),
@@ -232,10 +246,16 @@ export async function GET(
   routeCtx: RouteContext<"/admin/auth/oauth/[provider]/callback">,
 ) {
   const { provider: param } = await routeCtx.params;
+  // The admin language of this browser (`gd_admin_language`, `Path=/admin`).
+  const locale = parseAdminLocale(request.cookies.get(ADMIN_LOCALE_COOKIE)?.value);
+  const m = authDataCopy[locale];
+  const lang = LOCALE_INFO[locale].htmlLang;
   const enabled = enabledProvider(param);
-  if (!enabled) return notFoundPage();
+  if (!enabled) return notFoundPage(m.page, lang);
   const url = request.nextUrl;
-  if (!sameOrigin(request)) return sameOriginBounce(url.pathname + url.search);
+  if (!sameOrigin(request)) {
+    return sameOriginBounce(url.pathname + url.search, undefined, m.page, lang);
+  }
 
   const secure = serverEnv.cookieSecure();
   const ctx: Context = {
@@ -243,6 +263,7 @@ export async function GET(
     mode: enabled.config.mode,
     secure,
     nowMs: Date.now(),
+    m,
   };
   const params = url.searchParams;
   const check = checkCallback({
@@ -256,10 +277,23 @@ export async function GET(
 
   let response: NextResponse;
   if (!check.ok) {
-    response = failure(ctx, check.intent, CALLBACK_MESSAGES[check.reason], check.next);
+    response = failure(ctx, check.intent, callbackMessages(m)[check.reason], check.next);
   } else if (serverEnv.dataSource() === "mock") {
+    const mfaStep =
+      check.flow.intent === "login" &&
+      readMockMfaState(request.cookies.get(MOCK_MFA_COOKIE)?.value, serverEnv.mockMfa()).enabled
+        ? toMfaStep(
+            ctx,
+            {
+              challenge: mockChallenge(),
+              challenge_expires_at: new Date(ctx.nowMs + 5 * 60_000).toISOString(),
+            },
+            check.flow.next,
+          )
+        : null;
     response =
-      check.flow.intent === "login"
+      mfaStep ??
+      (check.flow.intent === "login"
         ? seeOther(check.flow.next)
         : seeOther(
             withNotice(
@@ -267,14 +301,14 @@ export async function GET(
               {
                 kind: "demo",
                 provider: ctx.provider,
-                message: `Demo rejimi: ${OAUTH_PROVIDER_LABEL[ctx.provider]} hisobi bog‘lanmadi, ma’lumotlar saqlanmaydi.`,
+                message: m.demoNotLinked(OAUTH_PROVIDER_LABEL[ctx.provider]),
               },
               ctx.nowMs,
             ),
-          );
+          ));
   } else {
     const body = exchangeBody(request, ctx, check.flow, check.code);
-    if (!body) response = failure(ctx, check.flow.intent, "Kutilmagan xato.", check.flow.next);
+    if (!body) response = failure(ctx, check.flow.intent, m.unexpected, check.flow.next);
     else if (check.flow.intent === "login") response = await login(ctx, check.flow, body);
     else response = await link(request, ctx, check.flow, body);
   }

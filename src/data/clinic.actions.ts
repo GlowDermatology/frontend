@@ -9,6 +9,9 @@ import type {
   ClinicSpecialist,
   HoursOverride,
 } from "@/domain/clinic";
+import { clinicDataCopy, type ClinicDataCopy } from "@/domain/copy/clinic";
+import { getAdminLocale } from "@/lib/i18n/admin-locale";
+import type { Locale } from "@/lib/i18n/locales";
 
 import {
   apiMutation,
@@ -50,13 +53,7 @@ import {
 } from "./api/mappers/clinic";
 import { TOP_LEVEL_ERROR, toActionResult, type FieldRemap } from "./api/mappers/errors";
 import {
-  blockFormSchema,
-  locationFormSchema,
-  offeredServicesSchema,
-  overrideFormSchema,
-  serviceFormSchema,
-  specialistFormSchema,
-  workingWeekSchema,
+  clinicSchemas,
   type BlockFormValues,
   type LocationFormValues,
   type OfferedServicesValues,
@@ -66,7 +63,7 @@ import {
   type WorkingWeekValues,
 } from "./clinic.schema";
 import * as mock from "./mock/clinic.actions";
-import { imageFileSchema } from "./products.schema";
+import { imageFileSchemas } from "./products.schema";
 import { dataSource } from "./source";
 import type { ActionResult } from "./types";
 
@@ -80,8 +77,6 @@ import type { ActionResult } from "./types";
  * `days.2.breakStart`); a missing clinic is the form-level error.
  */
 
-const BAD_KEY = { ok: false as const, error: "Noto‘g‘ri so‘rov kaliti." };
-const NOT_FOUND = { ok: false as const, error: "Topilmadi.", code: "not_found" };
 const apiId = z.string().regex(/^\d{1,18}$/);
 /** Demo ids also include the fixtures' and the drafts'. */
 const anyId = z.string().regex(/^(?:\d{1,18}|draft-[0-9a-f-]{36})$/);
@@ -92,14 +87,35 @@ const PHOTO_REMAP: FieldRemap = { file: "photo" };
 
 type Guarded = Exclude<Awaited<ReturnType<typeof guardAction>>, { ok: false }>;
 
+interface Started {
+  ok: true;
+  guard: Guarded;
+  locale: Locale;
+  /** The admin language's messages and schemas (cookie `gd_admin_language`). */
+  m: ClinicDataCopy;
+  schemas: (typeof clinicSchemas)[Locale];
+  notFound: { ok: false; error: string; code: string };
+}
+
 async function prologue(
   csrf: string,
   key: string | null,
-): Promise<{ ok: true; guard: Guarded } | { ok: false; error: string; code?: string }> {
+): Promise<Started | { ok: false; error: string; code?: string }> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
-  if (key !== null && !idempotencyKeySchema.safeParse(key).success) return BAD_KEY;
-  return { ok: true, guard };
+  const locale = await getAdminLocale();
+  const m = clinicDataCopy[locale];
+  if (key !== null && !idempotencyKeySchema.safeParse(key).success) {
+    return { ok: false, error: m.badKey };
+  }
+  return {
+    ok: true,
+    guard,
+    locale,
+    m,
+    schemas: clinicSchemas[locale],
+    notFound: { ok: false, error: m.notFound, code: "not_found" },
+  };
 }
 
 export async function createSpecialist(
@@ -109,8 +125,8 @@ export async function createSpecialist(
 ): Promise<ActionResult<ClinicSpecialist>> {
   const start = await prologue(csrf, key);
   if (!start.ok) return start;
-  const parsed = specialistFormSchema.safeParse(values);
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  const parsed = start.schemas.specialist.safeParse(values);
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, start.m.checkFields);
   if ((await dataSource()) === "api") {
     return apiMutation("createSpecialist", async () => {
       try {
@@ -142,13 +158,13 @@ export async function updateSpecialist(
 ): Promise<ActionResult<ClinicSpecialist>> {
   const start = await prologue(csrf, key);
   if (!start.ok) return start;
-  if (!anyId.safeParse(id).success) return NOT_FOUND;
-  const parsed = specialistFormSchema.safeParse(values);
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
-  const base = specialistFormSchema.safeParse(baseline);
-  if (!base.success) return fieldErrorsFrom(base.error);
+  if (!anyId.safeParse(id).success) return start.notFound;
+  const parsed = start.schemas.specialist.safeParse(values);
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, start.m.checkFields);
+  const base = start.schemas.specialist.safeParse(baseline);
+  if (!base.success) return fieldErrorsFrom(base.error, start.m.checkFields);
   if ((await dataSource()) === "api") {
-    if (!apiId.safeParse(id).success) return NOT_FOUND;
+    if (!apiId.safeParse(id).success) return start.notFound;
     return apiMutation("updateSpecialist", async () => {
       try {
         const { data } = await apiPatchSpecialist(
@@ -178,19 +194,19 @@ export async function setSpecialistPhoto(
 ): Promise<ActionResult<ClinicSpecialist | null>> {
   const start = await prologue(csrf, key);
   if (!start.ok) return start;
-  if (!anyId.safeParse(id).success) return NOT_FOUND;
+  if (!anyId.safeParse(id).success) return start.notFound;
   let photo: File | null = null;
   if (form !== null) {
     const picked = form instanceof FormData ? form.get("photo") : null;
-    const parsed = imageFileSchema.safeParse(picked);
+    const parsed = imageFileSchemas[start.locale].safeParse(picked);
     if (!parsed.success) {
-      const message = parsed.error.issues[0]?.message ?? "Rasmni tekshiring.";
+      const message = parsed.error.issues[0]?.message ?? start.m.checkPhoto;
       return { ok: false, error: message, fieldErrors: { photo: message } };
     }
     photo = parsed.data;
   }
   if ((await dataSource()) === "api") {
-    if (!apiId.safeParse(id).success) return NOT_FOUND;
+    if (!apiId.safeParse(id).success) return start.notFound;
     return apiMutation("setSpecialistPhoto", async () => {
       const token = sessionToken(start.guard.session);
       try {
@@ -219,11 +235,11 @@ export async function saveOfferedServices(
 ): Promise<ActionResult<ClinicSpecialist>> {
   const start = await prologue(csrf, key);
   if (!start.ok) return start;
-  if (!anyId.safeParse(id).success) return NOT_FOUND;
-  const parsed = offeredServicesSchema.safeParse(values);
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  if (!anyId.safeParse(id).success) return start.notFound;
+  const parsed = start.schemas.offers.safeParse(values);
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, start.m.checkFields);
   if ((await dataSource()) === "api") {
-    if (!apiId.safeParse(id).success) return NOT_FOUND;
+    if (!apiId.safeParse(id).success) return start.notFound;
     return apiMutation("saveOfferedServices", async () => {
       try {
         const { data } = await apiPutOfferedServices(
@@ -250,11 +266,11 @@ export async function saveWorkingHours(
 ): Promise<ActionResult<ClinicSpecialist>> {
   const start = await prologue(csrf, key);
   if (!start.ok) return start;
-  if (!anyId.safeParse(id).success) return NOT_FOUND;
-  const parsed = workingWeekSchema.safeParse(values);
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  if (!anyId.safeParse(id).success) return start.notFound;
+  const parsed = start.schemas.week.safeParse(values);
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, start.m.checkFields);
   if ((await dataSource()) === "api") {
-    if (!apiId.safeParse(id).success) return NOT_FOUND;
+    if (!apiId.safeParse(id).success) return start.notFound;
     return apiMutation("saveWorkingHours", async () => {
       try {
         const { data } = await apiPutWorkingHours(
@@ -280,11 +296,11 @@ export async function createOverride(
 ): Promise<ActionResult<HoursOverride>> {
   const start = await prologue(csrf, key);
   if (!start.ok) return start;
-  if (!anyId.safeParse(id).success) return NOT_FOUND;
-  const parsed = overrideFormSchema.safeParse(values);
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  if (!anyId.safeParse(id).success) return start.notFound;
+  const parsed = start.schemas.override.safeParse(values);
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, start.m.checkFields);
   if ((await dataSource()) === "api") {
-    if (!apiId.safeParse(id).success) return NOT_FOUND;
+    if (!apiId.safeParse(id).success) return start.notFound;
     return apiMutation("createOverride", async () => {
       try {
         const { data } = await apiCreateOverride(
@@ -310,11 +326,11 @@ export async function createBlock(
 ): Promise<ActionResult<BlockedPeriod>> {
   const start = await prologue(csrf, key);
   if (!start.ok) return start;
-  if (!anyId.safeParse(id).success) return NOT_FOUND;
-  const parsed = blockFormSchema.safeParse(values);
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  if (!anyId.safeParse(id).success) return start.notFound;
+  const parsed = start.schemas.block.safeParse(values);
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, start.m.checkFields);
   if ((await dataSource()) === "api") {
-    if (!apiId.safeParse(id).success) return NOT_FOUND;
+    if (!apiId.safeParse(id).success) return start.notFound;
     return apiMutation("createBlock", async () => {
       try {
         const { data } = await apiCreateBlock(
@@ -341,10 +357,10 @@ export async function deleteScheduleEntry(
 ): Promise<ActionResult<{ id: string }>> {
   const start = await prologue(csrf, null);
   if (!start.ok) return start;
-  if (!anyId.safeParse(id).success || !anyId.safeParse(entryId).success) return NOT_FOUND;
-  if (kind !== "override" && kind !== "block") return NOT_FOUND;
+  if (!anyId.safeParse(id).success || !anyId.safeParse(entryId).success) return start.notFound;
+  if (kind !== "override" && kind !== "block") return start.notFound;
   if ((await dataSource()) === "api") {
-    if (!apiId.safeParse(id).success || !apiId.safeParse(entryId).success) return NOT_FOUND;
+    if (!apiId.safeParse(id).success || !apiId.safeParse(entryId).success) return start.notFound;
     return apiMutation("deleteScheduleEntry", async () => {
       try {
         const token = sessionToken(start.guard.session);
@@ -369,13 +385,13 @@ export async function saveService(
 ): Promise<ActionResult<ClinicService>> {
   const start = await prologue(csrf, key);
   if (!start.ok) return start;
-  if (id !== null && !anyId.safeParse(id).success) return NOT_FOUND;
-  const parsed = serviceFormSchema.safeParse(values);
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
-  const base = baseline === null ? null : serviceFormSchema.safeParse(baseline);
-  if (base && !base.success) return fieldErrorsFrom(base.error);
+  if (id !== null && !anyId.safeParse(id).success) return start.notFound;
+  const parsed = start.schemas.service.safeParse(values);
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, start.m.checkFields);
+  const base = baseline === null ? null : start.schemas.service.safeParse(baseline);
+  if (base && !base.success) return fieldErrorsFrom(base.error, start.m.checkFields);
   if ((await dataSource()) === "api") {
-    if (id !== null && !apiId.safeParse(id).success) return NOT_FOUND;
+    if (id !== null && !apiId.safeParse(id).success) return start.notFound;
     return apiMutation("saveService", async () => {
       const token = sessionToken(start.guard.session);
       try {
@@ -401,9 +417,9 @@ export async function saveLocation(
 ): Promise<ActionResult<ClinicLocation>> {
   const start = await prologue(csrf, key);
   if (!start.ok) return start;
-  const parsed = locationFormSchema.safeParse(values);
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
-  const base = baseline === null ? null : locationFormSchema.safeParse(baseline);
+  const parsed = start.schemas.location.safeParse(values);
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, start.m.checkFields);
+  const base = baseline === null ? null : start.schemas.location.safeParse(baseline);
   if ((await dataSource()) === "api") {
     return apiMutation("saveLocation", async () => {
       try {

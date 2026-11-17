@@ -4,6 +4,7 @@ import {
   announce,
   browserSeenStore,
   planToasts,
+  type AlertTexts,
   type AlertToast,
   type SeenStore,
 } from "./issue-alerts";
@@ -31,6 +32,8 @@ let lastPollAt: number | null = null;
 let stopPoll: (() => void) | null = null;
 let attached = 0;
 let toaster: ((toast: AlertToast) => void) | null = null;
+let toastTexts: AlertTexts | undefined;
+let toastKindLabel: ((kind: string) => string) | undefined;
 let seenStore: SeenStore | null = null;
 const listeners = new Set<() => void>();
 
@@ -67,11 +70,13 @@ export function receive(
   alerts: IssueAlerts,
   store: SeenStore,
   toast: ((t: AlertToast) => void) | null,
+  texts?: AlertTexts,
+  kindLabel?: (kind: string) => string,
 ) {
   publish({ open: alerts.open, urgent: alerts.urgent.length });
   const { fresh, seen } = announce(store.load(), alerts.urgent);
   store.save(seen);
-  if (toast) for (const item of planToasts(fresh)) toast(item);
+  if (toast) for (const item of planToasts(fresh, texts, kindLabel)) toast(item);
 }
 
 function browserEnv(): PollEnv {
@@ -93,10 +98,18 @@ function browserEnv(): PollEnv {
 /**
  * Attaches an island that can toast (the header button): the first one
  * starts the poll, the last one to leave stops it. Returns the detach.
+ * `texts` are the toasts' words in the admin language (Uzbek by default), `kindLabel` names an
+ * issue kind in it.
  */
-export function attach(toast: (toast: AlertToast) => void): () => void {
+export function attach(
+  toast: (toast: AlertToast) => void,
+  texts?: AlertTexts,
+  kindLabel?: (kind: string) => string,
+): () => void {
   attached += 1;
   toaster = toast;
+  toastTexts = texts;
+  toastKindLabel = kindLabel;
   if (!stopPoll) {
     seenStore ??= browserSeenStore();
     const env = browserEnv();
@@ -108,7 +121,7 @@ export function attach(toast: (toast: AlertToast) => void): () => void {
         lastPollAt = env.now();
         return fetchIssueAlerts();
       },
-      onAlerts: (alerts) => receive(alerts, seenStore!, toaster),
+      onAlerts: (alerts) => receive(alerts, seenStore!, toaster, toastTexts, toastKindLabel),
       onExpired: () => {
         stopPoll = null;
       },

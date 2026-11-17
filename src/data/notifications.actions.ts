@@ -3,10 +3,9 @@
 import { refresh } from "next/cache";
 import { z } from "zod";
 
+import { notificationDataCopy } from "@/domain/copy/notifications";
 import {
   BODY_MAX,
-  IMAGE_TOO_LARGE_MESSAGE,
-  IMAGE_TYPE_MESSAGE,
   NOTIFICATION_IMAGE_MAX_BYTES,
   NOTIFICATION_IMAGE_TYPES,
   TEMPLATE_MAX,
@@ -18,11 +17,15 @@ import {
   type TemplateStatus,
   type TestDevice,
 } from "@/domain/notification";
-import { isHttpsUrl, LINK_URL_MAX, LINK_URL_MESSAGE } from "@/lib/link-url";
+import { getAdminLocale } from "@/lib/i18n/admin-locale";
+import type { Locale } from "@/lib/i18n/locales";
+import { validationCopy } from "@/lib/i18n/validation-copy";
+import { isHttpsUrl, LINK_URL_MAX } from "@/lib/link-url";
 
 import {
   apiMutation,
   fieldErrorsFrom,
+  invalidFormMessage,
   guardAction,
   idempotencyKeySchema,
   requireSuperuser,
@@ -85,7 +88,7 @@ import type { ActionResult } from "./types";
  *
  * `updateNotificationTemplate` PUTs `notification-templates/{status}/` with
  * all three languages; the backend is the authority on the placeholder rule
- * (`unknown_placeholder` "Faqat {raqam} o‘rinbosari ishlatiladi.").
+ * (`unknown_placeholder`). Every schema message is in the admin language.
  */
 
 const IMAGE_TYPES: ReadonlyArray<string> = NOTIFICATION_IMAGE_TYPES;
@@ -108,32 +111,24 @@ export interface NotificationInput {
 
 const text = (value: FormDataEntryValue | null) => (typeof value === "string" ? value : "");
 
-function buildSchema(now: Date) {
+function buildSchema(now: Date, locale: Locale) {
+  const v = validationCopy[locale];
+  const m = notificationDataCopy[locale];
   return z
     .object({
       kind: z.enum(["promo", "general"]),
-      title: z
-        .string()
-        .trim()
-        .min(3, "Sarlavhani kiriting (kamida 3 belgi).")
-        .max(TITLE_MAX, `${TITLE_MAX} belgidan oshmasin.`),
-      body: z
-        .string()
-        .trim()
-        .min(5, "Xabar matnini kiriting.")
-        .max(BODY_MAX, `${BODY_MAX} belgidan oshmasin.`),
-      link: z.string().regex(/^(none|url|product:[A-Za-z0-9_-]{1,64})$/, "Havolani tanlang."),
-      linkUrl: z.string().trim().max(LINK_URL_MAX, `${LINK_URL_MAX} belgidan oshmasin.`),
+      title: z.string().trim().min(3, m.schema.titleMin).max(TITLE_MAX, v.maxChars(TITLE_MAX)),
+      body: z.string().trim().min(5, m.schema.bodyMin).max(BODY_MAX, v.maxChars(BODY_MAX)),
+      link: z.string().regex(/^(none|url|product:[A-Za-z0-9_-]{1,64})$/, m.schema.chooseLink),
+      linkUrl: z.string().trim().max(LINK_URL_MAX, v.maxChars(LINK_URL_MAX)),
       audience: z.enum(["all", "group", "one"]),
       segmentId: z.string().trim().max(64),
       phone: z.string().trim(),
       scheduledAt: z.string().trim(),
       image: z
         .instanceof(File)
-        .refine((file) => IMAGE_TYPES.includes(file.type), { error: IMAGE_TYPE_MESSAGE })
-        .refine((file) => file.size <= NOTIFICATION_IMAGE_MAX_BYTES, {
-          error: IMAGE_TOO_LARGE_MESSAGE,
-        })
+        .refine((file) => IMAGE_TYPES.includes(file.type), { error: m.imageType })
+        .refine((file) => file.size <= NOTIFICATION_IMAGE_MAX_BYTES, { error: m.imageTooLarge })
         .nullable(),
       removeImage: z.boolean(),
       key: idempotencyKeySchema,
@@ -141,29 +136,21 @@ function buildSchema(now: Date) {
     .superRefine((values, ctx) => {
       if (values.link === "url") {
         if (!values.linkUrl) {
-          ctx.addIssue({ code: "custom", path: ["linkUrl"], message: "Havolani kiriting." });
+          ctx.addIssue({ code: "custom", path: ["linkUrl"], message: m.schema.linkUrlRequired });
         } else if (!isHttpsUrl(values.linkUrl)) {
-          ctx.addIssue({ code: "custom", path: ["linkUrl"], message: LINK_URL_MESSAGE });
+          ctx.addIssue({ code: "custom", path: ["linkUrl"], message: m.schema.linkUrlHttps });
         }
       }
       if (values.audience === "group" && !values.segmentId) {
-        ctx.addIssue({ code: "custom", path: ["segmentId"], message: "Guruhni tanlang." });
+        ctx.addIssue({ code: "custom", path: ["segmentId"], message: m.schema.chooseGroup });
       }
       if (values.audience === "one" && !/^\+998\d{9}$/.test(values.phone)) {
-        ctx.addIssue({
-          code: "custom",
-          path: ["phone"],
-          message: "Telefon raqamni +998 XX XXX XX XX ko‘rinishida kiriting.",
-        });
+        ctx.addIssue({ code: "custom", path: ["phone"], message: m.schema.phone });
       }
       if (values.scheduledAt) {
         const at = Date.parse(values.scheduledAt);
         if (Number.isNaN(at) || at <= now.getTime()) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["scheduledAt"],
-            message: "Kelajakdagi vaqtni tanlang.",
-          });
+          ctx.addIssue({ code: "custom", path: ["scheduledAt"], message: m.schema.futureTime });
         }
       }
     });
@@ -177,7 +164,8 @@ async function parseComposer(
   const image = formData.get("image");
   // An empty file input serialises as a File with no name: treat it as absent.
   const file = image instanceof File && image.size > 0 && image.name ? image : null;
-  const parsed = buildSchema(await requestNow()).safeParse({
+  const [now, locale] = await Promise.all([requestNow(), getAdminLocale()]);
+  const parsed = buildSchema(now, locale).safeParse({
     kind: text(formData.get("kind")),
     title: text(formData.get("title")),
     body: text(formData.get("body")),
@@ -192,7 +180,7 @@ async function parseComposer(
     key,
   });
   if (!parsed.success) {
-    const failure = fieldErrorsFrom(parsed.error);
+    const failure = fieldErrorsFrom(parsed.error, await invalidFormMessage());
     const imageError = failure.fieldErrors?.image;
     if (imageError) {
       delete failure.fieldErrors?.image;
@@ -273,7 +261,7 @@ export async function updateNotificationDraft(
   const ids = z
     .object({ notificationId: idSchema, expectedRevision: revisionSchema })
     .safeParse({ notificationId, expectedRevision: text(formData.get("expectedRevision")) });
-  if (!ids.success) return fieldErrorsFrom(ids.error);
+  if (!ids.success) return fieldErrorsFrom(ids.error, await invalidFormMessage());
   const parsed = await parseComposer(formData, key);
   if (!parsed.ok) return parsed;
   const { input } = parsed;
@@ -308,7 +296,7 @@ export async function deleteNotificationDraft(
     notificationId,
     key,
   });
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, await invalidFormMessage());
   const id = parsed.data.notificationId;
   if ((await dataSource()) === "api") {
     return apiMutation("deleteNotificationDraft", async () => {
@@ -351,7 +339,7 @@ async function superuserOperation(
     notificationId,
     key,
   });
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, await invalidFormMessage());
   return { ok: true, guard, id: parsed.data.notificationId };
 }
 
@@ -370,10 +358,15 @@ async function transition(
   });
 }
 
-const deviceIdsSchema = z
-  .array(idSchema)
-  .min(1, "Kamida bitta qurilmani tanlang.")
-  .max(10, "Ko‘pi bilan 10 ta qurilma.");
+const MAX_TEST_DEVICES = 10;
+
+function deviceIdsSchema(locale: Locale) {
+  const m = notificationDataCopy[locale].schema;
+  return z
+    .array(idSchema)
+    .min(1, m.devicesMin)
+    .max(MAX_TEST_DEVICES, m.devicesMax(MAX_TEST_DEVICES));
+}
 
 /**
  * `POST notifications/{id}/test/` `{device_ids}`: a real push of the
@@ -389,9 +382,13 @@ export async function sendCampaignTest(
 ): Promise<ActionResult<NotificationRecord>> {
   const op = await superuserOperation(csrf, notificationId, key);
   if (!op.ok) return op;
-  const devices = deviceIdsSchema.safeParse(deviceIds);
+  const locale = await getAdminLocale();
+  const devices = deviceIdsSchema(locale).safeParse(deviceIds);
   if (!devices.success) {
-    return { ok: false, error: devices.error.issues[0]?.message ?? "Qurilmani tanlang." };
+    return {
+      ok: false,
+      error: devices.error.issues[0]?.message ?? notificationDataCopy[locale].schema.chooseDevice,
+    };
   }
   if ((await dataSource()) === "api") {
     return transition("sendCampaignTest", () =>
@@ -416,7 +413,9 @@ export async function confirmCampaignTest(
   const op = await superuserOperation(csrf, notificationId, key);
   if (!op.ok) return op;
   const test = idSchema.safeParse(testId);
-  if (!test.success) return { ok: false, error: "Noto‘g‘ri so‘rov." };
+  if (!test.success) {
+    return { ok: false, error: notificationDataCopy[await getAdminLocale()].schema.badRequest };
+  }
   if ((await dataSource()) === "api") {
     return transition("confirmCampaignTest", () =>
       apiConfirmCampaignTest(sessionToken(op.guard.session), op.id, test.data, key),
@@ -439,7 +438,9 @@ export async function approveNotification(
   const op = await superuserOperation(csrf, notificationId, key);
   if (!op.ok) return op;
   const revision = revisionSchema.safeParse(expectedRevision);
-  if (!revision.success) return { ok: false, error: "Noto‘g‘ri so‘rov." };
+  if (!revision.success) {
+    return { ok: false, error: notificationDataCopy[await getAdminLocale()].schema.badRequest };
+  }
   if ((await dataSource()) === "api") {
     return transition("approveNotification", () =>
       apiApproveNotification(
@@ -473,8 +474,7 @@ export async function returnNotificationToDraft(
  * `POST notifications/{id}/cancel/` (M3; superusers since the approval
  * workflow): a waiting campaign becomes `cancelled` before its send starts
  * (a repeat answers the same record). Once the send started the backend
- * answers 409 `conflict` "Yuborish boshlangan: xabarni bekor qilib
- * bo‘lmaydi."; an unknown id 404.
+ * answers 409 `conflict` (the send started); an unknown id 404.
  */
 export async function cancelNotification(
   notificationId: string,
@@ -512,21 +512,23 @@ export interface TestDeviceInput {
   label: string;
 }
 
-const testDeviceSchema = z.object({
-  phone: z
-    .string()
-    .trim()
-    .transform((value) => value.replace(/[\s()-]/g, ""))
-    .refine((value) => /^\+998\d{9}$/.test(value), {
-      error: "Telefon raqamni +998 XX XXX XX XX ko‘rinishida kiriting.",
-    }),
-  label: z
-    .string()
-    .trim()
-    .min(2, "Qurilma nomini kiriting.")
-    .max(TEST_DEVICE_LABEL_MAX, `${TEST_DEVICE_LABEL_MAX} belgidan oshmasin.`),
-  key: idempotencyKeySchema,
-});
+function testDeviceSchema(locale: Locale) {
+  const v = validationCopy[locale];
+  const m = notificationDataCopy[locale].schema;
+  return z.object({
+    phone: z
+      .string()
+      .trim()
+      .transform((value) => value.replace(/[\s()-]/g, ""))
+      .refine((value) => /^\+998\d{9}$/.test(value), { error: m.phone }),
+    label: z
+      .string()
+      .trim()
+      .min(2, m.deviceLabelMin)
+      .max(TEST_DEVICE_LABEL_MAX, v.maxChars(TEST_DEVICE_LABEL_MAX)),
+    key: idempotencyKeySchema,
+  });
+}
 
 /**
  * `POST notifications/test-devices/` `{phone, label}` (superusers): the
@@ -541,8 +543,8 @@ export async function registerTestDevice(
 ): Promise<ActionResult<TestDevice>> {
   const guard = await requireSuperuser(await guardAction(csrf));
   if (!guard.ok) return guard;
-  const parsed = testDeviceSchema.safeParse({ ...input, key });
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  const parsed = testDeviceSchema(await getAdminLocale()).safeParse({ ...input, key });
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, await invalidFormMessage());
   const device = { phone: parsed.data.phone, label: parsed.data.label };
   if ((await dataSource()) === "api") {
     return apiMutation("registerTestDevice", async () => {
@@ -569,7 +571,7 @@ export async function removeTestDevice(
     deviceId,
     key,
   });
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, await invalidFormMessage());
   const id = parsed.data.deviceId;
   if ((await dataSource()) === "api") {
     return apiMutation("removeTestDevice", async () => {
@@ -592,19 +594,22 @@ export interface TemplateTextsInput {
   en: string;
 }
 
-const templateSchema = z.object({
-  status: z.enum(TEMPLATE_STATUSES),
-  texts: z.object({
-    uz: z
-      .string()
-      .trim()
-      .min(TEMPLATE_UZ_MIN, `Kamida ${TEMPLATE_UZ_MIN} ta belgi kiriting.`)
-      .max(TEMPLATE_MAX, `${TEMPLATE_MAX} belgidan oshmasin.`),
-    ru: z.string().trim().max(TEMPLATE_MAX, `${TEMPLATE_MAX} belgidan oshmasin.`),
-    en: z.string().trim().max(TEMPLATE_MAX, `${TEMPLATE_MAX} belgidan oshmasin.`),
-  }),
-  key: idempotencyKeySchema,
-});
+function templateSchema(locale: Locale) {
+  const v = validationCopy[locale];
+  return z.object({
+    status: z.enum(TEMPLATE_STATUSES),
+    texts: z.object({
+      uz: z
+        .string()
+        .trim()
+        .min(TEMPLATE_UZ_MIN, v.minChars(TEMPLATE_UZ_MIN))
+        .max(TEMPLATE_MAX, v.maxChars(TEMPLATE_MAX)),
+      ru: z.string().trim().max(TEMPLATE_MAX, v.maxChars(TEMPLATE_MAX)),
+      en: z.string().trim().max(TEMPLATE_MAX, v.maxChars(TEMPLATE_MAX)),
+    }),
+    key: idempotencyKeySchema,
+  });
+}
 
 /** `PUT notification-templates/{status}/` (contract §2.8): the whole `texts` object. */
 export async function updateNotificationTemplate(
@@ -615,8 +620,8 @@ export async function updateNotificationTemplate(
 ): Promise<ActionResult<StatusTemplate>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
-  const parsed = templateSchema.safeParse({ status, texts, key });
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  const parsed = templateSchema(await getAdminLocale()).safeParse({ status, texts, key });
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, await invalidFormMessage());
   const input = parsed.data;
   if ((await dataSource()) === "api") {
     return apiMutation("updateNotificationTemplate", async () => {

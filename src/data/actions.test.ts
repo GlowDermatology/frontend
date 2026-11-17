@@ -24,6 +24,11 @@ const apiFetch = vi.fn();
 const cachedGet = vi.fn();
 
 vi.mock("next/server", () => ({ connection: vi.fn(async () => undefined) }));
+// The admin language comes from the `gd_admin_language` cookie: none here, so Uzbek.
+vi.mock("next/headers", () => ({
+  cookies: async () => ({ get: () => undefined }),
+  headers: async () => new Headers(),
+}));
 vi.mock("next/cache", () => ({ refresh: () => refresh() }));
 vi.mock("./auth", () => ({
   verifyStaff: (options?: VerifyStaffOptions) => verifyStaff(options),
@@ -1050,6 +1055,7 @@ describe("adjustCashback", () => {
       kind: "adjustment",
       source: "Administrator",
       note: "kassa xatosi",
+      origin: expect.objectContaining({ type: "admin", reason: "kassa xatosi" }),
       amount: -2_000,
     });
     expect(ledgerBalance([result.data.entry])).toBe(-2_000);
@@ -1083,6 +1089,7 @@ describe("saveCashbackPolicy", () => {
       active: false,
       scheduled: true,
       state: "scheduled",
+      detail: expect.objectContaining({ effectiveTo: null, author: "Administrator" }),
     });
     expect(result.data.warnings).toBeUndefined();
   });
@@ -1468,11 +1475,11 @@ describe("closing a failed Click refund in api mode (§7 item 18, M2)", () => {
   });
 
   it("returns Click's still-paid 409 and the 503 of an unreachable Click without a refresh", async () => {
-    apiFetch.mockRejectedValueOnce(refusal("invalid_transition", CLICK_STILL_PAID_MESSAGE));
+    apiFetch.mockRejectedValueOnce(refusal("click_not_reversed", CLICK_STILL_PAID_MESSAGE));
     expect(await closeFailedRefund(244, 9, false, KEY, CSRF)).toEqual({
       ok: false,
       error: CLICK_STILL_PAID_MESSAGE,
-      code: "invalid_transition",
+      code: "click_not_reversed",
     });
     apiFetch.mockRejectedValueOnce(
       refusal("provider_unavailable", "Tashqi xizmat javob bermadi. Qayta urinib ko‘ring.", 503),
@@ -1500,7 +1507,7 @@ describe("refund actions in mock mode", () => {
     expect(await closeFailedRefund(failed.id, refundId, false, KEY, CSRF)).toEqual({
       ok: false,
       error: CLICK_STILL_PAID_MESSAGE,
-      code: "invalid_transition",
+      code: "click_not_reversed",
     });
     const closed = await closeFailedRefund(failed.id, refundId, true, KEY, CSRF);
     expect(closed.ok && closed.data.status).toBe("refunded");

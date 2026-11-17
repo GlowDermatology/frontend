@@ -1,5 +1,8 @@
 import "server-only";
 
+import { getAdminLocale } from "@/lib/i18n/admin-locale";
+import type { Locale } from "@/lib/i18n/locales";
+
 import { apiExportPath } from "./api/admin";
 import type { QueryValue } from "./api/client";
 import { isApiError } from "./api/errors";
@@ -10,6 +13,7 @@ import {
   type ExportFormat,
 } from "./api/mappers/export";
 import { verifyStaff } from "./auth";
+import { dataCopy } from "./copy";
 import { csvResponse, type CsvCell } from "./export-csv";
 import { dataSource } from "./source";
 
@@ -56,16 +60,16 @@ export interface ExportRouteOptions {
 
 const NO_STORE = { "Cache-Control": "no-store" };
 
-export function unauthorizedExport(): Response {
+export function unauthorizedExport(locale: Locale = "uz"): Response {
   return Response.json(
-    { code: "not_authenticated", message: "Avtorizatsiya talab qilinadi.", errors: [] },
+    { code: "not_authenticated", message: dataCopy[locale].notAuthenticated, errors: [] },
     { status: 401, headers: NO_STORE },
   );
 }
 
 export async function exportRoute(options: ExportRouteOptions): Promise<Response> {
-  const session = await verifyStaff();
-  if (!session.ok) return unauthorizedExport();
+  const [session, locale] = await Promise.all([verifyStaff(), getAdminLocale()]);
+  if (!session.ok) return unauthorizedExport(locale);
 
   if (options.refusal) {
     const { field, message } = options.refusal;
@@ -77,7 +81,7 @@ export async function exportRoute(options: ExportRouteOptions): Promise<Response
 
   if ((await dataSource()) !== "api" || session.mode !== "api") {
     const { header, rows } = await options.mock();
-    return csvResponse(options.name, header, rows);
+    return csvResponse(options.name, header, rows, locale);
   }
 
   const apiParams =

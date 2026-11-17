@@ -6,27 +6,30 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle, DetailRow } from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
+import { orderLabelsCopy } from "@/domain/copy/orders";
 import {
   carrierLabel,
   issueKindLabel,
-  SHIPMENT_STAGE_LABEL,
   type DeliveryIssueRef,
   type Order,
   type OrderDelivery,
 } from "@/domain/order";
 import { cn } from "@/lib/cn";
-import { formatDateTimeShort, formatSigned, formatSom } from "@/lib/format";
+import { useCopy } from "@/lib/i18n/admin-context";
+import { useFormat } from "@/lib/i18n/admin-hooks";
 
+import { ordersCopy } from "./copy";
 import { formatGrams, manualDeliveryOffered, promisedWindow, STAGE_TONE } from "./delivery-view";
 
 const rowClass = "leading-5";
 
 /** A server amount, or a dash while the API has none (never computed here). */
 function Money({ value }: { value: number | null }) {
+  const fmt = useFormat();
   return value === null ? (
     <span className="text-ink-muted">—</span>
   ) : (
-    <span className="tabular-nums">{formatSom(value)}</span>
+    <span className="tabular-nums">{fmt.som(value)}</span>
   );
 }
 
@@ -44,58 +47,62 @@ export function OrderDeliveryCard({
   order,
   children,
   onMarkDelivered,
-  disabled,
+  disabledReason,
 }: {
   order: Order;
   children?: ReactNode;
   onMarkDelivered?: () => void;
-  disabled?: boolean;
+  /** Why "Yetkazildi deb belgilash" cannot run now (another action is running). */
+  disabledReason?: string | false | null;
 }) {
+  const t = useCopy(ordersCopy).delivery;
+  const labels = useCopy(orderLabelsCopy);
+  const fmt = useFormat();
   const delivery = order.delivery as OrderDelivery;
-  const window = promisedWindow(delivery.promisedFrom, delivery.promisedTo);
+  const window = promisedWindow(delivery.promisedFrom, delivery.promisedTo, fmt.locale);
   const courier = [delivery.courierName, delivery.courierVehicle].filter(Boolean).join(" · ");
   const difference = delivery.costDifference;
   return (
     <Card aria-labelledby="order-delivery-title" className="flex flex-col gap-2.5">
       <div className="flex items-center justify-between gap-3">
-        <CardTitle id="order-delivery-title">Yetkazish</CardTitle>
+        <CardTitle id="order-delivery-title">{t.title}</CardTitle>
         {delivery.stage ? (
-          <Badge tone={STAGE_TONE[delivery.stage]}>{SHIPMENT_STAGE_LABEL[delivery.stage]}</Badge>
+          <Badge tone={STAGE_TONE[delivery.stage]}>{labels.shipmentStage[delivery.stage]}</Badge>
         ) : (
-          <Badge tone="muted">Bosqich noma’lum</Badge>
+          <Badge tone="muted">{t.stageUnknown}</Badge>
         )}
       </div>
       <dl className="m-0 flex flex-col gap-2.5">
-        <DetailRow label="Xizmat" className={rowClass}>
-          {carrierLabel(order)}
+        <DetailRow label={t.service} className={rowClass}>
+          {carrierLabel(order, fmt.locale)}
         </DetailRow>
         {window && (
-          <DetailRow label="Va’da qilingan vaqt" className={rowClass}>
+          <DetailRow label={t.promised} className={rowClass}>
             <span className="tabular-nums">{window}</span>
           </DetailRow>
         )}
         {courier && (
-          <DetailRow label="Kuryer" className={rowClass}>
-            {courier}
+          <DetailRow label={t.courier} className={rowClass}>
+            <span className="break-words">{courier}</span>
           </DetailRow>
         )}
         {delivery.trackingUrl && (
-          <DetailRow label="Kuzatish" className={rowClass}>
+          <DetailRow label={t.tracking} className={rowClass}>
             <a
               href={delivery.trackingUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 font-bold text-ink underline decoration-gold underline-offset-4"
             >
-              Xaritada ochish
+              {t.openMap}
               <Icon name="link" size={14} />
-              <span className="sr-only"> (yangi oynada)</span>
+              <span className="sr-only">{t.newWindow}</span>
             </a>
           </DetailRow>
         )}
         {(delivery.claimStatus || delivery.claimNumber !== null) && (
-          <DetailRow label="Yandex holati" className={rowClass}>
-            <span className="tabular-nums">
+          <DetailRow label={t.yandexStatus} className={rowClass}>
+            <span className="break-all tabular-nums">
               {delivery.claimStatus && (
                 <code className="rounded-sm bg-surface px-1 text-[12px]">
                   {delivery.claimStatus}
@@ -104,26 +111,28 @@ export function OrderDeliveryCard({
               {delivery.claimNumber !== null && (
                 <span className="text-ink-muted">
                   {delivery.claimStatus ? " · " : ""}
-                  {delivery.claimNumber}-urinish
+                  {t.attempt(delivery.claimNumber)}
                 </span>
               )}
             </span>
           </DetailRow>
         )}
         {delivery.failureCode && (
-          <DetailRow label="Xato kodi" className={rowClass}>
-            <code className="rounded-sm bg-surface px-1 text-[12px]">{delivery.failureCode}</code>
+          <DetailRow label={t.errorCode} className={rowClass}>
+            <code className="rounded-sm bg-surface px-1 text-[12px] break-all">
+              {delivery.failureCode}
+            </code>
           </DetailRow>
         )}
         {delivery.parcelWeightG !== null && (
-          <DetailRow label="Og‘irlik" className={rowClass}>
-            <span className="tabular-nums">{formatGrams(delivery.parcelWeightG)}</span>
+          <DetailRow label={t.weight} className={rowClass}>
+            <span className="tabular-nums">{formatGrams(delivery.parcelWeightG, fmt.locale)}</span>
           </DetailRow>
         )}
         {delivery.preparedAt && (
-          <DetailRow label="Yig‘ilgan" className={rowClass}>
+          <DetailRow label={t.prepared} className={rowClass}>
             <time dateTime={delivery.preparedAt} className="tabular-nums">
-              {formatDateTimeShort(delivery.preparedAt)}
+              {fmt.dateTimeShort(delivery.preparedAt)}
             </time>
           </DetailRow>
         )}
@@ -131,60 +140,55 @@ export function OrderDeliveryCard({
 
       {manualDeliveryOffered(order) && (
         <div className="flex flex-col gap-2 rounded-md bg-warning-soft px-3 py-2.5">
-          <p className="m-0 text-body-sm text-ink">
-            Yandex bu posilkani endi kuzatmayapti. Mijoz uni olganini aniq bilsangiz, buyurtmani
-            qo‘lda «Yetkazildi» deb belgilang.
-          </p>
+          <p className="m-0 text-body-sm text-ink">{t.untracked}</p>
           {onMarkDelivered && (
             <Button
               variant="secondary"
               size="sm"
               className="self-start"
               onClick={onMarkDelivered}
-              disabled={disabled}
+              disabledReason={disabledReason}
             >
               <Icon name="check" size={16} />
-              Yetkazildi deb belgilash
+              {t.markDelivered}
             </Button>
           )}
         </div>
       )}
 
       <span aria-hidden="true" className="h-px bg-line" />
-      <h3 className="m-0 text-body-sm font-bold text-ink">Yetkazish narxi</h3>
+      <h3 className="m-0 text-body-sm font-bold text-ink">{t.price}</h3>
       <dl className="m-0 flex flex-col gap-2.5">
-        <DetailRow label="Mijoz to‘lagan" className={rowClass}>
+        <DetailRow label={t.quoteFee} className={rowClass}>
           <Money value={delivery.quoteFee} />
         </DetailRow>
-        <DetailRow label="Yandex taxmini" className={rowClass}>
+        <DetailRow label={t.carrierPrice} className={rowClass}>
           <Money value={delivery.carrierPrice} />
         </DetailRow>
-        <DetailRow label="Yandex taklifi" className={rowClass}>
+        <DetailRow label={t.offerPrice} className={rowClass}>
           <Money value={delivery.offerPrice} />
         </DetailRow>
         {delivery.approvedPrice !== null && (
-          <DetailRow label="Tasdiqlangan narx" className={rowClass}>
+          <DetailRow label={t.approvedPrice} className={rowClass}>
             <Money value={delivery.approvedPrice} />
           </DetailRow>
         )}
-        <DetailRow label="Yandex yakuniy narxi" className={rowClass}>
+        <DetailRow label={t.finalPrice} className={rowClass}>
           <Money value={delivery.carrierCostTotal} />
         </DetailRow>
-        <DetailRow label="Farq" className={rowClass}>
+        <DetailRow label={t.difference} className={rowClass}>
           {difference === null ? (
             <span className="text-ink-muted">—</span>
           ) : (
             <span
               className={cn("font-bold tabular-nums", difference < 0 ? "text-danger" : "text-ink")}
             >
-              {formatSigned(difference)} so‘m
+              {t.signedSom(fmt.signed(difference))}
             </span>
           )}
         </DetailRow>
       </dl>
-      <p className="m-0 text-[12px] leading-[18px] text-ink-muted">
-        Mijoz to‘lagan narx o‘zgarmaydi; farqni server hisoblaydi.
-      </p>
+      <p className="m-0 text-[12px] leading-[18px] text-ink-muted">{t.priceNote}</p>
       {children}
     </Card>
   );
@@ -203,19 +207,21 @@ export function OpenIssuesSection({
   issues: ReadonlyArray<DeliveryIssueRef>;
   action?: ReactNode;
 }) {
+  const t = useCopy(ordersCopy).delivery;
+  const fmt = useFormat();
   return (
     <>
       <span aria-hidden="true" className="h-px bg-line" />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="m-0 text-body-sm font-bold text-ink">
-          Ochiq muammolar{issues.length > 0 ? ` (${issues.length})` : ""}
+          {issues.length > 0 ? t.issuesCount(issues.length) : t.issues}
         </h3>
         {action}
       </div>
       {issues.length === 0 ? (
-        <p className="m-0 text-[12px] leading-[18px] text-ink-muted">Ochiq muammo yo‘q.</p>
+        <p className="m-0 text-[12px] leading-[18px] text-ink-muted">{t.noIssues}</p>
       ) : (
-        <ul aria-label="Ochiq muammolar" className="m-0 flex list-none flex-col gap-2 p-0">
+        <ul aria-label={t.issues} className="m-0 flex list-none flex-col gap-2 p-0">
           {issues.map((issue) => (
             <li
               key={issue.id}
@@ -228,12 +234,12 @@ export function OpenIssuesSection({
                 {issue.urgent && (
                   <Icon name="alert-triangle" size={14} className="shrink-0 text-danger" />
                 )}
-                {issueKindLabel(issue.kind)}
-                {issue.urgent && <span className="text-[12px] text-danger">Shoshilinch</span>}
+                {issueKindLabel(issue.kind, fmt.locale)}
+                {issue.urgent && <span className="text-[12px] text-danger">{t.urgent}</span>}
               </span>
-              <span className="text-[12px] leading-[18px] text-ink-muted tabular-nums">
+              <span className="text-[12px] leading-[18px] break-all text-ink-muted tabular-nums">
                 <code>{issue.code}</code> ·{" "}
-                <time dateTime={issue.openedAt}>{formatDateTimeShort(issue.openedAt)}</time>
+                <time dateTime={issue.openedAt}>{fmt.dateTimeShort(issue.openedAt)}</time>
               </span>
             </li>
           ))}
@@ -244,7 +250,7 @@ export function OpenIssuesSection({
           href={`/admin/delivery-issues?order=${orderId}` as Route}
           className="flex min-h-11 items-center gap-1 self-start text-body-sm font-bold text-ink no-underline hover:underline hover:decoration-gold"
         >
-          Muammolar bo‘limida ochish
+          {t.openQueue}
           <Icon name="chevron-right" size={16} />
         </Link>
       )}

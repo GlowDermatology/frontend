@@ -2,9 +2,9 @@
 
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
-import { useOptimistic, useState, useTransition, type FormEvent } from "react";
+import { useOptimistic, useRef, useState, useTransition, type FormEvent } from "react";
 
-import { Button, buttonStyles } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose } from "@/components/ui/dialog";
 import { Icon } from "@/components/ui/icon";
 import { SegmentedControl } from "@/components/ui/segmented-control";
@@ -16,21 +16,19 @@ import {
   type DashboardRange,
 } from "@/domain/dashboard";
 import { cn } from "@/lib/cn";
-import { addDays, formatDayMonthShort } from "@/lib/format";
+import { addDays, type AdminFormatter } from "@/lib/format";
+import { useErrorReveal } from "@/lib/forms/reveal";
+import { useAdminLocale, useCopy } from "@/lib/i18n/admin-context";
+import { useFormat } from "@/lib/i18n/admin-hooks";
 
 import { DateRangeFields } from "../shared/date-range-fields";
+import { dashboardCopy } from "./copy";
 import { dashboardHref } from "./query";
 
-const OPTIONS: ReadonlyArray<{ value: DashboardRange; label: string }> = [
-  { value: "today", label: "Bugun" },
-  { value: "week", label: "Hafta" },
-  { value: "month", label: "Oy" },
-];
-
-/** "23-okt – 24-okt" (one day: "24-okt"). */
-export function customRangeLabel(from: string, to: string): string {
-  const a = formatDayMonthShort(`${from}T12:00:00+05:00`);
-  const b = formatDayMonthShort(`${to}T12:00:00+05:00`);
+/** "23-okt – 24-okt" (one day: "24-okt"), in the formatter's language. */
+export function customRangeLabel(fmt: AdminFormatter, from: string, to: string): string {
+  const a = fmt.dayMonthShort(`${from}T12:00:00+05:00`);
+  const b = fmt.dayMonthShort(`${to}T12:00:00+05:00`);
   return from === to ? b : `${a} – ${b}`;
 }
 
@@ -50,6 +48,11 @@ interface RangeControlProps {
  * end after today, more than 366 days), so the API rarely has to refuse.
  */
 export function RangeControl({ value, today, errors: serverErrors }: RangeControlProps) {
+  const t = useCopy(dashboardCopy).range;
+  const locale = useAdminLocale();
+  const fmt = useFormat();
+  const formRef = useRef<HTMLFormElement>(null);
+  const reveal = useErrorReveal(formRef);
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [optimistic, setOptimistic] = useOptimistic(value);
@@ -75,12 +78,11 @@ export function RangeControl({ value, today, errors: serverErrors }: RangeContro
     const nextTo = String(data.get("to") ?? "");
     setFrom(nextFrom);
     setTo(nextTo);
-    const found = validateCustomRange(nextFrom || undefined, nextTo || undefined, today);
+    const found = validateCustomRange(nextFrom || undefined, nextTo || undefined, today, locale);
     setErrors(found);
     if (found.from || found.to) {
-      // First invalid field takes focus, like the other forms.
-      const name = found.from ? "from" : "to";
-      event.currentTarget.querySelector<HTMLInputElement>(`input[name="${name}"]`)?.focus();
+      // The first invalid day is scrolled to, focused and marked, like the other forms.
+      reveal();
       return;
     }
     setOpen(false);
@@ -93,8 +95,12 @@ export function RangeControl({ value, today, errors: serverErrors }: RangeContro
       data-pending={pending || undefined}
     >
       <SegmentedControl
-        label="Davr"
-        options={OPTIONS}
+        label={t.label}
+        options={[
+          { value: "today", label: t.today },
+          { value: "week", label: t.week },
+          { value: "month", label: t.month },
+        ]}
         value={optimistic.range === "custom" ? ("" as DashboardRange) : optimistic.range}
         onChange={(range) => go({ range })}
         className="bg-transparent p-0"
@@ -103,6 +109,9 @@ export function RangeControl({ value, today, errors: serverErrors }: RangeContro
         type="button"
         aria-haspopup="dialog"
         aria-pressed={custom !== null}
+        aria-label={
+          custom ? t.customLabel(customRangeLabel(fmt, custom.from, custom.to)) : undefined
+        }
         onClick={() => {
           setErrors(serverErrors ?? {});
           setOpen(true);
@@ -113,16 +122,20 @@ export function RangeControl({ value, today, errors: serverErrors }: RangeContro
         )}
       >
         <Icon name="calendar" size={18} />
-        {custom ? customRangeLabel(custom.from, custom.to) : "Tanlash"}
+        {/* On a phone the four choices do not fit one line in Russian: «Выбрать» stays the
+            button's name but only the calendar shows (a chosen range keeps its dates). */}
+        <span className={cn("tabular-nums", !custom && "max-[420px]:sr-only")}>
+          {custom ? customRangeLabel(fmt, custom.from, custom.to) : t.custom}
+        </span>
       </button>
 
       <Dialog
         open={open}
         onOpenChange={setOpen}
-        title="Sana oralig‘i"
-        description={`Toshkent vaqti bo‘yicha, ko‘pi bilan ${CUSTOM_RANGE_MAX_DAYS} kun. Ikki kungacha soatlar, undan uzunrog‘i kunlar bo‘yicha ko‘rsatiladi.`}
+        title={t.dialogTitle}
+        description={t.dialogText(CUSTOM_RANGE_MAX_DAYS)}
       >
-        <form noValidate onSubmit={submit} className="flex flex-col gap-4">
+        <form ref={formRef} noValidate onSubmit={submit} className="flex flex-col gap-4">
           <DateRangeFields
             variant="form"
             names={{ from: "from", to: "to" }}
@@ -136,9 +149,11 @@ export function RangeControl({ value, today, errors: serverErrors }: RangeContro
             }}
           />
           <div className="flex flex-wrap justify-end gap-2">
-            <DialogClose className={buttonStyles({ variant: "outline" })}>Orqaga</DialogClose>
-            <Button type="submit" disabled={pending}>
-              Ko‘rsatish
+            <DialogClose asChild>
+              <Button variant="outline">{t.back}</Button>
+            </DialogClose>
+            <Button type="submit" busy={pending}>
+              {t.show}
             </Button>
           </div>
         </form>

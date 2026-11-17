@@ -38,6 +38,13 @@
   --gd-image-well: #f3ede1;
   --gd-skeleton: #ece5d6;
   --gd-skeleton-sheen: #f7f2e8;
+  /* Scrollbars: a warm taupe thumb that turns gold-ink under the pointer; >= 3:1 against the
+     surface and white cards (WCAG 1.4.11). */
+  --gd-scrollbar-thumb: #958a73;
+  --gd-scrollbar-thumb-hover: var(--gd-gold-ink);
+  /* Invalid-field reveal (forms/reveal.ts): ring colour and its soft halo. */
+  --gd-danger: #d64545;
+  --gd-danger-halo: #d6454529;
   color-scheme: light;
 }
 
@@ -66,6 +73,10 @@
   --gd-image-well: #121a2c;
   --gd-skeleton: #1c2438;
   --gd-skeleton-sheen: #263049;
+  --gd-scrollbar-thumb: #66769b; /* >= 3:1 on the surface and raised cards */
+  --gd-scrollbar-thumb-hover: var(--gd-gold-ink);
+  --gd-danger: #e06a6a;
+  --gd-danger-halo: #e06a6a33;
   color-scheme: dark;
 }
 
@@ -239,6 +250,28 @@
     transform: translateX(-100%);
   }
 }
+/* A short, decaying side-to-side nudge for the first invalid field. */
+@keyframes gd-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  15% {
+    transform: translateX(-6px);
+  }
+  30% {
+    transform: translateX(5px);
+  }
+  45% {
+    transform: translateX(-4px);
+  }
+  60% {
+    transform: translateX(3px);
+  }
+  75% {
+    transform: translateX(-1.5px);
+  }
+}
 
 @layer base {
   html {
@@ -362,4 +395,86 @@
 /* Diagonal hatching for unavailable time in the appointment grid. */
 @utility hatch {
   background-image: repeating-linear-gradient(135deg, var(--gd-line) 0 3px, transparent 3px 8px);
+}
+
+/*
+ * Scrollbars: thin, rounded, warm — pure CSS, native scrolling (keyboard,
+ * momentum, performance) untouched. WebKit/Blink get the pseudo-elements;
+ * browsers without them (Firefox) get the standard properties. Blink ignores
+ * the pseudo-elements once `scrollbar-width`/`scrollbar-color` are set, hence
+ * the `@supports` guard.
+ */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-color: var(--gd-scrollbar-thumb);
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--gd-scrollbar-thumb-hover);
+}
+::-webkit-scrollbar-thumb:active {
+  background-color: var(--gd-gold);
+}
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--gd-scrollbar-thumb) transparent;
+  }
+}
+
+/* Popovers and lists: a slimmer thumb that leaves the content its room. */
+.scroll-slim::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scroll-slim::-webkit-scrollbar-thumb {
+  border-width: 1px;
+}
+
+/* Dialog bodies keep their width when content starts to scroll. */
+[data-dialog-body] {
+  scrollbar-gutter: stable;
+}
+
+/* Dark surfaces (espresso nav, `data-surface="dark"`): a lighter thumb (>= 3:1 on both navs). */
+.bg-nav,
+[data-surface="dark"] {
+  --gd-scrollbar-thumb: #8a7d66;
+  --gd-scrollbar-thumb-hover: var(--gd-gold);
+}
+
+/* Windows High Contrast: system scrollbars (a standard value makes Blink drop
+   the pseudo-elements above). */
+@media (forced-colors: active) {
+  * {
+    scrollbar-color: CanvasText Canvas;
+  }
+}
+
+/*
+ * The first invalid field after a failed submit (src/lib/forms/reveal.ts sets
+ * `data-shake` for 1.6 s): a danger ring with a soft halo, plus a brief shake.
+ * Under reduced motion the shake is cut to one frame (see above) but the ring
+ * stays, so the cue never depends on motion. Unlayered, so it wins over a
+ * control's own focus styles.
+ */
+[data-shake] {
+  outline: 2px solid var(--gd-danger);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 6px var(--gd-danger-halo);
+  animation: gd-shake 0.42s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+@media (forced-colors: active) {
+  [data-shake] {
+    outline-color: Highlight;
+  }
 }

@@ -1,50 +1,55 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useRef, useState, type FormEvent } from "react";
-import { useForm, useWatch, type Path } from "react-hook-form";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { Controller, useForm, useWatch, type FieldErrors, type Path } from "react-hook-form";
 import { z } from "zod";
 
-import { Button, buttonStyles } from "@/components/ui/button";
-import { Dialog, DialogClose } from "@/components/ui/dialog";
-import { Field, Select, TextArea, TextInput } from "@/components/ui/field";
+import { Button } from "@/components/ui/button";
+import { DatePicker } from "@/components/ui/date-picker";
+import { Dialog } from "@/components/ui/dialog";
+import { Field, TextArea } from "@/components/ui/field";
+import { FormErrorSummary } from "@/components/ui/form-errors";
+import { FormPhoneInput, FormSelect } from "@/components/ui/form-controls";
 import { Icon } from "@/components/ui/icon";
+import type { SelectOption } from "@/components/ui/select";
 import {
   createAppointment,
   loadAppointmentDay,
   rescheduleAppointment,
 } from "@/data/appointments.actions";
 import type { AppointmentDay, DayAppointment } from "@/data/appointments";
-import {
-  bookingDateSchema,
-  bookingTimeSchema,
-  createAppointmentSchema,
-} from "@/data/appointments.schema";
+import { appointmentSchemas } from "@/data/appointments.schema";
 import {
   NOTE_MAX,
   slotOptions,
   specialistSchedule,
   tashkentMinutes,
   type BookingMeta,
+  type SlotOption,
 } from "@/domain/appointment";
-import { formatSom, formatTime, toLocalIsoDate } from "@/lib/format";
-import { maskPhone, normalizePhone } from "@/lib/phone";
+import { toLocalIsoDate } from "@/lib/format";
+import { useRhfReveal } from "@/lib/forms/rhf";
+import { useCopy } from "@/lib/i18n/admin-context";
+import { useFormat, useLocalized } from "@/lib/i18n/admin-hooks";
+import { normalizePhone } from "@/lib/phone";
 
 import { runAction } from "../shared/action-client";
 import { partitionFieldErrors } from "../shared/field-errors";
 import type { IdempotencyKey } from "../shared/idempotency";
+import { appointmentsCopy, type AppointmentsCopy } from "./copy";
+import { customerName, roleText } from "./labels";
 
 /**
- * Admin booking dialogs (contract §2.9 T10): "Qabul qo‘shish" creates a
- * confirmed visit for a customer found by phone; "Vaqtni o‘zgartirish" /
- * "Ko‘chirish" moves a visit to a new start and optionally to another
- * specialist who offers the same service. The time list is the 5-minute grid
- * inside the chosen specialist's working hours of the chosen day (from the
- * board's day, or that day's schedule fetched when another date is picked);
- * starts that collide with a break or a held visit are marked "band" but stay
- * selectable, because the backend is the authority and answers the field
- * error itself (`slot_unavailable`, `outside_working_hours`, `in_past`, a
- * 409 race → "Bu vaqt band." on the time field).
+ * Admin booking dialogs (contract §2.9 T10): «Qabul qo‘shish» creates a confirmed visit for a
+ * customer found by phone; «Vaqtni o‘zgartirish» / «Ko‘chirish» moves a visit to a new start and
+ * optionally to another specialist who offers the same service. The time list is the 5-minute
+ * grid inside the chosen specialist's working hours of the chosen day (from the board's day, or
+ * that day's schedule fetched when another date is picked); starts that collide with a break or
+ * a held visit are marked taken but stay selectable, because the backend is the authority and
+ * answers the field error itself (`slot_unavailable`, `outside_working_hours`, `in_past`, a 409
+ * race → on the time field). A failed submit — in the form or from the server — lists the
+ * fields, toasts and reveals the first one.
  */
 
 type Mode = { kind: "create" } | { kind: "reschedule"; appointment: DayAppointment };
@@ -54,8 +59,12 @@ interface BookingDialogProps {
   onOpenChange: (open: boolean) => void;
   mode: Mode;
   meta: BookingMeta;
-  /** The day the board shows, and its loaded schedule. */
-  day: AppointmentDay;
+  /** The board's anchor day: the first date offered for a new visit. */
+  date: string;
+  /** That day's schedule when the board holds it (else it is loaded like any other day). */
+  day: AppointmentDay | null;
+  /** The board's specialist filter, preselected for a new visit. */
+  defaultSpecialistId?: string;
   /** Server "now" (ISO): today's date and the earliest start. */
   now: string;
   /** Owned by the board so it survives re-opens until a success (contract §1.7). */
@@ -63,60 +72,111 @@ interface BookingDialogProps {
   onSaved: (appointment: DayAppointment) => void;
 }
 
-const formSchema = z.object({
-  specialistId: z.string().min(1, "Mutaxassisni tanlang."),
-  serviceId: z.string(),
-  phone: z.string(),
-  date: bookingDateSchema,
-  time: bookingTimeSchema,
-  note: z.string().max(NOTE_MAX, `${NOTE_MAX} belgidan oshmasin.`),
-});
-type FormValues = z.infer<typeof formSchema>;
+interface FormValues {
+  specialistId: string;
+  serviceId: string;
+  phone: string;
+  date: string;
+  time: string;
+  note: string;
+}
 
-const createRules = formSchema.superRefine((values, ctx) => {
-  const parsed = createAppointmentSchema.safeParse({
-    ...values,
-    phone: normalizePhone(values.phone),
-  });
-  if (parsed.success) return;
-  for (const issue of parsed.error.issues) {
-    ctx.addIssue({ code: "custom", path: issue.path, message: issue.message });
+const FIELDS: ReadonlyArray<keyof FormValues> = [
+  "specialistId",
+  "serviceId",
+  "phone",
+  "date",
+  "time",
+  "note",
+];
+
+type ScheduleState = "loading" | "pickDate" | "failed" | "dayOff" | "full" | null;
+
+/** Why no time can be chosen, from the loaded schedule and the slots it leaves. */
+export function scheduleState(
+  loaded: AppointmentDay | "failed" | undefined,
+  dateValid: boolean,
+  hasHours: boolean | null,
+  slotCount: number,
+): ScheduleState {
+  if (!dateValid) return "pickDate";
+  if (loaded === undefined) return "loading";
+  if (loaded === "failed") return "failed";
+  if (hasHours === false) return "dayOff";
+  return slotCount === 0 ? "full" : null;
+}
+
+/** The time list: every slot (a taken one says so on its second line), plus a kept value. */
+export function timeOptions(
+  t: AppointmentsCopy["booking"],
+  slots: ReadonlyArray<SlotOption>,
+  current: string,
+): SelectOption[] {
+  const options: SelectOption[] = slots.map((slot) => ({
+    value: slot.time,
+    label: slot.time,
+    ...(slot.taken ? { description: t.taken } : {}),
+  }));
+  if (current && !slots.some((slot) => slot.time === current)) {
+    options.push({ value: current, label: current });
   }
-});
+  return options;
+}
 
 export function BookingDialog({
   open,
   onOpenChange,
   mode,
   meta,
+  date: anchor,
   day,
+  defaultSpecialistId,
   now,
   idempotency,
   onSaved,
 }: BookingDialogProps) {
   // React Hook Form re-registers fields during render (see CategoryDialog).
   "use no memo";
+  const copy = useCopy(appointmentsCopy);
+  const t = copy.booking;
+  const fmt = useFormat();
+  const schemas = useLocalized(appointmentSchemas);
   const today = toLocalIsoDate(now);
   const editing = mode.kind === "reschedule" ? mode.appointment : null;
-  const firstSpecialist = meta.specialists[0];
+  const firstSpecialist =
+    meta.specialists.find((s) => s.id === defaultSpecialistId) ?? meta.specialists[0];
   const defaults: FormValues = editing
     ? {
         specialistId: editing.specialistId,
         serviceId: editing.serviceId,
         phone: editing.customer.phone,
         date: toLocalIsoDate(editing.start),
-        time: formatTime(editing.start),
+        time: fmt.time(editing.start),
         note: "",
       }
     : {
         specialistId: firstSpecialist?.id ?? "",
         serviceId: firstSpecialist?.services[0]?.id ?? "",
         phone: "",
-        date: day.date < today ? today : day.date,
+        date: anchor < today ? today : anchor,
         time: "",
         note: "",
       };
+  const resolver = useMemo(
+    () =>
+      zodResolver(
+        editing
+          ? schemas.reschedule.extend({
+              serviceId: z.string(),
+              phone: z.string(),
+              note: z.string(),
+            })
+          : schemas.create,
+      ),
+    [editing, schemas],
+  );
   const [formError, setFormError] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const {
     control,
     register,
@@ -125,32 +185,42 @@ export function BookingDialog({
     setValue,
     getValues,
     formState: { errors, isSubmitting },
-  } = useForm<FormValues>({
-    resolver: zodResolver(editing ? formSchema : createRules),
-    defaultValues: defaults,
+  } = useForm<FormValues>({ resolver, defaultValues: defaults, shouldFocusError: false });
+  const errorsUi = useRhfReveal<FormValues>({
+    formRef,
+    labels: {
+      specialistId: t.specialist,
+      serviceId: t.service,
+      phone: t.phone,
+      date: t.date,
+      time: t.time,
+      note: t.note,
+    },
+    errors,
   });
   const [specialistId, serviceId, date, time] = useWatch({
     control,
     name: ["specialistId", "serviceId", "date", "time"],
   });
   const inFlight = useRef(false);
+  const dateValid = schemas.date.safeParse(date).success;
 
-  // Schedules of other days than the board's, fetched once per date; a date
-  // without an entry yet is loading.
+  // Schedules of other days than the board's, fetched once per date; a date without an entry
+  // yet is loading.
   const [days, setDays] = useState<Record<string, AppointmentDay | "failed">>({});
   const requested = useRef(new Set<string>());
-  const loaded = date === day.date ? day : days[date];
+  const held = day && date === day.date ? day : undefined;
+  const loaded = held ?? days[date];
   useEffect(() => {
-    if (!open || date === day.date || requested.current.has(date)) return;
-    if (!bookingDateSchema.safeParse(date).success) return;
+    if (!open || held || requested.current.has(date) || !dateValid) return;
     requested.current.add(date);
     void runAction((csrf) => loadAppointmentDay(date, csrf)).then((result) =>
       setDays((current) => ({ ...current, [date]: result.ok ? result.data : "failed" })),
     );
-  }, [open, date, day.date]);
+  }, [open, date, held, dateValid]);
 
-  // Specialists who can take this visit: everyone for a new booking, those
-  // offering the visit's service for a move.
+  // Specialists who can take this visit: everyone for a new booking, those offering the visit's
+  // service for a move.
   const specialists = editing
     ? meta.specialists.filter((s) => s.services.some((v) => v.id === editing.serviceId))
     : meta.specialists;
@@ -172,6 +242,12 @@ export function BookingDialog({
         excludeId: editing?.id,
       })
     : [];
+  const state = scheduleState(
+    loaded,
+    dateValid,
+    schedule ? Boolean(schedule.workingHours) : null,
+    slots.length,
+  );
 
   // Keep the chosen service valid for the chosen specialist.
   useEffect(() => {
@@ -212,36 +288,46 @@ export function BookingDialog({
       );
       inFlight.current = false;
       if (!result.ok) {
-        // A move renders no service, phone or note field: anything aimed at a
-        // field the dialog does not show becomes the form-level message.
+        // A move renders no service, phone or note field: anything aimed at a field the dialog
+        // does not show becomes the form-level message.
         const { fieldErrors, formError: message } = partitionFieldErrors(
           result,
-          editing
-            ? ["specialistId", "date", "time"]
-            : ["specialistId", "serviceId", "phone", "date", "time", "note"],
+          editing ? ["specialistId", "date", "time"] : [...FIELDS],
         );
-        for (const [path, message] of Object.entries(fieldErrors)) {
-          setError(path as Path<FormValues>, { message });
+        const serverErrors: FieldErrors<FormValues> = {};
+        for (const [path, text] of Object.entries(fieldErrors)) {
+          setError(path as Path<FormValues>, { type: "server", message: text });
+          serverErrors[path as keyof FormValues] = { type: "server", message: text };
         }
         setFormError(message);
+        if (Object.keys(serverErrors).length > 0) errorsUi.onInvalid(serverErrors);
         return;
       }
+      errorsUi.clear();
       onSaved(result.data);
       onOpenChange(false);
-    })(event);
+    }, errorsUi.onInvalid)(event);
 
-  const scheduleState =
-    loaded === undefined
-      ? bookingDateSchema.safeParse(date).success
-        ? "Jadval yuklanmoqda…"
-        : "Sanani tanlang."
-      : loaded === "failed"
-        ? "Bu kunning jadvalini yuklab bo‘lmadi."
-        : schedule && !schedule.workingHours
-          ? "Mutaxassis bu kuni ishlamaydi."
-          : slots.length === 0
-            ? "Bu kunga bo‘sh vaqt qolmadi."
-            : null;
+  const specialistOptions: SelectOption[] = specialists.map((s) => ({
+    value: s.id,
+    label: s.name,
+    description: roleText(copy, s.role),
+  }));
+  const serviceOptions: SelectOption[] = services.map((s) => ({
+    value: s.id,
+    label: s.name,
+    description: `${fmt.duration(s.durationMin)} · ${fmt.som(s.price)}`,
+  }));
+  const timeHint =
+    state !== null
+      ? t.noSlots[state]
+      : schedule?.workingHours
+        ? t.workingHours(
+            schedule.workingHours.start,
+            schedule.workingHours.end,
+            fmt.duration(durationMin),
+          )
+        : undefined;
 
   return (
     <Dialog
@@ -250,118 +336,96 @@ export function BookingDialog({
         if (isSubmitting) return;
         onOpenChange(next);
       }}
-      title={editing ? "Qabul vaqtini o‘zgartirish" : "Yangi qabul"}
+      title={editing ? t.titleMove : t.titleCreate}
       description={
         editing
-          ? `${editing.customer.name} · ${editing.service}`
-          : "Qabul darhol tasdiqlangan holatda yoziladi; mijozga push yuborilmaydi."
+          ? `${customerName(copy, editing.customer.name)} · ${editing.service}`
+          : t.descriptionCreate
       }
       className="max-w-[560px]"
     >
-      <form noValidate onSubmit={onSubmit} className="flex flex-col gap-4">
+      <form ref={formRef} noValidate onSubmit={onSubmit} className="flex flex-col gap-4">
+        <FormErrorSummary errors={errorsUi.summary} onSelect={errorsUi.select} />
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Mutaxassis" error={errors.specialistId?.message}>
+          <Field name="specialistId" label={t.specialist} error={errors.specialistId?.message}>
             {(c) => (
-              <Select {...c} {...register("specialistId")}>
-                {specialists.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} · {s.role}
-                  </option>
-                ))}
-              </Select>
+              <FormSelect
+                {...c}
+                control={control}
+                name="specialistId"
+                options={specialistOptions}
+                placeholder={t.specialist}
+              />
             )}
           </Field>
           {editing ? (
             <div className="flex flex-col gap-2">
-              <span className="text-label text-ink">Xizmat</span>
+              <span className="text-label text-ink">{t.service}</span>
               <span className="flex min-h-11 items-center rounded-md bg-surface px-3.5 text-body-sm text-ink">
-                {editing.service} · {durationMin} daqiqa
+                {editing.service} · {fmt.duration(durationMin)}
               </span>
             </div>
           ) : (
-            <Field label="Xizmat" error={errors.serviceId?.message}>
+            <Field name="serviceId" label={t.service} error={errors.serviceId?.message}>
               {(c) => (
-                <Select {...c} {...register("serviceId")}>
-                  {services.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} · {s.durationMin} daqiqa · {formatSom(s.price)}
-                    </option>
-                  ))}
-                </Select>
+                <FormSelect
+                  {...c}
+                  control={control}
+                  name="serviceId"
+                  options={serviceOptions}
+                  placeholder={t.service}
+                />
               )}
             </Field>
           )}
         </div>
 
         {!editing && (
-          <Field
-            label="Mijoz telefoni"
-            error={errors.phone?.message}
-            hint="Ilovada ro‘yxatdan o‘tgan mijoz raqami."
-          >
-            {(c) => (
-              <TextInput
-                {...c}
-                {...register("phone", {
-                  onChange: (event) =>
-                    setValue("phone", maskPhone(event.target.value), { shouldDirty: true }),
-                })}
-                type="tel"
-                inputMode="tel"
-                autoComplete="off"
-                placeholder="+998 90 123 45 67"
-                className="tabular-nums"
-              />
-            )}
+          <Field name="phone" label={t.phone} error={errors.phone?.message} hint={t.phoneHint}>
+            {(c) => <FormPhoneInput {...c} control={control} name="phone" />}
           </Field>
         )}
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Sana" error={errors.date?.message}>
+          <Field name="date" label={t.date} error={errors.date?.message}>
             {(c) => (
-              <TextInput
-                {...c}
-                {...register("date", {
-                  onChange: () => setValue("time", ""),
-                })}
-                type="date"
-                min={today}
-                className="tabular-nums"
+              <Controller
+                control={control}
+                name="date"
+                render={({ field }) => (
+                  <DatePicker
+                    {...c}
+                    name={field.name}
+                    ref={field.ref}
+                    value={field.value}
+                    onBlur={field.onBlur}
+                    onValueChange={(value) => {
+                      if (value !== field.value) setValue("time", "");
+                      field.onChange(value);
+                    }}
+                    min={today}
+                    today={today}
+                  />
+                )}
               />
             )}
           </Field>
-          <Field
-            label="Vaqt"
-            error={errors.time?.message}
-            hint={
-              scheduleState ??
-              (schedule?.workingHours
-                ? `Ish vaqti ${schedule.workingHours.start}–${schedule.workingHours.end}, ${durationMin} daqiqa`
-                : undefined)
-            }
-          >
+          <Field name="time" label={t.time} error={errors.time?.message} hint={timeHint}>
             {(c) => (
-              <Select {...c} {...register("time")} disabled={slots.length === 0}>
-                <option value="">Vaqtni tanlang</option>
-                {slots.map((slot) => (
-                  <option key={slot.time} value={slot.time}>
-                    {slot.taken ? `${slot.time} · band` : slot.time}
-                  </option>
-                ))}
-                {time && !slots.some((slot) => slot.time === time) && (
-                  <option value={time}>{time}</option>
-                )}
-              </Select>
+              <FormSelect
+                {...c}
+                control={control}
+                name="time"
+                options={timeOptions(t, slots, time)}
+                placeholder={t.chooseTime}
+                disabledReason={slots.length === 0 && !time && state !== null && t.noSlots[state]}
+              />
             )}
           </Field>
         </div>
 
         {!editing && (
-          <Field
-            label="Izoh (ixtiyoriy)"
-            error={errors.note?.message}
-            hint="Faqat xodimlar ko‘radi."
-          >
+          <Field name="note" label={t.note} error={errors.note?.message} hint={t.noteHint}>
             {(c) => <TextArea {...c} {...register("note")} rows={2} maxLength={NOTE_MAX} />}
           </Field>
         )}
@@ -369,10 +433,7 @@ export function BookingDialog({
         {editing && specialistId !== editing.specialistId && service && (
           <p className="m-0 flex items-start gap-1.5 text-body-sm text-ink-muted">
             <Icon name="info" size={16} className="mt-px shrink-0" />
-            Mutaxassis almashsa narx va davomiylik uning narxidan olinadi: {
-              service.durationMin
-            }{" "}
-            daqiqa · {formatSom(service.price)}.
+            {t.respecialist(fmt.duration(service.durationMin), fmt.som(service.price))}
           </p>
         )}
 
@@ -386,12 +447,17 @@ export function BookingDialog({
           </p>
         )}
         <div className="flex flex-wrap justify-end gap-2">
-          <DialogClose disabled={isSubmitting} className={buttonStyles({ variant: "outline" })}>
-            Bekor qilish
-          </DialogClose>
-          <Button type="submit" disabled={isSubmitting} aria-busy={isSubmitting}>
+          <Button
+            type="button"
+            variant="outline"
+            disabledReason={isSubmitting && t.savingWait}
+            onClick={() => onOpenChange(false)}
+          >
+            {t.cancel}
+          </Button>
+          <Button type="submit" busy={isSubmitting}>
             <Icon name="check" size={18} />
-            {isSubmitting ? "Saqlanmoqda…" : editing ? "Ko‘chirish" : "Qabulni yozish"}
+            {isSubmitting ? t.saving : editing ? t.submitMove : t.submitCreate}
           </Button>
         </div>
       </form>

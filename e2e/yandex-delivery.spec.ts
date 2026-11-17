@@ -10,6 +10,7 @@ import {
 } from "./backend-shell";
 import { adminCredentials, API_URL } from "./env";
 import { heading, toast, watchPage } from "./helpers";
+import { expectDisabledReason, fillDateTime } from "./ui";
 
 /**
  * Yandex Delivery in the admin panel (plan §3.6–§3.9, §4) against a local
@@ -86,7 +87,11 @@ async function dispatchThroughUi(page: Page, id: number, button = "Kuryer chaqir
   const dialog = page.getByRole("dialog", { name: `Buyurtma №${id}: kuryer chaqirish` });
   await expect(dialog).toBeVisible();
   await dialog.getByRole("button", { name: "Kuryer chaqirish" }).click();
-  await expect(dialog.getByText("Jo‘natma tarkibini tekshirganingizni tasdiqlang.")).toBeVisible();
+  // Both fields are missing: the summary lists them and the first one is revealed.
+  await expect(
+    dialog.getByText("Jo‘natma tarkibini tekshirganingizni tasdiqlang.", { exact: true }),
+  ).toBeVisible();
+  await expect(dialog.getByRole("alert").filter({ hasText: "Og‘irlik" })).toBeVisible();
   await dialog.getByLabel(/Jo‘natma tarkibini tekshirdim/).check();
   await dialog.getByLabel(/Jo‘natma og‘irligi/).fill("650");
   await dialog.getByRole("button", { name: "Kuryer chaqirish" }).click();
@@ -118,6 +123,8 @@ test("staff dispatch a paid Yandex order and the fake courier delivers it", asyn
   await expect(page.locator("#dispatch-progress")).toHaveCount(0);
   // Never a courier or customer phone in the carrier view.
   await expect(deliveryCard(page)).not.toContainText(/\+998|tel:/);
+  // A dispatched Yandex order offers no BTS hand-off; its status menu explains why it is empty.
+  await expect(page.getByRole("button", { name: /BTS ga/ })).toHaveCount(0);
 
   await advance(request, id, "pickuped");
   await openOrder(page, id);
@@ -194,6 +201,7 @@ test("an offer above the policy limit goes to review and staff approve it", asyn
   await dispatchThroughUi(page, id);
   // The outbox ran inside the request: the first re-read shows the review and ends the poll.
   await expect(toast(page, "Narxni tasdiqlash kerak")).toBeVisible({ timeout: 25_000 });
+  await expect(toast(page, "Narxni tasdiqlash kerak")).toHaveAttribute("data-tone", "warning");
   await expect(deliveryCard(page)).toContainText("Narxni tasdiqlash kerak");
 
   await page.getByRole("button", { name: "Narxni ko‘rib chiqish" }).click();
@@ -215,5 +223,29 @@ test("an offer above the policy limit goes to review and staff approve it", asyn
   await advance(request, id, "performer_found");
   await expect(toast(page, "Kuryer topildi")).toBeVisible({ timeout: 25_000 });
   await expect(deliveryCard(page).getByRole("list", { name: "Ochiq muammolar" })).toHaveCount(0);
+  watcher.assertClean();
+});
+
+test("the courier switch asks for a future end and explains its controls", async ({ page }) => {
+  const watcher = watchPage(page);
+  await page.goto("/admin/delivery-issues");
+  await expect(heading(page)).toHaveText("Muammolar");
+  // No filter set yet: «Filtrlarni tozalash» is unavailable and says why.
+  await expectDisabledReason(
+    page.getByRole("button", { name: "Filtrlarni tozalash" }),
+    "Hozir filtr qo‘yilmagan",
+  );
+  const toggle = page.getByRole("switch", { name: "Kuryer chaqirishni to‘xtatish" });
+  test.skip((await toggle.getAttribute("aria-checked")) === "true", "dispatch is suspended now");
+  await toggle.click();
+  const dialog = page.getByRole("dialog", { name: "Kuryer chaqirishni to‘xtatasizmi?" });
+  // The end is a picker (DD.MM.YYYY HH:MM, typed ISO accepted); a past one is refused here.
+  await fillDateTime(dialog, "Qachongacha (ixtiyoriy)", "2020-01-01T10:00");
+  await dialog.getByRole("button", { name: "To‘xtatish" }).click();
+  await expect(dialog.getByText("Kelajakdagi vaqtni tanlang.")).toBeVisible();
+  await dialog.getByRole("button", { name: "Orqaga" }).click();
+  await expect(dialog).toBeHidden();
+  // Nothing was sent: the switch (hidden from the tree behind the modal) is still off.
+  await expect(toggle).toHaveAttribute("aria-checked", "false");
   watcher.assertClean();
 });

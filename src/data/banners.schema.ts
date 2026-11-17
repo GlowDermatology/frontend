@@ -2,84 +2,82 @@ import { z } from "zod";
 
 import { BANNER_LINK_KINDS, isValidBannerWindow } from "@/domain/banner";
 import { CATEGORY_SLUG_PATTERN } from "@/domain/category";
-import { isHttpsUrl, LINK_URL_MAX, LINK_URL_MESSAGE } from "@/lib/link-url";
+import { catalogDataCopy, type CatalogDataCopy } from "@/domain/copy/catalog";
+import { isHttpsUrl, LINK_URL_MAX } from "@/lib/link-url";
+import { localized, type LocalizedOf } from "@/lib/i18n/localized";
 
-import { imageFileSchema } from "./products.schema";
+import { imageFileSchemas } from "./products.schema";
 
 /**
  * Validation for the banner dialog (contract §2.5), shared by the form and
- * the Server Action. Datetimes are aware ISO strings (`+05:00`, produced by
- * the dialog from its `datetime-local` inputs) or `null`.
+ * the Server Action, one set per admin language (`bannerSchemas[locale]`,
+ * messages from `catalogDataCopy`). Datetimes are aware ISO strings
+ * (`+05:00`, produced by the dialog from its date-time pickers) or `null`.
  */
 
-const optionalTitle = z.string().trim().max(80, "80 belgidan oshmasin.");
+function fieldsSchema(m: CatalogDataCopy) {
+  const optionalTitle = z.string().trim().max(80, m.maxChars(80));
+  /** ISO 8601 with an explicit offset, or `null`. */
+  const awareDateTime = z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(Z|[+-]\d{2}:\d{2})$/, m.dateTimeIncomplete)
+    .refine((value) => !Number.isNaN(Date.parse(value)), { error: m.dateInvalid })
+    .nullable();
+  return z.object({
+    title: z.object({
+      uz: z.string().trim().min(1, m.bannerTitleUzRequired).max(80, m.maxChars(80)),
+      ru: optionalTitle,
+      en: optionalTitle,
+    }),
+    link: z.object({
+      kind: z.enum(BANNER_LINK_KINDS),
+      productId: z
+        .string()
+        .trim()
+        .regex(/^\d{1,18}$/, m.chooseProduct)
+        .nullable(),
+      category: z.string().trim().regex(CATEGORY_SLUG_PATTERN, m.chooseCategory).nullable(),
+      url: z
+        .string()
+        .trim()
+        .max(LINK_URL_MAX, m.maxChars(LINK_URL_MAX))
+        .refine((value) => isHttpsUrl(value), { error: m.urlHttps })
+        .nullable(),
+    }),
+    isActive: z.boolean(),
+    startsAt: awareDateTime,
+    endsAt: awareDateTime,
+  });
+}
 
-/** ISO 8601 with an explicit offset, or `null`. */
-const awareDateTime = z
-  .string()
-  .regex(
-    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(Z|[+-]\d{2}:\d{2})$/,
-    "Sana va vaqtni to‘liq kiriting.",
-  )
-  .refine((value) => !Number.isNaN(Date.parse(value)), { error: "Noto‘g‘ri sana." })
-  .nullable();
-
-const bannerFields = z.object({
-  title: z.object({
-    uz: z.string().trim().min(1, "O‘zbekcha sarlavhani kiriting.").max(80, "80 belgidan oshmasin."),
-    ru: optionalTitle,
-    en: optionalTitle,
-  }),
-  link: z.object({
-    kind: z.enum(BANNER_LINK_KINDS),
-    productId: z
-      .string()
-      .trim()
-      .regex(/^\d{1,18}$/, "Mahsulotni tanlang.")
-      .nullable(),
-    category: z.string().trim().regex(CATEGORY_SLUG_PATTERN, "Kategoriyani tanlang.").nullable(),
-    url: z
-      .string()
-      .trim()
-      .max(LINK_URL_MAX, `${LINK_URL_MAX} belgidan oshmasin.`)
-      .refine((value) => isHttpsUrl(value), { error: LINK_URL_MESSAGE })
-      .nullable(),
-  }),
-  isActive: z.boolean(),
-  startsAt: awareDateTime,
-  endsAt: awareDateTime,
+export const bannerSchemas = localized(catalogDataCopy, (m, locale) => {
+  const fields = fieldsSchema(m);
+  return {
+    /**
+     * The banner the dialog loaded, which `saveBanner` diffs an update against
+     * (shape checks only: it is server data).
+     */
+    baseline: fields,
+    form: fields.superRefine((values, ctx) => {
+      if (values.link.kind === "product" && !values.link.productId) {
+        ctx.addIssue({ code: "custom", path: ["link", "productId"], message: m.chooseProduct });
+      }
+      if (values.link.kind === "category" && !values.link.category) {
+        ctx.addIssue({ code: "custom", path: ["link", "category"], message: m.chooseCategory });
+      }
+      if (values.link.kind === "url" && !values.link.url) {
+        ctx.addIssue({ code: "custom", path: ["link", "url"], message: m.enterUrl });
+      }
+      if (!isValidBannerWindow(values.startsAt, values.endsAt)) {
+        ctx.addIssue({ code: "custom", path: ["endsAt"], message: m.endAfterStart });
+      }
+    }),
+    /** The optional image part of the dialog's `FormData` (`File` or absent). */
+    image: imageFileSchemas[locale].optional(),
+  };
 });
 
-/**
- * The banner the dialog loaded, which `saveBanner` diffs an update against
- * (shape checks only: it is server data).
- */
-export const bannerBaselineSchema = bannerFields;
-
-export const bannerFormSchema = bannerFields.superRefine((values, ctx) => {
-  if (values.link.kind === "product" && !values.link.productId) {
-    ctx.addIssue({ code: "custom", path: ["link", "productId"], message: "Mahsulotni tanlang." });
-  }
-  if (values.link.kind === "category" && !values.link.category) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["link", "category"],
-      message: "Kategoriyani tanlang.",
-    });
-  }
-  if (values.link.kind === "url" && !values.link.url) {
-    ctx.addIssue({ code: "custom", path: ["link", "url"], message: "Havolani kiriting." });
-  }
-  if (!isValidBannerWindow(values.startsAt, values.endsAt)) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["endsAt"],
-      message: "Tugash vaqti boshlanish vaqtidan keyin bo‘lsin.",
-    });
-  }
-});
-
-export type BannerFormValues = z.infer<typeof bannerFormSchema>;
+export type BannerFormValues = z.infer<LocalizedOf<typeof bannerSchemas>["form"]>;
 
 export const EMPTY_BANNER: BannerFormValues = {
   title: { uz: "", ru: "", en: "" },
@@ -123,9 +121,6 @@ export function bannerValuesFromFormData(formData: FormData): unknown {
     endsAt: nullable("endsAt"),
   };
 }
-
-/** The optional image part of the dialog's `FormData` (`File` or absent). */
-export const bannerImageSchema = imageFileSchema.optional();
 
 /** Form values → the dialog's `FormData` (the client side of `bannerValuesFromFormData`). */
 export function bannerFormDataFromValues(values: BannerFormValues, image: File | null): FormData {

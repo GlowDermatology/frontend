@@ -4,9 +4,12 @@ import { describe, expect, it } from "vitest";
 
 import { ORDER_SEEDS } from "@/data/mock/orders";
 import { getOrder } from "@/data/mock/orders.queries";
+import { orderLabelsCopy } from "@/domain/copy/orders";
 import type { Order } from "@/domain/order";
+import { createFormatter } from "@/lib/format";
 
 import { FulfilmentBoard } from "../dashboard/fulfilment-board";
+import { ordersCopy } from "./copy";
 import { OpenIssuesSection, OrderDeliveryCard } from "./delivery-card";
 import { OrdersTable } from "./orders-table";
 
@@ -64,7 +67,14 @@ describe("the orders list's delivery column", () => {
       (await getOrder(10251))!,
     ];
     const html = renderToStaticMarkup(
-      createElement(OrdersTable, { orders, sortHref: "/admin/orders", sortedAscending: false }),
+      createElement(OrdersTable, {
+        orders,
+        sortHref: "/admin/orders",
+        sortedAscending: false,
+        t: ordersCopy.uz,
+        labels: orderLabelsCopy.uz,
+        fmt: createFormatter("uz"),
+      }),
     );
     expect(html).toContain("YETKAZISH");
     expect(html).toContain("Yandex Standard");

@@ -2,103 +2,98 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import Image from "next/image";
-import { useEffect, useId, useRef, useState, type FormEvent } from "react";
-import { Controller, useForm, useWatch, type Path } from "react-hook-form";
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
+import { Controller, useForm, useWatch, type FieldErrors, type Path } from "react-hook-form";
 import { z } from "zod";
 
 import { Button, buttonStyles } from "@/components/ui/button";
 import { Dialog, DialogClose } from "@/components/ui/dialog";
-import { Field, Select, TextInput } from "@/components/ui/field";
+import { Field, TextInput } from "@/components/ui/field";
+import { FormDateTimePicker, FormSelect } from "@/components/ui/form-controls";
+import { FormErrorSummary } from "@/components/ui/form-errors";
 import { Icon } from "@/components/ui/icon";
 import { SegmentedControl } from "@/components/ui/segmented-control";
+import type { SelectOption } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { useToast } from "@/components/ui/toast";
 import { saveBanner } from "@/data/banners.actions";
 import { bannerFormDataFromValues, type BannerFormValues } from "@/data/banners.schema";
-import {
-  IMAGE_TOO_LARGE_MESSAGE,
-  IMAGE_TYPE_MESSAGE,
-  IMAGE_TYPES,
-  MAX_IMAGE_BYTES,
-} from "@/data/products.schema";
+import { imageFileProblem, IMAGE_TYPES } from "@/data/products.schema";
 import {
   BANNER_LINK_KINDS,
-  BANNER_LINK_LABEL,
+  bannerLinkKindLabel,
+  bannerRecommendedToAsk,
   type Banner,
   type BannerLinkKind,
+  type BannerRecommendedField,
 } from "@/domain/banner";
 import type { Category } from "@/domain/category";
+import { catalogDataCopy } from "@/domain/copy/catalog";
 import { cn } from "@/lib/cn";
-import { isHttpsUrl, LINK_URL_MAX, LINK_URL_MESSAGE } from "@/lib/link-url";
+import { fromLocalInput, toLocalInput } from "@/lib/datetime";
+import { useRhfReveal } from "@/lib/forms/rhf";
+import { useRecommendedConfirm } from "@/lib/forms/recommended";
+import { useAdminLocale, useCopy } from "@/lib/i18n/admin-context";
+import { useLocalized } from "@/lib/i18n/admin-hooks";
+import { localized, type LocalizedOf } from "@/lib/i18n/localized";
+import { isHttpsUrl, LINK_URL_MAX } from "@/lib/link-url";
 
+import { afterDialogsClose } from "../products/form-reveal";
 import { runAction } from "../shared/action-client";
 import type { IdempotencyKey } from "../shared/idempotency";
-import { fromLocalInput, toLocalInput } from "./datetime";
+import { bannersCopy, type BannersCopy } from "./copy";
 import { ProductPicker } from "./product-picker";
 
 /**
- * The dialog's own form shape: the link targets as plain strings (`""` =
- * none) and the window as `datetime-local` values; `toValues` turns it into
- * the `BannerFormValues` the Server Action validates.
+ * The dialog's own form shape, one schema per admin language: the link targets as plain strings
+ * (`""` = none) and the window as the date-time pickers' `YYYY-MM-DDTHH:MM` values (Tashkent);
+ * `toValues` turns it into the `BannerFormValues` the Server Action validates.
  */
-const formSchema = z
-  .object({
-    title: z.object({
-      uz: z
-        .string()
-        .trim()
-        .min(1, "O‘zbekcha sarlavhani kiriting.")
-        .max(80, "80 belgidan oshmasin."),
-      ru: z.string().trim().max(80, "80 belgidan oshmasin."),
-      en: z.string().trim().max(80, "80 belgidan oshmasin."),
-    }),
-    kind: z.enum(BANNER_LINK_KINDS),
-    productId: z.string(),
-    category: z.string(),
-    url: z.string().trim().max(LINK_URL_MAX, `${LINK_URL_MAX} belgidan oshmasin.`),
-    isActive: z.boolean(),
-    startsAt: z.string(),
-    endsAt: z.string(),
-  })
-  .superRefine((values, ctx) => {
-    if (values.kind === "product" && !values.productId) {
-      ctx.addIssue({ code: "custom", path: ["productId"], message: "Mahsulotni tanlang." });
-    }
-    if (values.kind === "category" && !values.category) {
-      ctx.addIssue({ code: "custom", path: ["category"], message: "Kategoriyani tanlang." });
-    }
-    if (values.kind === "url") {
-      if (!values.url) {
-        ctx.addIssue({ code: "custom", path: ["url"], message: "Havolani kiriting." });
-      } else if (!isHttpsUrl(values.url)) {
-        ctx.addIssue({ code: "custom", path: ["url"], message: LINK_URL_MESSAGE });
+export const bannerDialogSchemas = localized(catalogDataCopy, (m) =>
+  z
+    .object({
+      title: z.object({
+        uz: z.string().trim().min(1, m.bannerTitleUzRequired).max(80, m.maxChars(80)),
+        ru: z.string().trim().max(80, m.maxChars(80)),
+        en: z.string().trim().max(80, m.maxChars(80)),
+      }),
+      kind: z.enum(BANNER_LINK_KINDS),
+      productId: z.string(),
+      category: z.string(),
+      url: z.string().trim().max(LINK_URL_MAX, m.maxChars(LINK_URL_MAX)),
+      isActive: z.boolean(),
+      startsAt: z.string(),
+      endsAt: z.string(),
+    })
+    .superRefine((values, ctx) => {
+      if (values.kind === "product" && !values.productId) {
+        ctx.addIssue({ code: "custom", path: ["productId"], message: m.chooseProduct });
       }
-    }
-    const starts = values.startsAt ? fromLocalInput(values.startsAt) : null;
-    const ends = values.endsAt ? fromLocalInput(values.endsAt) : null;
-    if (values.startsAt && !starts) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["startsAt"],
-        message: "Sana va vaqtni to‘liq kiriting.",
-      });
-    }
-    if (values.endsAt && !ends) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["endsAt"],
-        message: "Sana va vaqtni to‘liq kiriting.",
-      });
-    }
-    if (starts && ends && Date.parse(ends) <= Date.parse(starts)) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["endsAt"],
-        message: "Tugash vaqti boshlanish vaqtidan keyin bo‘lsin.",
-      });
-    }
-  });
+      if (values.kind === "category" && !values.category) {
+        ctx.addIssue({ code: "custom", path: ["category"], message: m.chooseCategory });
+      }
+      if (values.kind === "url") {
+        if (!values.url) {
+          ctx.addIssue({ code: "custom", path: ["url"], message: m.enterUrl });
+        } else if (!isHttpsUrl(values.url)) {
+          ctx.addIssue({ code: "custom", path: ["url"], message: m.urlHttps });
+        }
+      }
+      const starts = values.startsAt ? fromLocalInput(values.startsAt) : null;
+      const ends = values.endsAt ? fromLocalInput(values.endsAt) : null;
+      if (values.startsAt && !starts) {
+        ctx.addIssue({ code: "custom", path: ["startsAt"], message: m.dateTimeIncomplete });
+      }
+      if (values.endsAt && !ends) {
+        ctx.addIssue({ code: "custom", path: ["endsAt"], message: m.dateTimeIncomplete });
+      }
+      if (starts && ends && Date.parse(ends) <= Date.parse(starts)) {
+        ctx.addIssue({ code: "custom", path: ["endsAt"], message: m.endAfterStart });
+      }
+    }),
+);
 
-type FormValues = z.infer<typeof formSchema>;
+type FormValues = z.infer<LocalizedOf<typeof bannerDialogSchemas>>;
 
 function fromBanner(banner: Banner | null): FormValues {
   return {
@@ -137,6 +132,29 @@ const FIELD_ALIAS: Record<string, Path<FormValues> | "image"> = {
   image: "image",
 };
 
+/** The summary's label of a dialog field (`title.ru` → «Sarlavha (ruscha)»). */
+export function bannerFieldLabel(t: BannersCopy["dialog"], name: string): string | undefined {
+  const labels: Record<string, string> = {
+    "title.uz": t.titleUz,
+    "title.ru": t.titleRu,
+    "title.en": t.titleEn,
+    kind: t.linkKind,
+    productId: t.product,
+    category: t.category,
+    url: t.url,
+    startsAt: t.startsAt,
+    endsAt: t.endsAt,
+    image: t.image,
+    isActive: t.active,
+  };
+  return labels[name];
+}
+
+/** `errors` plus the image's own error (it lives outside React Hook Form). */
+function withImage<T extends FieldErrors<FormValues>>(errors: T, message: string | null): T {
+  return message ? ({ ...errors, image: { type: "manual", message } } as T) : errors;
+}
+
 interface BannerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -162,13 +180,21 @@ export function BannerDialog({
   // React Hook Form re-registers fields during render; the compiler's
   // memoisation of `register(...)` calls would skip that (see ProductEditor).
   "use no memo";
+  const copy = useCopy(bannersCopy);
+  const t = copy.dialog;
+  const locale = useAdminLocale();
+  const schema = useLocalized(bannerDialogSchemas);
+  const m = catalogDataCopy[locale];
+  const toast = useToast();
   const idBase = useId();
+  const formRef = useRef<HTMLFormElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
-  const imageButton = useRef<HTMLButtonElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const resolver = useMemo(() => zodResolver(schema), [schema]);
   const {
     control,
     register,
@@ -176,12 +202,17 @@ export function BannerDialog({
     setError,
     setValue,
     formState: { errors, isSubmitting },
-  } = useForm<FormValues>({ resolver: zodResolver(formSchema), defaultValues: fromBanner(banner) });
+  } = useForm<FormValues>({ resolver, defaultValues: fromBanner(banner), shouldFocusError: false });
+  const errorsUi = useRhfReveal<FormValues>({
+    formRef,
+    labels: (name) => bannerFieldLabel(t, name),
+    errors: withImage(errors, imageError),
+  });
   const kind = useWatch({ control, name: "kind" });
   const editing = banner !== null;
-  // Synchronous re-entry guard: `isSubmitting` disables the button only after
-  // a re-render, and React Hook Form's submit handler is re-entrant.
+  // Synchronous re-entry guard: React Hook Form's submit handler is re-entrant.
   const inFlight = useRef(false);
+  const { confirm, dialog: recommendedDialog } = useRecommendedConfirm();
 
   const clearPreview = () => {
     setPreview((current) => {
@@ -194,17 +225,12 @@ export function BannerDialog({
   // Revoke a preview that was never handed over to the list.
   useEffect(() => () => clearPreview(), []);
 
-  const focusImageButton = () => imageButton.current?.focus();
-
   const onFile = (picked: File | undefined) => {
     if (!picked) return;
-    if (!(IMAGE_TYPES as ReadonlyArray<string>).includes(picked.type)) {
-      setImageError(IMAGE_TYPE_MESSAGE);
-      return;
-    }
-    // 5 MiB, refused before the round trip (the Server Action body limit is 6 MB).
-    if (picked.size > MAX_IMAGE_BYTES) {
-      setImageError(IMAGE_TOO_LARGE_MESSAGE);
+    // Type, then 5 MiB, refused before the round trip (the Server Action body limit is 6 MB).
+    const problem = imageFileProblem(picked, locale);
+    if (problem) {
+      setImageError(problem);
       return;
     }
     setImageError(null);
@@ -213,59 +239,104 @@ export function BannerDialog({
     setPreview(URL.createObjectURL(picked));
   };
 
-  const requireImage = () => {
-    if (editing || file) return true;
-    setImageError("Banner rasmini tanlang.");
-    return false;
+  /** The image's error for this submit (required on create), set on the card. */
+  const imageProblem = (): string | null => {
+    if (imageError) return imageError;
+    if (editing || file) return null;
+    setImageError(m.bannerImageRequired);
+    return m.bannerImageRequired;
+  };
+
+  const recommendedLabel: Record<BannerRecommendedField, string> = {
+    "title.ru": copy.recommended.titleRu,
+    "title.en": copy.recommended.titleEn,
+  };
+
+  const save = async (values: FormValues) => {
+    setFormError(null);
+    const formData = bannerFormDataFromValues(toValues(values), file);
+    // The loaded banner, through the same form round trip as the values,
+    // so the action sends only what the admin changed.
+    const baseline = banner ? toValues(fromBanner(banner)) : null;
+    const result = idempotency.settle(
+      await runAction((csrf) =>
+        saveBanner(banner?.id ?? null, formData, baseline, idempotency.key, csrf),
+      ),
+    );
+    if (!result.ok) {
+      const entries = Object.entries(result.fieldErrors ?? {});
+      const serverErrors: Record<string, { type: string; message: string }> = {};
+      for (const [path, message] of entries) {
+        const target = FIELD_ALIAS[path] ?? (path as Path<FormValues>);
+        if (target === "image") setImageError(message);
+        else setError(target, { type: "server", message });
+        serverErrors[target] = { type: "server", message };
+      }
+      if (entries.length === 0) {
+        setFormError(result.error);
+        toast({ tone: "danger", title: copy.toast.notSaved, description: result.error });
+      } else {
+        errorsUi.onInvalid(serverErrors as FieldErrors<FormValues>);
+      }
+      return;
+    }
+    errorsUi.clear();
+    const previewUrl = preview;
+    setPreview(null); // handed over to the list (demo mode); not revoked here
+    setFile(null);
+    onSaved(result.data, editing ? "edit" : "create", previewUrl);
+    onOpenChange(false);
   };
 
   // Built inside the event handler (not during render) so the ref read
   // inside is an event-time access. The image lives outside React Hook Form,
   // so it is checked on both the valid and the invalid path: every error
-  // shows at once.
+  // shows at once, in one summary.
   const onSubmit = (event: FormEvent<HTMLFormElement>) =>
     handleSubmit(
       async (values) => {
-        setFormError(null);
-        if (!requireImage()) {
-          focusImageButton();
-          return;
-        }
         if (inFlight.current) return;
-        inFlight.current = true;
-        const formData = bannerFormDataFromValues(toValues(values), file);
-        // The loaded banner, through the same form round trip as the values,
-        // so the action sends only what the admin changed.
-        const baseline = banner ? toValues(fromBanner(banner)) : null;
-        const result = idempotency.settle(
-          await runAction((csrf) =>
-            saveBanner(banner?.id ?? null, formData, baseline, idempotency.key, csrf),
-          ),
-        );
-        inFlight.current = false;
-        if (!result.ok) {
-          const entries = Object.entries(result.fieldErrors ?? {});
-          for (const [path, message] of entries) {
-            const target = FIELD_ALIAS[path] ?? (path as Path<FormValues>);
-            if (target === "image") setImageError(message);
-            else setError(target, { message });
-          }
-          if (entries.length === 0) setFormError(result.error);
+        const image = imageProblem();
+        if (image) {
+          errorsUi.onInvalid(withImage({}, image));
           return;
         }
-        const previewUrl = preview;
-        setPreview(null); // handed over to the list (demo mode); not revoked here
-        setFile(null);
-        onSaved(result.data, editing ? "edit" : "create", previewUrl);
-        onOpenChange(false);
+        inFlight.current = true;
+        try {
+          // Asked only when it is news: a create, the save that activates the banner, a title
+          // just emptied or an Uzbek title changed while a translation stays empty.
+          const missing = bannerRecommendedToAsk(values, banner);
+          if (missing.length > 0) {
+            const choice = await confirm(
+              missing.map((name) => ({ name, label: recommendedLabel[name] })),
+              { remember: banner ? { kind: "banner", id: banner.id } : null },
+            );
+            if (choice === "fix") {
+              await afterDialogsClose();
+              errorsUi.select(missing[0]!);
+              return;
+            }
+            // The question's dialog hands focus back as it closes: let it, so a field error
+            // revealed after the save keeps the focus.
+            await afterDialogsClose();
+          }
+          setSaving(true);
+          await save(values);
+        } finally {
+          inFlight.current = false;
+          setSaving(false);
+        }
       },
-      () => {
-        requireImage();
-      },
+      (fieldErrors) => errorsUi.onInvalid(withImage(fieldErrors, imageProblem())),
     )(event);
 
   const currentImage = preview ?? banner?.imageUrl ?? null;
   const imageErrorId = imageError ? `${idBase}-image-error` : undefined;
+  const categoryOptions: SelectOption[] = categories.map((category) => ({
+    value: category.slug,
+    label: category.name.uz || category.slug,
+    ...(category.isActive ? {} : { description: t.inactiveCategory }),
+  }));
 
   return (
     <Dialog
@@ -275,12 +346,23 @@ export function BannerDialog({
         onOpenChange(next);
       }}
       onCloseAutoFocus={onCloseAutoFocus}
-      title={editing ? "Bannerni tahrirlash" : "Yangi banner"}
+      title={editing ? t.editTitle : t.createTitle}
       className="max-w-[640px]"
     >
-      <form noValidate onSubmit={onSubmit} className="flex flex-col gap-4">
-        <div className="flex flex-col gap-2">
-          <span className="text-label text-ink">Rasm</span>
+      <form ref={formRef} noValidate onSubmit={onSubmit} className="flex flex-col gap-4">
+        <FormErrorSummary errors={errorsUi.summary} onSelect={errorsUi.select} />
+        <div
+          data-field="image"
+          data-invalid={imageError ? "true" : undefined}
+          tabIndex={-1}
+          role="group"
+          aria-labelledby={`${idBase}-image-label`}
+          aria-describedby={imageErrorId}
+          className="-m-1.5 flex flex-col gap-2 rounded-md p-1.5 outline-none"
+        >
+          <span id={`${idBase}-image-label`} className="text-label text-ink">
+            {t.image}
+          </span>
           <div className="flex flex-wrap items-start gap-3">
             <span
               className={cn(
@@ -292,11 +374,11 @@ export function BannerDialog({
                 currentImage.startsWith("blob:") ? (
                   // Local preview (object URL); next/image cannot optimise blobs.
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={currentImage} alt="Banner rasmi" className="size-full object-cover" />
+                  <img src={currentImage} alt={t.imageAlt} className="size-full object-cover" />
                 ) : (
                   <Image
                     src={currentImage}
-                    alt="Banner rasmi"
+                    alt={t.imageAlt}
                     fill
                     sizes="280px"
                     className="object-cover"
@@ -306,21 +388,20 @@ export function BannerDialog({
                 <Icon name="image" size={28} />
               )}
             </span>
-            <span className="flex flex-col gap-2">
+            <span className="flex min-w-0 flex-1 flex-col gap-2">
               <button
                 type="button"
-                ref={imageButton}
                 onClick={() => fileInput.current?.click()}
                 aria-describedby={imageErrorId}
-                className={buttonStyles({ variant: "dashed", size: "sm" })}
+                className={cn(buttonStyles({ variant: "dashed", size: "sm" }), "self-start")}
               >
                 <Icon name="upload" size={16} className="text-gold-ink" />
-                {currentImage ? "Rasmni almashtirish" : "Rasm tanlash"}
+                {currentImage ? t.replaceImage : t.chooseImage}
               </button>
-              <span className="text-caption font-normal text-ink-muted">
-                JPG, PNG, WebP · 5 MB gacha · 2:1 tavsiya etiladi
-              </span>
-              {file && <span className="text-caption font-normal text-ink">{file.name}</span>}
+              <span className="text-caption font-normal text-ink-muted">{t.imageHint}</span>
+              {file && (
+                <span className="truncate text-caption font-normal text-ink">{file.name}</span>
+              )}
             </span>
             <input
               ref={fileInput}
@@ -347,30 +428,42 @@ export function BannerDialog({
           )}
         </div>
 
-        <Field label="Sarlavha (o‘zbekcha)" error={errors.title?.uz?.message}>
+        <Field label={t.titleUz} error={errors.title?.uz?.message}>
           {(c) => <TextInput {...c} {...register("title.uz")} autoComplete="off" maxLength={80} />}
         </Field>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Sarlavha (ruscha)" error={errors.title?.ru?.message}>
+          <Field label={t.titleRu} error={errors.title?.ru?.message}>
             {(c) => (
-              <TextInput {...c} {...register("title.ru")} autoComplete="off" maxLength={80} />
+              <TextInput
+                {...c}
+                {...register("title.ru")}
+                lang="ru"
+                autoComplete="off"
+                maxLength={80}
+              />
             )}
           </Field>
-          <Field label="Sarlavha (inglizcha)" error={errors.title?.en?.message}>
+          <Field label={t.titleEn} error={errors.title?.en?.message}>
             {(c) => (
-              <TextInput {...c} {...register("title.en")} autoComplete="off" maxLength={80} />
+              <TextInput
+                {...c}
+                {...register("title.en")}
+                lang="en"
+                autoComplete="off"
+                maxLength={80}
+              />
             )}
           </Field>
         </div>
 
-        <div className="flex flex-col gap-2">
-          <span className="text-label text-ink">Havola</span>
+        <div className="flex flex-col gap-2" data-field="kind">
+          <span className="text-label text-ink">{t.link}</span>
           <Controller
             control={control}
             name="kind"
             render={({ field }) => (
               <SegmentedControl<BannerLinkKind>
-                label="Havola turi"
+                label={t.linkKind}
                 layout="fill"
                 value={field.value}
                 onChange={(value) => {
@@ -379,21 +472,24 @@ export function BannerDialog({
                 }}
                 options={BANNER_LINK_KINDS.map((value) => ({
                   value,
-                  label: BANNER_LINK_LABEL[value],
+                  label: bannerLinkKindLabel(value, locale),
                 }))}
               />
             )}
           />
         </div>
         {kind === "product" && (
-          <div className="flex flex-col gap-2">
-            <span className="text-label text-ink">Mahsulot (faol)</span>
+          <div className="flex flex-col gap-2" data-field="productId">
+            <label htmlFor={`${idBase}-product`} className="text-label text-ink">
+              {t.product}
+            </label>
             <Controller
               control={control}
               name="productId"
               render={({ field, fieldState }) => (
                 <>
                   <ProductPicker
+                    id={`${idBase}-product`}
                     value={field.value || null}
                     onChange={(product) => {
                       field.onChange(product?.id ?? "");
@@ -417,27 +513,23 @@ export function BannerDialog({
           </div>
         )}
         {kind === "category" && (
-          <Field label="Kategoriya" error={errors.category?.message}>
-            {(c) => (
-              <Select {...c} {...register("category")}>
-                <option value="">Tanlang</option>
-                {categories.map((category) => (
-                  <option key={category.slug} value={category.slug}>
-                    {category.name.uz}
-                    {category.isActive ? "" : " (faol emas)"}
-                  </option>
-                ))}
-              </Select>
-            )}
-          </Field>
+          <div data-field="category">
+            <Field label={t.category} error={errors.category?.message}>
+              {(c) => (
+                <FormSelect
+                  {...c}
+                  control={control}
+                  name="category"
+                  options={categoryOptions}
+                  placeholder={t.chooseCategory}
+                />
+              )}
+            </Field>
+          </div>
         )}
 
         {kind === "url" && (
-          <Field
-            label="Havola (URL)"
-            error={errors.url?.message}
-            hint="Ilovada ochiladi. Faqat https:// bilan boshlanadigan to‘liq manzil."
-          >
+          <Field label={t.url} error={errors.url?.message} hint={t.urlHint}>
             {(c) => (
               <TextInput
                 {...c}
@@ -447,27 +539,29 @@ export function BannerDialog({
                 autoComplete="off"
                 spellCheck={false}
                 maxLength={LINK_URL_MAX}
-                placeholder="https://glowderma.uz/aksiya"
+                placeholder={t.urlPlaceholder}
               />
             )}
           </Field>
         )}
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Boshlanishi" error={errors.startsAt?.message} hint="Bo‘sh — darhol.">
-            {(c) => <TextInput {...c} {...register("startsAt")} type="datetime-local" step={60} />}
-          </Field>
-          <Field label="Tugashi" error={errors.endsAt?.message} hint="Bo‘sh — muddatsiz.">
-            {(c) => <TextInput {...c} {...register("endsAt")} type="datetime-local" step={60} />}
-          </Field>
+          <div data-field="startsAt">
+            <Field label={t.startsAt} error={errors.startsAt?.message} hint={t.startsAtHint}>
+              {(c) => <FormDateTimePicker {...c} control={control} name="startsAt" />}
+            </Field>
+          </div>
+          <div data-field="endsAt">
+            <Field label={t.endsAt} error={errors.endsAt?.message} hint={t.endsAtHint}>
+              {(c) => <FormDateTimePicker {...c} control={control} name="endsAt" />}
+            </Field>
+          </div>
         </div>
 
         <div className="flex items-center justify-between gap-3 rounded-md bg-surface px-3.5 py-3">
           <span className="flex flex-col gap-0.5">
-            <span className="text-label text-ink">Faol</span>
-            <span className="text-caption font-normal text-ink-muted">
-              Faol bo‘lmagan banner ilovada ko‘rinmaydi, muddatidan qat’i nazar.
-            </span>
+            <span className="text-label text-ink">{t.active}</span>
+            <span className="text-caption font-normal text-ink-muted">{t.activeHint}</span>
           </span>
           <Controller
             control={control}
@@ -477,7 +571,7 @@ export function BannerDialog({
                 ref={field.ref}
                 checked={field.value}
                 onCheckedChange={field.onChange}
-                aria-label="Banner faol"
+                aria-label={t.activeSwitch}
               />
             )}
           />
@@ -493,14 +587,17 @@ export function BannerDialog({
           </p>
         )}
         <div className="flex flex-wrap justify-end gap-2">
-          <DialogClose disabled={isSubmitting} className={buttonStyles({ variant: "outline" })}>
-            Bekor qilish
+          <DialogClose asChild>
+            <Button variant="outline" disabledReason={saving && t.cancelBusy}>
+              {t.cancel}
+            </Button>
           </DialogClose>
-          <Button type="submit" disabled={isSubmitting} aria-busy={isSubmitting}>
+          <Button type="submit" busy={saving}>
             <Icon name="check" size={18} />
-            {isSubmitting ? "Saqlanmoqda…" : "Saqlash"}
+            {saving ? t.saving : t.save}
           </Button>
         </div>
+        {recommendedDialog}
       </form>
     </Dialog>
   );

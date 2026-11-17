@@ -3,6 +3,7 @@ import {
   BILLZ_AUTH_FAILED_MESSAGE,
   BILLZ_LISTING_INCOMPLETE,
   BILLZ_LISTING_INCOMPLETE_MESSAGE,
+  JOB_UNEXPECTED_MESSAGE,
   type BillzImportResult,
   type Job,
   type JobProgress,
@@ -60,7 +61,7 @@ export function mapJobError(value: unknown): Job["error"] {
   if (code === BILLZ_LISTING_INCOMPLETE) return { code, message: BILLZ_LISTING_INCOMPLETE_MESSAGE };
   if (code === BILLZ_AUTH_FAILED) return { code, message: BILLZ_AUTH_FAILED_MESSAGE };
   const message =
-    typeof value.message === "string" && value.message ? value.message : "Kutilmagan xato.";
+    typeof value.message === "string" && value.message ? value.message : JOB_UNEXPECTED_MESSAGE;
   return { code, message };
 }
 

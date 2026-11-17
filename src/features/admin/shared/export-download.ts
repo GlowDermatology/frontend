@@ -1,4 +1,7 @@
-import { NETWORK_ERROR_MESSAGE } from "./action-client";
+import type { Locale } from "@/lib/i18n/locales";
+
+import { documentLocale } from "./action-client";
+import { sharedCopy } from "./copy";
 
 /**
  * The client side of the export routes (`/admin/<section>/export?…`). The
@@ -6,11 +9,14 @@ import { NETWORK_ERROR_MESSAGE } from "./action-client";
  * the browser as a download only when the route answers 2xx; any refusal —
  * 429 throttled, 400 `export_too_large`, 401 (also the login page a
  * redirect chain ends on, see `isLoginPage`), 502 — comes back as the
- * envelope's Uzbek `message` for a toast, so the admin never lands on a raw
- * JSON page.
+ * envelope's `message` (already in the admin language: the route asked the
+ * API with Accept-Language) for a toast, so the admin never lands on a raw
+ * JSON page. The frontend's own fallback texts follow `locale` (default: the
+ * page's language).
  */
 
-export const EXPORT_FAILED_MESSAGE = "Eksport bajarilmadi. Qayta urinib ko‘ring.";
+/** Uzbek texts (aliases of `sharedCopy.uz.export`). */
+export const EXPORT_FAILED_MESSAGE = sharedCopy.uz.export.failed;
 
 export type ExportDownload =
   { ok: true; blob: Blob; filename: string } | { ok: false; status: number; message: string };
@@ -29,7 +35,7 @@ export function fallbackFilename(href: string): string {
   return /[?&]format=xlsx\b/.test(href) ? "eksport.xlsx" : "eksport.csv";
 }
 
-export const EXPORT_SESSION_MESSAGE = "Sessiya tugadi. Qaytadan kiring.";
+export const EXPORT_SESSION_MESSAGE = sharedCopy.uz.export.sessionEnded;
 
 /**
  * Whether a 2xx answer is the login page instead of a file: with an expired
@@ -51,7 +57,9 @@ export function isLoginPage(response: Response): boolean {
 export async function fetchExport(
   href: string,
   fetchImpl: typeof fetch = (input, init) => fetch(input, init),
+  locale: Locale = documentLocale(),
 ): Promise<ExportDownload> {
+  const t = sharedCopy[locale];
   let response: Response;
   try {
     response = await fetchImpl(href, {
@@ -61,10 +69,10 @@ export async function fetchExport(
       headers: { Accept: "*/*" },
     });
   } catch {
-    return { ok: false, status: 0, message: NETWORK_ERROR_MESSAGE };
+    return { ok: false, status: 0, message: t.network };
   }
   if (response.ok && isLoginPage(response)) {
-    return { ok: false, status: 401, message: EXPORT_SESSION_MESSAGE };
+    return { ok: false, status: 401, message: t.export.sessionEnded };
   }
   if (response.ok) {
     try {
@@ -78,10 +86,10 @@ export async function fetchExport(
         ),
       };
     } catch {
-      return { ok: false, status: 0, message: NETWORK_ERROR_MESSAGE };
+      return { ok: false, status: 0, message: t.network };
     }
   }
-  let message = EXPORT_FAILED_MESSAGE;
+  let message = t.export.failed;
   try {
     const body: unknown = await response.json();
     if (

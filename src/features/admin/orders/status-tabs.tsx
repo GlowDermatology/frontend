@@ -2,35 +2,41 @@ import Link from "next/link";
 
 import { dotClass } from "@/components/ui/badge";
 import type { OrderListQuery } from "@/data/orders";
+import type { OrderLabels } from "@/domain/copy/orders";
 import { ORDER_STATUSES, type OrderStatus } from "@/domain/order";
 import { cn } from "@/lib/cn";
-import { formatNumber } from "@/lib/format";
+import type { AdminFormatter } from "@/lib/format";
 
 import { ORDER_STATUS_META } from "../shared/status";
+import type { OrdersCopy } from "./copy";
 import { orderListHref } from "./query";
 
 interface StatusTabsProps {
   query: OrderListQuery;
   counts: Record<OrderStatus | "all", number>;
+  t: OrdersCopy;
+  labels: OrderLabels;
+  fmt: AdminFormatter;
 }
 
 /** Status filter as links (each state has its own URL); the current one is marked. */
-export function StatusTabs({ query, counts }: StatusTabsProps) {
-  const tabs: Array<{ status?: OrderStatus; label: string; count: number }> = [
-    { label: "Hammasi", count: counts.all },
+export function StatusTabs({ query, counts, t, labels, fmt }: StatusTabsProps) {
+  const tabs: Array<{ key: string; status?: OrderStatus; label: string; count: number }> = [
+    { key: "all", label: t.all, count: counts.all },
     ...ORDER_STATUSES.map((status) => ({
+      key: status,
       status,
-      label: ORDER_STATUS_META[status].label,
+      label: labels.status[status],
       count: counts[status],
     })),
   ];
   return (
-    <nav aria-label="Holat bo‘yicha">
+    <nav aria-label={t.statusNav}>
       <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
         {tabs.map((tab) => {
           const active = tab.status === query.status;
           return (
-            <li key={tab.label}>
+            <li key={tab.key}>
               <Link
                 href={orderListHref({ ...query, status: tab.status, page: 1 })}
                 scroll={false}
@@ -52,9 +58,7 @@ export function StatusTabs({ query, counts }: StatusTabsProps) {
                   />
                 )}
                 {tab.label}
-                <span className="text-[12px] font-bold tabular-nums">
-                  {formatNumber(tab.count)}
-                </span>
+                <span className="text-[12px] font-bold tabular-nums">{fmt.number(tab.count)}</span>
               </Link>
             </li>
           );

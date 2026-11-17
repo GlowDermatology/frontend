@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 
+import { orderDataCopy, orderLabelsCopy } from "@/domain/copy/orders";
 import { DELIVERY_METHODS, ORDER_STATUSES, type Order, type OrderStatus } from "@/domain/order";
 import {
   APPROVED_PRICE_MAX,
@@ -11,13 +12,11 @@ import {
   type DispatchInput,
 } from "@/domain/order-dispatch";
 
-import {
-  apiMutation,
-  fieldErrorsFrom,
-  guardAction,
-  idempotencyKeySchema,
-  sessionToken,
-} from "./action-guard";
+import { getAdminLocale } from "@/lib/i18n/admin-locale";
+import { localized } from "@/lib/i18n/localized";
+import { validationCopy } from "@/lib/i18n/validation-copy";
+
+import { apiMutation, fieldErrorsFrom, guardAction, sessionToken } from "./action-guard";
 import {
   apiCancelOrder,
   apiConfirmReturn,
@@ -62,48 +61,57 @@ const orderIdSchema = z.int().positive();
 
 const MAP_OPTIONS: MapOrderOptions = { imageUrl: optimizableMediaUrl };
 
-const cancelSchema = z.object({
-  orderId: orderIdSchema,
-  reason: z
-    .string()
-    .trim()
-    .min(3, "Kamida 3 ta belgi kiriting.")
-    .max(500, "500 belgidan oshmasin."),
-  key: idempotencyKeySchema,
+/**
+ * The actions' input rules with the backend's limits; messages in the admin language
+ * (`validationCopy` + `orderDataCopy`, Uzbek = the backend's texts).
+ */
+const orderActionSchemas = localized((locale) => {
+  const v = validationCopy[locale];
+  const m = orderDataCopy[locale];
+  const w = orderLabelsCopy[locale].weight;
+  const key = z.uuid({ error: v.requestKey });
+  return {
+    cancel: z.object({
+      orderId: orderIdSchema,
+      reason: z.string().trim().min(3, v.minChars(3)).max(500, v.maxChars(500)),
+      key,
+    }),
+    transition: z.object({ orderId: orderIdSchema, status: z.enum(ORDER_STATUSES), key }),
+    retry: z.object({ orderId: orderIdSchema, key }),
+    /** `DispatchRequest` (INTERFACES-dispatch). */
+    dispatch: z.object({
+      orderId: orderIdSchema,
+      contentsVerified: z.literal(true, { error: m.confirmContents }),
+      weightG: z
+        .int({ error: w.integer })
+        .min(PARCEL_WEIGHT_MIN_G, w.min(String(PARCEL_WEIGHT_MIN_G)))
+        .max(PARCEL_WEIGHT_MAX_G, w.max),
+      method: z.enum(DELIVERY_METHODS).nullish(),
+      approvedPrice: z
+        .int({ error: v.invalid })
+        .min(0, v.invalid)
+        .max(APPROVED_PRICE_MAX, v.invalid)
+        .nullish(),
+      key,
+    }),
+    confirmReturn: z.object({
+      orderId: orderIdSchema,
+      note: z.string().trim().max(RETURN_NOTE_MAX, v.maxChars(RETURN_NOTE_MAX)),
+      key,
+    }),
+  };
 });
 
-const transitionSchema = z.object({
-  orderId: orderIdSchema,
-  status: z.enum(ORDER_STATUSES),
-  key: idempotencyKeySchema,
-});
-
-const retrySchema = z.object({ orderId: orderIdSchema, key: idempotencyKeySchema });
-
-/** `DispatchRequest` with the backend's limits and messages (INTERFACES-dispatch). */
-const dispatchSchema = z.object({
-  orderId: orderIdSchema,
-  contentsVerified: z.literal(true, {
-    error: "Jo‘natma tarkibini tekshirganingizni tasdiqlang.",
-  }),
-  weightG: z
-    .int({ error: "Grammda butun son kiriting." })
-    .min(PARCEL_WEIGHT_MIN_G, `Kamida ${PARCEL_WEIGHT_MIN_G} g bo‘lsin.`)
-    .max(PARCEL_WEIGHT_MAX_G, "20 000 g dan oshmasin."),
-  method: z.enum(DELIVERY_METHODS).nullish(),
-  approvedPrice: z
-    .int({ error: "Noto‘g‘ri qiymat." })
-    .min(0, "Noto‘g‘ri qiymat.")
-    .max(APPROVED_PRICE_MAX, "Noto‘g‘ri qiymat.")
-    .nullish(),
-  key: idempotencyKeySchema,
-});
-
-const confirmReturnSchema = z.object({
-  orderId: orderIdSchema,
-  note: z.string().trim().max(RETURN_NOTE_MAX, `${RETURN_NOTE_MAX} belgidan oshmasin.`),
-  key: idempotencyKeySchema,
-});
+/** The admin language of this request, its messages and its rules. */
+async function requestLanguage() {
+  const locale = await getAdminLocale();
+  return {
+    locale,
+    m: orderDataCopy[locale],
+    schemas: orderActionSchemas[locale],
+    map: { ...MAP_OPTIONS, locale } satisfies MapOrderOptions,
+  };
+}
 
 export async function cancelOrder(
   orderId: number,
@@ -113,8 +121,9 @@ export async function cancelOrder(
 ): Promise<ActionResult<Order>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
-  const parsed = cancelSchema.safeParse({ orderId, reason, key });
-  if (!parsed.success) return fieldErrorsFrom(parsed.error, "Sababni kiriting.");
+  const { locale, m, schemas, map } = await requestLanguage();
+  const parsed = schemas.cancel.safeParse({ orderId, reason, key });
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, m.enterReason);
   const input = parsed.data;
   if ((await dataSource()) === "api") {
     return apiMutation("cancelOrder", async () => {
@@ -125,13 +134,13 @@ export async function cancelOrder(
           { reason: input.reason },
           input.key,
         );
-        return { ok: true, data: mapOrder(data, MAP_OPTIONS) };
+        return { ok: true, data: mapOrder(data, map) };
       } catch (error) {
         return toActionResult(error);
       }
     });
   }
-  return mock.cancelOrder(input.orderId, input.reason);
+  return mock.cancelOrder(input.orderId, input.reason, locale);
 }
 
 export async function changeOrderStatus(
@@ -142,8 +151,9 @@ export async function changeOrderStatus(
 ): Promise<ActionResult<Order>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
-  const parsed = transitionSchema.safeParse({ orderId, status, key });
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  const { locale, m, schemas, map } = await requestLanguage();
+  const parsed = schemas.transition.safeParse({ orderId, status, key });
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, m.checkFields);
   const input = parsed.data;
   if ((await dataSource()) === "api") {
     return apiMutation("changeOrderStatus", async () => {
@@ -154,13 +164,13 @@ export async function changeOrderStatus(
           { status: input.status },
           input.key,
         );
-        return { ok: true, data: mapOrder(data, MAP_OPTIONS) };
+        return { ok: true, data: mapOrder(data, map) };
       } catch (error) {
         return toActionResult(error);
       }
     });
   }
-  return mock.changeOrderStatus(input.orderId, input.status);
+  return mock.changeOrderStatus(input.orderId, input.status, locale);
 }
 
 /**
@@ -175,8 +185,9 @@ export async function retryShipment(
 ): Promise<ActionResult<Order>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
-  const parsed = retrySchema.safeParse({ orderId, key });
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  const { locale, m, schemas, map } = await requestLanguage();
+  const parsed = schemas.retry.safeParse({ orderId, key });
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, m.checkFields);
   const input = parsed.data;
   if ((await dataSource()) === "api") {
     return apiMutation("retryShipment", async () => {
@@ -186,13 +197,13 @@ export async function retryShipment(
           input.orderId,
           input.key,
         );
-        return { ok: true, data: mapOrder(data, MAP_OPTIONS) };
+        return { ok: true, data: mapOrder(data, map) };
       } catch (error) {
         return toActionResult(error);
       }
     });
   }
-  return mock.retryShipment(input.orderId);
+  return mock.retryShipment(input.orderId, locale);
 }
 
 /**
@@ -211,8 +222,9 @@ export async function dispatchOrder(
 ): Promise<ActionResult<Order>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
-  const parsed = dispatchSchema.safeParse({ orderId, key, ...input });
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  const { locale, m, schemas, map } = await requestLanguage();
+  const parsed = schemas.dispatch.safeParse({ orderId, key, ...input });
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, m.checkFields);
   const { orderId: id, key: idempotencyKey, ...body } = parsed.data;
   if ((await dataSource()) === "api") {
     return apiMutation("dispatchOrder", async () => {
@@ -223,13 +235,13 @@ export async function dispatchOrder(
           dispatchBody(body),
           idempotencyKey,
         );
-        return { ok: true, data: mapOrder(data, MAP_OPTIONS) };
+        return { ok: true, data: mapOrder(data, map) };
       } catch (error) {
         return toActionResult(error);
       }
     });
   }
-  return mock.dispatchOrder(id, body);
+  return mock.dispatchOrder(id, body, locale);
 }
 
 /**
@@ -245,8 +257,9 @@ export async function confirmOrderReturn(
 ): Promise<ActionResult<Order>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
-  const parsed = confirmReturnSchema.safeParse({ orderId, note, key });
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  const { locale, m, schemas, map } = await requestLanguage();
+  const parsed = schemas.confirmReturn.safeParse({ orderId, note, key });
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, m.checkFields);
   const input = parsed.data;
   if ((await dataSource()) === "api") {
     return apiMutation("confirmOrderReturn", async () => {
@@ -257,13 +270,13 @@ export async function confirmOrderReturn(
           confirmReturnBody(input.note),
           input.key,
         );
-        return { ok: true, data: mapOrder(data, MAP_OPTIONS) };
+        return { ok: true, data: mapOrder(data, map) };
       } catch (error) {
         return toActionResult(error);
       }
     });
   }
-  return mock.confirmReturn(input.orderId, input.note);
+  return mock.confirmReturn(input.orderId, input.note, locale);
 }
 
 /**
@@ -274,16 +287,17 @@ export async function confirmOrderReturn(
 export async function loadOrder(orderId: number, csrf: string): Promise<ActionResult<Order>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
+  const { locale, m, map } = await requestLanguage();
   const parsed = orderIdSchema.safeParse(orderId);
-  if (!parsed.success) return { ok: false, error: "Topilmadi.", code: "not_found" };
+  if (!parsed.success) return { ok: false, error: m.notFound, code: "not_found" };
   if ((await dataSource()) === "api") {
     try {
       const { data } = await apiGetOrderFresh(sessionToken(guard.session), parsed.data);
-      return { ok: true, data: mapOrder(data, MAP_OPTIONS) };
+      return { ok: true, data: mapOrder(data, map) };
     } catch (error) {
       return toActionResult(error);
     }
   }
-  const order = await mockQueries.getOrder(parsed.data);
-  return order ? { ok: true, data: order } : { ok: false, error: "Topilmadi.", code: "not_found" };
+  const order = await mockQueries.getOrder(parsed.data, locale);
+  return order ? { ok: true, data: order } : { ok: false, error: m.notFound, code: "not_found" };
 }

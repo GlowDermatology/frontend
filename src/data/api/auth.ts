@@ -4,6 +4,10 @@ import type { OAuthProvider } from "../auth/oauth";
 import { apiFetch, type ApiResponse } from "./client";
 import type {
   AccessResponse,
+  AdminLoginResult,
+  ApiOwnPasswordLink,
+  ApiPasswordTokenInfo,
+  ApiPasswordTokenSet,
   LoginResponse as ApiLoginResponse,
   Me as ApiMe,
   OAuthCallbackRequest,
@@ -18,6 +22,7 @@ import type {
 /** `GET auth/me/` (contract §2.1 `Me`), from the generated OpenAPI types. */
 export type Me = ApiMe;
 export type LoginResponse = ApiLoginResponse;
+export type { AdminLoginResult };
 export type RefreshResponse = AccessResponse;
 
 export const LOGOUT_SCOPES = ["current", "others", "all"] as const;
@@ -27,12 +32,15 @@ export function isLogoutScope(value: unknown): value is LogoutScope {
   return typeof value === "string" && (LOGOUT_SCOPES as readonly string[]).includes(value);
 }
 
-/** `POST auth/login/` (no bearer). 401 `invalid_credentials`, 429 `throttled`. */
+/**
+ * `POST auth/login/` (no bearer): a session, or the MFA challenge (`AdminLoginResult`). 401
+ * `invalid_credentials`, 429 `throttled`.
+ */
 export function apiLogin(body: {
   email: string;
   password: string;
-}): Promise<ApiResponse<LoginResponse>> {
-  return apiFetch<LoginResponse>("/api/v1/admin/auth/login/", { method: "POST", body });
+}): Promise<ApiResponse<AdminLoginResult>> {
+  return apiFetch<AdminLoginResult>("/api/v1/admin/auth/login/", { method: "POST", body });
 }
 
 /** `POST auth/refresh/` (no bearer). 401 `SESSION_EXPIRED` / `not_authenticated` ends the session. */
@@ -65,8 +73,8 @@ export function apiMe(token: string): Promise<ApiResponse<Me>> {
 export function apiOAuthLogin(
   provider: OAuthProvider,
   body: OAuthCallbackRequest,
-): Promise<ApiResponse<LoginResponse>> {
-  return apiFetch<LoginResponse>(`/api/v1/admin/auth/oauth/${provider}/`, {
+): Promise<ApiResponse<AdminLoginResult>> {
+  return apiFetch<AdminLoginResult>(`/api/v1/admin/auth/oauth/${provider}/`, {
     method: "POST",
     body,
   });
@@ -94,4 +102,33 @@ export function apiOAuthUnlink(
     method: "DELETE",
     token,
   });
+}
+
+/**
+ * `POST auth/password-link/` (bearer): e-mails the caller a single-use link to set their password
+ * (an account that must change it but cannot type the current one). 409 `conflict` when no change
+ * is pending or e-mail is not available; 429.
+ */
+export function apiOwnPasswordLink(token: string): Promise<ApiResponse<ApiOwnPasswordLink>> {
+  return apiFetch<ApiOwnPasswordLink>("/api/v1/admin/auth/password-link/", {
+    method: "POST",
+    body: {},
+    token,
+  });
+}
+
+/** `POST auth/password-token/check/` (no bearer): whose link it is. 400 `token_invalid`, 429. */
+export function apiPasswordTokenCheck(token: string): Promise<ApiResponse<ApiPasswordTokenInfo>> {
+  return apiFetch<ApiPasswordTokenInfo>("/api/v1/admin/auth/password-token/check/", {
+    method: "POST",
+    body: { token },
+  });
+}
+
+/**
+ * `POST auth/password-token/set/` (no bearer) → 204, no session opened. 400 `token_invalid`, 400
+ * `validation_error` on `new_password` (the link stays usable), 429.
+ */
+export function apiPasswordTokenSet(body: ApiPasswordTokenSet): Promise<ApiResponse<undefined>> {
+  return apiFetch<undefined>("/api/v1/admin/auth/password-token/set/", { method: "POST", body });
 }

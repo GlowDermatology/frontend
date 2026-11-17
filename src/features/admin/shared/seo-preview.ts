@@ -8,9 +8,12 @@ import {
   type SeoText,
 } from "@/domain/seo";
 import { getShopDictionary } from "@/features/shop/content";
+import type { Locale } from "@/lib/i18n/locales";
 import { clampDescription, pageTitle } from "@/features/shop/seo/metadata";
 import { formatPrice } from "@/lib/format";
 import { shopPath, type PublicRoute } from "@/features/shop/routing/routes";
+
+import { sharedCopy } from "./copy";
 
 /**
  * What the admin's SEO preview shows (pure; unit-tested): the website's
@@ -85,25 +88,23 @@ export interface CounterInfo {
   note: string;
 }
 
-const STATE_NOTE: Record<LengthState, string> = {
-  empty: "Bo‘sh — sayt o‘zi yasaydi",
-  short: "Juda qisqa",
-  ideal: "Ideal uzunlik",
-  long: "Qidiruvda kesiladi",
-};
-
-/** The character counter of an SEO field (`kind` picks the ideal bounds). */
-export function seoCounter(value: string, kind: "title" | "description", max: number): CounterInfo {
+/** The character counter of an SEO field (`kind` picks the ideal bounds), noted in `locale`. */
+export function seoCounter(
+  value: string,
+  kind: "title" | "description",
+  max: number,
+  locale: Locale = "uz",
+): CounterInfo {
   const count = value.trim().length;
   const ideal = kind === "title" ? SEO_TITLE_IDEAL : SEO_DESCRIPTION_IDEAL;
   const state = count > max ? "long" : lengthState(count, ideal);
-  return { count, max, state, note: STATE_NOTE[state] };
+  return { count, max, state, note: sharedCopy[locale].seo.counter[state] };
 }
 
-/** "Ideal: 15–60 belgi" under each field. */
-export function idealHint(kind: "title" | "description"): string {
+/** "Ideal: 15–60 belgi." under each field. */
+export function idealHint(kind: "title" | "description", locale: Locale = "uz"): string {
   const ideal = kind === "title" ? SEO_TITLE_IDEAL : SEO_DESCRIPTION_IDEAL;
-  return `Ideal: ${ideal.min}–${ideal.max} belgi.`;
+  return sharedCopy[locale].seo.ideal(ideal.min, ideal.max);
 }
 
 /* --- The website's own fallbacks (`features/shop/seo/describe.ts`) --- */

@@ -14,7 +14,10 @@ import { isAccessLive } from "@/data/auth/jwt";
 import { safeNext } from "@/data/auth/next-param";
 import { classifyRefresh, type RefreshCallResult } from "@/data/auth/refresh-outcome";
 import { isSameOriginRequest } from "@/data/auth/same-origin";
+import { authDataCopy } from "@/domain/copy/auth";
 import { serverEnv } from "@/lib/env.server";
+import { ADMIN_LOCALE_COOKIE, parseAdminLocale } from "@/lib/i18n/admin-locale-cookie";
+import { LOCALE_INFO } from "@/lib/i18n/locales";
 import { parseAllowedOrigins } from "@/lib/origins";
 
 /**
@@ -57,8 +60,12 @@ export async function GET(request: NextRequest) {
     requestHost: request.headers.get("x-forwarded-host") ?? request.headers.get("host"),
     allowedOrigins: parseAllowedOrigins(process.env.GLOWDERMA_ALLOWED_ORIGINS),
   });
+  // The admin language of this browser (`gd_admin_language`, `Path=/admin`).
+  const locale = parseAdminLocale(request.cookies.get(ADMIN_LOCALE_COOKIE)?.value);
+  const m = authDataCopy[locale];
+  const lang = LOCALE_INFO[locale].htmlLang;
   if (!sameOrigin) {
-    return sameOriginBounce(url.pathname + url.search);
+    return sameOriginBounce(url.pathname + url.search, undefined, m.page, lang);
   }
 
   const secure = serverEnv.cookieSecure();
@@ -101,9 +108,12 @@ export async function GET(request: NextRequest) {
   }
   const retryAfter = outcome.retryAfter ?? 5;
   const self = escapeHtml(url.pathname + url.search);
+  const t = m.refreshFailed;
   return htmlPage(
-    "Glow Derma Admin — qayta urinib ko‘ring",
-    `<h1 style="font:700 20px/1.3 Georgia,serif;margin:0 0 12px">Sessiyani yangilab bo‘lmadi</h1><p>API vaqtincha javob bermadi. ${retryAfter} soniyadan so‘ng qayta urinib ko‘ring.</p><p><a href="${self}">Qayta urinish</a> · <a href="${escapeHtml(loginUrl(next))}">Qayta kirish</a></p>`,
+    t.title,
+    `<h1 style="font:700 20px/1.3 Georgia,serif;margin:0 0 12px">${escapeHtml(t.heading)}</h1><p>${escapeHtml(t.body(retryAfter))}</p><p><a href="${self}">${escapeHtml(t.retry)}</a> · <a href="${escapeHtml(loginUrl(next))}">${escapeHtml(t.signIn)}</a></p>`,
     { status: 503, headers: { "Retry-After": String(retryAfter) } },
+    "",
+    lang,
   );
 }

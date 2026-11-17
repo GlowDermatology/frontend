@@ -76,6 +76,9 @@ const DESIGN_PRODUCTS: Seed[] = [
     lastChange: {
       by: "Administrator",
       at: "2026-10-22T18:04:00+05:00",
+      kind: "price_changed",
+      oldPrice: 175_000,
+      newPrice: 185_000,
       note: "narx 175 000 → 185 000",
     },
     texts: texts(

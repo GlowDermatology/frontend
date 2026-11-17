@@ -1,11 +1,20 @@
-import type {
-  StaffAccountRow,
-  StaffCredentials,
-  StaffListQuery,
-  StaffMember,
+import {
+  STAFF_INVITE_STATES,
+  type StaffAccountRow,
+  type StaffActivation,
+  type StaffCredentials,
+  type StaffInvite,
+  type StaffListQuery,
+  type StaffMember,
 } from "@/domain/staff";
 
-import type { ApiStaffCredentials, ApiStaffListItem, ApiStaffMember } from "../types";
+import type {
+  ApiStaffCredentials,
+  ApiStaffInvite,
+  ApiStaffLinkSent,
+  ApiStaffListItem,
+  ApiStaffMember,
+} from "../types";
 import { idString } from "./common";
 
 /** `StaffListItem` (contract §2.16) → the actor filter option. */
@@ -34,11 +43,43 @@ export function mapStaffRow(api: ApiStaffListItem | ApiStaffMember): StaffAccoun
     lastLoginAt: api.last_login_at ?? null,
     linkedProviders: [...(api.linked_providers ?? [])],
     createdAt: api.created_at ?? null,
+    mustChangePassword: api.must_change_password ?? false,
+    passwordChangedAt: "password_changed_at" in api ? (api.password_changed_at ?? null) : null,
+    mfaEnabled: api.mfa_enabled ?? false,
+    invite: mapStaffInvite(api.invite),
   };
 }
 
+/** `StaffInvite` → the row's link state; an unknown state (a newer backend) reads as `none`. */
+export function mapStaffInvite(api: ApiStaffInvite | null | undefined): StaffInvite | null {
+  if (!api) return null;
+  const state = (STAFF_INVITE_STATES as ReadonlyArray<string>).includes(api.state)
+    ? api.state
+    : "none";
+  return { state, sentAt: api.sent_at ?? null, expiresAt: api.expires_at ?? null };
+}
+
+function mapActivation(
+  api: { sent: boolean; expires_at: string } | null | undefined,
+): StaffActivation | null {
+  return api ? { sent: Boolean(api.sent), expiresAt: api.expires_at || null } : null;
+}
+
 export function mapStaffCredentials(api: ApiStaffCredentials): StaffCredentials {
-  return { staff: mapStaffRow(api.staff), temporaryPassword: api.temporary_password || null };
+  return {
+    staff: mapStaffRow(api.staff),
+    temporaryPassword: api.temporary_password || null,
+    activation: mapActivation(api.activation),
+  };
+}
+
+/** `POST staff/{id}/send-password-link/` → the same shape as an invitation without a password. */
+export function mapStaffLinkSent(api: ApiStaffLinkSent): StaffCredentials {
+  return {
+    staff: mapStaffRow(api.staff),
+    temporaryPassword: null,
+    activation: mapActivation(api.activation),
+  };
 }
 
 /** The screen's URL query → `GET staff/` parameters (`search`, `is_active`, `page`, `page_size`). */

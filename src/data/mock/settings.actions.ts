@@ -1,3 +1,7 @@
+import { passwordDataCopy } from "@/domain/copy/password";
+import { settingsDataCopy } from "@/domain/copy/settings";
+import { copyFor } from "@/lib/i18n/admin-locale";
+
 import type { OAuthProvider } from "../auth/oauth";
 import type { ChangePasswordValues } from "../settings.schema";
 import type { ActionResult } from "../types";
@@ -6,7 +10,7 @@ import { delay } from "./delay";
 /**
  * Mock implementation of `src/data/settings.actions.ts`. Nothing is kept: the
  * password change only applies the backend's "different from the current
- * one" rule.
+ * one" rule. Refusals in the admin language, like the backend's.
  */
 
 export async function changePassword(
@@ -14,11 +18,12 @@ export async function changePassword(
 ): Promise<ActionResult<{ changed: true }>> {
   await delay(400);
   if (values.newPassword === values.currentPassword) {
+    const m = await copyFor(passwordDataCopy);
     return {
       ok: false,
-      error: "Maydonlarni tekshiring.",
+      error: m.checkFields,
       code: "validation_error",
-      fieldErrors: { newPassword: "Yangi parol eskisidan farq qilsin." },
+      fieldErrors: { newPassword: m.sameAsCurrent },
     };
   }
   return { ok: true, data: { changed: true } };
@@ -37,7 +42,8 @@ export async function unlinkSocialAccount(
 ): Promise<ActionResult<{ unlinked: OAuthProvider }>> {
   await delay(300);
   if (!MOCK_LINKED.includes(provider)) {
-    return { ok: false, error: "Topilmadi.", code: "not_found" };
+    const m = await copyFor(settingsDataCopy);
+    return { ok: false, error: m.notFound, code: "not_found" };
   }
   return { ok: true, data: { unlinked: provider } };
 }

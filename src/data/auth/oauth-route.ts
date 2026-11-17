@@ -2,9 +2,10 @@ import "server-only";
 
 import type { NextRequest, NextResponse } from "next/server";
 
+import { authDataCopy, type AuthDataCopy } from "@/domain/copy/auth";
 import { parseAllowedOrigins } from "@/lib/origins";
 
-import { htmlPage } from "./html-page";
+import { escapeHtml, htmlPage } from "./html-page";
 import {
   oauthRedirectUri,
   publicOrigin,
@@ -55,11 +56,16 @@ export function redirectUriFor(
   return origin ? oauthRedirectUri(origin, provider) : null;
 }
 
-export function notFoundPage(): NextResponse {
+export function notFoundPage(
+  texts: AuthDataCopy["page"] = authDataCopy.uz.page,
+  lang = "uz",
+): NextResponse {
   return htmlPage(
-    "Topilmadi — Glow Derma Admin",
-    `<h1 style="font:700 20px/1.3 Georgia,serif;margin:0 0 12px">Topilmadi</h1><p>Bu manzil mavjud emas.</p><p><a href="/admin/login">Kirish sahifasiga</a></p>`,
+    `${texts.notFoundTitle} — Glow Derma Admin`,
+    `<h1 style="font:700 20px/1.3 Georgia,serif;margin:0 0 12px">${escapeHtml(texts.notFoundTitle)}</h1><p>${escapeHtml(texts.notFoundBody)}</p><p><a href="/admin/login">${escapeHtml(texts.toSignIn)}</a></p>`,
     { status: 404 },
+    "",
+    lang,
   );
 }
 

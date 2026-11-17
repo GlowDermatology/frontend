@@ -6,6 +6,9 @@
  * the post-dispatch poll. Framework-free and unit-tested; every amount is
  * the server's, never computed here.
  */
+import type { Locale } from "@/lib/i18n/locales";
+
+import { orderLabelsCopy } from "./copy/orders";
 import type { DeliveryIssue } from "./delivery-issue";
 import {
   DELIVERY_METHODS,
@@ -38,17 +41,19 @@ export type WeightParse = { ok: true; grams: number } | { ok: false; message: st
 
 /**
  * The weight field (grams typed by staff, spaces allowed: "1 250") → an
- * integer within the API's limits, or the field's Uzbek message.
+ * integer within the API's limits, or the field's message in the admin
+ * language.
  */
-export function parseParcelWeight(text: string): WeightParse {
+export function parseParcelWeight(text: string, locale: Locale = "uz"): WeightParse {
+  const m = orderLabelsCopy[locale].weight;
   const compact = text.replace(/[\s  ]/g, "");
-  if (compact === "") return { ok: false, message: "Og‘irlikni kiriting." };
-  if (!/^\d+$/.test(compact)) return { ok: false, message: "Grammda butun son kiriting." };
+  if (compact === "") return { ok: false, message: m.empty };
+  if (!/^\d+$/.test(compact)) return { ok: false, message: m.integer };
   const grams = Number(compact);
   if (grams < PARCEL_WEIGHT_MIN_G) {
-    return { ok: false, message: `Kamida ${PARCEL_WEIGHT_MIN_G} g bo‘lsin.` };
+    return { ok: false, message: m.min(String(PARCEL_WEIGHT_MIN_G)) };
   }
-  if (grams > PARCEL_WEIGHT_MAX_G) return { ok: false, message: "20 000 g dan oshmasin." };
+  if (grams > PARCEL_WEIGHT_MAX_G) return { ok: false, message: m.max };
   return { ok: true, grams };
 }
 
@@ -66,16 +71,12 @@ export function initialWeightText(order: Pick<Order, "delivery">): string {
  * Why Yandex's binding offer went to review (`DeliveryIssue.code` of a
  * `dispatch_review`, from `delivery.pricing` and the dispatch handler).
  */
-export const REVIEW_REASON_LABEL: Record<string, string> = {
-  increase_over_limit: "Taklif checkout taxminidan ruxsat etilgan chegaradan ko‘proq oshdi.",
-  loss_over_limit: "Mijoz to‘lagan narxga nisbatan zarar bir jo‘natma chegarasidan oshdi.",
-  above_approved: "Yangi taklif avval tasdiqlangan narxdan yuqori.",
-  warnings: "Yandex taklif bilan ogohlantirish yubordi.",
-  offer_missing: "Yandex taklif narxini yubormadi.",
-};
+export const REVIEW_REASON_LABEL: Record<string, string> = orderLabelsCopy.uz.reviewReason;
 
-export function reviewReasonLabel(code: string): string {
-  return REVIEW_REASON_LABEL[code] ?? `Narx avtomatik qabul qilinmadi (${code}).`;
+export function reviewReasonLabel(code: string, locale: Locale = "uz"): string {
+  const labels = orderLabelsCopy[locale];
+  const reasons = labels.reviewReason as Record<string, string>;
+  return (Object.hasOwn(reasons, code) ? reasons[code] : undefined) ?? labels.reviewFallback(code);
 }
 
 /** The amounts of an open `dispatch_review` issue, as the server wrote them. */

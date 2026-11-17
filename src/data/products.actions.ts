@@ -2,19 +2,17 @@
 
 import { z } from "zod";
 
+import { catalogDataCopy, type CatalogDataCopy } from "@/domain/copy/catalog";
 import type { Job } from "@/domain/job";
-import {
-  BILLZ_UNAVAILABLE_MESSAGE,
-  productDisplayName,
-  type Product,
-  type ProductImage,
-} from "@/domain/product";
+import { productDisplayName, type Product, type ProductImage } from "@/domain/product";
+import { getAdminLocale } from "@/lib/i18n/admin-locale";
+import type { Locale } from "@/lib/i18n/locales";
 
 import {
   apiMutation,
   fieldErrorsFrom,
   guardAction,
-  idempotencyKeySchema,
+  idempotencyKeySchemas,
   sessionToken,
 } from "./action-guard";
 import {
@@ -43,10 +41,10 @@ import { getJob } from "./jobs";
 import * as mock from "./mock/products.actions";
 import { searchActiveProducts } from "./products";
 import {
-  imageFileSchema,
+  imageFileSchemas,
   MAX_IMAGES,
   productBaselineSchema,
-  productFormSchema,
+  productFormSchemas,
   type ProductBaseline,
   type ProductFormValues,
 } from "./products.schema";
@@ -72,12 +70,19 @@ const imageIdSchema = z.string().trim().min(1).max(64);
 /** API ids are integers; anything else cannot exist on the server. */
 const apiIdSchema = z.string().regex(/^\d{1,18}$/);
 
+/** The admin language's messages and the locale itself (cookie `gd_admin_language`). */
+async function messages(): Promise<{ m: CatalogDataCopy; locale: Locale }> {
+  const locale = await getAdminLocale();
+  return { m: catalogDataCopy[locale], locale };
+}
+
 async function apiSaveProduct(
   token: string,
   id: string | null,
   values: ProductFormValues,
   baseline: ProductBaseline | null,
   key: string,
+  m: CatalogDataCopy,
 ): Promise<ActionResult<Product>> {
   try {
     if (id === null) {
@@ -87,7 +92,7 @@ async function apiSaveProduct(
       return { ok: true, data: mapProduct(data) };
     }
     if (!apiIdSchema.safeParse(id).success) {
-      return { ok: false, error: "Mahsulot topilmadi.", code: "not_found" };
+      return { ok: false, error: m.productNotFound, code: "not_found" };
     }
     // No baseline (a caller outside the editor): every editable field is sent.
     const body = baseline ? productPatchBody(baseline, values) : productFullPatchBody(values);
@@ -101,7 +106,7 @@ async function apiSaveProduct(
     // Billz is the only provider a product write calls (create, or a changed
     // `billz_id`): its 503 says so, and that the form kept everything (M3).
     return failure.code === "provider_unavailable"
-      ? { ...failure, error: BILLZ_UNAVAILABLE_MESSAGE }
+      ? { ...failure, error: m.billzUnavailable }
       : failure;
   }
 }
@@ -120,14 +125,15 @@ export async function saveProduct(
 ): Promise<ActionResult<Product>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
+  const { m, locale } = await messages();
   const parsedId = z.union([productIdSchema, z.null()]).safeParse(id);
-  if (!parsedId.success) return { ok: false, error: "Mahsulot topilmadi.", code: "not_found" };
-  const parsedKey = z.object({ key: idempotencyKeySchema }).safeParse({ key });
-  if (!parsedKey.success) return fieldErrorsFrom(parsedKey.error);
-  const parsed = productFormSchema.safeParse(values);
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  if (!parsedId.success) return { ok: false, error: m.productNotFound, code: "not_found" };
+  const parsedKey = z.object({ key: idempotencyKeySchemas[locale] }).safeParse({ key });
+  if (!parsedKey.success) return fieldErrorsFrom(parsedKey.error, m.checkFields);
+  const parsed = productFormSchemas[locale].safeParse(values);
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, m.checkFields);
   const parsedBaseline = productBaselineSchema.nullable().safeParse(baseline);
-  if (!parsedBaseline.success) return fieldErrorsFrom(parsedBaseline.error);
+  if (!parsedBaseline.success) return fieldErrorsFrom(parsedBaseline.error, m.checkFields);
   if ((await dataSource()) === "api") {
     return apiMutation("saveProduct", () =>
       apiSaveProduct(
@@ -136,6 +142,7 @@ export async function saveProduct(
         parsed.data,
         parsedBaseline.data,
         parsedKey.data.key,
+        m,
       ),
     );
   }
@@ -150,10 +157,11 @@ export async function uploadProductImage(
 ): Promise<ActionResult<ProductImage>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
+  const { m, locale } = await messages();
   const parsed = z
-    .object({ productId: productIdSchema, file: imageFileSchema })
+    .object({ productId: productIdSchema, file: imageFileSchemas[locale] })
     .safeParse({ productId, file: formData.get("file") });
-  if (!parsed.success) return fieldErrorsFrom(parsed.error, "Rasmni tekshiring.");
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, m.checkImage);
   if ((await dataSource()) === "api") {
     return apiMutation("uploadProductImage", async () => {
       try {
@@ -184,7 +192,7 @@ export async function deleteProductImage(
   const parsed = z
     .object({ productId: productIdSchema, imageId: imageIdSchema })
     .safeParse({ productId, imageId });
-  if (!parsed.success) return fieldErrorsFrom(parsed.error);
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, (await messages()).m.checkFields);
   if ((await dataSource()) === "api") {
     return apiMutation("deleteProductImage", async () => {
       try {
@@ -210,21 +218,22 @@ export async function reorderProductImages(
 ): Promise<ActionResult<{ imageIds: string[] }>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
+  const { m } = await messages();
   const parsed = z
     .object({
       productId: productIdSchema,
       imageIds: z
         .array(imageIdSchema)
-        .max(MAX_IMAGES, `Ko‘pi bilan ${MAX_IMAGES} ta rasm qo‘shish mumkin.`)
-        .refine((ids) => new Set(ids).size === ids.length, { error: "Rasmlar takrorlanmoqda." }),
+        .max(MAX_IMAGES, m.tooManyImages(MAX_IMAGES))
+        .refine((ids) => new Set(ids).size === ids.length, { error: m.imagesRepeated }),
     })
     .safeParse({ productId, imageIds });
-  if (!parsed.success) return fieldErrorsFrom(parsed.error, "Rasmlar tartibini tekshiring.");
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, m.checkImageOrder);
   if ((await dataSource()) === "api") {
     return apiMutation("reorderProductImages", async () => {
       const ids = parsed.data.imageIds.map((id) => Number(id));
       if (ids.some((id) => !Number.isInteger(id))) {
-        return { ok: false, error: "Rasmlar tartibini tekshiring.", code: "mismatch" };
+        return { ok: false, error: m.checkImageOrder, code: "mismatch" };
       }
       try {
         const { data } = await apiReorderProductImages(
@@ -256,10 +265,11 @@ export async function importFromBillz(
 ): Promise<ActionResult<Job>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
+  const { m, locale } = await messages();
   const parsedKey = z
-    .object({ key: idempotencyKeySchema, search: z.string().max(200).optional() })
+    .object({ key: idempotencyKeySchemas[locale], search: z.string().max(200).optional() })
     .safeParse({ key, search });
-  if (!parsedKey.success) return fieldErrorsFrom(parsedKey.error);
+  if (!parsedKey.success) return fieldErrorsFrom(parsedKey.error, m.checkFields);
   if ((await dataSource()) === "api") {
     return apiMutation("importFromBillz", async () => {
       try {
@@ -278,11 +288,12 @@ export async function pollJob(id: string, csrf: string): Promise<ActionResult<Jo
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
   const parsedId = z.string().trim().min(1).max(64).safeParse(id);
-  if (!parsedId.success) return { ok: false, error: "Jarayon topilmadi.", code: "not_found" };
+  const { m } = await messages();
+  if (!parsedId.success) return { ok: false, error: m.jobNotFound, code: "not_found" };
   try {
     const token = guard.session.mode === "api" ? guard.session.token : null;
     const job = await getJob(parsedId.data, token);
-    if (!job) return { ok: false, error: "Jarayon topilmadi.", code: "not_found" };
+    if (!job) return { ok: false, error: m.jobNotFound, code: "not_found" };
     return { ok: true, data: job };
   } catch (error) {
     return toActionResult(error);

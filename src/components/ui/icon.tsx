@@ -50,6 +50,13 @@ const ICONS = {
     </>
   ),
   close: <path d="M6 6l12 12M18 6L6 18" />,
+  /** Two overlapping sheets ("copy to clipboard"). */
+  copy: (
+    <>
+      <rect x="8.5" y="8.5" width="11.5" height="11.5" rx="2.5" />
+      <path d="M15.5 8.5V6a2.5 2.5 0 0 0-2.5-2.5H6A2.5 2.5 0 0 0 3.5 6v7A2.5 2.5 0 0 0 6 15.5h2.5" />
+    </>
+  ),
   coins: (
     <>
       <ellipse cx="9" cy="7" rx="5" ry="2.5" />

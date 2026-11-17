@@ -4,16 +4,24 @@ import { useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
+import { FormErrorSummary } from "@/components/ui/form-errors";
 import { Icon } from "@/components/ui/icon";
 import { Switch } from "@/components/ui/switch";
+import { TimePicker } from "@/components/ui/time-picker";
 import { useToast } from "@/components/ui/toast";
 import { saveWorkingHours } from "@/data/clinic.actions";
-import { workingWeekSchema } from "@/data/clinic.schema";
-import { WEEKDAY_LABEL, WEEKDAYS, type ClinicSpecialist } from "@/domain/clinic";
+import { clinicSchemas } from "@/data/clinic.schema";
+import { WEEKDAYS, type ClinicSpecialist } from "@/domain/clinic";
+import { clinicDataCopy } from "@/domain/copy/clinic";
 import { cn } from "@/lib/cn";
+import { useErrorReveal } from "@/lib/forms/reveal";
+import { useCopy } from "@/lib/i18n/admin-context";
+import { useLocalized } from "@/lib/i18n/admin-hooks";
 
 import { runAction } from "../shared/action-client";
 import { useIdempotencyKey } from "../shared/idempotency";
+import { specialistsCopy } from "./copy";
+import { errorItems, issuesToErrors } from "./form-kit";
 
 interface DayRow {
   working: boolean;
@@ -42,8 +50,23 @@ function toRows(specialist: ClinicSpecialist): DayRow[] {
 const signature = (rows: DayRow[]) =>
   JSON.stringify(rows.map((r) => (r.working ? [r.start, r.end, r.breakStart, r.breakEnd] : null)));
 
-const timeClass =
-  "h-10 w-full min-w-0 rounded-md border-[1.5px] border-line-strong bg-surface-raised px-2 text-body-sm text-ink tabular-nums aria-invalid:border-danger disabled:opacity-50";
+const TIME_FIELDS = ["start", "end", "breakStart", "breakEnd"] as const;
+
+/** `days.N.*` (N = the index of the sent days) → `<weekday>.<field>` of the rows (pure, for tests). */
+export function placeDayErrors(
+  fieldErrors: Readonly<Record<string, string>>,
+  sent: ReadonlyArray<number>,
+): { errors: Record<string, string>; unplaced: string | null } {
+  const errors: Record<string, string> = {};
+  let unplaced: string | null = null;
+  for (const [path, message] of Object.entries(fieldErrors)) {
+    const match = /^days\.(\d+)\.(\w+)$/.exec(path);
+    const weekday = match ? sent[Number(match[1])] : undefined;
+    if (match && weekday !== undefined) errors[`${weekday}.${match[2]}`] ??= message;
+    else unplaced ??= message;
+  }
+  return { errors, unplaced };
+}
 
 /**
  * Haftalik ish vaqti (contract §2.17 `PUT specialists/{id}/working-hours/`):
@@ -58,6 +81,10 @@ export function HoursCard({
   specialist: ClinicSpecialist;
   onUpdated: (specialist: ClinicSpecialist) => void;
 }) {
+  const copy = useCopy(specialistsCopy);
+  const t = copy.hours;
+  const days = useCopy(clinicDataCopy).weekday;
+  const schemas = useLocalized(clinicSchemas);
   const toast = useToast();
   const [source, setSource] = useState(specialist);
   const [rows, setRows] = useState(() => toRows(specialist));
@@ -66,6 +93,19 @@ export function HoursCard({
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
   const container = useRef<HTMLDivElement>(null);
+  const reveal = useErrorReveal(container);
+  const fieldLabel = { start: t.start, end: t.end, breakStart: t.breakStart, breakEnd: t.breakEnd };
+  const summary = errorItems(
+    errors,
+    (name) => {
+      const [weekday, field] = name.split(".");
+      const day = days[Number(weekday)];
+      return day && field && field in fieldLabel
+        ? t.fieldOf(day, fieldLabel[field as keyof typeof fieldLabel])
+        : undefined;
+    },
+    WEEKDAYS.flatMap((weekday) => TIME_FIELDS.map((field) => `${weekday}.${field}`)),
+  );
   const idempotency = useIdempotencyKey();
 
   const dirty = signature(rows) !== signature(toRows(source));
@@ -94,26 +134,13 @@ export function HoursCard({
     };
     // `days.N.*` (N = the index in `sent`) → `<weekday>.<field>` of the rows.
     const place = (fieldErrors: Record<string, string>) => {
-      const next: Record<string, string> = {};
-      let unplaced: string | null = null;
-      for (const [path, message] of Object.entries(fieldErrors)) {
-        const match = /^days\.(\d+)\.(\w+)$/.exec(path);
-        const weekday = match ? sent[Number(match[1])] : undefined;
-        if (match && weekday !== undefined) next[`${weekday}.${match[2]}`] ??= message;
-        else unplaced ??= message;
-      }
-      setErrors(next);
-      setFormError(unplaced);
-      requestAnimationFrame(() =>
-        container.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(),
-      );
+      const placed = placeDayErrors(fieldErrors, sent);
+      setErrors(placed.errors);
+      setFormError(placed.unplaced);
+      reveal();
     };
-    const local = workingWeekSchema.safeParse(values);
-    if (!local.success) {
-      const fieldErrors: Record<string, string> = {};
-      for (const issue of local.error.issues) fieldErrors[issue.path.join(".")] ??= issue.message;
-      return place(fieldErrors);
-    }
+    const local = schemas.week.safeParse(values);
+    if (!local.success) return place(issuesToErrors(local.error));
     inFlight.current = true;
     setBusy(true);
     setErrors({});
@@ -124,6 +151,7 @@ export function HoursCard({
     inFlight.current = false;
     setBusy(false);
     if (!result.ok) {
+      toast({ tone: "danger", title: copy.saveFailed, description: result.error });
       if (result.fieldErrors) return place(result.fieldErrors);
       setErrors({});
       setFormError(result.error);
@@ -131,27 +159,25 @@ export function HoursCard({
     }
     onUpdated(result.data);
     setRows(toRows(result.data));
-    toast({ title: "Ish vaqti saqlandi" });
+    setErrors({});
+    toast({ tone: "success", title: t.saved });
   };
 
   return (
     <Card aria-labelledby="hours-title" className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
         <CardTitle id="hours-title" className="text-heading">
-          Haftalik ish vaqti
+          {t.title}
         </CardTitle>
-        <p className="m-0 text-body-sm text-ink-muted">
-          Toshkent vaqti, 5 daqiqalik qadam. Tanaffus ixtiyoriy.
-        </p>
+        <p className="m-0 text-body-sm text-ink-muted">{t.text}</p>
       </div>
       <div ref={container} className="flex flex-col gap-2">
+        <FormErrorSummary errors={summary} onSelect={(name) => reveal({ name })} />
         {WEEKDAYS.map((weekday) => {
           const row = rows[weekday]!;
           const error = (field: string) => errors[`${weekday}.${field}`];
-          const dayErrors = ["start", "end", "breakStart", "breakEnd"]
-            .map(error)
-            .filter(Boolean) as string[];
-          const name = WEEKDAY_LABEL[weekday];
+          const dayErrors = [...new Set(TIME_FIELDS.map(error).filter(Boolean))] as string[];
+          const name = days[weekday] ?? "";
           return (
             <fieldset
               key={weekday}
@@ -164,42 +190,41 @@ export function HoursCard({
               <div className="flex items-center justify-between gap-2">
                 <span className="text-label text-ink">{name}</span>
                 <span className="flex items-center gap-2 text-caption font-normal text-ink-muted">
-                  {row.working ? "Ish kuni" : "Dam olish"}
+                  {row.working ? t.workday : t.dayOff}
                   <Switch
                     checked={row.working}
                     onCheckedChange={(checked) => update(weekday, { working: checked })}
-                    aria-label={`${name} — ish kuni`}
+                    aria-label={t.workdaySwitch(name)}
                   />
                 </span>
               </div>
               {row.working && (
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {(
-                    [
-                      ["start", "Boshlanishi"],
-                      ["end", "Tugashi"],
-                      ["breakStart", "Tanaffus boshi"],
-                      ["breakEnd", "Tanaffus oxiri"],
-                    ] as const
-                  ).map(([field, label]) => (
-                    <label key={field} className="flex flex-col gap-1">
-                      <span className="text-caption font-semibold text-ink-muted">{label}</span>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        placeholder="SS:DD"
-                        maxLength={5}
-                        autoComplete="off"
-                        aria-label={`${name}: ${label.toLowerCase()}`}
-                        aria-invalid={error(field) ? true : undefined}
-                        value={row[field]}
-                        onChange={(event) =>
-                          update(weekday, { [field]: event.target.value.replace(/[^\d:]/g, "") })
-                        }
-                        className={timeClass}
-                      />
-                    </label>
-                  ))}
+                  {TIME_FIELDS.map((field) => {
+                    const label = fieldLabel[field];
+                    return (
+                      <div
+                        key={field}
+                        className="flex flex-col gap-1"
+                        data-field={`${weekday}.${field}`}
+                        data-invalid={error(field) ? "true" : undefined}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className="text-caption font-semibold text-ink-muted"
+                        >
+                          {label}
+                        </span>
+                        <TimePicker
+                          aria-label={t.fieldOf(name, label.toLowerCase())}
+                          aria-invalid={error(field) ? true : undefined}
+                          value={row[field]}
+                          step={5}
+                          onValueChange={(value) => update(weekday, { [field]: value })}
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
               )}
               {row.working &&
@@ -226,9 +251,9 @@ export function HoursCard({
         </p>
       )}
       <div className="flex justify-end">
-        <Button onClick={save} disabled={busy || !dirty} aria-busy={busy}>
+        <Button onClick={save} busy={busy} disabledReason={!busy && !dirty && copy.noChanges}>
           <Icon name="check" size={18} />
-          {busy ? "Saqlanmoqda…" : "Saqlash"}
+          {busy ? copy.saving : copy.save}
         </Button>
       </div>
     </Card>

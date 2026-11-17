@@ -48,7 +48,10 @@ function Thumbnail({ product }: { product: Product }) {
     );
   }
   return (
-    <span className="flex size-11 items-center justify-center rounded-sm bg-gold-soft">
+    <span
+      data-theme="light"
+      className="flex size-11 items-center justify-center rounded-sm bg-gold-soft"
+    >
       <ProductArt
         kind={product.art.kind}
         tone={product.art.tone}

@@ -64,7 +64,15 @@ const uz = {
     label: "Demo ma’lumotlar",
     hint: "Ma’lumotlar namuna uchun; o‘zgarishlar sahifa yangilanganda tiklanadi.",
   },
-  user: { noSession: "Sessiya topilmadi", logout: "Chiqish" },
+  user: {
+    noSession: "Sessiya topilmadi",
+    logout: "Chiqish",
+    /** The profile menu's trigger and list (avatar + name at the foot of the sidebar). */
+    menuLabel: "Profil menyusi",
+    settings: "Sozlamalar",
+    /** The «Til ›» row; its submenu lists the three admin languages. */
+    language: "Til",
+  },
   contentError: {
     title: "Bo‘limni yuklab bo‘lmadi",
     description:
@@ -202,7 +210,13 @@ export const shellCopy = {
       label: "Демо-данные",
       hint: "Данные для примера; изменения сбрасываются при обновлении страницы.",
     },
-    user: { noSession: "Сессия не найдена", logout: "Выйти" },
+    user: {
+      noSession: "Сессия не найдена",
+      logout: "Выйти",
+      menuLabel: "Меню профиля",
+      settings: "Настройки",
+      language: "Язык",
+    },
     contentError: {
       title: "Не удалось загрузить раздел",
       description:
@@ -292,7 +306,13 @@ export const shellCopy = {
       label: "Demo data",
       hint: "Sample data; changes are reset when the page reloads.",
     },
-    user: { noSession: "No session found", logout: "Sign out" },
+    user: {
+      noSession: "No session found",
+      logout: "Sign out",
+      menuLabel: "Profile menu",
+      settings: "Settings",
+      language: "Language",
+    },
     contentError: {
       title: "This section could not be loaded",
       description:

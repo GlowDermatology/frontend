@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { cn } from "@/lib/cn";
 import { qrToken } from "@/data/shop/commerce.actions";
 import type { ShopQrToken } from "@/domain/shop-account";
 import type { Locale } from "@/lib/i18n/locales";
@@ -77,12 +78,20 @@ export function QrPanel({ locale }: { locale: Locale }) {
   const phoneRequired = error?.code === "phone_required";
   const drawing = token ? qrDrawing(token.token) : null;
   const progress = token ? left / token.refreshInSeconds : 0;
+  const showCode = drawing !== null && visible && !expired;
 
   return (
     <div className="flex flex-col items-center gap-6">
       <div className="relative flex w-full max-w-[380px] flex-col items-center gap-5 rounded-lg border border-line bg-surface-raised p-[clamp(20px,4vw,36px)] shadow-sm">
-        <div className="relative aspect-square w-full max-w-[300px] rounded-md bg-white p-2">
-          {drawing && visible && !expired ? (
+        {/* A shown code stays black on white in every theme, like a printed code. */}
+        <div
+          data-theme={showCode ? "light" : undefined}
+          className={cn(
+            "relative aspect-square w-full max-w-[300px] rounded-md p-2",
+            showCode ? "bg-white" : "bg-image-well",
+          )}
+        >
+          {drawing && showCode ? (
             <svg
               role="img"
               aria-label={copy.alt}

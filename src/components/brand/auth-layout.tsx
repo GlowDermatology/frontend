@@ -94,7 +94,7 @@ export function AuthLayout({
             data-auth-card=""
             className={cn(
               "flex w-full flex-col gap-6 rounded-[24px] border border-line bg-surface-raised p-[clamp(20px,4.5vw,44px)]",
-              "shadow-[0_1px_2px_rgb(42_36_24/0.06),0_24px_60px_-18px_rgb(42_36_24/0.32)]",
+              "shadow-card",
               "nav:w-[min(468px,40vw)] nav:min-w-[400px]",
             )}
           >

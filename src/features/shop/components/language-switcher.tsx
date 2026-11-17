@@ -6,6 +6,7 @@ import { Suspense } from "react";
 
 import { LocaleFlag } from "@/components/brand/locale-flag";
 import { Icon } from "@/components/ui/icon";
+import { MenuSub, menuCheckItemClass, type MenuSubProps } from "@/components/ui/menu";
 import { cn } from "@/lib/cn";
 import { LOCALE_INFO, LOCALES, type Locale } from "@/lib/i18n/locales";
 
@@ -15,7 +16,8 @@ import { homeHrefs, languageHrefs } from "./language-href";
  * The storefront's language choice (DESIGN §F): the site's languages with inline SVG flags
  * (`LocaleFlag`, from `LOCALE_INFO`), each a plain anchor to the same page in that language
  * (`equivalentPath`, keeping the catalog's filters) — every language is its own document
- * (`<html lang>`, root layout). Shown in the account menu, the small-screen menu and the footer.
+ * (`<html lang>`, root layout). Shown in the account menu (a «Til ›» submenu row), the small-screen
+ * menu, the sign-in brand row and the footer.
  * The current address is read on the client (`usePathname` / `useSearchParams`, inside
  * `<Suspense>`); until then the links point at each language's home page.
  */
@@ -109,14 +111,11 @@ export function LanguageLinks(props: LanguageListProps) {
   );
 }
 
-const menuItemClass =
-  "flex h-10 cursor-pointer items-center gap-2.5 rounded-sm px-3 text-label text-ink no-underline outline-none select-none data-[highlighted]:bg-gold-soft";
-
 function MenuItems({ current, hrefs }: { current: Locale; hrefs: Record<Locale, string> }) {
   return LOCALES.map((locale) => {
     const active = locale === current;
     return (
-      <DropdownMenu.Item key={locale} asChild className={menuItemClass}>
+      <DropdownMenu.Item key={locale} asChild className={menuCheckItemClass}>
         <a
           href={hrefs[locale]}
           hrefLang={locale}
@@ -125,7 +124,13 @@ function MenuItems({ current, hrefs }: { current: Locale; hrefs: Record<Locale, 
         >
           <LocaleFlag locale={locale} />
           <span className="flex-1">{LOCALE_INFO[locale].name}</span>
-          {active ? <Icon name="check" size={16} className="shrink-0 text-gold-ink" /> : null}
+          {active ? (
+            <Icon
+              name="check"
+              size={16}
+              className="absolute top-1/2 right-3 shrink-0 -translate-y-1/2 text-gold-ink"
+            />
+          ) : null}
         </a>
       </DropdownMenu.Item>
     );
@@ -136,19 +141,38 @@ function LiveMenuItems({ current }: { current: Locale }) {
   return <MenuItems current={current} hrefs={useLanguageHrefs()} />;
 }
 
-/** The account menu's language section: a labelled group of menu items (flag, name, check). */
-export function LanguageMenuGroup({ current, label }: { current: Locale; label: string }) {
+/**
+ * The account menu's language row: «Til · [flag] O‘zbekcha ›», opening the languages (flag,
+ * name, a check on the current one) as a submenu on hover / → / Enter from `sm`, and in place
+ * below the row on phones (`MenuSub`). Each item is a plain anchor to the same page in that
+ * language (`hrefLang`); until the address is read they point at each language's home page.
+ */
+export function LanguageMenuSub({
+  current,
+  label,
+  layout,
+  defaultExpanded,
+}: {
+  current: Locale;
+  label: string;
+} & Pick<MenuSubProps, "layout" | "defaultExpanded">) {
   return (
-    <DropdownMenu.Group aria-label={label}>
-      <DropdownMenu.Label
-        aria-hidden="true"
-        className="px-3 pt-2 pb-1 text-overline text-ink-muted uppercase"
-      >
-        {label}
-      </DropdownMenu.Label>
+    <MenuSub
+      layout={layout}
+      defaultExpanded={defaultExpanded}
+      label={label}
+      icon={<Icon name="globe" size={18} />}
+      value={
+        <span className="flex items-center gap-2">
+          <LocaleFlag locale={current} className="h-3 w-[18px]" />
+          <span className="truncate">{LOCALE_INFO[current].name}</span>
+        </span>
+      }
+      contentLabel={label}
+    >
       <Suspense fallback={<MenuItems current={current} hrefs={homeHrefs()} />}>
         <LiveMenuItems current={current} />
       </Suspense>
-    </DropdownMenu.Group>
+    </MenuSub>
   );
 }

@@ -4,6 +4,7 @@ import type { NextRequest, NextResponse } from "next/server";
 
 import { authDataCopy, type AuthDataCopy } from "@/domain/copy/auth";
 import { parseAllowedOrigins } from "@/lib/origins";
+import type { ThemeChoice } from "@/lib/theme/theme-cookie";
 
 import { escapeHtml, htmlPage } from "./html-page";
 import {
@@ -59,6 +60,7 @@ export function redirectUriFor(
 export function notFoundPage(
   texts: AuthDataCopy["page"] = authDataCopy.uz.page,
   lang = "uz",
+  theme: ThemeChoice = "system",
 ): NextResponse {
   return htmlPage(
     `${texts.notFoundTitle} — Glow Derma Admin`,
@@ -66,6 +68,7 @@ export function notFoundPage(
     { status: 404 },
     "",
     lang,
+    theme,
   );
 }
 

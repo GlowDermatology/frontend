@@ -8,7 +8,7 @@ import {
   setCookie,
   type SessionCookie,
 } from "@/data/auth/cookies";
-import { seeOther } from "@/data/auth/html-page";
+import { requestTheme, seeOther } from "@/data/auth/html-page";
 import { safeNext } from "@/data/auth/next-param";
 import { authorizeUrl, newFlow, sealFlow, type OAuthIntent } from "@/data/auth/oauth";
 import { allowFlowStart, oauthKey } from "@/data/auth/oauth-env";
@@ -57,7 +57,7 @@ export async function GET(
   const m = authDataCopy[locale];
   const lang = LOCALE_INFO[locale].htmlLang;
   const enabled = enabledProvider(param);
-  if (!enabled) return notFoundPage(m.page, lang);
+  if (!enabled) return notFoundPage(m.page, lang, requestTheme(request));
   const { provider, config } = enabled;
 
   const params = request.nextUrl.searchParams;
@@ -66,7 +66,7 @@ export async function GET(
 
   const redirectUri = redirectUriFor(request, provider, secure);
   const clientId = config.clientIds[provider];
-  if (!redirectUri || !clientId) return notFoundPage(m.page, lang);
+  if (!redirectUri || !clientId) return notFoundPage(m.page, lang, requestTheme(request));
 
   const nowMs = Date.now();
   if (!allowFlowStart(clientIpFrom(request.headers), nowMs)) {

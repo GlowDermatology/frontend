@@ -41,6 +41,8 @@ interface ThemeSegmentsProps {
   variant?: "menu" | "standalone";
   /** Standalone only: show the labels beside the icons (default) or the icons alone. */
   showText?: boolean;
+  /** Standalone only: `SegmentedControl` layout (`fill` = equal grid cells). */
+  layout?: "hug" | "fill";
   className?: string;
 }
 
@@ -49,6 +51,7 @@ export function ThemeSegments({
   labels,
   variant = "menu",
   showText = true,
+  layout = "hug",
   className,
 }: ThemeSegmentsProps) {
   const choice = useThemeChoice();
@@ -60,6 +63,7 @@ export function ThemeSegments({
         value={choice}
         onChange={setThemeChoice}
         size="sm"
+        layout={layout}
         className={className}
         options={THEME_CHOICES.map((value) => ({
           value,

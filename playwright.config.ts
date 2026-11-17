@@ -57,5 +57,29 @@ export default defineConfig({
       dependencies: ["customer-setup"],
       use: { ...devices["Desktop Chrome"], storageState: "e2e/.auth/customer.json" },
     },
+    {
+      // The storefront's axe checks again with the device in dark mode (no gd_theme cookie, so
+      // the theme follows the device): the Espresso tokens must pass WCAG AA as well.
+      name: "customer-public-dark",
+      testDir: "./e2e/customer-public",
+      grep: /axe/,
+      use: {
+        ...devices["Desktop Chrome"],
+        colorScheme: "dark",
+        storageState: { cookies: [], origins: [] },
+      },
+    },
+    {
+      name: "customer-dark",
+      testDir: "./e2e/customer",
+      testIgnore: /customer\.setup\.ts/,
+      grep: /axe/,
+      dependencies: ["customer-setup"],
+      use: {
+        ...devices["Desktop Chrome"],
+        colorScheme: "dark",
+        storageState: "e2e/.auth/customer.json",
+      },
+    },
   ],
 });

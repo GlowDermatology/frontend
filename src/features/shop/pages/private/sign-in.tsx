@@ -5,7 +5,9 @@ import { Suspense } from "react";
 
 import { STAFF_SIGN_IN_PATH } from "@/components/brand/audience-switch";
 import { AuthCaption, AuthLayout } from "@/components/brand/auth-layout";
+import { themeCopy } from "@/components/brand/copy";
 import { Icon, type IconName } from "@/components/ui/icon";
+import { ThemeMenu } from "@/components/ui/theme-control";
 import { safeShopNext } from "@/data/customer-auth/next-param";
 import { readCustomerSession } from "@/data/customer-auth/session";
 import { getSettings } from "@/data/shop/catalog";
@@ -104,7 +106,8 @@ function FormSkeleton() {
 
 /**
  * The card's top row on the customer side (the page has no store header): the wordmark to the
- * home page, the way back to the store and the language links (plain anchors, no JS needed).
+ * home page, the way back to the store, the language links (plain anchors, no JS needed) and the
+ * theme menu (light · dark · like the device).
  */
 function CardBrand({ locale }: { locale: Locale }) {
   const dict = getShopDictionary(locale);
@@ -133,7 +136,10 @@ function CardBrand({ locale }: { locale: Locale }) {
           {authCopy[locale].backToStore}
         </Link>
       </div>
-      <LanguageLinks current={locale} label={dict.header.languageLabel} layout="inline" />
+      <div className="flex items-center justify-between gap-3">
+        <LanguageLinks current={locale} label={dict.header.languageLabel} layout="inline" />
+        <ThemeMenu labels={themeCopy[locale]} />
+      </div>
     </div>
   );
 }

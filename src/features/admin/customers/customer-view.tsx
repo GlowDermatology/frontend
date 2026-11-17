@@ -196,7 +196,7 @@ export function CustomerView({ customer, now, sessions }: CustomerViewProps) {
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={Math.round(tier.next.progress * 100)}
-              className="flex h-1.5 rounded-full bg-gold-soft"
+              className="flex h-1.5 rounded-full bg-line"
             >
               <span
                 className="rounded-full bg-gold"

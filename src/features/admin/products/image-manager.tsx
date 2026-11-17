@@ -174,6 +174,8 @@ export function ImageManager({
             <li
               key={image.id}
               {...dragProps(index)}
+              // The illustration has fixed colours: its tile stays light in every theme.
+              data-theme={!image.src && image.art ? "light" : undefined}
               className={cn(
                 "relative flex aspect-square items-center justify-center overflow-hidden rounded-md transition-[opacity,outline-color] duration-150",
                 main ? "border-2 border-gold" : "border border-line",

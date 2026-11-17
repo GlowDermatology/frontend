@@ -39,6 +39,8 @@
   --gd-scrim: #2a241866;
   --gd-shadow-sm: 0 1px 2px #2a24180f, 0 2px 8px #2a24180d;
   --gd-shadow-lg: 0 8px 28px -6px #2a241829;
+  /* A card that floats over the page on its own (the sign-in card). */
+  --gd-shadow-card: 0 1px 2px #2a24180f, 0 24px 60px -18px #2a241852;
   /* Storefront: the warm well behind product photography and skeletons. */
   --gd-image-well: #f3ede1;
   --gd-skeleton: #ece5d6;
@@ -86,6 +88,7 @@
   --gd-scrim: #000000b3;
   --gd-shadow-sm: 0 1px 2px #00000066, 0 2px 8px #0000004d;
   --gd-shadow-lg: 0 12px 32px -6px #000000b3;
+  --gd-shadow-card: 0 1px 2px #00000066, 0 24px 60px -18px #000000cc;
   --gd-image-well: #1a1611;
   --gd-skeleton: #26211a;
   --gd-skeleton-sheen: #332c23;
@@ -192,6 +195,7 @@
   --shadow-*: initial;
   --shadow-sm: var(--gd-shadow-sm);
   --shadow-lg: var(--gd-shadow-lg);
+  --shadow-card: var(--gd-shadow-card);
 
   /* Landing breakpoints: 600px hides secondary header actions, `nav` is the
      width at which the full header row fits without wrapping. */

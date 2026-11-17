@@ -29,7 +29,11 @@ export function CategoryCard({
       href={shopPath(locale, { kind: "category", slug: category.slug })}
       className={cn("group flex flex-col gap-4 rounded-lg text-ink no-underline", liftCard)}
     >
-      <span className="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg bg-gold-soft">
+      <span
+        // The illustration has fixed colours: without a photo the tile stays light in every theme.
+        data-theme={category.image ? undefined : "light"}
+        className="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg bg-gold-soft"
+      >
         {category.image ? (
           <Image
             src={category.imageMedium ?? category.image}

@@ -4,7 +4,10 @@ import Link from "next/link";
 import { DropdownMenu } from "radix-ui";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 
+import { themeCopy } from "@/components/brand/copy";
 import { Icon } from "@/components/ui/icon";
+import { menuContentClass, menuItemClass, menuSeparatorClass } from "@/components/ui/menu";
+import { ThemeSegments, type ThemeLabels } from "@/components/ui/theme-control";
 import { cn } from "@/lib/cn";
 import type { Locale } from "@/lib/i18n/locales";
 
@@ -13,7 +16,7 @@ import { useShopSession } from "../account/session-context";
 import { commonCopy } from "../copy/common";
 import { shopHref, shopPath } from "../routing/routes";
 import { readShopCsrf } from "../shared/action-client";
-import { LanguageMenuGroup } from "./language-switcher";
+import { LanguageMenuSub } from "./language-switcher";
 
 /**
  * The header's client code: the account menu (reads the readable signed-in
@@ -31,7 +34,8 @@ const badgeClass =
  * The account menu, for everyone: a visitor gets «Kirish» and «Ro‘yxatdan o‘tish»; a signed-in
  * customer (the readable hint cookie) the name, the private sections and «Chiqish» (a same-origin
  * POST to the logout route with the csrf token, which clears the session cookies and returns to
- * the home page). Both end with the language section (flags, the same page in each language).
+ * the home page). Both end with the «Til · O‘zbekcha ›» row (a submenu of flags, the same page in
+ * each language) and the «Mavzu» row (light · dark · like the device; the menu stays open).
  */
 export function AccountLink({ locale }: { locale: Locale }) {
   const { summary, signedInHint } = useShopSession();
@@ -47,9 +51,8 @@ export function AccountLink({ locale }: { locale: Locale }) {
     { kind: "account", label: copy.nav.account },
     { kind: "sessions", label: copy.nav.sessions },
   ];
-  const itemClass =
-    "flex h-10 cursor-pointer items-center gap-2.5 rounded-sm px-3 text-label text-ink no-underline outline-none select-none data-[highlighted]:bg-gold-soft";
-  const separator = <DropdownMenu.Separator className="mx-1 my-1 h-px bg-line" />;
+  const itemClass = menuItemClass;
+  const separator = <DropdownMenu.Separator className={menuSeparatorClass} />;
   const label = signedIn ? copy.header.menuLabel : copy.header.guestMenuLabel;
 
   return (
@@ -75,7 +78,8 @@ export function AccountLink({ locale }: { locale: Locale }) {
             align="end"
             sideOffset={8}
             collisionPadding={12}
-            className="scroll-slim z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] min-w-[248px] overflow-y-auto rounded-md border border-line bg-surface-raised p-1.5 text-ink shadow-lg data-[state=closed]:animate-pop-out data-[state=open]:animate-pop-in"
+            aria-label={label}
+            className={cn(menuContentClass, "min-w-[264px]")}
           >
             {signedIn ? (
               <>
@@ -117,7 +121,8 @@ export function AccountLink({ locale }: { locale: Locale }) {
               </>
             )}
             {separator}
-            <LanguageMenuGroup current={locale} label={copy.header.language} />
+            <LanguageMenuSub current={locale} label={copy.header.language} />
+            <ThemeSegments labels={themeCopy[locale]} />
             {signedIn ? (
               <>
                 {separator}
@@ -204,10 +209,12 @@ interface MenuProps {
   closeLabel: string;
   /** The language list (flags), at the foot of the panel, like the account menu's section. */
   language?: ReactNode;
+  /** The theme switch's texts (`themeCopy[locale]`): a «Mavzu» row under the languages. */
+  theme?: ThemeLabels;
 }
 
 /** Disclosure menu below the `nav` breakpoint, where the inline links do not fit. */
-export function ShopMenu({ links, openLabel, closeLabel, language }: MenuProps) {
+export function ShopMenu({ links, openLabel, closeLabel, language, theme }: MenuProps) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -267,9 +274,17 @@ export function ShopMenu({ links, openLabel, closeLabel, language }: MenuProps) 
             </li>
           ))}
         </ul>
-        {language ? (
-          <div className="mx-auto max-w-page border-t border-line px-[clamp(16px,4vw,48px)] pt-3 pb-4">
+        {language || theme ? (
+          <div className="mx-auto flex max-w-page flex-col gap-4 border-t border-line px-[clamp(16px,4vw,48px)] pt-3 pb-4">
             {language}
+            {theme ? (
+              <div data-theme-row="" className="flex flex-wrap items-center justify-between gap-3">
+                <p aria-hidden="true" className="m-0 text-overline text-ink-muted uppercase">
+                  {theme.label}
+                </p>
+                <ThemeSegments variant="standalone" labels={theme} />
+              </div>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -303,7 +318,7 @@ function SearchForm({
       method="get"
       className={cn("relative flex", className)}
     >
-      <label className="flex h-11 w-full min-w-0 items-center gap-2 rounded-full border border-line bg-surface-raised pr-1 pl-4 text-ink-muted shadow-[inset_0_1px_2px_rgb(42_36_24/0.04)] transition-[border-color,box-shadow] duration-150 focus-within:border-gold focus-within:shadow-[0_0_0_3px_var(--gd-gold-soft)] hover:border-line-strong">
+      <label className="flex h-11 w-full min-w-0 items-center gap-2 rounded-full border border-line bg-surface-raised pr-1 pl-4 text-ink-muted shadow-sm transition-[border-color,box-shadow] duration-150 focus-within:border-gold focus-within:shadow-[0_0_0_3px_var(--gd-gold-soft)] hover:border-line-strong">
         <span className="sr-only">{label}</span>
         <input
           type="search"

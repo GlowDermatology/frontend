@@ -54,7 +54,7 @@ export function IssuesAlertButton({ initial }: { initial: number | null }) {
           aria-hidden="true"
           className={cn(
             "absolute -top-1.5 -right-1.5 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] leading-none font-bold tabular-nums",
-            urgent > 0 ? "bg-danger-strong text-white" : "bg-gold text-on-gold",
+            urgent > 0 ? "bg-danger-strong text-on-fill" : "bg-gold text-on-gold",
           )}
         >
           {open > 99 ? "99+" : open}
@@ -71,7 +71,7 @@ export function IssuesNavPill({ initial }: { initial: number | null }) {
   if (open === 0) return null;
   return (
     <>
-      <CountPill className={cn(urgent > 0 && "bg-danger-strong text-white")}>{open}</CountPill>
+      <CountPill className={cn(urgent > 0 && "bg-danger-strong text-on-fill")}>{open}</CountPill>
       <span className="sr-only">{t.pill(open, urgent)}</span>
     </>
   );

@@ -42,7 +42,10 @@ export function CatalogSection({ dict }: { dict: LandingDictionary["catalog"] })
                 href={`#${SECTION_IDS.download}`}
                 className={cn("flex flex-col gap-4 rounded-lg text-ink no-underline", liftCard)}
               >
-                <span className="relative flex h-[280px] items-center justify-center overflow-hidden rounded-lg bg-gold-soft">
+                <span
+                  data-theme="light"
+                  className="relative flex h-[280px] items-center justify-center overflow-hidden rounded-lg bg-gold-soft"
+                >
                   <svg aria-hidden="true" viewBox="0 0 200 200" className="absolute size-[230px]">
                     <circle
                       cx="100"

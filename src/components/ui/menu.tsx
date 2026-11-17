@@ -55,12 +55,13 @@ interface SelectMenuProps<T extends string> {
  */
 
 /**
- * `DropdownMenu.Content`: never taller than the viewport leaves (Radix exposes the room left on
+ * `DropdownMenu.Content`: at most 80 % of the screen (an expanded «Til» row on a phone still shows
+ * «Chiqish»), never taller than the viewport leaves (Radix exposes the room left on
  * the chosen side): a long option list scrolls instead of running off-screen. At least as wide
  * as its trigger (and 220px).
  */
 export const menuContentClass =
-  "scroll-slim z-50 max-h-[min(60vh,var(--radix-dropdown-menu-content-available-height))] min-w-[max(var(--radix-dropdown-menu-trigger-width),220px)] max-w-[min(360px,calc(100vw-16px))] overflow-x-hidden overflow-y-auto overscroll-contain rounded-md border border-line bg-surface-raised p-1.5 text-ink shadow-lg data-[state=closed]:animate-pop-out data-[state=open]:animate-pop-in";
+  "scroll-slim z-50 max-h-[min(80svh,var(--radix-dropdown-menu-content-available-height))] min-w-[max(var(--radix-dropdown-menu-trigger-width),220px)] max-w-[min(360px,calc(100vw-16px))] overflow-x-hidden overflow-y-auto overscroll-contain rounded-md border border-line bg-surface-raised p-1.5 text-ink shadow-lg data-[state=closed]:animate-pop-out data-[state=open]:animate-pop-in";
 
 /** `DropdownMenu.SubContent`: as `menuContentClass`, sized by its own content. */
 export const menuSubContentClass =
@@ -374,6 +375,8 @@ export function MenuSub({
         <DropdownMenu.Portal container={container}>
           <DropdownMenu.SubContent
             aria-label={contentLabel}
+            /* Radix names the submenu after its trigger («Til O‘zbekcha»): the given label wins. */
+            aria-labelledby={undefined}
             sideOffset={6}
             alignOffset={-6}
             collisionPadding={8}

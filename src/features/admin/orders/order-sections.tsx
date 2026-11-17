@@ -129,7 +129,10 @@ function ItemThumbnail({ item }: { item: OrderItem }) {
   }
   if (item.art) {
     return (
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-sm bg-gold-soft">
+      <span
+        data-theme="light"
+        className="flex size-10 shrink-0 items-center justify-center rounded-sm bg-gold-soft"
+      >
         <ProductArt kind={item.art.kind} tone={item.art.tone} detail="mini" width={24} />
       </span>
     );

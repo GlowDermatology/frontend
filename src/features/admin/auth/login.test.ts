@@ -12,6 +12,7 @@ import { ProviderMark } from "./provider-mark";
 vi.mock("@/data/admin-language.actions", () => ({ chooseSignInLanguage: vi.fn() }));
 
 const { SignInLanguageSwitch } = await import("./language-switch");
+const { StaffAuthCardSkeleton } = await import("./staff-auth-frame");
 const LocaleProvider = AdminLocaleProvider as FC<{ locale: Locale; children?: ReactNode }>;
 
 describe("validateLogin", () => {
@@ -67,6 +68,14 @@ describe("SignInLanguageSwitch", () => {
     expect(html).toMatch(/lang="uz" aria-pressed="false"/);
     expect(html).toContain("O‘zbekcha");
     expect(html).toContain('role="status"');
+  });
+});
+
+describe("StaffAuthCardSkeleton", () => {
+  it("holds the brand row's language pill and theme circle at their sizes", () => {
+    const html = renderToStaticMarkup(createElement(StaffAuthCardSkeleton));
+    expect(html).toContain("h-[38px] w-[186px]");
+    expect(html).toContain("size-[38px] rounded-full");
   });
 });
 

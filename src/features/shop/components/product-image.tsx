@@ -36,6 +36,8 @@ export function ProductImage({
 }: ProductImageProps) {
   return (
     <span
+      // The illustration has fixed colours: without a photo the tile stays light in every theme.
+      data-theme={src ? undefined : "light"}
       className={cn(
         "relative block aspect-product w-full overflow-hidden rounded-lg bg-image-well",
         className,

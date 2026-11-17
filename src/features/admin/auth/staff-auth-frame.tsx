@@ -2,7 +2,9 @@ import { Suspense, type ReactNode } from "react";
 
 import { STAFF_SIGN_IN_PATH, AudienceSwitch } from "@/components/brand/audience-switch";
 import { AuthCaption, AuthCaptionSkeleton, AuthLayout } from "@/components/brand/auth-layout";
+import { themeCopy } from "@/components/brand/copy";
 import { Icon } from "@/components/ui/icon";
+import { ThemeMenu } from "@/components/ui/theme-control";
 import { shopPath } from "@/features/shop/routing/routes";
 import { HtmlLang } from "@/features/admin/shell/html-lang";
 import { AdminLocaleProvider } from "@/lib/i18n/admin-context";
@@ -82,6 +84,7 @@ export async function StaffAuthCard({
       <HtmlLang locale={locale} />
       <StaffBrand>
         <SignInLanguageSwitch />
+        <ThemeMenu labels={themeCopy[locale]} triggerClassName={themeTriggerClass} />
       </StaffBrand>
       {switchAudience && withCustomerLink ? (
         <AudienceSwitch
@@ -102,7 +105,14 @@ export async function StaffAuthCard({
   );
 }
 
-/** «Glow Derma Admin» and the language switch: the top row of every staff auth card. */
+/** The theme menu's trigger: a round button as tall as the language switch (38px). */
+const themeTriggerClass =
+  "flex size-[38px] shrink-0 items-center justify-center rounded-full border border-line bg-surface text-ink transition-colors duration-150 hover:bg-gold-soft focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold-ink data-[state=open]:bg-gold-soft";
+
+/**
+ * «Glow Derma Admin», the language switch and the theme menu: the top row of every staff auth
+ * card.
+ */
 function StaffBrand({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-[38px] flex-wrap items-center justify-between gap-3">
@@ -110,7 +120,7 @@ function StaffBrand({ children }: { children: ReactNode }) {
         <span className="font-serif text-title text-ink">Glow Derma</span>
         <span className="text-overline text-gold-ink uppercase">Admin</span>
       </div>
-      {children}
+      <div className="flex items-center gap-2">{children}</div>
     </div>
   );
 }
@@ -162,7 +172,8 @@ export function StaffAuthSkeleton({ fields = 2 }: { fields?: number }) {
 
 /**
  * The card's content before the language is known, laid out like `StaffAuthCard`: the brand row
- * (the brand is language-neutral, the switch a pill of its size), the «Mijoz | Xodim» bar when
+ * (the brand is language-neutral, the switch a pill of its size, the theme menu a circle), the
+ * «Mijoz | Xodim» bar when
  * the page offers it, a heading with `leadLines` of lead, the form skeleton and the fine print.
  */
 export function StaffAuthCardSkeleton({
@@ -178,6 +189,7 @@ export function StaffAuthCardSkeleton({
     <>
       <StaffBrand>
         <Skeleton className="h-[38px] w-[186px] rounded-full" />
+        <Skeleton className="size-[38px] rounded-full" />
       </StaffBrand>
       {audienceSwitch ? <Skeleton className="h-[46px] rounded-full" /> : null}
       <StaffAuthHeadingSkeleton leadLines={leadLines} />

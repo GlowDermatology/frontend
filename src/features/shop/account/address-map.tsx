@@ -216,7 +216,11 @@ export function AddressMap({
       <p id={hintId} className="m-0 text-caption text-ink-muted">
         {needsPin && !value ? copy.hintNoRegions : copy.hint}
       </p>
+      {/* The tiles are light in every theme, so the frame, the pin, the centre mark and Leaflet's
+          controls stay light with them. */}
       <div
+        data-theme="light"
+        data-map-frame=""
         className={cn(
           "relative isolate h-60 overflow-hidden rounded-md border-[1.5px] bg-image-well sm:h-72",
           error ? "border-danger" : "border-line",

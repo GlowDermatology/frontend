@@ -578,7 +578,7 @@ export function CashbackEditor({
         <div className="flex min-w-0 flex-[2_1_340px] flex-col gap-4">
           <section
             aria-labelledby={`${idBase}-sim`}
-            className="relative flex flex-col gap-3.5 overflow-hidden rounded-lg bg-banner p-5"
+            className="relative flex flex-col gap-3.5 overflow-hidden rounded-lg border border-nav-line bg-banner p-5"
           >
             <Rings
               viewBox={300}

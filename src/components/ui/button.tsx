@@ -26,9 +26,9 @@ const VARIANTS: Record<ButtonVariant, string> = {
   danger:
     "border-[1.5px] border-danger bg-transparent text-ink hover:bg-danger-soft disabled:opacity-60 disabled:hover:bg-transparent data-disabled:opacity-60 data-disabled:hover:bg-transparent",
   /* White on the design's danger red is 4.4:1, below AA for 15px text, so the
-     fill uses a slightly deeper red (5.0:1). */
+     fill uses a slightly deeper red (5.0:1); in the dark theme `on-fill` is dark ink. */
   destructive:
-    "bg-danger-strong text-[15px] text-white hover:brightness-95 disabled:opacity-60 disabled:hover:brightness-100 data-disabled:opacity-60 data-disabled:hover:brightness-100",
+    "bg-danger-strong text-[15px] text-on-fill hover:brightness-95 disabled:opacity-60 disabled:hover:brightness-100 data-disabled:opacity-60 data-disabled:hover:brightness-100",
   dashed:
     "border-[1.5px] border-dashed border-line-strong bg-transparent text-ink hover:bg-surface-raised disabled:text-ink-muted disabled:hover:bg-transparent data-disabled:text-ink-muted data-disabled:hover:bg-transparent",
 };

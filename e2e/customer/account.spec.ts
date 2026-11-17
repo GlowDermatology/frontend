@@ -54,6 +54,20 @@ test("the in-store QR is drawn and counts down to its refresh", async ({ page })
     .not.toBe(before);
 });
 
+test("the QR stays black on white in the dark theme", async ({ page, context, baseURL }) => {
+  await context.addCookies([{ name: "gd_theme", value: "dark", url: baseURL ?? "" }]);
+  await page.goto("/qr-kod");
+  const code = page.getByRole("img", { name: "Shaxsiy QR kod" });
+  await expect(code).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  // The holder is pinned light: a white card under a dark page, readable by any scanner.
+  const holder = code.locator("xpath=..");
+  await expect(holder).toHaveAttribute("data-theme", "light");
+  await expect(holder).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await expect(code.locator("path")).toHaveAttribute("fill", "#2a2418");
+  await context.clearCookies({ name: "gd_theme" });
+});
+
 test("«Faol seanslar»: the other browser is signed out", async ({ page, browser, baseURL }) => {
   // The phone of this customer, read from the account page.
   await page.goto("/hisob");
@@ -125,8 +139,13 @@ for (const width of [390, 1440]) {
   });
 }
 
-test("sign-in page: axe at 390 and 1440 px", async ({ browser, baseURL }) => {
-  const context = await browser.newContext({ baseURL, storageState: { cookies: [], origins: [] } });
+test("sign-in page: axe at 390 and 1440 px", async ({ browser, baseURL, colorScheme }) => {
+  // Its own context: pass the project's colour scheme on (the *-dark projects run it in dark).
+  const context = await browser.newContext({
+    baseURL,
+    colorScheme,
+    storageState: { cookies: [], origins: [] },
+  });
   const page = await context.newPage();
   for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 900 });

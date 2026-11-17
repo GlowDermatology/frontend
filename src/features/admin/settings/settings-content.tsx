@@ -1,3 +1,4 @@
+import { themeCopy } from "@/components/brand/copy";
 import { requireStaff } from "@/data/auth";
 import { OAUTH_PROVIDER_LABEL } from "@/data/auth/oauth";
 import { oauthConfig, requestNotice } from "@/data/auth/oauth-env";
@@ -12,6 +13,7 @@ import { settingsCopy } from "./copy";
 import { LanguageCard } from "./language-card";
 import { MfaCard } from "./mfa-card";
 import { OpsConsoleCard } from "./ops-console-card";
+import { ThemeCard } from "./theme-card";
 
 /**
  * Data boundary of /admin/settings: the staff account, its admin panel MFA state (`auth/mfa/`,
@@ -19,7 +21,8 @@ import { OpsConsoleCard } from "./ops-console-card";
  * (verified here, so a crafted URL cannot make the card display arbitrary text). The store
  * settings, contacts and legal texts live in the ops console; the page only links there
  * (`GLOWDERMA_OPS_CONSOLE_URL`, read at request time). Left: the account (password, social
- * sign-in, other devices); right: two-step protection next to it, the language, the store.
+ * sign-in, other devices); right: two-step protection next to it, the language, the theme, the
+ * store.
  */
 export async function SettingsContent({
   searchParams,
@@ -27,11 +30,12 @@ export async function SettingsContent({
   searchParams: PageProps<"/admin/settings">["searchParams"];
 }) {
   await requireStaff();
-  const [account, mfa, query, t] = await Promise.all([
+  const [account, mfa, query, t, themeLabels] = await Promise.all([
     getStaffAccount(),
     getMfaStatus(),
     searchParams,
     copyFor(settingsCopy),
+    copyFor(themeCopy),
   ]);
   const opened = await requestNotice(query.oauth);
   const notice: SocialNotice | null = opened
@@ -53,6 +57,7 @@ export async function SettingsContent({
         <div className="flex min-w-0 flex-[2_1_360px] flex-col gap-4">
           <MfaCard status={mfa} account={account?.email ?? null} />
           <LanguageCard />
+          <ThemeCard t={t.theme} labels={themeLabels} />
           <OpsConsoleCard consoleUrl={serverEnv.opsConsoleUrl()} t={t.store} />
         </div>
       </div>

@@ -9,7 +9,8 @@ import { pendingMfaStep } from "@/data/mfa";
 import { mfaStepCopy } from "@/features/admin/auth/mfa-copy";
 import { MfaStepForm } from "@/features/admin/auth/mfa-step-form";
 import {
-  StaffAuthFallback,
+  StaffAuthCard,
+  StaffAuthCardSkeleton,
   StaffAuthFrame,
   StaffAuthHeading,
   StaffAuthSkeleton,
@@ -48,19 +49,22 @@ async function MfaGate() {
 async function MfaScreen() {
   const t = await copyFor(mfaStepCopy);
   return (
-    <StaffAuthFrame switchAudience={false}>
+    <StaffAuthCard switchAudience={false}>
       <StaffAuthHeading title={t.title} />
       <Suspense fallback={<StaffAuthSkeleton fields={1} />}>
         <MfaGate />
       </Suspense>
-    </StaffAuthFrame>
+    </StaffAuthCard>
   );
 }
 
+/** One static frame; only the caption and the card's content stream in (no remount). */
 export default function MfaPage() {
   return (
-    <Suspense fallback={<StaffAuthFallback fields={1} />}>
-      <MfaScreen />
-    </Suspense>
+    <StaffAuthFrame>
+      <Suspense fallback={<StaffAuthCardSkeleton fields={1} leadLines={0} />}>
+        <MfaScreen />
+      </Suspense>
+    </StaffAuthFrame>
   );
 }

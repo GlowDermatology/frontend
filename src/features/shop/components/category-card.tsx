@@ -36,7 +36,7 @@ export function CategoryCard({
             alt=""
             fill
             sizes="(min-width: 72rem) 240px, (min-width: 37.5rem) 30vw, 46vw"
-            className="object-cover transition-transform duration-700 ease-soft group-hover:scale-[1.04]"
+            className="object-cover media-dim transition-transform duration-700 ease-soft group-hover:scale-[1.04]"
           />
         ) : (
           <>
@@ -63,7 +63,7 @@ export function CategoryCard({
             <ProductArt
               kind={ART[index % ART.length] ?? "jar"}
               width={92}
-              className="relative transition-transform duration-700 ease-soft group-hover:-translate-y-1"
+              className="relative media-dim transition-transform duration-700 ease-soft group-hover:-translate-y-1"
             />
           </>
         )}

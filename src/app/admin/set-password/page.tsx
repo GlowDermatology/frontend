@@ -5,9 +5,11 @@ import { Suspense } from "react";
 import { cookieNames } from "@/data/auth/cookie-names";
 import { checkPasswordLink } from "@/data/password";
 import {
-  StaffAuthFallback,
+  StaffAuthCard,
+  StaffAuthCardSkeleton,
   StaffAuthFrame,
   StaffAuthHeading,
+  StaffAuthHeadingSkeleton,
   StaffAuthSkeleton,
 } from "@/features/admin/auth/staff-auth-frame";
 import { passwordCopy } from "@/features/admin/password/copy";
@@ -61,12 +63,21 @@ async function SetPasswordGate() {
  */
 export default function SetPasswordPage() {
   return (
-    <Suspense fallback={<StaffAuthFallback />}>
-      <StaffAuthFrame switchAudience={false}>
-        <Suspense fallback={<StaffAuthSkeleton fields={2} />}>
-          <SetPasswordGate />
-        </Suspense>
-      </StaffAuthFrame>
-    </Suspense>
+    <StaffAuthFrame>
+      <Suspense fallback={<StaffAuthCardSkeleton fields={2} leadLines={2} />}>
+        <StaffAuthCard switchAudience={false}>
+          <Suspense
+            fallback={
+              <>
+                <StaffAuthHeadingSkeleton leadLines={2} />
+                <StaffAuthSkeleton fields={2} />
+              </>
+            }
+          >
+            <SetPasswordGate />
+          </Suspense>
+        </StaffAuthCard>
+      </Suspense>
+    </StaffAuthFrame>
   );
 }

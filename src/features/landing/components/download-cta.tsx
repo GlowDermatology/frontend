@@ -17,7 +17,7 @@ export function DownloadCta({ dict }: { dict: LandingDictionary["download"] }) {
       aria-labelledby="cta-title"
       className={cn("pb-[clamp(72px,9vw,128px)]", gutter)}
     >
-      <div className="relative mx-auto grid max-w-[1184px] grid-cols-[repeat(auto-fit,minmax(min(420px,100%),1fr))] items-center gap-x-16 gap-y-10 overflow-hidden rounded-lg bg-banner px-[clamp(24px,6vw,88px)] py-[clamp(48px,7vw,96px)]">
+      <div className="relative mx-auto grid max-w-[1184px] grid-cols-[repeat(auto-fit,minmax(min(420px,100%),1fr))] items-center gap-x-16 gap-y-10 overflow-hidden rounded-lg border border-nav-line bg-banner px-[clamp(24px,6vw,88px)] py-[clamp(48px,7vw,96px)]">
         <Rings
           viewBox={800}
           rings={[

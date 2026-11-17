@@ -4,8 +4,11 @@ import { describe, expect, it } from "vitest";
 
 import { AudienceSwitch, STAFF_SIGN_IN_PATH, type AudienceSwitchLinks } from "./audience-switch";
 import { AuthArtwork } from "./auth-artwork";
-import { AuthLayout, type AuthLayoutProps } from "./auth-layout";
+import { AuthCaption, AuthCaptionSkeleton, AuthLayout, type AuthLayoutProps } from "./auth-layout";
+import { AUTH_TRANSITION_PATHS, keepsAuthTransition } from "./auth-view-transition";
 import { LocaleFlag } from "./locale-flag";
+import { shopPath } from "@/features/shop/routing/routes";
+import { LOCALES } from "@/lib/i18n/locales";
 
 const Layout = AuthLayout as FC<Omit<AuthLayoutProps, "children"> & { children?: ReactNode }>;
 
@@ -84,18 +87,17 @@ describe("AudienceSwitch", () => {
 });
 
 describe("AuthLayout", () => {
-  it("renders the switch, the art crops, the texts and the card content", () => {
+  const caption = createElement(AuthCaption, {
+    eyebrow: "Glow Derma hisobi",
+    headline: "Parvarish",
+    points: [{ icon: "receipt", text: "Buyurtmalar" }],
+  });
+
+  it("renders the switch, the art crops, the caption and the card content", () => {
     const html = renderToStaticMarkup(
       createElement(
         Layout,
-        {
-          audience: "customer",
-          frame: "embedded",
-          switchLinks: links,
-          eyebrow: "Glow Derma hisobi",
-          headline: "Parvarish",
-          points: [{ icon: "receipt", text: "Buyurtmalar" }],
-        },
+        { audience: "customer", switchLinks: links, caption },
         createElement("h1", null, "Xush kelibsiz"),
       ),
     );
@@ -108,6 +110,45 @@ describe("AuthLayout", () => {
     expect(html).toMatch(/<a href="\/kirish" aria-current="page"/);
     // Only one heading: the art panel's line is not a heading.
     expect(html.match(/<h[1-6][\s>]/g)).toHaveLength(1);
+  });
+
+  it("is one full-viewport frame whose boxes depend on the viewport only", () => {
+    const html = renderToStaticMarkup(createElement(Layout, { audience: "staff" }, "x"));
+    const classOf = (marker: string) =>
+      (html.match(new RegExp(`<[a-z]+ ${marker}[^>]*class="([^"]+)"`))?.[1] ?? "").split(" ");
+    // The landmark itself, `svh` (not `dvh`: a phone's collapsing toolbar does not resize it).
+    expect(html).toMatch(/<main data-auth-layout="staff"/);
+    const root = classOf('data-auth-layout="staff"');
+    expect(root).toContain("min-h-svh");
+    expect(html).not.toContain("dvh");
+    // The art panel: sticky, as tall as the viewport, never stretched by the card's row.
+    const art = classOf('data-auth-art=""');
+    expect(art).toEqual(
+      expect.arrayContaining([
+        "nav:sticky",
+        "nav:top-5",
+        "nav:self-start",
+        "nav:h-[calc(100svh-40px)]",
+        "h-[clamp(160px,42vw,200px)]",
+      ]),
+    );
+    expect(art.some((name) => name === "nav:h-auto")).toBe(false);
+    // The card: a fixed width, top-anchored (no centring), no entrance animation.
+    const card = classOf('data-auth-card=""');
+    expect(card).toEqual(expect.arrayContaining(["nav:w-[min(468px,40vw)]", "nav:min-w-[400px]"]));
+    expect(html).not.toContain("animate-rise-in");
+    expect(html).not.toContain("items-center px-1.5");
+    expect(html).toContain("nav:items-start");
+    expect(html).toContain("nav:pt-[max(40px,calc(50svh-380px))]");
+  });
+
+  it("cross-fades navigations between sign-in pages only without reduced motion", () => {
+    const html = renderToStaticMarkup(createElement(Layout, { audience: "staff" }, "x"));
+    expect(html).toContain(
+      "@media (prefers-reduced-motion: no-preference){@view-transition{navigation:auto}}",
+    );
+    // Hoisted into <head>, once.
+    expect(html.match(/data-href="gd-auth-view-transition"/g)).toHaveLength(1);
   });
 
   it("hides a first-step-only switch until a first step is in the card", () => {
@@ -129,11 +170,41 @@ describe("AuthLayout", () => {
     expect(html).toContain("group/auth");
   });
 
-  it("omits the switch and the art texts when not given", () => {
+  it("omits the switch and the caption when not given", () => {
     const html = renderToStaticMarkup(createElement(Layout, { audience: "staff" }, "x"));
     expect(html).not.toContain("<nav");
     expect(html).not.toContain("<ul");
-    expect(html).toContain("min-h-dvh");
+    expect(html).not.toContain("from-[#120e0b]/90");
+  });
+
+  it("has a decorative caption skeleton in the caption's box", () => {
+    const real = renderToStaticMarkup(caption);
+    const skeleton = renderToStaticMarkup(createElement(AuthCaptionSkeleton, { points: 3 }));
+    const boxOf = (html: string) => html.match(/^<div[^>]*class="([^"]+)"/)?.[1];
+    expect(boxOf(skeleton)).toBe(boxOf(real));
+    expect(skeleton).toMatch(/^<div aria-hidden="true"/);
+    expect(skeleton.match(/size-9/g)).toHaveLength(3);
+  });
+});
+
+describe("the sign-in view transition", () => {
+  it("lists every page that renders AuthLayout", () => {
+    const signIn = LOCALES.map((locale) => shopPath(locale, { kind: "signIn" }));
+    const staff = ["login", "mfa", "set-password", "change-password"].map(
+      (page) => `/admin/${page}`,
+    );
+    expect([...AUTH_TRANSITION_PATHS].sort()).toEqual([...signIn, ...staff].sort());
+    expect(STAFF_SIGN_IN_PATH).toBe("/admin/login");
+  });
+
+  it("keeps the cross-fade only towards another sign-in page", () => {
+    expect(keepsAuthTransition("https://glowderma.uz/admin/login?next=%2Fadmin")).toBe(true);
+    expect(keepsAuthTransition("https://glowderma.uz/ru/sign-in?mode=signup")).toBe(true);
+    expect(keepsAuthTransition("https://glowderma.uz/")).toBe(false);
+    expect(keepsAuthTransition("https://glowderma.uz/admin")).toBe(false);
+    expect(keepsAuthTransition("https://glowderma.uz/kirish/x")).toBe(false);
+    expect(keepsAuthTransition(null)).toBe(false);
+    expect(keepsAuthTransition("not a url")).toBe(false);
   });
 });
 

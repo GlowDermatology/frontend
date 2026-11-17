@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { themeCopy } from "@/components/brand/copy";
+
 import { cn } from "@/lib/cn";
 import type { Locale } from "@/lib/i18n/locales";
 
@@ -14,7 +16,7 @@ import { gutter, textLink } from "./layout-primitives";
  * small client islands for the product search (a field; an icon on phones),
  * the account menu (sign-in / sign-up or the private sections, and the
  * language list with flags), the cart and inbox links and the small-screen
- * menu (links and the same language list).
+ * menu (links, the same language list and the theme switch).
  */
 export function ShopHeader({ locale, dict }: { locale: Locale; dict: ShopDictionary }) {
   const links = [
@@ -67,6 +69,7 @@ export function ShopHeader({ locale, dict }: { locale: Locale; dict: ShopDiction
             openLabel={dict.header.menuOpen}
             closeLabel={dict.header.menuClose}
             language={<LanguageLinks current={locale} label={dict.header.languageLabel} />}
+            theme={themeCopy[locale]}
           />
         </div>
       </div>

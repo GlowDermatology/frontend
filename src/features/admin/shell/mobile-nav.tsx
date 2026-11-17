@@ -4,6 +4,7 @@ import { Dialog } from "radix-ui";
 import { useState, type MouseEvent, type ReactNode } from "react";
 
 import { Icon } from "@/components/ui/icon";
+import { LayerHostProvider } from "@/components/ui/layer";
 import { useCopy } from "@/lib/i18n/admin-context";
 
 import { shellCopy } from "./copy";
@@ -11,10 +12,14 @@ import { shellCopy } from "./copy";
 /**
  * Below 1024px the sidebar becomes a drawer. The canvas could only stack the
  * menu above the page on small screens; a drawer keeps the content first.
+ * Menus opened in the drawer (the profile menu and its «Til» submenu, tooltips) portal into the
+ * drawer's own `div[data-layer-host]`, so they stay inside the dialog (focus scope, accessible
+ * tree) instead of `<main>`, which the open dialog hides.
  */
 export function MobileNav({ children }: { children: ReactNode }) {
   const t = useCopy(shellCopy);
   const [open, setOpen] = useState(false);
+  const [host, setHost] = useState<HTMLDivElement | null>(null);
 
   // Close when a navigation link inside the drawer is followed.
   const onClick = (event: MouseEvent<HTMLDivElement>) => {
@@ -43,7 +48,8 @@ export function MobileNav({ children }: { children: ReactNode }) {
           >
             <Icon name="close" size={20} />
           </Dialog.Close>
-          {children}
+          <LayerHostProvider host={host}>{children}</LayerHostProvider>
+          <div data-layer-host="" ref={setHost} className="contents" />
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

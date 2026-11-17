@@ -64,7 +64,7 @@ async function CashbackBody({
     <>
       <section
         aria-labelledby="cashback-balance"
-        className="relative overflow-hidden rounded-lg bg-banner p-[clamp(24px,4vw,44px)] text-banner-ink-soft"
+        className="relative overflow-hidden rounded-lg border border-nav-line bg-banner p-[clamp(24px,4vw,44px)] text-banner-ink-soft"
       >
         <div className="relative flex flex-wrap items-end justify-between gap-6">
           <div className="flex flex-col gap-2">
@@ -102,7 +102,7 @@ async function CashbackBody({
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={Math.round(summary.nextTier.progress * 100)}
-              className="h-2 w-full overflow-hidden rounded-full bg-gold-soft"
+              className="h-2 w-full overflow-hidden rounded-full bg-line"
             >
               <div
                 className="h-full rounded-full bg-gold"

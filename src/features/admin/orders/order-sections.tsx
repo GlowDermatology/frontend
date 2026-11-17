@@ -123,14 +123,20 @@ function ItemThumbnail({ item }: { item: OrderItem }) {
   if (item.imageUrl) {
     return (
       <span className="relative flex size-10 shrink-0 overflow-hidden rounded-sm bg-surface">
-        <Image src={item.imageUrl} alt="" fill sizes="40px" className="object-cover" />
+        <Image src={item.imageUrl} alt="" fill sizes="40px" className="object-cover media-dim" />
       </span>
     );
   }
   if (item.art) {
     return (
       <span className="flex size-10 shrink-0 items-center justify-center rounded-sm bg-gold-soft">
-        <ProductArt kind={item.art.kind} tone={item.art.tone} detail="mini" width={24} />
+        <ProductArt
+          kind={item.art.kind}
+          tone={item.art.tone}
+          detail="mini"
+          width={24}
+          className="media-dim"
+        />
       </span>
     );
   }

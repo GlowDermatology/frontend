@@ -292,6 +292,16 @@ describe("GET /admin/auth/oauth/[provider]/fake", () => {
     expect(back.searchParams.get("state")).toBe("abc");
   });
 
+  it("draws the page in the visitor's saved theme (gd_theme), else the device's", async () => {
+    const dark = await (
+      await fake(get(query(), { cookies: "gd_theme=dark" }), ctx("google"))
+    ).text();
+    expect(dark).toContain('<meta name="color-scheme" content="dark">');
+    expect(dark).not.toMatch(/color:#[0-9a-f]{3,6}[;}]/i);
+    const system = await (await fake(get(query()), ctx("google"))).text();
+    expect(system).toContain("@media (prefers-color-scheme:dark)");
+  });
+
   it("maps the failure outcomes to the backend fake's codes and a denial to error=access_denied", async () => {
     const code = async (outcome: string) =>
       new URL(

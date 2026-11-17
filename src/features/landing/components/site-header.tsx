@@ -1,4 +1,6 @@
+import { themeCopy } from "@/components/brand/copy";
 import { buttonStyles } from "@/components/ui/button";
+import { ThemeMenu } from "@/components/ui/theme-control";
 import { SECTION_IDS } from "@/config/site";
 import { cn } from "@/lib/cn";
 
@@ -53,7 +55,13 @@ export function SiteHeader({ dict, locale }: SiteHeaderProps) {
         </nav>
 
         <div className="flex items-center gap-2 sm:gap-4">
-          <LanguageMenu current={locale} label={dict.header.languageLabel} />
+          <div className="flex items-center gap-2">
+            <LanguageMenu current={locale} label={dict.header.languageLabel} />
+            <ThemeMenu
+              labels={themeCopy[locale]}
+              triggerClassName="flex size-11 shrink-0 items-center justify-center rounded-full border border-line text-ink transition-colors duration-150 hover:bg-gold-soft data-[state=open]:bg-gold-soft"
+            />
+          </div>
           <a
             href={`#${SECTION_IDS.download}`}
             className={buttonStyles({

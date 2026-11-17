@@ -9,7 +9,13 @@ import {
   refreshBackoffCookie,
   setCookie,
 } from "@/data/auth/cookies";
-import { escapeHtml, htmlPage, sameOriginBounce, seeOther } from "@/data/auth/html-page";
+import {
+  escapeHtml,
+  htmlPage,
+  requestTheme,
+  sameOriginBounce,
+  seeOther,
+} from "@/data/auth/html-page";
 import { isAccessLive } from "@/data/auth/jwt";
 import { safeNext } from "@/data/auth/next-param";
 import { classifyRefresh, type RefreshCallResult } from "@/data/auth/refresh-outcome";
@@ -65,7 +71,13 @@ export async function GET(request: NextRequest) {
   const m = authDataCopy[locale];
   const lang = LOCALE_INFO[locale].htmlLang;
   if (!sameOrigin) {
-    return sameOriginBounce(url.pathname + url.search, undefined, m.page, lang);
+    return sameOriginBounce(
+      url.pathname + url.search,
+      undefined,
+      m.page,
+      lang,
+      requestTheme(request),
+    );
   }
 
   const secure = serverEnv.cookieSecure();
@@ -115,5 +127,6 @@ export async function GET(request: NextRequest) {
     { status: 503, headers: { "Retry-After": String(retryAfter) } },
     "",
     lang,
+    requestTheme(request),
   );
 }

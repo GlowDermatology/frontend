@@ -23,6 +23,8 @@ export function PhoneMockup({ dict, label }: { dict: LandingDictionary["phone"];
     <div
       role="img"
       aria-label={label}
+      // A picture of the app as shipped: it stays light in every theme.
+      data-theme="light"
       className="relative h-[596px] w-[290px] shrink-0 rounded-[46px] bg-on-gold p-[9px] shadow-[0_48px_90px_-28px_#000000b3,0_0_0_1px_#c9a24b55]"
     >
       <div className="flex h-full w-full flex-col overflow-hidden rounded-[38px] bg-surface">

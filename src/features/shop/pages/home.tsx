@@ -113,7 +113,10 @@ function BannerFrame({
       </span>
     </>
   );
-  const frame = cn("group relative block overflow-hidden rounded-lg bg-banner", className);
+  const frame = cn(
+    "group relative block overflow-hidden rounded-lg border border-nav-line bg-banner",
+    className,
+  );
   if (!href) return <div className={frame}>{body}</div>;
   if (banner.link.kind === "url") {
     return (
@@ -144,7 +147,7 @@ function HeroCollage({ images }: { images: ReadonlyArray<string> }) {
   return (
     <div
       aria-hidden="true"
-      className="relative aspect-[4/3] w-full overflow-hidden rounded-lg bg-banner nav:aspect-[4/5]"
+      className="relative aspect-[4/3] w-full overflow-hidden rounded-lg border border-nav-line bg-banner nav:aspect-[4/5]"
     >
       <Rings
         viewBox={800}
@@ -234,7 +237,7 @@ async function Hero({ locale, dict }: { locale: Locale; dict: ShopDictionary }) 
               images={collage.map((product) => (product.imageMedium ?? product.image) as string)}
             />
           ) : (
-            <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg bg-banner nav:aspect-[4/5]">
+            <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg border border-nav-line bg-banner nav:aspect-[4/5]">
               <Rings
                 viewBox={800}
                 rings={[
@@ -382,7 +385,10 @@ async function Clinic({ locale, dict }: { locale: Locale; dict: ShopDictionary }
   return (
     <section
       aria-labelledby="clinic-title"
-      className={cn("relative overflow-hidden bg-banner text-banner-ink-soft", sectionSpacing)}
+      className={cn(
+        "relative overflow-hidden border-y border-nav-line bg-banner text-banner-ink-soft",
+        sectionSpacing,
+      )}
     >
       <JsonLd
         data={[

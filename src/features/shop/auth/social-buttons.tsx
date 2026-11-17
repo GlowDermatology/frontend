@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { SocialProvider } from "@/domain/shop-account";
 import type { Locale } from "@/lib/i18n/locales";
+import { currentResolvedTheme, subscribeTheme } from "@/lib/theme/theme-store";
 
 import { authCopy } from "../copy/auth";
 import type { SocialConfig } from "./social-config";
@@ -113,6 +114,18 @@ function GoogleButton({
 }) {
   const holder = useRef<HTMLDivElement>(null);
   const [round, setRound] = useState(0);
+  // Redrawn when the page's theme changes (a switch, or the device while the choice is system).
+  const [themeRound, setThemeRound] = useState(0);
+  useEffect(() => {
+    let last = currentResolvedTheme();
+    return subscribeTheme(() => {
+      const next = currentResolvedTheme();
+      if (next !== last) {
+        last = next;
+        setThemeRound((value) => value + 1);
+      }
+    });
+  }, []);
   const callbacks = useRef({ onToken, onError, getNonce });
   useEffect(() => {
     callbacks.current = { onToken, onError, getNonce };
@@ -151,7 +164,8 @@ function GoogleButton({
         holder.current.replaceChildren();
         id.renderButton(holder.current, {
           type: "standard",
-          theme: "outline",
+          // Google's own dark variant on the dark theme (its button is drawn in an iframe).
+          theme: currentResolvedTheme() === "dark" ? "filled_black" : "outline",
           size: "large",
           shape: "rectangular",
           text: "continue_with",
@@ -166,13 +180,14 @@ function GoogleButton({
     return () => {
       cancelled = true;
     };
-  }, [clientId, locale, round]);
+  }, [clientId, locale, round, themeRound]);
 
   return (
     <div
       ref={holder}
       aria-disabled={disabled || undefined}
-      className="flex min-h-11 w-full justify-center [&[aria-disabled]]:pointer-events-none [&[aria-disabled]]:opacity-60"
+      // `color-scheme: light`: the iframe stays transparent instead of getting an opaque canvas.
+      className="flex min-h-11 w-full justify-center [color-scheme:light] [&[aria-disabled]]:pointer-events-none [&[aria-disabled]]:opacity-60"
     />
   );
 }

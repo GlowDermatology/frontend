@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 
 import { siteConfig } from "@/config/site";
+import { THEME_VIEWPORT } from "@/lib/theme/theme-cookie";
 
 import { LOCALE_INFO, LOCALES, getDictionary, localePath, type Locale } from "./i18n";
 
@@ -42,7 +43,4 @@ export function buildLandingMetadata(locale: Locale): Metadata {
   };
 }
 
-export const landingViewport: Viewport = {
-  themeColor: "#fbf8f2",
-  colorScheme: "light",
-};
+export const landingViewport: Viewport = THEME_VIEWPORT;

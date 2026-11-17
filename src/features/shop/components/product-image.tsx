@@ -49,7 +49,7 @@ export function ProductImage({
           sizes={sizes}
           priority={priority}
           className={cn(
-            "object-cover",
+            "object-cover media-dim",
             zoom &&
               "transition-transform duration-700 ease-soft group-hover:scale-[1.035] group-focus-visible:scale-[1.035]",
           )}
@@ -70,7 +70,7 @@ export function ProductImage({
           <ProductArt
             kind={ART[Math.abs(seed) % ART.length] ?? "jar"}
             width={96}
-            className="relative"
+            className="relative media-dim"
           />
           {alt ? <span className="sr-only">{alt}</span> : null}
         </span>

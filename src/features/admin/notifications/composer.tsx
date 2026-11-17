@@ -680,7 +680,7 @@ export function Composer({
 
       <section
         aria-labelledby={`${idBase}-preview`}
-        className="relative flex min-w-0 flex-[2_1_340px] flex-col gap-4 overflow-hidden rounded-lg bg-banner p-5"
+        className="relative flex min-w-0 flex-[2_1_340px] flex-col gap-4 overflow-hidden rounded-lg border border-nav-line bg-banner p-5"
       >
         <Rings
           viewBox={400}
@@ -698,21 +698,26 @@ export function Composer({
         >
           {c.previewHeading}
         </h2>
-        <div className="relative mt-6 mb-8 flex gap-3 rounded-lg bg-[#fbf8f2f2] p-3.5 shadow-[0_18px_40px_-12px_#000000aa]">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-[#2b2620] text-[#c9a24b]">
+        {/* The phone's notification looks the same in both themes: pinned light. */}
+        <div
+          data-theme="light"
+          data-push-preview=""
+          className="relative mt-6 mb-8 flex gap-3 rounded-lg bg-surface/95 p-3.5 shadow-[0_18px_40px_-12px_#000000aa]"
+        >
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-nav text-gold">
             <Icon name="bell" size={20} />
           </span>
           <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <span className="flex justify-between gap-2 text-caption font-normal text-[#7a705d]">
+            <span className="flex justify-between gap-2 text-caption font-normal text-ink-muted">
               <span className="font-bold uppercase">Glow Derma</span>
               <span className="truncate">
                 {previewAt ? fmt.dateTimeShort(previewAt) : c.previewAsap}
               </span>
             </span>
-            <span className="text-[15px] leading-5 font-bold [overflow-wrap:anywhere] break-words text-[#2a2418]">
+            <span className="text-[15px] leading-5 font-bold [overflow-wrap:anywhere] break-words text-ink">
               {title.trim() || c.previewTitle}
             </span>
-            <span className="line-clamp-4 text-[14px] leading-5 [overflow-wrap:anywhere] break-words text-[#2a2418]">
+            <span className="line-clamp-4 text-[14px] leading-5 [overflow-wrap:anywhere] break-words text-ink">
               {body.trim() || c.previewBody}
             </span>
             {(image || storedImage) && (

@@ -4,11 +4,13 @@ import "./globals.css";
 
 import { ShopErrorPage } from "@/features/shop/components/shop-error";
 import type { Locale } from "@/lib/i18n/locales";
+import { ThemeSync } from "@/lib/theme/theme-sync";
 
 /**
  * Last-resort boundary (a root layout failed): the storefront's branded,
  * localized "try again" instead of Next's English default. The language
- * comes from the path (`/ru/…`, `/en/…`, else Uzbek); `noindex`.
+ * comes from the path (`/ru/…`, `/en/…`, else Uzbek); `noindex`. It replaces the whole document
+ * on the client (no head script), so `ThemeSync` applies the saved theme.
  */
 function localeFromPath(): Locale {
   if (typeof window === "undefined") return "uz";
@@ -19,8 +21,9 @@ function localeFromPath(): Locale {
 export default function GlobalError({ reset }: { error: Error; reset: () => void }) {
   const locale = localeFromPath();
   return (
-    <html lang={locale}>
+    <html lang={locale} suppressHydrationWarning>
       <body>
+        <ThemeSync />
         <ShopErrorPage locale={locale} reset={reset} />
       </body>
     </html>

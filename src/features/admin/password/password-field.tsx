@@ -84,7 +84,7 @@ export function PasswordRules({
               className={cn(
                 "mt-px inline-flex size-4 shrink-0 items-center justify-center rounded-full border transition-[background-color,border-color] duration-200",
                 met
-                  ? "border-success bg-success text-white"
+                  ? "border-success bg-success text-on-fill"
                   : "border-line-strong bg-surface-raised",
               )}
             >

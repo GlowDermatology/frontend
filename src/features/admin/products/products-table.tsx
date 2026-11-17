@@ -35,7 +35,7 @@ function Thumbnail({ product }: { product: Product }) {
           alt=""
           fill
           sizes="44px"
-          className={cn("object-cover", out && "opacity-45")}
+          className={cn("object-cover media-dim", out && "opacity-45")}
         />
       </span>
     );
@@ -54,7 +54,7 @@ function Thumbnail({ product }: { product: Product }) {
         tone={product.art.tone}
         detail="mini"
         width={26}
-        className={cn(out && "opacity-45")}
+        className={cn("media-dim", out && "opacity-45")}
       />
     </span>
   );

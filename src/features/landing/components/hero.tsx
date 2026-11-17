@@ -64,7 +64,7 @@ export function Hero({ dict }: { dict: LandingDictionary }) {
           </div>
         </div>
 
-        <div className="relative flex min-h-[660px] items-center justify-center overflow-hidden rounded-lg bg-banner px-4 py-10">
+        <div className="relative flex min-h-[660px] items-center justify-center overflow-hidden rounded-lg border border-nav-line bg-banner px-4 py-10">
           <Rings
             viewBox={800}
             rings={[

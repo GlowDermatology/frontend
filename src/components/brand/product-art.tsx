@@ -22,7 +22,21 @@ const LEVEL: Record<ProductArtDetail, number> = { mini: 0, glyph: 0, thumb: 1, c
 const NOT_MINI: ReadonlyArray<ProductArtDetail> = ["glyph", "thumb", "card", "full"];
 const WITH_MINI: ReadonlyArray<ProductArtDetail> = ["mini", "thumb", "card", "full"];
 
-const INK = "#2a2418";
+const INK_HEX = "#2a2418";
+const LINE_HEX = "#e5dcc8";
+
+/**
+ * Every themed colour is a CSS variable with its light hex as the fallback, so
+ * the light theme renders exactly the hexes below with no stylesheet at all.
+ * The SVG also carries the dark values (`--pa-*-d`); `globals.css` switches to
+ * them under `[data-theme="dark"]` (deeper, desaturated bodies, caps lifted off
+ * the dark well).
+ */
+type Slot = "cap" | "accent" | "body" | "label" | "ink" | "line";
+
+const slotVar = (slot: Slot, hex: string) => `var(--pa-${slot}, ${hex})`;
+const INK = slotVar("ink", INK_HEX);
+const LINE = slotVar("line", LINE_HEX);
 
 interface Palette {
   cap: string;
@@ -68,6 +82,58 @@ const PALETTES: Record<ProductArtKind, Record<ProductArtTone, Palette>> = {
     "dark-cap": { cap: "#ffffff", accent: "#ffffff", body: "#e9dfca", label: "#ffffff" },
   },
 };
+
+function hsl(hex: string): [number, number, number] {
+  const n = Number.parseInt(hex.slice(1), 16);
+  const r = (n >> 16) / 255;
+  const g = ((n >> 8) & 255) / 255;
+  const b = (n & 255) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  const d = max - min;
+  if (d === 0) return [0, 0, l];
+  const s = d / (1 - Math.abs(2 * l - 1));
+  const h = max === r ? ((g - b) / d + 6) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [h * 60, s, l];
+}
+
+const css = ([h, s, l]: [number, number, number]) =>
+  `hsl(${Math.round(h)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%)`;
+
+/**
+ * Dark value of a palette colour: light colours ~28 % darker and less
+ * saturated; near-black caps are lifted so they stay distinct from the
+ * `#1a1611` image well and the gold-soft tile.
+ */
+export function darkTone(hex: string): string {
+  const [h, s, l] = hsl(hex);
+  if (l < 0.22) return css([h, s * 0.6, 0.32]);
+  return css([h, s * 0.8, l * 0.72]);
+}
+
+/** Dark-theme ink for label lines and shadows: lighter than the light ink. */
+const INK_DARK = "#3d3529";
+
+function darkVars(p: Palette): CSSProperties {
+  const out: Record<string, string> = {
+    "--pa-ink-d": INK_DARK,
+    "--pa-line-d": darkTone(LINE_HEX),
+  };
+  for (const slot of ["cap", "accent", "body", "label"] as const) {
+    out[`--pa-${slot}-d`] = darkTone(p[slot]);
+  }
+  return out as CSSProperties;
+}
+
+function themed(p: Palette): Palette {
+  return {
+    cap: slotVar("cap", p.cap),
+    accent: slotVar("accent", p.accent),
+    body: slotVar("body", p.body),
+    label: slotVar("label", p.label),
+  };
+}
 
 /** Shape, the lowest detail level that draws it, and optionally an explicit list of levels. */
 type Layer = [minLevel: number, node: ReactNode, only?: ReadonlyArray<ProductArtDetail>];
@@ -126,16 +192,7 @@ function layers(kind: ProductArtKind, p: Palette): Layer[] {
         ],
         [
           0,
-          <rect
-            key="b"
-            x="27"
-            y="94"
-            width="66"
-            height="54"
-            rx="16"
-            fill={p.body}
-            stroke="#e5dcc8"
-          />,
+          <rect key="b" x="27" y="94" width="66" height="54" rx="16" fill={p.body} stroke={LINE} />,
         ],
         [2, <rect key="h" x="33" y="102" width="5" height="36" rx="2.5" fill={p.label} />],
         [
@@ -207,7 +264,7 @@ function layers(kind: ProductArtKind, p: Palette): Layer[] {
       return [
         shadow(60, 24),
         [0, <rect key="seal" x="34" y="14" width="52" height="9" rx="2" fill={p.accent} />],
-        [0, <path key="b" d="M36 22h48l-8 100H44z" fill={p.body} stroke="#e5dcc8" />],
+        [0, <path key="b" d="M36 22h48l-8 100H44z" fill={p.body} stroke={LINE} />],
         [2, <rect key="h" x="44" y="30" width="5" height="60" rx="2.5" fill={p.label} />],
         [
           2,
@@ -342,7 +399,8 @@ export function ProductArt({
 }: ProductArtProps) {
   const square = kind === "texture";
   const level = LEVEL[detail];
-  const shapes = layers(kind, PALETTES[kind][tone])
+  const palette = PALETTES[kind][tone];
+  const shapes = layers(kind, themed(palette))
     .filter(([min, , only]) => (only ? only.includes(detail) : min <= level))
     .map(([, node]) => node);
 
@@ -351,8 +409,8 @@ export function ProductArt({
       viewBox={square ? "0 0 120 120" : "0 0 120 160"}
       width={width}
       height={square ? width : Math.round((width * 160) / 120)}
-      className={className}
-      style={style}
+      className={className ? `gd-product-art ${className}` : "gd-product-art"}
+      style={{ ...darkVars(palette), ...style }}
       focusable="false"
       {...(label ? { role: "img", "aria-label": label } : { "aria-hidden": true })}
     >

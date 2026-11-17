@@ -1,7 +1,13 @@
 import type { NextRequest } from "next/server";
 
 import { setCookie } from "@/data/auth/cookies";
-import { escapeHtml, htmlPage, sameOriginBounce, seeOther } from "@/data/auth/html-page";
+import {
+  escapeHtml,
+  htmlPage,
+  requestTheme,
+  sameOriginBounce,
+  seeOther,
+} from "@/data/auth/html-page";
 import { isAccessLive } from "@/data/auth/jwt";
 import { isSameOriginRequest } from "@/data/auth/same-origin";
 import { customerCookieNames } from "@/data/customer-auth/cookie-names";
@@ -76,7 +82,15 @@ export async function GET(request: NextRequest) {
     requestHost: request.headers.get("x-forwarded-host") ?? request.headers.get("host"),
     allowedOrigins: parseAllowedOrigins(process.env.GLOWDERMA_ALLOWED_ORIGINS),
   });
-  if (!sameOrigin) return sameOriginBounce(url.pathname + url.search, "Glow Derma");
+  if (!sameOrigin) {
+    return sameOriginBounce(
+      url.pathname + url.search,
+      "Glow Derma",
+      undefined,
+      undefined,
+      requestTheme(request),
+    );
+  }
 
   const secure = serverEnv.cookieSecure();
   const names = customerCookieNames(secure);
@@ -125,5 +139,8 @@ export async function GET(request: NextRequest) {
     `Glow Derma — ${title}`,
     `<h1 style="font:600 22px/1.3 Georgia,serif;margin:0 0 12px">${escapeHtml(title)}</h1><p>${escapeHtml(body)}</p><p><a href="${self}">${escapeHtml(retry)}</a></p>`,
     { status: 503, headers: { "Retry-After": String(retryAfter) } },
+    "",
+    undefined,
+    requestTheme(request),
   );
 }

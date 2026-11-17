@@ -1,9 +1,10 @@
 import type { NextRequest } from "next/server";
 
-import { escapeHtml, htmlPage, seeOther } from "@/data/auth/html-page";
+import { escapeHtml, htmlPage, requestTheme, seeOther } from "@/data/auth/html-page";
 import { OAUTH_PROVIDER_LABEL, type OAuthProvider } from "@/data/auth/oauth";
 import { enabledProvider, notFoundPage, redirectUriFor } from "@/data/auth/oauth-route";
 import { serverEnv } from "@/lib/env.server";
+import type { ThemeChoice } from "@/lib/theme/theme-cookie";
 
 /**
  * `GET /admin/auth/oauth/{provider}/fake` — the authorize step of
@@ -44,7 +45,7 @@ const FORWARDED = [
 ] as const;
 
 const STYLE =
-  "main{max-width:420px;width:100%;text-align:left}h1{font:700 22px/1.3 Georgia,serif;margin:0 0 4px}p{margin:0 0 16px;color:#5c5240}form{display:flex;flex-direction:column;gap:14px}label{display:flex;flex-direction:column;gap:6px;font-weight:600}input[type=text],input[type=email]{font:inherit;height:44px;padding:0 12px;border:1px solid #8a7d63;border-radius:8px;background:#fff;color:#2a2418}fieldset{border:1px solid #d9cfba;border-radius:8px;padding:10px 14px;margin:0;display:flex;flex-direction:column;gap:8px}legend{font-weight:600;padding:0 4px}fieldset label{flex-direction:row;align-items:center;gap:8px;font-weight:400;min-height:24px}button{font:inherit;font-weight:700;height:48px;border:0;border-radius:8px;background:#2a2418;color:#fbf8f2;cursor:pointer}:focus-visible{outline:3px solid #7a5a14;outline-offset:2px}.error{color:#a12c2c;font-weight:600}code{font-size:13px}";
+  "main{max-width:420px;width:100%;text-align:left}h1{font:700 22px/1.3 Georgia,serif;margin:0 0 4px}p{margin:0 0 16px;color:var(--muted)}form{display:flex;flex-direction:column;gap:14px}label{display:flex;flex-direction:column;gap:6px;font-weight:600}input[type=text],input[type=email]{font:inherit;height:44px;padding:0 12px;border:1px solid var(--field-line);border-radius:8px;background:var(--field);color:var(--fg)}fieldset{border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin:0;display:flex;flex-direction:column;gap:8px}legend{font-weight:600;padding:0 4px}fieldset label{flex-direction:row;align-items:center;gap:8px;font-weight:400;min-height:24px}button{font:inherit;font-weight:700;height:48px;border:0;border-radius:8px;background:var(--fg);color:var(--bg);cursor:pointer}:focus-visible{outline:3px solid var(--accent);outline-offset:2px}.error{color:var(--danger);font-weight:600}code{font-size:13px}";
 
 function readOutcome(value: string | null): Outcome | null {
   return value !== null && value in OUTCOMES ? (value as Outcome) : null;
@@ -62,6 +63,7 @@ function form(
   params: URLSearchParams,
   values: { subject: string; email: string; outcome: Outcome },
   error: string | null,
+  theme: ThemeChoice,
 ) {
   const label = OAUTH_PROVIDER_LABEL[provider];
   const hidden = FORWARDED.map((name) => {
@@ -85,6 +87,8 @@ function form(
     `<h1>${escapeHtml(label)} — sinov provayderi</h1><p>GLOWDERMA_OAUTH_MODE=fake: haqiqiy ${escapeHtml(label)} o‘rniga backendning soxta provayderi ishlatiladi. Kod <code>fake:&lt;identifikator&gt;:&lt;email&gt;</code> bo‘ladi.</p>${errorBlock}<form method="get" novalidate>${hidden}<label>Identifikator (subject)<input type="text" name="subject" required maxlength="100" autocomplete="off" value="${escapeHtml(values.subject)}"${describedBy}></label><label>Email<input type="email" name="email" required maxlength="254" autocomplete="off" value="${escapeHtml(values.email)}"${describedBy}></label><fieldset><legend>Natija</legend>${radios}</fieldset><button type="submit">Davom etish</button></form>`,
     { status: error ? 400 : 200 },
     STYLE,
+    "uz",
+    theme,
   );
 }
 
@@ -94,7 +98,8 @@ export async function GET(
 ) {
   const { provider: param } = await ctx.params;
   const enabled = enabledProvider(param);
-  if (!enabled || enabled.config.mode !== "fake") return notFoundPage();
+  const theme = requestTheme(request);
+  if (!enabled || enabled.config.mode !== "fake") return notFoundPage(undefined, undefined, theme);
   const { provider } = enabled;
   const params = request.nextUrl.searchParams;
 
@@ -106,6 +111,9 @@ export async function GET(
       "So‘rov noto‘g‘ri — Glow Derma Admin",
       `<h1 style="font:700 20px/1.3 Georgia,serif;margin:0 0 12px">So‘rov noto‘g‘ri</h1><p>redirect_uri yoki state yo‘q yoki noto‘g‘ri.</p><p><a href="/admin/login">Kirish sahifasiga</a></p>`,
       { status: 400 },
+      "",
+      "uz",
+      theme,
     );
   }
 
@@ -113,7 +121,7 @@ export async function GET(
   const subject = params.get("subject")?.trim() ?? "";
   const email = params.get("email")?.trim() ?? "";
   if (outcome === null) {
-    return form(provider, params, { subject: "", email: "", outcome: "ok" }, null);
+    return form(provider, params, { subject: "", email: "", outcome: "ok" }, null, theme);
   }
 
   const back = new URL(expected);
@@ -132,6 +140,7 @@ export async function GET(
       params,
       { subject, email, outcome },
       "Identifikator va emailni kiriting (“:” belgisisiz).",
+      theme,
     );
   }
   back.searchParams.set(

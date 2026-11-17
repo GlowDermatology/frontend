@@ -11,7 +11,7 @@ import {
   setCookie,
   type SessionCookie,
 } from "@/data/auth/cookies";
-import { sameOriginBounce, seeOther } from "@/data/auth/html-page";
+import { requestTheme, sameOriginBounce, seeOther } from "@/data/auth/html-page";
 import { decodeJwtPayload, isAccessLive } from "@/data/auth/jwt";
 import { MFA_STEP_PATH, isMfaChallengeAnswer, mfaChallengeCookie } from "@/data/auth/mfa-challenge";
 import {
@@ -251,10 +251,16 @@ export async function GET(
   const m = authDataCopy[locale];
   const lang = LOCALE_INFO[locale].htmlLang;
   const enabled = enabledProvider(param);
-  if (!enabled) return notFoundPage(m.page, lang);
+  if (!enabled) return notFoundPage(m.page, lang, requestTheme(request));
   const url = request.nextUrl;
   if (!sameOrigin(request)) {
-    return sameOriginBounce(url.pathname + url.search, undefined, m.page, lang);
+    return sameOriginBounce(
+      url.pathname + url.search,
+      undefined,
+      m.page,
+      lang,
+      requestTheme(request),
+    );
   }
 
   const secure = serverEnv.cookieSecure();

@@ -185,6 +185,13 @@ const ICONS = {
       <circle cx="10" cy="17" r="2" />
     </>
   ),
+  /** Light theme: a disc with eight short rays. */
+  sun: (
+    <>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4" />
+    </>
+  ),
   sparkle: <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" />,
   sparkles: (
     <>
@@ -241,6 +248,8 @@ const ICONS = {
       <path d="M9 20h6M12 16.5V20" />
     </>
   ),
+  /** Dark theme: a crescent. */
+  moon: <path d="M20 13.9A8 8 0 1 1 10.1 4a6.2 6.2 0 0 0 9.9 9.9z" />,
   smartphone: (
     <>
       <rect x="6.5" y="2.5" width="11" height="19" rx="2.5" />

@@ -2,7 +2,7 @@ import type { CopySet } from "@/lib/i18n/copy";
 
 /**
  * Settings (`/admin/settings`): the page header, the account card (password change, social
- * sign-in, sign out of other devices) and the store-settings card. The language card has
+ * sign-in, sign out of other devices), the theme card and the store-settings card. The language card has
  * `language-copy.ts`, the MFA card `mfa-copy.ts`. Uzbek is the source language.
  */
 const uz = {
@@ -60,6 +60,10 @@ const uz = {
     doneLead: "Boshqa brauzer va qurilmalardagi sessiyalar yakunlandi.",
     failed: "Boshqa qurilmalardan chiqib bo‘lmadi",
     failedLead: "Sessiyalar hali ochiq. Birozdan so‘ng qayta urinib ko‘ring.",
+  },
+  theme: {
+    title: "Mavzu",
+    lead: "Yorug‘ yoki qorong‘i ko‘rinish. «Qurilmadagidek» qurilmangiz sozlamasiga ergashadi. Tanlov shu brauzerda saqlanadi va do‘kon sahifalarida ham qo‘llanadi.",
   },
   store: {
     title: "Do‘kon sozlamalari",
@@ -128,6 +132,10 @@ export const settingsCopy = {
       failed: "Не удалось выйти на других устройствах",
       failedLead: "Сессии ещё открыты. Попробуйте чуть позже.",
     },
+    theme: {
+      title: "Тема",
+      lead: "Светлое или тёмное оформление. «Как на устройстве» следует настройке вашего устройства. Выбор сохраняется в этом браузере и действует и на страницах магазина.",
+    },
     store: {
       title: "Настройки магазина",
       lead: "Настройки магазина, контакты и юридические тексты (условия использования, политика конфиденциальности, правила записи) редактируются в ops-консоли: она защищена двухэтапной проверкой (2FA), и каждое изменение записывается в журнал действий.",
@@ -191,6 +199,10 @@ export const settingsCopy = {
       doneLead: "Your sessions in other browsers and on other devices have ended.",
       failed: "Could not sign out of other devices",
       failedLead: "The sessions are still open. Try again in a moment.",
+    },
+    theme: {
+      title: "Theme",
+      lead: "A light or dark look. “Match device” follows your device's setting. The choice is saved in this browser and applies to the store pages too.",
     },
     store: {
       title: "Store settings",

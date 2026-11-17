@@ -167,7 +167,13 @@ export function InboxList({
                 </span>
                 {item.image ? (
                   <span className="relative hidden size-16 shrink-0 overflow-hidden rounded-md bg-image-well sm:block">
-                    <Image src={item.image} alt="" fill sizes="64px" className="object-cover" />
+                    <Image
+                      src={item.image}
+                      alt=""
+                      fill
+                      sizes="64px"
+                      className="object-cover media-dim"
+                    />
                   </span>
                 ) : null}
                 {href ? (

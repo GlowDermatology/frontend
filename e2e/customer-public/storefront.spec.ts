@@ -68,11 +68,16 @@ test("browse home → catalog → product → switch language", async ({ page })
   expect(ld.join("")).toContain('"priceCurrency":"UZS"');
   const segment = new URL(page.url()).pathname.split("/").pop();
 
-  // Languages live in the account menu (guests too), with flags; same page, filters kept.
+  // Languages live in the account menu (guests too): one «Til · O‘zbekcha ›» row whose submenu
+  // lists the flags; same page, filters kept.
   await page.getByRole("button", { name: "Hisob va til" }).click();
   await expect(page.getByRole("menuitem", { name: "Kirish" })).toBeVisible();
   await expect(page.getByRole("menuitem", { name: "Ro‘yxatdan o‘tish" })).toBeVisible();
-  await page.getByRole("menuitem", { name: "Русский" }).click();
+  await page.getByRole("menuitem", { name: /^Til\b/ }).click();
+  await page
+    .getByRole("menu", { name: "Til", exact: true })
+    .getByRole("menuitem", { name: "Русский" })
+    .click();
   await expect(page).toHaveURL(new RegExp(`/ru/products/${segment}$`));
   await expect(page.locator("html")).toHaveAttribute("lang", "ru");
   await expect(page.locator('link[rel="alternate"][hreflang="x-default"]')).toHaveAttribute(

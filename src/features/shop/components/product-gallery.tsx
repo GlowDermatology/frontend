@@ -67,7 +67,7 @@ export function ProductGallery({ product, dict }: { product: ShopProduct; dict: 
                 alt=""
                 fill
                 sizes="80px"
-                className="object-cover"
+                className="object-cover media-dim"
               />
             </a>
           </li>

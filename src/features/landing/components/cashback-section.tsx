@@ -20,7 +20,7 @@ export function CashbackSection({ dict }: { dict: LandingDictionary["cashback"] 
     <section
       id={SECTION_IDS.cashback}
       aria-labelledby="cashback-title"
-      className="relative overflow-hidden bg-banner"
+      className="relative overflow-hidden border-y border-nav-line bg-banner"
     >
       <Rings
         viewBox={800}

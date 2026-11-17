@@ -37,7 +37,7 @@ export function TooltipProvider({
 }
 
 export const tooltipContentClass =
-  "z-[70] max-w-[min(280px,calc(100vw-16px))] rounded-sm bg-nav px-3 py-2 text-body-sm font-medium text-white shadow-lg [text-wrap:pretty] data-[state=closed]:animate-fade-out data-[state=delayed-open]:animate-pop-in data-[state=instant-open]:animate-fade-in";
+  "z-[70] max-w-[min(280px,calc(100vw-16px))] rounded-sm border border-nav-line bg-nav px-3 py-2 text-body-sm font-medium text-white shadow-lg [text-wrap:pretty] data-[state=closed]:animate-fade-out data-[state=delayed-open]:animate-pop-in data-[state=instant-open]:animate-fade-in";
 
 export interface TooltipProps {
   /** The tooltip text. Keep it short; it must not hold anything interactive. */

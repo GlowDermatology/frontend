@@ -187,14 +187,14 @@ export function ImageManager({
               {image.src?.startsWith("blob:") ? (
                 // Local preview of an unsaved upload (object URL); next/image cannot optimise blobs.
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={image.src} alt={label} className="size-full object-cover" />
+                <img src={image.src} alt={label} className="size-full object-cover media-dim" />
               ) : image.src ? (
                 <Image
                   src={image.src}
                   alt={label}
                   fill
                   sizes="(min-width: 640px) 160px, 45vw"
-                  className="object-cover"
+                  className="object-cover media-dim"
                 />
               ) : image.art ? (
                 <ProductArt
@@ -203,6 +203,7 @@ export function ImageManager({
                   detail="thumb"
                   width={image.art.kind === "texture" ? 80 : 66}
                   label={label}
+                  className="media-dim"
                 />
               ) : null}
               {main && (

@@ -33,7 +33,12 @@ test("sign in, then sign out ends the session", async ({ page }) => {
   expect(access?.httpOnly).toBe(true);
   expect(access?.sameSite).toBe("Strict");
 
-  await page.getByRole("button", { name: "Chiqish" }).first().click();
+  // Sign-out is the last item of the profile menu (the sidebar's user block).
+  await page
+    .getByRole("button", { name: /^Profil menyusi/ })
+    .first()
+    .click();
+  await page.getByRole("menuitem", { name: "Chiqish" }).click();
   await expect(page).toHaveURL(/\/admin\/login/);
   await page.goto("/admin");
   await expect(page).toHaveURL(/\/admin\/login/);

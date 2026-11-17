@@ -102,7 +102,7 @@ function Steps({ current, t }: { current: 0 | 1 | 2; t: MfaSettingsCopy }) {
               aria-hidden="true"
               className={cn(
                 "flex size-6 shrink-0 items-center justify-center rounded-full border-[1.5px] text-[12px] font-bold transition-colors duration-200",
-                done && "border-success bg-success text-white",
+                done && "border-success bg-success text-on-fill",
                 active && "border-gold bg-gold text-on-gold",
                 !done && !active && "border-line-strong bg-surface text-ink-muted",
               )}
@@ -133,7 +133,7 @@ function TotpQr({ uri, label }: { uri: string; label: string }) {
   const drawing = qrDrawing(uri);
   return (
     <div className="flex justify-center">
-      <div className="rounded-lg border border-line bg-white p-3 shadow-sm">
+      <div data-theme="light" className="rounded-lg border border-line bg-white p-3 shadow-sm">
         <svg
           role="img"
           aria-label={label}

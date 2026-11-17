@@ -56,6 +56,16 @@ function render(authMethod: StaffAccount["authMethod"]) {
  * argument would offer «Bog‘lash» to every session again).
  */
 describe("AccountCard social sign-in block", () => {
+  it("starts with an empty masked current password and offers reveal only for new passwords", () => {
+    const { html } = render("password");
+    const current = html.match(/<input\b[^>]*name="currentPassword"[^>]*>/)?.[0];
+    expect(current).toBeDefined();
+    expect(current).toContain('type="password"');
+    expect(current).toContain('value=""');
+    // Only the two new-password fields have show/hide controls.
+    expect([...html.matchAll(/aria-pressed="false"/g)]).toHaveLength(2);
+  });
+
   it("offers «Bog‘lash» to a password session", () => {
     const card = render("password");
     expect(card.linkHrefs).toEqual(["/admin/auth/oauth/google/start?intent=link"]);

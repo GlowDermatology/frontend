@@ -12,31 +12,39 @@ import { passwordCopy } from "./copy";
 import type { PasswordChecks } from "./rules";
 
 /**
- * A password input with a show / hide toggle (`aria-pressed`, named by the action it takes). The
- * toggle sits inside the field's box; the input keeps every prop `Field` hands it (`id`,
+ * Current-password fields stay masked and have no reveal control. Other passwords have a
+ * show / hide toggle inside the field's box; the input keeps every prop `Field` hands it (`id`,
  * `aria-describedby`, `aria-invalid`), so labels, errors and the error reveal work as usual.
  */
 export function PasswordInput({ className, ...rest }: Omit<ComponentProps<"input">, "type">) {
   const t = useCopy(passwordCopy);
   const [shown, setShown] = useState(false);
+  const canReveal = rest.autoComplete !== "current-password";
   return (
     <div className="relative">
       <input
         {...rest}
-        type={shown ? "text" : "password"}
+        type={canReveal && shown ? "text" : "password"}
         spellCheck={false}
         autoCapitalize="none"
-        className={cn(controlClass, "pr-12 font-mono tracking-wide", className)}
+        className={cn(
+          controlClass,
+          "font-mono tracking-wide",
+          canReveal ? "pr-12" : "[&::-ms-reveal]:hidden",
+          className,
+        )}
       />
-      <IconButton
-        size="sm"
-        aria-label={shown ? t.field.hide : t.field.show}
-        aria-pressed={shown}
-        onClick={() => setShown((value) => !value)}
-        className="absolute top-1/2 right-1 -translate-y-1/2"
-      >
-        <Icon name={shown ? "eye-off" : "eye"} size={18} />
-      </IconButton>
+      {canReveal ? (
+        <IconButton
+          size="sm"
+          aria-label={shown ? t.field.hide : t.field.show}
+          aria-pressed={shown}
+          onClick={() => setShown((value) => !value)}
+          className="absolute top-1/2 right-1 -translate-y-1/2"
+        >
+          <Icon name={shown ? "eye-off" : "eye"} size={18} />
+        </IconButton>
+      ) : null}
     </div>
   );
 }

@@ -142,7 +142,13 @@ async function OrdersBody({
                         key={src + index}
                         className="relative size-14 overflow-hidden rounded-full border-2 border-surface-raised bg-image-well"
                       >
-                        <Image src={src} alt="" fill sizes="56px" className="object-cover" />
+                        <Image
+                          src={src}
+                          alt=""
+                          fill
+                          sizes="56px"
+                          className="object-cover media-dim"
+                        />
                       </span>
                     ))
                   ) : (
@@ -418,7 +424,13 @@ async function OrderBody({
                 >
                   <span className="relative size-16 shrink-0 overflow-hidden rounded-md bg-image-well">
                     {item.image ? (
-                      <Image src={item.image} alt="" fill sizes="64px" className="object-cover" />
+                      <Image
+                        src={item.image}
+                        alt=""
+                        fill
+                        sizes="64px"
+                        className="object-cover media-dim"
+                      />
                     ) : null}
                   </span>
                   <span className="flex min-w-0 flex-1 flex-col">

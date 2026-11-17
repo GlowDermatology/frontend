@@ -35,7 +35,7 @@ function Thumbnail({ product }: { product: Product }) {
           alt=""
           fill
           sizes="44px"
-          className={cn("object-cover", out && "opacity-45")}
+          className={cn("object-cover media-dim", out && "opacity-45")}
         />
       </span>
     );
@@ -48,16 +48,13 @@ function Thumbnail({ product }: { product: Product }) {
     );
   }
   return (
-    <span
-      data-theme="light"
-      className="flex size-11 items-center justify-center rounded-sm bg-gold-soft"
-    >
+    <span className="flex size-11 items-center justify-center rounded-sm bg-gold-soft">
       <ProductArt
         kind={product.art.kind}
         tone={product.art.tone}
         detail="mini"
         width={26}
-        className={cn(out && "opacity-45")}
+        className={cn("media-dim", out && "opacity-45")}
       />
     </span>
   );

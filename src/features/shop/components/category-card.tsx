@@ -29,18 +29,14 @@ export function CategoryCard({
       href={shopPath(locale, { kind: "category", slug: category.slug })}
       className={cn("group flex flex-col gap-4 rounded-lg text-ink no-underline", liftCard)}
     >
-      <span
-        // The illustration has fixed colours: without a photo the tile stays light in every theme.
-        data-theme={category.image ? undefined : "light"}
-        className="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg bg-gold-soft"
-      >
+      <span className="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg bg-gold-soft">
         {category.image ? (
           <Image
             src={category.imageMedium ?? category.image}
             alt=""
             fill
             sizes="(min-width: 72rem) 240px, (min-width: 37.5rem) 30vw, 46vw"
-            className="object-cover transition-transform duration-700 ease-soft group-hover:scale-[1.04]"
+            className="object-cover media-dim transition-transform duration-700 ease-soft group-hover:scale-[1.04]"
           />
         ) : (
           <>
@@ -67,7 +63,7 @@ export function CategoryCard({
             <ProductArt
               kind={ART[index % ART.length] ?? "jar"}
               width={92}
-              className="relative transition-transform duration-700 ease-soft group-hover:-translate-y-1"
+              className="relative media-dim transition-transform duration-700 ease-soft group-hover:-translate-y-1"
             />
           </>
         )}

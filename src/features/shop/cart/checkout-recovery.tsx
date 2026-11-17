@@ -144,7 +144,13 @@ export function CheckoutRecovery({
           <li key={item.productId} className="flex items-center gap-3 py-4">
             {item.image ? (
               <span className="relative size-16 shrink-0 overflow-hidden rounded-md bg-image-well">
-                <Image src={item.image} alt="" fill sizes="64px" className="object-cover" />
+                <Image
+                  src={item.image}
+                  alt=""
+                  fill
+                  sizes="64px"
+                  className="object-cover media-dim"
+                />
               </span>
             ) : null}
             <span className="flex min-w-0 flex-1 flex-col gap-1">

@@ -36,8 +36,6 @@ export function ProductImage({
 }: ProductImageProps) {
   return (
     <span
-      // The illustration has fixed colours: without a photo the tile stays light in every theme.
-      data-theme={src ? undefined : "light"}
       className={cn(
         "relative block aspect-product w-full overflow-hidden rounded-lg bg-image-well",
         className,
@@ -51,7 +49,7 @@ export function ProductImage({
           sizes={sizes}
           priority={priority}
           className={cn(
-            "object-cover",
+            "object-cover media-dim",
             zoom &&
               "transition-transform duration-700 ease-soft group-hover:scale-[1.035] group-focus-visible:scale-[1.035]",
           )}
@@ -72,7 +70,7 @@ export function ProductImage({
           <ProductArt
             kind={ART[Math.abs(seed) % ART.length] ?? "jar"}
             width={96}
-            className="relative"
+            className="relative media-dim"
           />
           {alt ? <span className="sr-only">{alt}</span> : null}
         </span>

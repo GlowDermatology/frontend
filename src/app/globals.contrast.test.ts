@@ -62,6 +62,16 @@ describe("globals.css theme tokens", () => {
     expect(CSS).toMatch(/\[data-theme="light"\] \{[^}]*color-scheme: light;/);
   });
 
+  it("product imagery dims only in the dark theme", () => {
+    expect(LIGHT.get("--gd-media-dim")).toBe("none");
+    expect(DARK.get("--gd-media-dim")).toBe("brightness(0.86) saturate(0.92)");
+    expect(CSS).toMatch(/@utility media-dim \{\s*filter: var\(--gd-media-dim\);/);
+    for (const slot of ["cap", "accent", "body", "label", "ink", "line"]) {
+      expect(CSS).toContain(`--pa-${slot}: var(--pa-${slot}-d);`);
+      expect(CSS).toContain(`--pa-${slot}: initial;`);
+    }
+  });
+
   it("status utilities read the tokens", () => {
     for (const name of ["success", "warning", "danger", "danger-strong", "on-fill"]) {
       expect(CSS).toContain(`--color-${name}: var(--gd-${name});`);

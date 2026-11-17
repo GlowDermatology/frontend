@@ -236,7 +236,7 @@ export function CartView({ locale, initial, canCheckout, supportPhone, providers
                         alt={line.name}
                         fill
                         sizes="112px"
-                        className="object-cover"
+                        className="object-cover media-dim"
                       />
                     ) : (
                       <span className="flex size-full items-center justify-center text-ink-muted">

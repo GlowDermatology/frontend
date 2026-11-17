@@ -59,6 +59,8 @@
   --gd-danger-strong: #c93b3b;
   /* Labels on status and danger fills: white here, dark ink in the dark theme. */
   --gd-on-fill: #ffffff;
+  /* Product and category imagery (`media-dim`): untouched in the light theme. */
+  --gd-media-dim: none;
   color-scheme: light;
 }
 
@@ -100,6 +102,8 @@
   --gd-warning: #eba24f;
   --gd-danger-strong: #f08a8a;
   --gd-on-fill: #151107;
+  /* Photos and pastel product shots sit calmer on espresso. */
+  --gd-media-dim: brightness(0.86) saturate(0.92);
   color-scheme: dark;
 }
 
@@ -296,6 +300,32 @@
   75% {
     transform: translateX(-1.5px);
   }
+}
+
+/* Product, category and thumbnail imagery only: not QR codes, flags, provider marks, the sign-in
+   artwork or banners that carry text. */
+@utility media-dim {
+  filter: var(--gd-media-dim);
+}
+
+/* ProductArt (components/brand/product-art.tsx) fills with `var(--pa-*, <light hex>)` and carries
+   its dark values as `--pa-*-d`. Light needs no rule; a pinned-light subtree falls back again. */
+[data-theme="dark"] .gd-product-art {
+  --pa-cap: var(--pa-cap-d);
+  --pa-accent: var(--pa-accent-d);
+  --pa-body: var(--pa-body-d);
+  --pa-label: var(--pa-label-d);
+  --pa-ink: var(--pa-ink-d);
+  --pa-line: var(--pa-line-d);
+}
+
+[data-theme="dark"] [data-theme="light"] .gd-product-art {
+  --pa-cap: initial;
+  --pa-accent: initial;
+  --pa-body: initial;
+  --pa-label: initial;
+  --pa-ink: initial;
+  --pa-line: initial;
 }
 
 @layer base {

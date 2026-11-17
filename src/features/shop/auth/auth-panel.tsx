@@ -666,7 +666,8 @@ export function AuthPanel({
 
   return (
     <div className="flex flex-col gap-6">
-      <Heading title={title} lead={lead} />
+      {/* The tabs come first: sign-in and sign-up leads differ in length, and the tabs must
+          not move under the pointer when they switch. */}
       {mode !== "reset" ? (
         <div
           role="tablist"
@@ -692,6 +693,7 @@ export function AuthPanel({
           ))}
         </div>
       ) : null}
+      <Heading title={title} lead={lead} />
       <form className="flex flex-col gap-5" onSubmit={submitForm} noValidate>
         <IdentifierField
           locale={locale}

@@ -7,7 +7,8 @@ import { getMe, requireStaff } from "@/data/auth";
 import { cookieNames } from "@/data/auth/cookie-names";
 import { safeNext } from "@/data/auth/next-param";
 import {
-  StaffAuthFallback,
+  StaffAuthCard,
+  StaffAuthCardSkeleton,
   StaffAuthFrame,
   StaffAuthHeading,
   StaffAuthSkeleton,
@@ -61,19 +62,22 @@ async function ChangeGate({
 async function ChangeScreen(props: PageProps<"/admin/change-password">) {
   const t = await copyFor(passwordCopy);
   return (
-    <StaffAuthFrame switchAudience={false}>
+    <StaffAuthCard switchAudience={false}>
       <StaffAuthHeading title={t.change.title} lead={t.change.lead} />
       <Suspense fallback={<StaffAuthSkeleton fields={3} />}>
         <ChangeGate searchParams={props.searchParams} />
       </Suspense>
-    </StaffAuthFrame>
+    </StaffAuthCard>
   );
 }
 
+/** One static frame; only the caption and the card's content stream in (no remount). */
 export default function ChangePasswordPage(props: PageProps<"/admin/change-password">) {
   return (
-    <Suspense fallback={<StaffAuthFallback fields={3} />}>
-      <ChangeScreen {...props} />
-    </Suspense>
+    <StaffAuthFrame>
+      <Suspense fallback={<StaffAuthCardSkeleton fields={3} leadLines={2} />}>
+        <ChangeScreen {...props} />
+      </Suspense>
+    </StaffAuthFrame>
   );
 }

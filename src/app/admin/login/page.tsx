@@ -13,7 +13,8 @@ import { storefrontEnabled } from "@/data/shop/mode";
 import { staffAuthCopy } from "@/features/admin/auth/copy";
 import { LoginForm } from "@/features/admin/auth/login-form";
 import {
-  StaffAuthFallback,
+  StaffAuthCard,
+  StaffAuthCardSkeleton,
   StaffAuthFrame,
   StaffAuthHeading,
   StaffAuthSkeleton,
@@ -80,19 +81,22 @@ async function LoginGate({
 async function LoginScreen({ searchParams }: PageProps<"/admin/login">) {
   const [t, withCustomer] = await Promise.all([copyFor(staffAuthCopy), storefrontEnabled()]);
   return (
-    <StaffAuthFrame withCustomerLink={withCustomer}>
+    <StaffAuthCard withCustomerLink={withCustomer}>
       <StaffAuthHeading title={t.form.title} lead={t.form.lead} />
       <Suspense fallback={<StaffAuthSkeleton fields={2} />}>
         <LoginGate searchParams={searchParams} />
       </Suspense>
-    </StaffAuthFrame>
+    </StaffAuthCard>
   );
 }
 
+/** One static frame; only the caption and the card's content stream in (no remount). */
 export default function LoginPage(props: PageProps<"/admin/login">) {
   return (
-    <Suspense fallback={<StaffAuthFallback />}>
-      <LoginScreen {...props} />
-    </Suspense>
+    <StaffAuthFrame>
+      <Suspense fallback={<StaffAuthCardSkeleton fields={2} audienceSwitch />}>
+        <LoginScreen {...props} />
+      </Suspense>
+    </StaffAuthFrame>
   );
 }

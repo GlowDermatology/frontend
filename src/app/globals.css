@@ -431,6 +431,13 @@
   }
 }
 
+/* Sign-in pages: the scrollbar's room is kept, so a card that grows past the fold (a longer
+   step, an error) never narrows the page and shifts the art and the card sideways. Scoped to the
+   sign-in frame; Radix's scroll lock elsewhere is untouched. */
+html:has([data-auth-layout]) {
+  scrollbar-gutter: stable;
+}
+
 /* Popovers and lists: a slimmer thumb that leaves the content its room. */
 .scroll-slim::-webkit-scrollbar {
   width: 6px;

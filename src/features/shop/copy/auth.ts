@@ -10,6 +10,7 @@ const uz = {
   },
   eyebrow: "Glow Derma hisobi",
   audience: { label: "Kim sifatida kirasiz", customer: "Mijoz", staff: "Xodim" },
+  backToStore: "Do‘konga qaytish",
   signIn: {
     title: "Xush kelibsiz",
     lead: "Buyurtmalar, cashback va qabullaringiz bir joyda.",
@@ -99,6 +100,7 @@ const ru: Copy = {
   },
   eyebrow: "Аккаунт Glow Derma",
   audience: { label: "Как вы входите", customer: "Клиент", staff: "Сотрудник" },
+  backToStore: "В магазин",
   signIn: {
     title: "С возвращением",
     lead: "Заказы, кешбэк и записи — в одном месте.",
@@ -185,6 +187,7 @@ const en: Copy = {
   },
   eyebrow: "Glow Derma account",
   audience: { label: "Who is signing in", customer: "Customer", staff: "Staff" },
+  backToStore: "Back to store",
   signIn: {
     title: "Welcome back",
     lead: "Your orders, cashback and appointments in one place.",

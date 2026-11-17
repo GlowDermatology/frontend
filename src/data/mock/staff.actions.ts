@@ -42,8 +42,15 @@ const otherManagers = (id: string) =>
 /** `xxxx-xxxx-xxxx-xxxx` from letters and digits without look-alikes (no 0 O 1 l I). */
 function temporaryPassword(): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
-  const bytes = crypto.getRandomValues(new Uint8Array(16));
-  const chars = [...bytes].map((byte) => alphabet[byte % alphabet.length]);
+  // Rejection sampling: bytes at or above the largest multiple of the alphabet size are
+  // drawn again, so every character is equally likely (a plain modulo would favour some).
+  const limit = 256 - (256 % alphabet.length);
+  const chars: string[] = [];
+  while (chars.length < 16) {
+    for (const byte of crypto.getRandomValues(new Uint8Array(32))) {
+      if (byte < limit && chars.length < 16) chars.push(alphabet.charAt(byte % alphabet.length));
+    }
+  }
   return [0, 4, 8, 12].map((at) => chars.slice(at, at + 4).join("")).join("-");
 }
 

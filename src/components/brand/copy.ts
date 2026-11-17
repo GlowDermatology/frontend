@@ -1,6 +1,6 @@
 import type { CopySet } from "@/lib/i18n/copy";
 
-/** Texts of the brand components (the branded 404). Uzbek is the source. */
+/** Texts of the brand components (the branded 404, the theme control). Uzbek is the source. */
 const uz = {
   notFound: {
     title: "Sahifa topilmadi",
@@ -26,3 +26,33 @@ export const brandCopy = {
     },
   },
 } satisfies CopySet<typeof uz>;
+
+/**
+ * The colour theme control (`ThemeSegments`, `ThemeMenu` in `components/ui/theme-control.tsx`),
+ * shared by the storefront, the sign-in pages and the admin panel. Pass `themeCopy[locale]` as the
+ * controls' `labels`.
+ */
+const themeUz = {
+  /** The row / group name and the compact menu's accessible name. */
+  label: "Mavzu",
+  light: "Yorug‘",
+  dark: "Qorong‘i",
+  /** Follows the device's light or dark setting. */
+  system: "Qurilmadagidek",
+};
+
+export const themeCopy = {
+  uz: themeUz,
+  ru: {
+    label: "Тема",
+    light: "Светлая",
+    dark: "Тёмная",
+    system: "Как на устройстве",
+  },
+  en: {
+    label: "Theme",
+    light: "Light",
+    dark: "Dark",
+    system: "Match device",
+  },
+} satisfies CopySet<typeof themeUz>;

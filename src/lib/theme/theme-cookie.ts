@@ -124,4 +124,7 @@ export function themeCookieString(choice: ThemeChoice, secure: boolean): string 
  * paint; without the cookie it follows `prefers-color-scheme`. The documents render
  * `data-theme="light"` (the no-JavaScript default) with `suppressHydrationWarning`.
  */
-export const THEME_SCRIPT = `(function(){try{var d=document.documentElement,m=document.cookie.match(/(?:^|; )${THEME_COOKIE}=(light|dark)(?:;|$)/),t=m?m[1]:(window.matchMedia&&window.matchMedia(${JSON.stringify(DARK_QUERY)}).matches?"dark":"light");d.setAttribute("data-theme",t)}catch(e){}})()`;
+// A fixed literal (no interpolation): the cookie name and media query are spelled out here and a
+// unit test checks they match THEME_COOKIE and DARK_QUERY.
+export const THEME_SCRIPT =
+  '(function(){try{var d=document.documentElement,m=document.cookie.match(/(?:^|; )gd_theme=(light|dark)(?:;|$)/),t=m?m[1]:(window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");d.setAttribute("data-theme",t)}catch(e){}})()';

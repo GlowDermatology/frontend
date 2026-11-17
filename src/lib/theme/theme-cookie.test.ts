@@ -3,6 +3,7 @@ import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
 
 import {
+  DARK_QUERY,
   THEME_COLORS,
   THEME_COOKIE,
   THEME_SCRIPT,
@@ -109,5 +110,12 @@ describe("THEME_SCRIPT", () => {
         window: {},
       }),
     ).not.toThrow();
+  });
+});
+
+describe("THEME_SCRIPT literal", () => {
+  it("spells the cookie name and the media query exactly as the constants", () => {
+    expect(THEME_SCRIPT).toContain(`(?:^|; )${THEME_COOKIE}=(light|dark)`);
+    expect(THEME_SCRIPT).toContain(`matchMedia(${JSON.stringify(DARK_QUERY)})`);
   });
 });

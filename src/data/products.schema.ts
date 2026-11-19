@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { CATEGORY_SLUG_PATTERN } from "@/domain/category";
+import { ALT_MAX_LENGTH, TEXT_MAX_LENGTH } from "@/domain/product";
 import { catalogDataCopy, type CatalogDataCopy } from "@/domain/copy/catalog";
 import { PRODUCT_SLUG_MAX, SEO_DESCRIPTION_MAX, SEO_TITLE_MAX, slugProblem } from "@/domain/seo";
 import type { Locale } from "@/lib/i18n/locales";
@@ -21,14 +22,20 @@ const textOf = (m: CatalogDataCopy) => (max: number) => z.string().trim().max(ma
 function textsSchema(m: CatalogDataCopy) {
   const text = textOf(m);
   return z.object({
-    name: text(120),
-    description: text(2000),
-    ingredients: text(2000),
-    usage: text(1000),
+    name: text(TEXT_MAX_LENGTH.name),
+    shortDescription: text(TEXT_MAX_LENGTH.shortDescription),
+    description: text(TEXT_MAX_LENGTH.description),
+    ingredients: text(TEXT_MAX_LENGTH.ingredients),
+    usage: text(TEXT_MAX_LENGTH.usage),
   });
 }
 
-const image = z.object({
+function altSchema(m: CatalogDataCopy) {
+  const text = textOf(m)(ALT_MAX_LENGTH);
+  return z.object({ uz: text, ru: text, en: text });
+}
+
+const imageBase = z.object({
   id: z.string(),
   label: z.string(),
   art: z
@@ -91,7 +98,9 @@ export const productFormSchemas = localized(catalogDataCopy, (m, locale) => {
         .regex(/^\d{6,14}$/, m.billzIdInvalid),
       promo: z.boolean(),
       status: z.enum(["active", "hidden"]),
-      images: z.array(image).max(MAX_IMAGES, m.tooManyImages(MAX_IMAGES)),
+      images: z
+        .array(imageBase.extend({ alt: altSchema(m).optional() }))
+        .max(MAX_IMAGES, m.tooManyImages(MAX_IMAGES)),
       slug: slugFieldSchema(PRODUCT_SLUG_MAX, locale),
       seo: seoSchema(m),
     })
@@ -116,6 +125,7 @@ export type ProductFormValues = z.infer<LocalizedOf<typeof productFormSchemas>>;
 const baselineText = z.string().max(5000);
 const baselineTexts = z.object({
   name: baselineText,
+  shortDescription: baselineText,
   description: baselineText,
   ingredients: baselineText,
   usage: baselineText,

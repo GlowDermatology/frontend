@@ -397,7 +397,12 @@ describe("api mode (catalog actions wired)", () => {
     expect(request.formData.get("file")).toBeInstanceOf(File);
     expect(uploaded).toEqual({
       ok: true,
-      data: { id: "32", src: "http://m/x.webp", label: "Rasm 2" },
+      data: {
+        id: "32",
+        src: "http://m/x.webp",
+        label: "Rasm 2",
+        alt: { uz: "", ru: "", en: "" },
+      },
     });
 
     apiFetch.mockRejectedValueOnce(

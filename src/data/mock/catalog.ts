@@ -15,7 +15,13 @@ import { createRandom } from "./random";
  * to the 248 shown in the design header.
  */
 
-const EMPTY: ProductTexts = { name: "", description: "", ingredients: "", usage: "" };
+const EMPTY: ProductTexts = {
+  name: "",
+  shortDescription: "",
+  description: "",
+  ingredients: "",
+  usage: "",
+};
 
 const texts = (
   uz: Partial<ProductTexts>,
@@ -31,7 +37,12 @@ const HYALURON_INCI =
   "Aqua, Sodium Hyaluronate, Hydrolyzed Hyaluronic Acid, Sodium Acetylated Hyaluronate, Panthenol, Glycerin, Allantoin, Betaine, 1,2-Hexanediol.";
 
 const SERUM_IMAGES: Product["images"] = [
-  { id: "img-1", label: "Asosiy rasm", art: { kind: "dropper" } },
+  {
+    id: "img-1",
+    label: "Asosiy rasm",
+    art: { kind: "dropper" },
+    alt: { uz: "Gialuron kislotali serum, 30 ml shisha flakon", ru: "", en: "" },
+  },
   { id: "img-2", label: "Qadoq bilan", art: { kind: "box" } },
   { id: "img-3", label: "Tekstura", art: { kind: "texture" } },
 ];

@@ -76,6 +76,7 @@ describe("product card variants", () => {
       image: ORIGINAL,
       url: ORIGINAL,
       thumb: THUMB,
+      alt: "",
     });
     const old = {
       ...detail,

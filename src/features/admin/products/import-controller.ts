@@ -1,6 +1,6 @@
 import { isJobDone, type Job } from "@/domain/job";
 
-import { createJobPoller, type JobPollerOptions } from "./job-poller";
+import { createJobPoller, type JobPollerOptions, type PollableJob } from "./job-poller";
 
 /**
  * Keeps the Billz import job tracked across the component's visibility.
@@ -13,21 +13,24 @@ import { createJobPoller, type JobPollerOptions } from "./job-poller";
  * job. Framework-free so the hide/show cycle can be tested with fake timers.
  */
 
-export interface ImportController {
+export interface ImportController<T extends PollableJob = Job> {
   /** Tracks `job` (reports it, then polls while it is queued or running and attached). */
-  start: (job: Job) => void;
+  start: (job: T) => void;
   /** The component is visible: resume polling an unfinished job. */
   attach: () => void;
   /** The component is hidden or unmounted: stop polling, remember the job. */
   detach: () => void;
-  readonly job: Job | null;
+  readonly job: T | null;
   readonly polling: boolean;
 }
 
-export function createImportController(options: JobPollerOptions): ImportController {
-  let job: Job | null = null;
+/** Generic: the AI assistant tracks its `AssistantJob` with the same hide/show handling. */
+export function createImportController<T extends PollableJob = Job>(
+  options: JobPollerOptions<T>,
+): ImportController<T> {
+  let job: T | null = null;
   let attached = false;
-  const poller = createJobPoller({
+  const poller = createJobPoller<T>({
     ...options,
     onUpdate: (next) => {
       job = next;

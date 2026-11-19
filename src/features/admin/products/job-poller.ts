@@ -1,5 +1,5 @@
 import type { ActionResult } from "@/data/types";
-import { isJobDone, type Job } from "@/domain/job";
+import { isJobDone, type Job, type JobState } from "@/domain/job";
 
 import { productsCopy } from "./copy";
 
@@ -12,8 +12,15 @@ import { productsCopy } from "./copy";
  * exponential backoff (1.5 → 3 → 6 → 12 s) up to `maxRetries` times in a row
  * before `onError`; any other failure (`not_found`, `session_expired`, a
  * 4xx/5xx envelope) stops at once. Framework-free so the timing can be
- * unit-tested with fake timers; `BillzImport` wraps it.
+ * unit-tested with fake timers; `BillzImport` and the AI assistant wrap it. Generic over the job
+ * shape: anything with an `id` and the §2.14 `state` vocabulary (the Billz `Job`, `AssistantJob`).
  */
+
+/** What the poller needs of a job. */
+export interface PollableJob {
+  id: string;
+  state: JobState;
+}
 
 export const JOB_POLL_INTERVAL_MS = 1500;
 /** 10 minutes at the default interval, then the poller gives up with a message. */
@@ -34,10 +41,10 @@ export interface JobPollerRetry {
   message: string;
 }
 
-export interface JobPollerOptions {
-  fetchJob: (id: string) => Promise<ActionResult<Job>>;
+export interface JobPollerOptions<T extends PollableJob = Job> {
+  fetchJob: (id: string) => Promise<ActionResult<T>>;
   /** Every state the poller sees, the starting job included. */
-  onUpdate: (job: Job) => void;
+  onUpdate: (job: T) => void;
   /** A failed poll (session, 404, exhausted retries) or the attempt limit. The poller stops. */
   onError: (message: string) => void;
   /** A transient failure that will be retried after `delayMs`. The poller keeps going. */
@@ -52,9 +59,9 @@ export interface JobPollerOptions {
   timeoutMessage?: string | (() => string);
 }
 
-export interface JobPoller {
+export interface JobPoller<T extends PollableJob = Job> {
   /** Reports `job` and keeps polling it while it is queued or running. */
-  start: (job: Job) => void;
+  start: (job: T) => void;
   stop: () => void;
   readonly active: boolean;
 }
@@ -64,11 +71,13 @@ export function retryDelayMs(retry: number, intervalMs: number = JOB_POLL_INTERV
   return intervalMs * 2 ** Math.max(0, retry - 1);
 }
 
-export function isTransientPollFailure(result: ActionResult<Job>): boolean {
+export function isTransientPollFailure(result: ActionResult<unknown>): boolean {
   return !result.ok && result.code !== undefined && TRANSIENT_CODES.has(result.code);
 }
 
-export function createJobPoller(options: JobPollerOptions): JobPoller {
+export function createJobPoller<T extends PollableJob = Job>(
+  options: JobPollerOptions<T>,
+): JobPoller<T> {
   const interval = options.intervalMs ?? JOB_POLL_INTERVAL_MS;
   const maxAttempts = options.maxAttempts ?? JOB_POLL_MAX_ATTEMPTS;
   const maxRetries = options.maxRetries ?? JOB_POLL_MAX_RETRIES;
@@ -94,7 +103,7 @@ export function createJobPoller(options: JobPollerOptions): JobPoller {
     options.onError(message);
   };
 
-  const schedule = (job: Job, current: number, delay: number) => {
+  const schedule = (job: T, current: number, delay: number) => {
     if (attempts >= maxAttempts) {
       const timeout = options.timeoutMessage;
       fail((typeof timeout === "function" ? timeout() : timeout) ?? JOB_POLL_TIMEOUT_MESSAGE);

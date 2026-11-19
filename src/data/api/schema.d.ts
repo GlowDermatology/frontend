@@ -3,8 +3,8 @@
  * GENERATED FILE — do not edit by hand. Regenerate with `npm run gen:api`.
  *
  * Source: openapi/schema.yaml of the backend repository
- * Commit: 041032c7f81771d8961ed1f74b9fd83447b96a1d
- * Generated: 2026-11-17T07:26:05.909Z (openapi-typescript)
+ * Commit: 2aac429bead9cc54f29034530bbb0e580ee23bb1
+ * Generated: 2026-11-19T03:22:25.162Z (openapi-typescript)
  */
 
 export interface paths {
@@ -118,6 +118,72 @@ export interface paths {
         };
         /** @description The week and month boards: per Tashkent day of `from`…`to` (inclusive) the status counts of the appointments starting that day, whether any listed specialist works and their combined hours. `detail=counts` (default) allows up to 42 days; `detail=full` (up to 7 days) adds every specialist's day schedule and the appointments in the day-item shape. Specialists follow the day board's rule over the whole range (active ones, plus inactive ones with an appointment in it); `specialist_id` narrows specialists, counts and appointments to one. */
         get: operations["admin_appointments_range"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/assistant/jobs/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["admin_assistant_jobs_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/assistant/jobs/{id}/apply/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Apply the selected suggestions (values may be edited; they are checked again). A key whose product value changed since the generation is returned in `conflicts` and not written. */
+        post: operations["admin_assistant_jobs_apply_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/assistant/jobs/{id}/discard/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["admin_assistant_jobs_discard_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/assistant/status/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Whether the product editor shows the AI assistant (switched on and its provider ready). */
+        get: operations["admin_assistant_status_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1439,7 +1505,7 @@ export interface paths {
         delete: operations["admin_product_images_destroy"];
         options?: never;
         head?: never;
-        patch?: never;
+        patch: operations["admin_product_images_partial_update"];
         trace?: never;
     };
     "/api/v1/admin/products/{id}/images/order/": {
@@ -1452,6 +1518,23 @@ export interface paths {
         get?: never;
         put: operations["admin_product_images_reorder"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/products/{product_id}/assistant/jobs/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Queue an AI generation for the product (202), or return its queued/running job (200), or `nothing_to_fill: true` with `job: null` (200) when the mode finds no key to suggest. Poll `assistant/jobs/{id}/`. */
+        post: operations["admin_assistant_jobs_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3358,6 +3441,120 @@ export interface components {
         ApproveInputRequest: {
             expected_revision: number;
         };
+        AssistantApplyItemRequest: {
+            key: string;
+            value: string;
+        };
+        AssistantApplyRequest: {
+            items: components["schemas"]["AssistantApplyItemRequest"][];
+        };
+        AssistantApplyResult: {
+            applied: string[];
+            conflicts: string[];
+            job: components["schemas"]["AssistantJob"];
+            product: components["schemas"]["Product"];
+        };
+        /**
+         * @description * `professional` - professional
+         *     * `clear` - clear
+         *     * `natural` - natural
+         *     * `seo` - seo
+         *     * `shorter` - shorter
+         * @enum {string}
+         */
+        AssistantImproveGoalEnum: "professional" | "clear" | "natural" | "seo" | "shorter";
+        /** @description The poller-compatible job: ``state`` / ``error`` like ``Job`` (§2.14), plus the review fields. */
+        AssistantJob: {
+            applied_keys: string[];
+            /** Format: date-time */
+            created_at: string;
+            created_by: components["schemas"]["Actor"];
+            readonly error: components["schemas"]["AssistantJobError"] | null;
+            /** Format: date-time */
+            finished_at: string | null;
+            goal: string;
+            id: number;
+            image_ids: number[];
+            keys: string[];
+            languages: string[];
+            mode: components["schemas"]["AssistantModeEnum"];
+            outcome: components["schemas"]["AssistantJobOutcomeEnum"];
+            product_id: number | null;
+            /** @description Always null (no progress steps). */
+            readonly progress: unknown;
+            readonly result: components["schemas"]["AssistantJobResult"] | null;
+            /** Format: date-time */
+            started_at: string | null;
+            state: components["schemas"]["JobStateEnum"];
+        };
+        AssistantJobCreateRequest: {
+            /** @default professional */
+            goal: components["schemas"]["AssistantImproveGoalEnum"];
+            image_ids?: number[];
+            /** @description Snapshot keys (`texts.<lang>.<field>`, `seo.<lang>.<title|description>`, `images.<id>.alt.<lang>`): narrows the automatic choice; required for `improve`. */
+            keys?: string[];
+            /** @description Target languages; omitted or empty = all three. */
+            languages?: components["schemas"]["ContentLanguageEnum"][];
+            /**
+             * @description `test` is refused (ops console only).
+             *
+             *     * `fill_missing` - fill_missing
+             *     * `languages` - languages
+             *     * `improve` - improve
+             *     * `photos` - photos
+             *     * `test` - test
+             * @default fill_missing
+             */
+            mode: components["schemas"]["AssistantModeEnum"];
+        };
+        AssistantJobError: {
+            code: string;
+            message: string;
+        };
+        /**
+         * @description * `pending` - pending
+         *     * `applied` - applied
+         *     * `partial` - partial
+         *     * `discarded` - discarded
+         * @enum {string}
+         */
+        AssistantJobOutcomeEnum: "pending" | "applied" | "partial" | "discarded";
+        AssistantJobResult: {
+            suggestions: components["schemas"]["AssistantSuggestion"][];
+            warnings: {
+                [key: string]: unknown;
+            }[];
+        };
+        /**
+         * @description * `fill_missing` - fill_missing
+         *     * `languages` - languages
+         *     * `improve` - improve
+         *     * `photos` - photos
+         *     * `test` - test
+         * @enum {string}
+         */
+        AssistantModeEnum: "fill_missing" | "languages" | "improve" | "photos" | "test";
+        AssistantStart: {
+            job: components["schemas"]["AssistantJob"] | null;
+            nothing_to_fill: boolean;
+        };
+        AssistantStatus: {
+            /** @description The editor shows the AI assistant button. */
+            enabled: boolean;
+            /** @description Photos sent with a `photos` request (at most). */
+            max_images: number;
+        };
+        AssistantSuggestion: {
+            /** @description Pre-selected in the review (photo suggestions never are). */
+            checked: boolean;
+            current: string;
+            key: string;
+            max_length: number;
+            /** @description `ai`, or `image` (read from the photos). */
+            origin: string;
+            suggested: string;
+            warnings: string[];
+        };
         /**
          * @description * `all` - all
          *     * `segment` - segment
@@ -4443,6 +4640,8 @@ export interface components {
             provider?: (components["schemas"]["PaymentProviderEnum"] | components["schemas"]["NullEnum"]) | null;
         };
         CustomerProductImage: {
+            /** @description Alt text in this language (else Uzbek); without one, the product name. */
+            alt: string;
             id: number;
             /**
              * Format: uri
@@ -4896,6 +5095,24 @@ export interface components {
         /** @description Body of ``PUT banners/order/``. */
         IdOrderRequest: {
             ids: number[];
+        };
+        /**
+         * @description ``alt`` of a product image, ``{uz, ru, en}`` ≤160 each; ``""`` = the website uses the product name.
+         *     On write every leaf is optional (merged leaf by leaf).
+         */
+        ImageAlt: {
+            en?: string;
+            ru?: string;
+            uz?: string;
+        };
+        /**
+         * @description ``alt`` of a product image, ``{uz, ru, en}`` ≤160 each; ``""`` = the website uses the product name.
+         *     On write every leaf is optional (merged leaf by leaf).
+         */
+        ImageAltRequest: {
+            en?: string;
+            ru?: string;
+            uz?: string;
         };
         /** @description Body of ``PUT products/{id}/images/order/``. */
         ImageOrderRequest: {
@@ -5974,6 +6191,10 @@ export interface components {
         PatchedCustomerCartQuantityRequest: {
             quantity?: number;
         };
+        /** @description Body of ``PATCH products/{id}/images/{image_id}/``: ``{alt: {uz?, ru?, en?}}``. */
+        PatchedImagePatchRequest: {
+            alt?: components["schemas"]["ImageAltRequest"];
+        };
         PatchedMePatchRequest: {
             language?: components["schemas"]["ContentLanguageEnum"];
             name?: string;
@@ -6240,6 +6461,8 @@ export interface components {
             seo_description: string;
             /** @description Staff-written page title in this language; "" = none. */
             seo_title: string;
+            /** @description One-paragraph summary in this language (else Uzbek); "" = none. */
+            short_description: string;
             /** @description The Billz product id / barcode (`billz_id`), the shop's article code; null if unknown. */
             sku: string | null;
             /** @description The website URL segment (B-W1); `catalog/products/{slug}/`. */
@@ -6253,8 +6476,10 @@ export interface components {
             usage: string;
             volume: string;
         };
-        /** @description Contract §2.3 ``ProductImage = {id, url, thumbnail_url, medium_url, position}``. */
+        /** @description Contract §2.3 ``ProductImage = {id, url, thumbnail_url, medium_url, position, alt}``. */
         ProductImage: {
+            /** @description Alt text per language; "" = the product name is used. */
+            readonly alt: components["schemas"]["ImageAlt"];
             id: number;
             /** @description 1000 px WebP variant. */
             readonly medium_url: string;
@@ -6282,18 +6507,20 @@ export interface components {
          * @enum {string}
          */
         ProductStatusEnum: "active" | "hidden";
-        /** @description One language of ``texts``: ``{name, description, ingredients, usage}``. */
+        /** @description One language of ``texts``: ``{name, short_description, description, ingredients, usage}``. */
         ProductText: {
             description?: string;
             ingredients?: string;
             name?: string;
+            short_description?: string;
             usage?: string;
         };
-        /** @description One language of ``texts``: ``{name, description, ingredients, usage}``. */
+        /** @description One language of ``texts``: ``{name, short_description, description, ingredients, usage}``. */
         ProductTextRequest: {
             description?: string;
             ingredients?: string;
             name?: string;
+            short_description?: string;
             usage?: string;
         };
         /** @description Language-first product texts ``{uz: {...}, ru: {...}, en: {...}}`` (AGENTS.md: not ``i18n_text``). */
@@ -6319,6 +6546,7 @@ export interface components {
             description?: string;
             ingredients?: string;
             name: string;
+            short_description?: string;
             usage?: string;
         };
         /** @description PATCH leaf merge: every Uzbek leaf is optional; a sent ``name`` keeps the 2..120 rule. */
@@ -6326,6 +6554,7 @@ export interface components {
             description?: string;
             ingredients?: string;
             name?: string;
+            short_description?: string;
             usage?: string;
         };
         /** @description The Uzbek texts: ``name`` is mandatory on create and, whenever sent, trimmed 2..120 characters. */
@@ -6333,6 +6562,7 @@ export interface components {
             description?: string;
             ingredients?: string;
             name: string;
+            short_description?: string;
             usage?: string;
         };
         /**
@@ -6373,6 +6603,7 @@ export interface components {
         ProgressStepEnum: "placed" | "paid" | "with_courier" | "delivered" | "picked_up" | "cancelled";
         /** @description Per-provider adapter modes (``*_MODE`` settings, each defaulting to ``INTEGRATIONS_MODE``). */
         ProviderModes: {
+            ai: components["schemas"]["IntegrationModeEnum"];
             billz: components["schemas"]["IntegrationModeEnum"];
             bts: components["schemas"]["IntegrationModeEnum"];
             click: components["schemas"]["IntegrationModeEnum"];
@@ -6381,6 +6612,7 @@ export interface components {
             fcm: components["schemas"]["IntegrationModeEnum"];
             oauth: components["schemas"]["IntegrationModeEnum"];
             payme: components["schemas"]["IntegrationModeEnum"];
+            vault: components["schemas"]["IntegrationModeEnum"];
             yandex: components["schemas"]["IntegrationModeEnum"];
         };
         ProviderReadiness: {
@@ -7883,6 +8115,316 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AppointmentRange"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_assistant_jobs_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantJob"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_assistant_jobs_apply_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssistantApplyRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantApplyResult"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_assistant_jobs_discard_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantJob"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_assistant_status_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantStatus"];
                 };
             };
             400: {
@@ -14633,6 +15175,88 @@ export interface operations {
             };
         };
     };
+    admin_product_images_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+                image_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedImagePatchRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductImage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     admin_product_images_reorder: {
         parameters: {
             query?: never;
@@ -14654,6 +15278,95 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ImagesResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_assistant_jobs_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AssistantJobCreateRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantStart"];
+                };
+            };
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantStart"];
                 };
             };
             400: {

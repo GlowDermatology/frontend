@@ -42,11 +42,20 @@ export interface ShopProductCard {
 }
 
 export interface ShopProduct extends ShopProductCard {
+  /** One or two sentences under the title; empty when not written. */
+  shortDescription: string;
   description: string;
   ingredients: string;
   usage: string;
-  /** Gallery in position order: optimisable URL (or `null`) and the raw URL. */
-  images: ReadonlyArray<{ id: number; image: string | null; url: string; thumb: string | null }>;
+  /** Gallery in position order: optimisable URL (or `null`), the raw URL and the photo's alt text
+   * in the page language (empty: the page falls back to the product name). */
+  images: ReadonlyArray<{
+    id: number;
+    image: string | null;
+    url: string;
+    thumb: string | null;
+    alt: string;
+  }>;
   /** `min(available, per-line cap)`; 0 = cannot be added (§2.3). */
   maxQuantity: number;
   seoTitle: string | null;

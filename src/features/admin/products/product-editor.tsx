@@ -31,12 +31,16 @@ import {
   deleteProductImage,
   reorderProductImages,
   saveProduct,
+  updateProductImageAlt,
   uploadProductImage,
 } from "@/data/products.actions";
 import { productFormSchemas, type ProductFormValues } from "@/data/products.schema";
+import { formPathOf, keyValue, withKeysFrom, type AssistantStatus } from "@/domain/assistant";
 import type { Category } from "@/domain/category";
 import {
   CONTENT_LANGUAGES,
+  emptyAlt,
+  emptyTexts,
   isTextComplete,
   lastChangeActor,
   lastChangeText,
@@ -44,6 +48,7 @@ import {
   productRecommendedToAsk,
   type ContentLanguage,
   type Product,
+  type ProductTextField,
 } from "@/domain/product";
 import { emptySeo, localizeSeoStatus, PRODUCT_SLUG_MAX, slugifyName } from "@/domain/seo";
 import { cn } from "@/lib/cn";
@@ -57,7 +62,9 @@ import { runAction } from "../shared/action-client";
 import { useIdempotencyKey } from "../shared/idempotency";
 import { SeoEditor, SeoStatusPanel, SlugField } from "../shared/seo-fields";
 import { productFallback, type PageFallback } from "../shared/seo-preview";
-import { afterDialogsClose, languageToShow } from "./form-reveal";
+import { Assistant } from "./assistant/assistant";
+import { assistantCopy } from "./assistant/copy";
+import { afterDialogsClose, altLanguageToShow, languageToShow } from "./form-reveal";
 import { productsCopy, type ProductsCopy } from "./copy";
 import { ImageManager } from "./image-manager";
 import { LanguageTabs } from "./language-tabs";
@@ -68,12 +75,10 @@ import {
   type PersistActions,
 } from "./persist-product";
 
-const EMPTY_TEXTS = { name: "", description: "", ingredients: "", usage: "" };
-
 function toFormValues(product: Product | null): ProductFormValues {
   if (!product) {
     return {
-      texts: { uz: { ...EMPTY_TEXTS }, ru: { ...EMPTY_TEXTS }, en: { ...EMPTY_TEXTS } },
+      texts: { uz: emptyTexts(), ru: emptyTexts(), en: emptyTexts() },
       price: Number.NaN,
       category: "",
       billzId: "",
@@ -93,7 +98,8 @@ function toFormValues(product: Product | null): ProductFormValues {
     billzId: product.billzId,
     promo: product.promo,
     status: product.status,
-    images: product.images,
+    // Every photo carries all three alt texts, so each input is controlled from the start.
+    images: product.images.map((image) => ({ ...image, alt: { ...emptyAlt(), ...image.alt } })),
     slug: product.slug,
     seo: product.seo,
   });
@@ -109,6 +115,7 @@ export function missingTextsNote(t: Editor, missing: ReadonlyArray<ContentLangua
 
 const TEXT_LABEL = {
   name: "name",
+  shortDescription: "shortDescription",
   description: "description",
   ingredients: "ingredients",
   usage: "usage",
@@ -119,7 +126,11 @@ const TEXT_LABEL = {
  * Ruscha», `seo.en.title` → «SEO sarlavha (Inglizcha)», `price` → «Narx».
  */
 export function productFieldLabel(t: Editor, name: string): string | undefined {
-  const [head, language, leaf] = name.split(".");
+  const [head, language, leaf, altLanguage] = name.split(".");
+  if (head === "images" && leaf === "alt" && /^\d+$/.test(language ?? "")) {
+    const altLanguageName = t.languageName[altLanguage as ContentLanguage];
+    if (altLanguageName) return `${t.altLabel(Number(language) + 1)} · ${altLanguageName}`;
+  }
   const languageName = t.languageName[language as ContentLanguage];
   if (head === "texts" && languageName && leaf && leaf in TEXT_LABEL) {
     return `${t[TEXT_LABEL[leaf as keyof typeof TEXT_LABEL]]} · ${languageName}`;
@@ -142,6 +153,8 @@ export function productFieldLabel(t: Editor, name: string): string | undefined {
 interface ProductEditorProps {
   /** `null` creates a new product. */
   product: Product | null;
+  /** The AI assistant's availability (`assistant/status/`); absent or disabled hides it. */
+  assistant?: AssistantStatus;
   /** Categories for the picker (`getCategories()`), ordered by position. */
   categories: ReadonlyArray<Category>;
   /** "2 daqiqa oldin" — when stock was last read from Billz (admin language). */
@@ -155,6 +168,7 @@ interface ProductEditorProps {
 
 export function ProductEditor({
   product,
+  assistant,
   categories,
   lastSyncLabel,
   redirectOnCreate,
@@ -189,6 +203,7 @@ export function ProductEditor({
   const [saving, setSaving] = useState(false);
   const [lang, setLang] = useState<ContentLanguage>("uz");
   const [seoLang, setSeoLang] = useState<ContentLanguage>("uz");
+  const [altLang, setAltLang] = useState<ContentLanguage>("uz");
   const [leaveOpen, setLeaveOpen] = useState(false);
   /** A refusal that belongs to the whole form (Billz unreachable): shown under the header. */
   const [formError, setFormError] = useState<string | null>(null);
@@ -199,9 +214,13 @@ export function ProductEditor({
     control,
     register,
     handleSubmit,
+    getValues,
     reset,
+    resetField,
+    getFieldState,
     setError,
-    formState: { errors, isDirty, isSubmitting },
+    // `dirtyFields` is read so the AI review sees which fields hold unsaved edits.
+    formState: { errors, isDirty, isSubmitting, dirtyFields },
   } = useForm<ProductFormValues>({
     resolver,
     defaultValues: toFormValues(product),
@@ -251,9 +270,11 @@ export function ProductEditor({
   const showFailingTabs = (names: ReadonlyArray<string>) => {
     const textLanguage = languageToShow(names, "texts", lang);
     const seoLanguage = languageToShow(names, "seo", seoLang);
+    const altLanguage = altLanguageToShow(names, altLang);
     flushSync(() => {
       if (textLanguage) setLang(textLanguage);
       if (seoLanguage) setSeoLang(seoLanguage);
+      if (altLanguage) setAltLang(altLanguage);
     });
   };
 
@@ -280,6 +301,48 @@ export function ProductEditor({
     },
     remove: (id, imageId) => runAction((csrf) => deleteProductImage(id, imageId, csrf)),
     reorder: (id, imageIds) => runAction((csrf) => reorderProductImages(id, imageIds, csrf)),
+    updateAlt: (id, imageId, alt) =>
+      runAction((csrf) => updateProductImageAlt(id, imageId, alt, csrf)),
+  };
+
+  /* --- AI assistant bridge --- */
+  const aiCopy = useCopy(assistantCopy);
+  void dirtyFields;
+  /** The form path of an assistant key (alt texts by the photo's place in the form). */
+  const formImages = () => getValues("images");
+  const assistantBlocked = (key: string) => {
+    const path = formPathOf(key, formImages());
+    return path ? getFieldState(path as Path<ProductFormValues>).isDirty : false;
+  };
+  const assistantLabel = (key: string) => {
+    const path = formPathOf(key, saved?.images ?? []);
+    if (path?.startsWith("images.")) {
+      const [, index, , language] = path.split(".");
+      return aiCopy.altLabel(Number(index) + 1, t.languageName[language as ContentLanguage]);
+    }
+    // «SEO sarlavha · O‘zbekcha», like the other review rows (the editor's own label has brackets).
+    const [head, language, leaf] = key.split(".");
+    if (head === "seo" && (leaf === "title" || leaf === "description")) {
+      return `${aiCopy.seoLabel[leaf]} · ${t.languageName[language as ContentLanguage]}`;
+    }
+    return (path && productFieldLabel(t, path)) || key;
+  };
+  /**
+   * The server wrote `applied`: they become the baseline (not the rest of `next`, so a later save
+   * never writes back another admin's change), and only those fields are reset in the form, so
+   * the admin's other unsaved edits stay.
+   */
+  const onAssistantApplied = (next: Product, applied: string[]) => {
+    if (!saved) return;
+    const rebased = withKeysFrom(saved, next, applied);
+    formBaseline.current = rebased;
+    setSaved(rebased);
+    const images = getValues("images");
+    for (const key of applied) {
+      const path = formPathOf(key, images);
+      if (!path) continue;
+      resetField(path as Path<ProductFormValues>, { defaultValue: keyValue(rebased, key) ?? "" });
+    }
   };
 
   const recommendedLabel = {
@@ -375,7 +438,7 @@ export function ProductEditor({
     : saved.billzId === billzId.trim()
       ? "linked"
       : "changed";
-  const textError = (field: keyof typeof EMPTY_TEXTS) => errors.texts?.[lang]?.[field]?.message;
+  const textError = (field: ProductTextField) => errors.texts?.[lang]?.[field]?.message;
   const seoErrors = Object.fromEntries(
     CONTENT_LANGUAGES.map((l) => [
       l,
@@ -409,6 +472,16 @@ export function ProductEditor({
     })),
   ];
   const imagesError = errors.images?.message ?? errors.images?.root?.message;
+  const formAlt = useWatch({ control, name: "images" });
+  const altComplete = Object.fromEntries(
+    CONTENT_LANGUAGES.map((l) => [l, formAlt.every((image) => Boolean(image.alt?.[l]?.trim()))]),
+  ) as Record<ContentLanguage, boolean>;
+  const altInvalid = Object.fromEntries(
+    CONTENT_LANGUAGES.map((l) => [
+      l,
+      Array.isArray(errors.images) && errors.images.some((error) => Boolean(error?.alt?.[l])),
+    ]),
+  ) as Record<ContentLanguage, boolean>;
 
   return (
     <>
@@ -420,6 +493,16 @@ export function ProductEditor({
             {product ? t.editTitle : t.newTitle}
           </h1>
           <div className="flex flex-wrap gap-2">
+            {saved && assistant?.enabled && (
+              <Assistant
+                product={saved}
+                status={assistant}
+                isBlocked={assistantBlocked}
+                unsaved={isDirty}
+                labelOf={assistantLabel}
+                onApplied={onAssistantApplied}
+              />
+            )}
             <Link
               href="/admin/products"
               onClick={(event) => {
@@ -496,6 +579,15 @@ export function ProductEditor({
                     <TextInput {...c} {...register(`texts.${lang}.name`)} autoComplete="off" />
                   )}
                 </Field>
+                <Field
+                  label={t.shortDescription}
+                  hint={t.shortDescriptionHint}
+                  error={textError("shortDescription")}
+                >
+                  {(c) => (
+                    <TextArea {...c} {...register(`texts.${lang}.shortDescription`)} rows={2} />
+                  )}
+                </Field>
                 <Field label={t.description} error={textError("description")}>
                   {(c) => (
                     <TextArea
@@ -560,6 +652,48 @@ export function ProductEditor({
                 }}
                 error={imagesError}
               />
+              {images.fields.length > 0 && (
+                <div className="flex flex-col gap-3 border-t border-line pt-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <span id={`${idBase}-alt`} className="text-label font-semibold text-ink">
+                      {t.altTitle}
+                    </span>
+                    <LanguageTabs
+                      languages={CONTENT_LANGUAGES}
+                      value={altLang}
+                      onChange={setAltLang}
+                      complete={altComplete}
+                      invalid={altInvalid}
+                      idBase={`${idBase}-alt`}
+                    />
+                  </div>
+                  <p className="m-0 text-caption font-normal text-ink-muted">{t.altHint}</p>
+                  <div
+                    key={altLang}
+                    role="tabpanel"
+                    id={`${idBase}-alt-panel`}
+                    aria-labelledby={`${idBase}-alt-tab-${altLang}`}
+                    lang={altLang}
+                    className="grid gap-3 sm:grid-cols-2"
+                  >
+                    {images.fields.map((image, index) => (
+                      <Field
+                        key={image.key}
+                        label={t.altLabel(index + 1)}
+                        error={errors.images?.[index]?.alt?.[altLang]?.message}
+                      >
+                        {(c) => (
+                          <TextInput
+                            {...c}
+                            {...register(`images.${index}.alt.${altLang}`)}
+                            autoComplete="off"
+                          />
+                        )}
+                      </Field>
+                    ))}
+                  </div>
+                </div>
+              )}
             </Card>
 
             <Card aria-labelledby={`${idBase}-seo`} className="flex flex-col gap-4">

@@ -68,7 +68,7 @@ export const AUDIT_ACTION_GROUPS: ReadonlyArray<{
     actions: ["billz.sale_recorded_by_hand", "billz.payment_attempt_forgotten"],
   },
   { key: "orders", prefixes: ["order.", "refund.", "payment.", "delivery."] },
-  { key: "catalog", prefixes: ["product.", "billz.", "category.", "banner."] },
+  { key: "catalog", prefixes: ["product.", "billz.", "category.", "banner.", "assistant."] },
   { key: "loyalty", prefixes: ["cashback.", "loyalty."] },
   { key: "customers", prefixes: ["customer."] },
   {
@@ -130,7 +130,18 @@ export const AUDIT_OBJECT_GROUPS: ReadonlyArray<{
       "warehouse_closure",
     ],
   },
-  { key: "catalog", types: ["product", "category", "banner", "job"] },
+  {
+    key: "catalog",
+    types: [
+      "product",
+      "category",
+      "banner",
+      "job",
+      "assistant_settings",
+      "assistant_provider",
+      "assistant_prompt",
+    ],
+  },
   {
     key: "customers",
     types: ["customer", "policy_version", "cashback_policy", "loyalty", "loyalty_account"],

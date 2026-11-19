@@ -67,6 +67,15 @@ export type ApiJob = Schemas["Job"];
 export type ApiJobState = Schemas["JobStateEnum"];
 export type ApiBillzImportRequest = Partial<Schemas["BillzImportRequest"]>;
 
+/* --- AI assistant (contract §2.19) --- */
+export type ApiAssistantStatus = Schemas["AssistantStatus"];
+export type ApiAssistantStart = Schemas["AssistantStart"];
+export type ApiAssistantJob = Schemas["AssistantJob"];
+export type ApiAssistantSuggestion = Schemas["AssistantSuggestion"];
+export type ApiAssistantJobCreate = Partial<Schemas["AssistantJobCreateRequest"]>;
+export type ApiAssistantApply = Schemas["AssistantApplyRequest"];
+export type ApiAssistantApplyResult = Schemas["AssistantApplyResult"];
+
 /* --- Appointments (contract §2.9) --- */
 
 export type ApiDaySchedule = Schemas["DaySchedule"];

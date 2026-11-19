@@ -34,7 +34,14 @@ describe("admin image variants", () => {
       main_image_medium_url: MEDIUM,
     } as ApiProduct;
     expect(mapProduct(api).mainImageUrl).toBe(THUMB);
-    const image = { id: 3, url: ORIGINAL, thumbnail_url: THUMB, medium_url: MEDIUM, position: 0 };
+    const image = {
+      id: 3,
+      url: ORIGINAL,
+      thumbnail_url: THUMB,
+      medium_url: MEDIUM,
+      position: 0,
+      alt: {},
+    };
     expect(mapProductImage(image).src).toBe(THUMB);
     const old = { id: 3, url: ORIGINAL, position: 0 } as unknown as Parameters<
       typeof mapProductImage

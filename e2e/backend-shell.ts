@@ -619,3 +619,73 @@ export function issueStaffPasswordToken(
   ].join("\n");
   return shellJson<string>(code);
 }
+
+/* --- AI assistant spec (test-only; INTERFACES-generation) --- */
+
+/** Switches the AI assistant on or off (`AssistantSettings.enabled`); returns the previous value. */
+export function setAssistantEnabled(enabled: boolean): boolean {
+  const code = [
+    "import json",
+    "from glowderma.assistant.models import AssistantSettings",
+    "row = AssistantSettings.objects.get(pk=1)",
+    "before = row.enabled",
+    `AssistantSettings.objects.filter(pk=1).update(enabled=${enabled ? "True" : "False"})`,
+    "print(json.dumps(before))",
+  ].join("\n");
+  return shellJson<boolean>(code);
+}
+
+const AI_PRODUCT_FIELDS = ["uz", "ru", "en"].flatMap((l) => [
+  `name_${l}`,
+  `short_description_${l}`,
+  `description_${l}`,
+  `ingredients_${l}`,
+  `usage_${l}`,
+  `seo_title_${l}`,
+  `seo_description_${l}`,
+]);
+
+/** The product's texts, SEO and photo alt texts, for `restoreProductContent`. */
+export interface ProductContentSnapshot {
+  product: Record<string, string>;
+  images: Record<string, Record<string, string>>;
+}
+
+export function snapshotProductContent(id: number): ProductContentSnapshot {
+  const code = [
+    "import json",
+    "from glowderma.catalog.models import Product, ProductImage",
+    `p = Product.objects.get(pk=${Number(id)})`,
+    `product = {f: getattr(p, f) for f in ${JSON.stringify(AI_PRODUCT_FIELDS)}}`,
+    "images = {str(i.pk): {f: getattr(i, f) for f in ('alt_uz', 'alt_ru', 'alt_en')} for i in ProductImage.objects.filter(product=p)}",
+    "print(json.dumps({'product': product, 'images': images}))",
+  ].join("\n");
+  return shellJson<ProductContentSnapshot>(code);
+}
+
+/** Puts a snapshot back and ends any job the run left active (no audit, test only). */
+export function restoreProductContent(id: number, snapshot: ProductContentSnapshot): void {
+  const code = [
+    "import json",
+    "from glowderma.assistant.models import GenerationJob",
+    "from glowderma.catalog.models import Product, ProductImage",
+    `snap = json.loads(${JSON.stringify(JSON.stringify(snapshot))})`,
+    `Product.objects.filter(pk=${Number(id)}).update(**snap['product'])`,
+    "for pk, alt in snap['images'].items(): ProductImage.objects.filter(pk=int(pk)).update(**alt)",
+    `GenerationJob.objects.filter(product_id=${Number(id)}, state__in=['queued', 'running']).update(state='failed', error_code='server_error')`,
+    "print(json.dumps(True))",
+  ].join("\n");
+  shellJson(code);
+}
+
+/** Changes one product column behind the editor's back (a concurrent edit). */
+export function setProductColumn(id: number, column: string, value: string): void {
+  if (!AI_PRODUCT_FIELDS.includes(column)) throw new Error(`unexpected column ${column}`);
+  const code = [
+    "import json",
+    "from glowderma.catalog.models import Product",
+    `value = json.loads(${JSON.stringify(JSON.stringify(value))})`,
+    `print(json.dumps(Product.objects.filter(pk=${Number(id)}).update(${column}=value)))`,
+  ].join("\n");
+  shellJson(code);
+}

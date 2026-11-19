@@ -14,9 +14,40 @@ import type { SeoStatus, SeoTexts } from "./seo";
 export const CONTENT_LANGUAGES = ["uz", "ru", "en"] as const;
 export type ContentLanguage = (typeof CONTENT_LANGUAGES)[number];
 
-export const PRODUCT_TEXT_FIELDS = ["name", "description", "ingredients", "usage"] as const;
+export const PRODUCT_TEXT_FIELDS = [
+  "name",
+  "shortDescription",
+  "description",
+  "ingredients",
+  "usage",
+] as const;
 export type ProductTextField = (typeof PRODUCT_TEXT_FIELDS)[number];
 export type ProductTexts = Record<ProductTextField, string>;
+
+/** The fields a language needs to count as filled in (the short description is optional). */
+export const REQUIRED_TEXT_FIELDS = ["name", "description", "ingredients", "usage"] as const;
+
+/** `texts.<lang>.<field>` limits of the API (`catalog.services.TEXT_MAX_LENGTHS`). */
+export const TEXT_MAX_LENGTH: Record<ProductTextField, number> = {
+  name: 120,
+  shortDescription: 300,
+  description: 2000,
+  ingredients: 1000,
+  usage: 1000,
+};
+/** `ProductImage.alt.<lang>` limit (`catalog.services.ALT_MAX_LENGTH`). */
+export const ALT_MAX_LENGTH = 160;
+
+export function emptyTexts(): ProductTexts {
+  return { name: "", shortDescription: "", description: "", ingredients: "", usage: "" };
+}
+
+/** Alt text of a photo per content language; `""` = not written. */
+export type ImageAlt = Record<ContentLanguage, string>;
+
+export function emptyAlt(): ImageAlt {
+  return { uz: "", ru: "", en: "" };
+}
 
 /**
  * Category slug (`^[a-z0-9-]{2,40}$`, contract §2.4). Categories are data
@@ -43,6 +74,8 @@ export interface ProductImage {
   };
   /** Photo URL: the API's media URL, or a local object URL before upload. */
   src?: string;
+  /** Alt text per language (absent on a photo picked but not uploaded yet). */
+  alt?: ImageAlt;
 }
 
 export interface Product {
@@ -161,7 +194,7 @@ export function stockLevel(stock: number): StockLevel {
 }
 
 export function isTextComplete(texts: ProductTexts): boolean {
-  return PRODUCT_TEXT_FIELDS.every((field) => texts[field].trim().length > 0);
+  return REQUIRED_TEXT_FIELDS.every((field) => texts[field].trim().length > 0);
 }
 
 export function incompleteLanguages(

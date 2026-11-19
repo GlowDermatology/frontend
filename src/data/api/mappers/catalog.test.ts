@@ -24,6 +24,7 @@ import { contentDisposition, exportFilename, parseExportFormat } from "./export"
 import { mapJob } from "./jobs";
 import { mapPage } from "./page";
 import {
+  apiTexts,
   lastChangeNote,
   lastSyncLabel,
   mapCatalogStats,
@@ -74,21 +75,25 @@ describe("mapProduct", () => {
         id: "1",
         src: "http://localhost:8001/media/products/1/d5872db9aa73d5e9.webp",
         label: "Rasm 1",
+        alt: { uz: "", ru: "", en: "" },
       },
       {
         id: "2",
         src: "http://localhost:8001/media/products/1/fd9b176b0330fb9a.webp",
         label: "Rasm 2",
+        alt: { uz: "", ru: "", en: "" },
       },
       {
         id: "3",
         src: "http://localhost:8001/media/products/1/b34a35635a12d0e0.webp",
         label: "Rasm 3",
+        alt: { uz: "", ru: "", en: "" },
       },
     ]);
     expect(mapped.texts.uz.name).toBe("Gialuron kislotali serum");
     expect(mapped.texts.en).toEqual({
       name: "Hyaluronic acid serum",
+      shortDescription: "",
       description: "",
       ingredients:
         "Aqua, Sodium Hyaluronate, Hydrolyzed Hyaluronic Acid, Sodium Acetylated Hyaluronate, Panthenol, Glycerin, Allantoin, Betaine, 1,2-Hexanediol.",
@@ -130,15 +135,21 @@ describe("mapProduct", () => {
     });
     expect(mapped.mainImageUrl).toBeUndefined();
     expect(mapped.lastChange).toBeUndefined();
-    expect(mapped.texts.uz).toEqual({ name: "", description: "", ingredients: "", usage: "" });
+    expect(mapped.texts.uz).toEqual({
+      name: "",
+      shortDescription: "",
+      description: "",
+      ingredients: "",
+      usage: "",
+    });
   });
 
   it("fills missing languages and fields with empty strings", () => {
     const sparse = { ...product, texts: { uz: { name: "Serum" } } } as ApiProduct;
     expect(mapProduct(sparse).texts).toEqual({
-      uz: { name: "Serum", description: "", ingredients: "", usage: "" },
-      ru: { name: "", description: "", ingredients: "", usage: "" },
-      en: { name: "", description: "", ingredients: "", usage: "" },
+      uz: { name: "Serum", shortDescription: "", description: "", ingredients: "", usage: "" },
+      ru: { name: "", shortDescription: "", description: "", ingredients: "", usage: "" },
+      en: { name: "", shortDescription: "", description: "", ingredients: "", usage: "" },
     });
   });
 
@@ -294,7 +305,7 @@ describe("product write bodies", () => {
   it("creates hidden with the slug or null", () => {
     expect(productCreateBody({ ...values, category: "", slug: "" })).toEqual({
       billz_id: "4607012301",
-      texts: values.texts,
+      texts: apiTexts(values.texts),
       price: 185_000,
       category: null,
       promo: false,

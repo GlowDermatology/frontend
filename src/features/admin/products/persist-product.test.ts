@@ -22,9 +22,9 @@ import {
  */
 
 const TEXTS = {
-  uz: { name: "Serum", description: "", ingredients: "", usage: "" },
-  ru: { name: "", description: "", ingredients: "", usage: "" },
-  en: { name: "", description: "", ingredients: "", usage: "" },
+  uz: { name: "Serum", shortDescription: "", description: "", ingredients: "", usage: "" },
+  ru: { name: "", shortDescription: "", description: "", ingredients: "", usage: "" },
+  en: { name: "", shortDescription: "", description: "", ingredients: "", usage: "" },
 };
 
 const image = (id: string): ProductImage => ({ id, label: `Rasm ${id}`, src: `http://m/${id}` });
@@ -70,7 +70,7 @@ function formValues(
 }
 
 interface Call {
-  kind: "save" | "upload" | "remove" | "reorder";
+  kind: "save" | "upload" | "remove" | "reorder" | "alt";
   id: string | null;
   arg?: unknown;
   baseline?: ProductBaseline | null;
@@ -152,6 +152,13 @@ function fakeServer(initial: Product | null, options: { failOn?: (call: Call) =>
       images = [...imageIds];
       return { ok: true, data: { imageIds } };
     },
+    async updateAlt(id, imageId, alt) {
+      if (shouldFail({ kind: "alt", id, arg: { imageId, alt } })) return failure("Tarmoq xatosi.");
+      return {
+        ok: true,
+        data: { id: imageId, label: "", alt: { uz: "", ru: "", en: "", ...alt } },
+      };
+    },
   };
   return {
     actions,
@@ -181,6 +188,50 @@ function pick(pending: PendingImages, ...ids: string[]): ProductImage[] {
 }
 
 describe("persistProduct", () => {
+  it("patches only changed alt texts, and a retry does not resend them", async () => {
+    const saved = product({
+      images: [{ ...image("1"), alt: { uz: "Flakon", ru: "", en: "" } }, image("2")],
+    });
+    const server = fakeServer(saved, {
+      failOn: (call) =>
+        call.kind === "alt" &&
+        call.arg !== undefined &&
+        (call.arg as { imageId: string }).imageId === "2",
+    });
+    const values = formValues(saved);
+    values.images[0]!.alt = { uz: "Flakon", ru: " Флакон ", en: "" };
+    values.images[1]!.alt = { uz: "Qadoq", ru: "", en: "" };
+    const pending = createPendingImages();
+    const first = await persistProduct({
+      saved,
+      targetId: saved.id,
+      values,
+      pending,
+      actions: server.actions,
+    });
+    expect(first.result.ok).toBe(false);
+    const second = await persistProduct({
+      saved,
+      targetId: saved.id,
+      values,
+      pending,
+      actions: server.actions,
+    });
+    expect(second.result.ok).toBe(true);
+    const alts = server.calls.filter((c) => c.kind === "alt").map((c) => c.arg);
+    expect(alts).toEqual([
+      { imageId: "1", alt: { ru: "Флакон" } },
+      { imageId: "2", alt: { uz: "Qadoq" } },
+      { imageId: "2", alt: { uz: "Qadoq" } },
+    ]);
+    if (second.result.ok) {
+      expect(second.result.data.images.map((i) => i.alt)).toEqual([
+        { uz: "Flakon", ru: "Флакон", en: "" },
+        { uz: "Qadoq", ru: "", en: "" },
+      ]);
+    }
+  });
+
   it("sends no PUT …/images/order/ when the image set and order are unchanged", async () => {
     const saved = product();
     const server = fakeServer(saved);

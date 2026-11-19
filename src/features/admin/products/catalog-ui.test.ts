@@ -260,9 +260,9 @@ describe("localized catalog data", () => {
   it("validates the product form in the admin language", () => {
     const parsed = productFormSchemas.ru.safeParse({
       texts: {
-        uz: { name: "A", description: "", ingredients: "", usage: "" },
-        ru: { name: "", description: "", ingredients: "", usage: "" },
-        en: { name: "", description: "", ingredients: "", usage: "" },
+        uz: { name: "A", shortDescription: "", description: "", ingredients: "", usage: "" },
+        ru: { name: "", shortDescription: "", description: "", ingredients: "", usage: "" },
+        en: { name: "", shortDescription: "", description: "", ingredients: "", usage: "" },
       },
       price: 10,
       category: "",
@@ -290,9 +290,9 @@ describe("localized catalog data", () => {
   it("reports the active product's photo and category with an empty price, in one round", () => {
     const parsed = productFormSchemas.uz.safeParse({
       texts: {
-        uz: { name: "Serum", description: "", ingredients: "", usage: "" },
-        ru: { name: "", description: "", ingredients: "", usage: "" },
-        en: { name: "", description: "", ingredients: "", usage: "" },
+        uz: { name: "Serum", shortDescription: "", description: "", ingredients: "", usage: "" },
+        ru: { name: "", shortDescription: "", description: "", ingredients: "", usage: "" },
+        en: { name: "", shortDescription: "", description: "", ingredients: "", usage: "" },
       },
       price: Number.NaN,
       category: "",

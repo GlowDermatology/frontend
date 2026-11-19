@@ -22,6 +22,18 @@ export function languageToShow(
   return CONTENT_LANGUAGES.find((language) => failing.has(language)) ?? null;
 }
 
+/** The content language to show for failing photo alt texts (`images.<n>.alt.<lang>`). */
+export function altLanguageToShow(
+  names: ReadonlyArray<string>,
+  current: ContentLanguage,
+): ContentLanguage | null {
+  const alt = names
+    .map((name) => /^images\.\d+\.alt\.(\w+)$/.exec(name)?.[1])
+    .filter((language): language is string => Boolean(language))
+    .map((language) => `texts.${language}`);
+  return languageToShow(alt, "texts", current);
+}
+
 /**
  * Resolves once no alert dialog is on screen any more (its close animation done and its focus
  * handed back), at most ~0.6 s. The "save anyway?" dialog returns focus to the submit button when

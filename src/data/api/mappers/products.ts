@@ -2,6 +2,8 @@ import { catalogDataCopy } from "@/domain/copy/catalog";
 import {
   CONTENT_LANGUAGES,
   defaultImageLabel,
+  emptyTexts,
+  type ImageAlt,
   lastChangeText,
   PRODUCT_TEXT_FIELDS,
   type ContentLanguage,
@@ -32,16 +34,41 @@ import { mapSeo, mapSeoStatus } from "./seo";
  * `Product` and `products/stats/` → the FE domain types (contract §5.2).
  */
 
-const EMPTY_TEXTS: ProductTexts = { name: "", description: "", ingredients: "", usage: "" };
+/** The API's name of a text field (`shortDescription` → `short_description`). */
+export const API_TEXT_FIELD = {
+  name: "name",
+  shortDescription: "short_description",
+  description: "description",
+  ingredients: "ingredients",
+  usage: "usage",
+} as const satisfies Record<keyof ProductTexts, string>;
 
 /** `"" means not filled, never null"`; languages or fields the API omits become `""`. */
 export function mapProductTexts(texts: ApiProduct["texts"]): Record<ContentLanguage, ProductTexts> {
   const out = {} as Record<ContentLanguage, ProductTexts>;
   for (const language of CONTENT_LANGUAGES) {
-    const source = (texts[language] ?? {}) as Partial<ProductTexts>;
-    const filled = { ...EMPTY_TEXTS };
-    for (const field of PRODUCT_TEXT_FIELDS) filled[field] = source[field] ?? "";
+    const source = (texts[language] ?? {}) as Partial<Record<string, string>>;
+    const filled = emptyTexts();
+    for (const field of PRODUCT_TEXT_FIELDS) filled[field] = source[API_TEXT_FIELD[field]] ?? "";
     out[language] = filled;
+  }
+  return out;
+}
+
+/** `ProductImage.alt` → every language present (`""` when the API omits one). */
+export function mapImageAlt(alt: Partial<Record<ContentLanguage, string>> | undefined): ImageAlt {
+  return { uz: alt?.uz ?? "", ru: alt?.ru ?? "", en: alt?.en ?? "" };
+}
+
+/** Texts in the API's shape (`short_description`), for create bodies. */
+export function apiTexts(
+  texts: Record<ContentLanguage, ProductTexts>,
+): NonNullable<ApiProductPatch["texts"]> {
+  const out: NonNullable<ApiProductPatch["texts"]> = {};
+  for (const language of CONTENT_LANGUAGES) {
+    const leaves: Record<string, string> = {};
+    for (const field of PRODUCT_TEXT_FIELDS) leaves[API_TEXT_FIELD[field]] = texts[language][field];
+    out[language] = leaves;
   }
   return out;
 }
@@ -57,6 +84,7 @@ export function mapProductImage(image: ApiProductImage): ProductImage {
     id: idString(image.id),
     src: image.thumbnail_url ?? image.url,
     label: defaultImageLabel(image.position + 1),
+    alt: mapImageAlt(image.alt),
   };
 }
 
@@ -169,7 +197,7 @@ export const PRODUCT_FIELD_REMAP = { billz_id: "billzId" } as const;
 export function productCreateBody(values: ProductFormValues): ApiProductWrite {
   const body: ApiProductWrite = {
     billz_id: values.billzId,
-    texts: values.texts,
+    texts: apiTexts(values.texts) as ApiProductWrite["texts"],
     price: values.price,
     category: values.category || null,
     promo: values.promo,
@@ -202,7 +230,7 @@ export function textsPatch(
     for (const field of PRODUCT_TEXT_FIELDS) {
       const value = values[language][field];
       if (value === baseline[language][field]) continue;
-      (out[language] ??= {})[field] = value;
+      (out[language] ??= {})[API_TEXT_FIELD[field]] = value;
     }
   }
   return Object.keys(out).length > 0 ? out : undefined;

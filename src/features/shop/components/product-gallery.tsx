@@ -19,7 +19,7 @@ export function ProductGallery({ product, dict }: { product: ShopProduct; dict: 
     return (
       <ProductImage
         src={photos[0]?.image ?? product.image}
-        alt={product.name}
+        alt={photos[0]?.alt || product.name}
         sizes={MAIN_SIZES}
         priority
         seed={product.id}
@@ -43,9 +43,10 @@ export function ProductGallery({ product, dict }: { product: ShopProduct; dict: 
             <ProductImage
               src={photo.image}
               alt={
-                index === 0
+                photo.alt ||
+                (index === 0
                   ? product.name
-                  : `${product.name} — ${dict.product.imageLabel(index + 1, photos.length)}`
+                  : `${product.name} — ${dict.product.imageLabel(index + 1, photos.length)}`)
               }
               sizes={MAIN_SIZES}
               priority={index === 0}

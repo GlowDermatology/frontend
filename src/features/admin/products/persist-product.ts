@@ -1,6 +1,13 @@
 import type { ProductBaseline, ProductFormValues } from "@/data/products.schema";
 import type { ActionResult } from "@/data/types";
-import type { Product, ProductImage } from "@/domain/product";
+import {
+  CONTENT_LANGUAGES,
+  emptyAlt,
+  type ContentLanguage,
+  type ImageAlt,
+  type Product,
+  type ProductImage,
+} from "@/domain/product";
 
 /**
  * Product save orchestration (spec "Frontend wiring › Product save
@@ -13,7 +20,8 @@ import type { Product, ProductImage } from "@/domain/product";
  * 3. upload the new files (appended last by the server);
  * 4. save the image order — only when it differs from the order the server
  *    now holds;
- * 5. PATCH `status: "active"` when activation was requested and the product
+ * 5. PATCH each photo's changed alt texts (`PATCH products/{id}/images/{image_id}/`);
+ * 6. PATCH `status: "active"` when activation was requested and the product
  *    was not already active.
  *
  * Deletes run before uploads so swapping a photo of a product that already
@@ -34,6 +42,12 @@ export interface PersistActions {
   upload: (productId: string, file: File) => Promise<ActionResult<ProductImage>>;
   remove: (productId: string, imageId: string) => Promise<ActionResult<{ id: string }>>;
   reorder: (productId: string, imageIds: string[]) => Promise<ActionResult<{ imageIds: string[] }>>;
+  /** The changed alt leaves of one photo. */
+  updateAlt: (
+    productId: string,
+    imageId: string,
+    alt: Partial<ImageAlt>,
+  ) => Promise<ActionResult<ProductImage>>;
 }
 
 /** Save progress kept outside React state (nothing renders from it). */
@@ -46,10 +60,25 @@ export interface PendingImages {
   server: string[] | null;
   /** The scalar values the server holds after a partially failed save (the next diff's baseline). */
   committed: ProductBaseline | null;
+  /** Server image id → the alt texts the server holds, once a save wrote them. */
+  alt: Map<string, ImageAlt>;
 }
 
 export function createPendingImages(): PendingImages {
-  return { files: new Map(), uploaded: new Map(), server: null, committed: null };
+  return { files: new Map(), uploaded: new Map(), server: null, committed: null, alt: new Map() };
+}
+
+/** The alt leaves of `next` that differ from `before`; `null` when none do. */
+export function altPatch(
+  before: ImageAlt | undefined,
+  next: Partial<ImageAlt> | undefined,
+): Partial<ImageAlt> | null {
+  const out: Partial<Record<ContentLanguage, string>> = {};
+  for (const language of CONTENT_LANGUAGES) {
+    const value = (next?.[language] ?? "").trim();
+    if (value !== (before?.[language] ?? "")) out[language] = value;
+  }
+  return Object.keys(out).length > 0 ? out : null;
 }
 
 /** After a complete save: the saved product becomes the editor's new baseline. */
@@ -58,6 +87,7 @@ export function clearPendingImages(pending: PendingImages): void {
   pending.uploaded.clear();
   pending.server = null;
   pending.committed = null;
+  pending.alt.clear();
 }
 
 /** The editable scalar fields of a product or of the form (the PATCH baseline). */
@@ -174,6 +204,20 @@ export async function persistProduct(input: {
     const ordered = await actions.reorder(id, finalIds);
     if (!ordered.ok) return fail(ordered);
     pending.server = [...finalIds];
+  }
+
+  // Alt texts: against what the server holds (the loaded photo, or what an earlier attempt wrote).
+  const savedAlt = new Map(saved?.images.map((image) => [image.id, image.alt]) ?? []);
+  for (const [index, image] of finalImages.entries()) {
+    const wanted = values.images[index]?.alt;
+    const held = pending.alt.get(image.id) ?? savedAlt.get(image.id) ?? emptyAlt();
+    const patch = altPatch(held, wanted);
+    if (patch) {
+      const updated = await actions.updateAlt(id, image.id, patch);
+      if (!updated.ok) return fail(updated);
+      pending.alt.set(image.id, { ...held, ...patch });
+    }
+    finalImages[index] = { ...image, alt: pending.alt.get(image.id) ?? held };
   }
 
   let product: Product = { ...first.data, images: finalImages };

@@ -53,7 +53,7 @@ export async function productMetadata(
     description: productDescription(product, locale, dict, uz),
     ogType: "product",
     images: image
-      ? [{ url: image, alt: product.name }]
+      ? [{ url: image, alt: product.images[0]?.alt || product.name }]
       : [{ url: `/og/home/${locale}`, width: 1200, height: 630, alt: dict.meta.ogAlt }],
   });
 }
@@ -278,6 +278,11 @@ async function ProductBody({
                 {[product.brand, localizeVolume(product.volume, locale)]
                   .filter(Boolean)
                   .join(" · ")}
+              </p>
+            ) : null}
+            {product.shortDescription ? (
+              <p className="m-0 max-w-prose text-body text-pretty text-ink">
+                {product.shortDescription}
               </p>
             ) : null}
           </div>

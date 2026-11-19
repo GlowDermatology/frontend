@@ -87,6 +87,19 @@ export function apiReorderProductImages(token: string, id: string, imageIds: num
   });
 }
 
+/** `{alt: {uz?, ru?, en?}}` → the image (leaf merge on the server). */
+export function apiPatchProductImage(
+  token: string,
+  id: string,
+  imageId: string,
+  alt: Partial<Record<"uz" | "ru" | "en", string>>,
+) {
+  return apiFetch<ApiProductImage>(
+    `${BASE}/products/${encodeURIComponent(id)}/images/${encodeURIComponent(imageId)}/`,
+    { method: "PATCH", body: { alt }, token },
+  );
+}
+
 /* --- Billz import and jobs --- */
 
 export function apiStartBillzImport(token: string, idempotencyKey: string) {

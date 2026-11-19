@@ -4,7 +4,13 @@ import { z } from "zod";
 
 import { catalogDataCopy, type CatalogDataCopy } from "@/domain/copy/catalog";
 import type { Job } from "@/domain/job";
-import { productDisplayName, type Product, type ProductImage } from "@/domain/product";
+import {
+  ALT_MAX_LENGTH,
+  productDisplayName,
+  type ImageAlt,
+  type Product,
+  type ProductImage,
+} from "@/domain/product";
 import { getAdminLocale } from "@/lib/i18n/admin-locale";
 import type { Locale } from "@/lib/i18n/locales";
 
@@ -20,6 +26,7 @@ import {
   apiDeleteProductImage,
   apiGetProduct,
   apiPatchProduct,
+  apiPatchProductImage,
   apiReorderProductImages,
   apiStartBillzImport,
   apiUploadProductImage,
@@ -208,6 +215,43 @@ export async function deleteProductImage(
     });
   }
   return mock.deleteProductImage(parsed.data.productId, parsed.data.imageId);
+}
+
+/** The changed alt texts of one photo (`PATCH products/{id}/images/{image_id}/`). */
+export async function updateProductImageAlt(
+  productId: string,
+  imageId: string,
+  alt: Partial<ImageAlt>,
+  csrf: string,
+): Promise<ActionResult<ProductImage>> {
+  const guard = await guardAction(csrf);
+  if (!guard.ok) return guard;
+  const { m } = await messages();
+  const text = z.string().trim().max(ALT_MAX_LENGTH, m.maxChars(ALT_MAX_LENGTH)).optional();
+  const parsed = z
+    .object({
+      productId: productIdSchema,
+      imageId: imageIdSchema,
+      alt: z.object({ uz: text, ru: text, en: text }).strict(),
+    })
+    .safeParse({ productId, imageId, alt });
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, m.checkFields);
+  if ((await dataSource()) === "api") {
+    return apiMutation("updateProductImageAlt", async () => {
+      try {
+        const { data } = await apiPatchProductImage(
+          sessionToken(guard.session),
+          parsed.data.productId,
+          parsed.data.imageId,
+          parsed.data.alt,
+        );
+        return { ok: true, data: mapProductImage(data) };
+      } catch (error) {
+        return toActionResult(error);
+      }
+    });
+  }
+  return mock.updateProductImageAlt(parsed.data.imageId, parsed.data.alt);
 }
 
 /** The full ordered list of the product's image ids (first = main image). */

@@ -38,6 +38,7 @@ const product: ShopProduct = {
   oldPrice: null,
   contentLanguage: null,
   updatedAt: null,
+  shortDescription: "",
   description: "",
   ingredients: "",
   usage: "",

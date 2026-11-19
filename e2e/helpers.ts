@@ -9,7 +9,14 @@ export async function signIn(
   email = adminCredentials().email,
 ): Promise<void> {
   await page.goto("/admin/login");
-  await page.getByLabel("Email").fill(email);
+  // Mock mode has no sessions: the sign-in page sends the open admin on (ai-assistant.spec.ts).
+  const field = page.getByLabel("Email");
+  await Promise.race([
+    field.waitFor(),
+    page.waitForURL((url) => !url.pathname.startsWith("/admin/login")),
+  ]);
+  if (!new URL(page.url()).pathname.startsWith("/admin/login")) return;
+  await field.fill(email);
   await page.getByLabel("Parol").fill(password);
   await page.locator('button[type="submit"]').click();
   await expect(page).not.toHaveURL(/\/admin\/login/);

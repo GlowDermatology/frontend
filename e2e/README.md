@@ -91,6 +91,26 @@ appointments week/month, audit tiers, groups lookup, unified sign-in) needs the 
 | `customer-public/storefront.spec.ts` header search                     | The storefront header search is a field (an icon on phones) that submits to the catalog; the phone menu lists the languages with flags                                                                                                                                                                                                                                |
 | `customer-public/sign-in-geometry.spec.ts`                             | The sign-in frame (customer and staff) at 1440×900, 1280×720 and 390×844: `[data-auth-art]` and the card's top, left and width equal (±1 px) across the customer sign-in, the sign-up tab, `/ru` and `/en`, the staff sign-in, the staff language switch and the no-JS (skeleton) state; the tablist does not move between the tabs; the art element is not remounted |
 
+### AI assistant spec (`feat/ai-assistant-panel`)
+
+`ai-assistant.spec.ts` needs the `feat/ai-assistant` backend with `AI_MODE=fake` (the default; answers are
+`[fake] <key>`) and runs in **both data modes**: against a mock-mode frontend (no backend; the demo's deterministic
+assistant, the sign-in page lets the open admin through) the five UI cases run and the two backend cases skip. In api
+mode the spec switches the assistant on and snapshots product 1 through the backend shell (`E2E_BACKEND_DIR`), and
+puts both back after each case; without the shell the button is off and the spec skips. One api run starts about ten
+jobs: mind the `assistant_generate` throttle (30/hour per staff) and the daily job limit (`AssistantSettings`, 50) on a
+reused database (`THROTTLE_RATES='{"assistant_generate": "1000/hour"}'` for repeated local runs).
+
+| Test                                 | What it checks                                                                                                                                                                                       |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| fill missing → apply                 | «AI yordamchi» → «Takliflar olish» → review: only empty keys, one edited suggestion kept, «Tanlanganlarni qo‘llash (1)» → toast; the field is re-based (no leave question), api: kept after a reload |
+| short description and alt texts save | The editor's new fields: `texts.uz.shortDescription` and photo 1's ru alt text save with «Saqlash» (api: `PATCH …/images/{id}/`, kept after a reload)                                                |
+| unsaved edit / closed dialog         | A field typed in the editor is not applicable in the review (note, unchecked); the dialog closes while the job works, the button says «AI takliflari tayyor»; «Bekor qilish» discards                |
+| improve                              | «Yaxshilash» needs a picked field (disabled reason), shows «Maqsad», reviews the current text against the suggestion                                                                                 |
+| phone                                | At 390 px the dialog fits, the page has no horizontal scroll, the review buttons stay in view                                                                                                        |
+| concurrent edit (api + shell)        | A value changed through the shell between generation and apply is listed under the conflicts and not overwritten; the rest is written                                                                |
+| provider failure (api + shell)       | A `[fake-unavailable]` product name ends the job failed: «Takliflar olinmadi» with the server's message (never the code) and «Qayta urinish»                                                         |
+
 ### Theme and menu specs (`feat/theme`)
 
 No backend change. New or changed:

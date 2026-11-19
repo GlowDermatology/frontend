@@ -1,7 +1,9 @@
 import { catalogDataCopy } from "@/domain/copy/catalog";
 import type { Job } from "@/domain/job";
 import {
+  emptyAlt,
   lastChangeText,
+  type ImageAlt,
   type Product,
   type ProductImage,
   type ProductLastChange,
@@ -128,6 +130,15 @@ export async function deleteProductImage(
   await delay(150);
   void productId;
   return { ok: true, data: { id: imageId } };
+}
+
+/** The demo keeps nothing: the photo comes back with the merged alt texts. */
+export async function updateProductImageAlt(
+  imageId: string,
+  alt: Partial<ImageAlt>,
+): Promise<ActionResult<ProductImage>> {
+  await delay(150);
+  return { ok: true, data: { id: imageId, label: "", alt: { ...emptyAlt(), ...alt } } };
 }
 
 export async function reorderProductImages(

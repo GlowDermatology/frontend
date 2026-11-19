@@ -171,6 +171,7 @@ describe("mapProduct", () => {
   it("orders the gallery and reads the optional SEO fields", () => {
     const detail: ApiCustomerProductDetail = {
       ...card,
+      short_description: " Yengil namlovchi serum. ",
       description: "Namlik",
       ingredients: "",
       usage: " Kuniga 2 marta ",
@@ -181,6 +182,7 @@ describe("mapProduct", () => {
           thumbnail_url: "https://media.glowderma.uz/b_400.webp",
           medium_url: "https://media.glowderma.uz/b_1000.webp",
           position: 1,
+          alt: "",
         },
         {
           id: 8,
@@ -188,6 +190,7 @@ describe("mapProduct", () => {
           thumbnail_url: "https://media.glowderma.uz/a_400.webp",
           medium_url: "https://media.glowderma.uz/a_1000.webp",
           position: 0,
+          alt: "Sarum flakoni",
         },
         {
           id: 7,
@@ -195,6 +198,7 @@ describe("mapProduct", () => {
           thumbnail_url: "not a url",
           medium_url: "not a url",
           position: 2,
+          alt: "",
         },
       ],
       max_quantity: 10,
@@ -203,6 +207,8 @@ describe("mapProduct", () => {
     };
     const mapped = mapProduct(detail, HOSTS);
     expect(mapped.images.map((image) => image.id)).toEqual([8, 9]);
+    expect(mapped.images.map((image) => image.alt)).toEqual(["Sarum flakoni", ""]);
+    expect(mapped.shortDescription).toBe("Yengil namlovchi serum.");
     expect(mapped.usage).toBe("Kuniga 2 marta");
     expect(mapped.seoTitle).toBeNull();
     expect(mapped.seoDescription).toBe("Eng yaxshi serum");

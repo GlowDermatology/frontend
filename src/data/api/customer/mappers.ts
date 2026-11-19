@@ -146,11 +146,13 @@ export function mapProduct(
           image: optimised,
           url,
           thumb: variant(image.thumbnail_url, optimised, mediaHosts),
+          alt: text(image.alt),
         },
       ];
     });
   return {
     ...mapProductCard(api, mediaHosts),
+    shortDescription: text(api.short_description),
     description: text(api.description),
     ingredients: text(api.ingredients),
     usage: text(api.usage),

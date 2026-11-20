@@ -11,6 +11,7 @@ import { Icon } from "@/components/ui/icon";
 import type { DayAppointment } from "@/data/appointments";
 import type {
   BlockedPeriod,
+  ClinicLocation,
   ClinicService,
   ClinicSpecialist,
   HoursOverride,
@@ -33,6 +34,7 @@ import { BlocksCard, OverridesCard } from "./schedule-cards";
 interface SpecialistDetailViewProps {
   specialist: ClinicSpecialist;
   services: ReadonlyArray<ClinicService>;
+  clinics: ReadonlyArray<ClinicLocation>;
   overrides: ReadonlyArray<HoursOverride>;
   blocks: ReadonlyArray<BlockedPeriod>;
   conflicts: ReadonlyArray<DayAppointment>;
@@ -59,6 +61,7 @@ export function SpecialistDetailView(props: SpecialistDetailViewProps) {
     setSpecialist(props.specialist);
   }
   const bookable = specialist.services.filter((s) => s.isActive && s.serviceIsActive).length;
+  const assigned = props.clinics.filter((clinic) => specialist.locationIds.includes(clinic.id));
 
   return (
     <>
@@ -100,18 +103,21 @@ export function SpecialistDetailView(props: SpecialistDetailViewProps) {
           <ProfileCard
             specialist={specialist}
             staffOptions={props.staffOptions}
+            clinics={props.clinics}
             onUpdated={setSpecialist}
           />
           <OffersCard specialist={specialist} services={props.services} onUpdated={setSpecialist} />
         </div>
         <div className="flex min-w-0 flex-[2_1_380px] flex-col gap-4">
-          <HoursCard specialist={specialist} onUpdated={setSpecialist} />
+          <HoursCard specialist={specialist} clinics={assigned} onUpdated={setSpecialist} />
         </div>
       </div>
       <div className="flex flex-wrap items-start gap-4">
         <div className="flex min-w-0 flex-[1_1_440px] flex-col gap-4">
           <OverridesCard
             specialistId={specialist.id}
+            clinics={assigned}
+            defaultClinicId={specialist.locationId}
             overrides={props.overrides}
             today={props.today}
           />

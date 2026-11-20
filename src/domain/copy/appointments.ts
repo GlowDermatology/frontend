@@ -8,6 +8,8 @@ import type { CopySet } from "@/lib/i18n/copy";
  */
 const uz = {
   chooseSpecialist: "Mutaxassisni tanlang.",
+  chooseClinic: "Qabul uchun klinikani tanlang.",
+  wrongClinic: "Mutaxassis bu kuni ushbu klinikada ishlamaydi.",
   chooseService: "Xizmatni tanlang.",
   chooseDate: "Sanani tanlang.",
   chooseTime: "Vaqtni tanlang.",
@@ -31,6 +33,8 @@ export const appointmentDataCopy = {
   uz,
   ru: {
     chooseSpecialist: "Выберите специалиста.",
+    chooseClinic: "Выберите клинику для приёма.",
+    wrongClinic: "В этот день специалист не работает в этой клинике.",
     chooseService: "Выберите услугу.",
     chooseDate: "Выберите дату.",
     chooseTime: "Выберите время.",
@@ -51,6 +55,8 @@ export const appointmentDataCopy = {
   },
   en: {
     chooseSpecialist: "Choose a specialist.",
+    chooseClinic: "Choose a clinic for the appointment.",
+    wrongClinic: "The specialist does not work at this clinic on that day.",
     chooseService: "Choose a service.",
     chooseDate: "Choose a date.",
     chooseTime: "Choose a time.",

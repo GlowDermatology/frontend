@@ -96,6 +96,14 @@ export function DayGrid({
                         </span>
                       )}
                     </span>
+                    {specialist.location && (
+                      <span
+                        className="truncate text-caption text-ink-muted"
+                        title={specialist.location.address}
+                      >
+                        {specialist.location.name}
+                      </span>
+                    )}
                   </span>
                 </span>
               ))}

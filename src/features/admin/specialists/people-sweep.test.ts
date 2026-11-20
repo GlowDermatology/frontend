@@ -102,7 +102,16 @@ describe("clinic schemas and domain texts in three languages", () => {
   it("words the rules in the admin language and keeps the Uzbek texts", () => {
     const week = (locale: Locale) =>
       clinicSchemas[locale].week.safeParse({
-        days: [{ weekday: 0, start: "09:00", end: "18:03", breakStart: null, breakEnd: null }],
+        days: [
+          {
+            weekday: 0,
+            locationId: "1",
+            start: "09:00",
+            end: "18:03",
+            breakStart: null,
+            breakEnd: null,
+          },
+        ],
       });
     const messages = (locale: Locale) => {
       const parsed = week(locale);
@@ -114,6 +123,8 @@ describe("clinic schemas and domain texts in three languages", () => {
     const location = clinicSchemas.ru.location.safeParse({
       name: { uz: "", ru: "", en: "" },
       address: { uz: "", ru: "", en: "" },
+      directions: { uz: "", ru: "", en: "" },
+      isActive: true,
       phone: "+99890",
       latitude: 41.3,
       longitude: null,
@@ -122,16 +133,55 @@ describe("clinic schemas and domain texts in three languages", () => {
     if (!location.success) {
       expect(issuesToErrors(location.error)).toMatchObject({
         "name.uz": "Укажите название клиники.",
+        "address.uz": "Укажите адрес клиники.",
         phone: "Введите правильный номер телефона.",
         longitude: "Укажите и широту, и долготу.",
       });
     }
   });
 
+  it("requires a clinic for a working day and for an open override", () => {
+    const { week, override } = clinicSchemas.en;
+    const day = {
+      weekday: 0,
+      locationId: "",
+      start: "09:00",
+      end: "18:00",
+      breakStart: null,
+      breakEnd: null,
+    };
+    expect(week.safeParse({ days: [day] }).success).toBe(false);
+    const values = {
+      date: "2026-11-20",
+      locationId: "",
+      dayOff: false,
+      start: "09:00",
+      end: "18:00",
+      note: "",
+    };
+    expect(override.safeParse(values).success).toBe(false);
+    expect(override.safeParse({ ...values, locationId: "2" }).success).toBe(true);
+    expect(override.safeParse({ ...values, dayOff: true }).success).toBe(true);
+  });
+
   it("prints weekdays and working days per language", () => {
     const days = [
-      { weekday: 2, start: "09:00", end: "18:00", breakStart: null, breakEnd: null },
-      { weekday: 0, start: "09:00", end: "18:00", breakStart: "13:00", breakEnd: "14:00" },
+      {
+        weekday: 2,
+        locationId: "1",
+        start: "09:00",
+        end: "18:00",
+        breakStart: null,
+        breakEnd: null,
+      },
+      {
+        weekday: 0,
+        locationId: "1",
+        start: "09:00",
+        end: "18:00",
+        breakStart: "13:00",
+        breakEnd: "14:00",
+      },
     ];
     expect(workingDaysShort(days)).toBe("Du, Ch");
     expect(workingDaysShort(days, "en")).toBe("Mon, Wed");

@@ -6,18 +6,20 @@ import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import { FormErrorSummary } from "@/components/ui/form-errors";
 import { Icon } from "@/components/ui/icon";
+import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { TimePicker } from "@/components/ui/time-picker";
 import { useToast } from "@/components/ui/toast";
 import { saveWorkingHours } from "@/data/clinic.actions";
 import { clinicSchemas } from "@/data/clinic.schema";
-import { WEEKDAYS, type ClinicSpecialist } from "@/domain/clinic";
+import { WEEKDAYS, type ClinicLocation, type ClinicSpecialist } from "@/domain/clinic";
 import { clinicDataCopy } from "@/domain/copy/clinic";
 import { cn } from "@/lib/cn";
 import { useErrorReveal } from "@/lib/forms/reveal";
-import { useCopy } from "@/lib/i18n/admin-context";
+import { useAdminLocale, useCopy } from "@/lib/i18n/admin-context";
 import { useLocalized } from "@/lib/i18n/admin-hooks";
 
+import { clinicOptions } from "../clinics/options";
 import { runAction } from "../shared/action-client";
 import { useIdempotencyKey } from "../shared/idempotency";
 import { specialistsCopy } from "./copy";
@@ -25,6 +27,7 @@ import { errorItems, issuesToErrors } from "./form-kit";
 
 interface DayRow {
   working: boolean;
+  locationId: string;
   start: string;
   end: string;
   breakStart: string;
@@ -37,20 +40,31 @@ function toRows(specialist: ClinicSpecialist): DayRow[] {
     return day
       ? {
           working: true,
+          locationId: day.locationId,
           start: day.start,
           end: day.end,
           breakStart: day.breakStart ?? "",
           breakEnd: day.breakEnd ?? "",
         }
-      : { working: false, start: "09:00", end: "18:00", breakStart: "", breakEnd: "" };
+      : {
+          working: false,
+          locationId: specialist.locationId,
+          start: "09:00",
+          end: "18:00",
+          breakStart: "",
+          breakEnd: "",
+        };
   });
 }
 
 /** Only what is sent counts: a day off's times are not compared. */
 const signature = (rows: DayRow[]) =>
-  JSON.stringify(rows.map((r) => (r.working ? [r.start, r.end, r.breakStart, r.breakEnd] : null)));
+  JSON.stringify(
+    rows.map((r) => (r.working ? [r.locationId, r.start, r.end, r.breakStart, r.breakEnd] : null)),
+  );
 
 const TIME_FIELDS = ["start", "end", "breakStart", "breakEnd"] as const;
+const FIELDS = ["locationId", ...TIME_FIELDS] as const;
 
 /** `days.N.*` (N = the index of the sent days) → `<weekday>.<field>` of the rows (pure, for tests). */
 export function placeDayErrors(
@@ -76,13 +90,20 @@ export function placeDayErrors(
  */
 export function HoursCard({
   specialist,
+  clinics,
   onUpdated,
 }: {
   specialist: ClinicSpecialist;
+  clinics: ReadonlyArray<ClinicLocation>;
   onUpdated: (specialist: ClinicSpecialist) => void;
 }) {
   const copy = useCopy(specialistsCopy);
   const t = copy.hours;
+  const clinicCopy = copy.location;
+  const locale = useAdminLocale();
+  const activeClinics = clinics.filter((clinic) => clinic.isActive);
+  const defaultClinic =
+    activeClinics.find((clinic) => clinic.id === specialist.locationId) ?? activeClinics[0];
   const days = useCopy(clinicDataCopy).weekday;
   const schemas = useLocalized(clinicSchemas);
   const toast = useToast();
@@ -94,7 +115,13 @@ export function HoursCard({
   const inFlight = useRef(false);
   const container = useRef<HTMLDivElement>(null);
   const reveal = useErrorReveal(container);
-  const fieldLabel = { start: t.start, end: t.end, breakStart: t.breakStart, breakEnd: t.breakEnd };
+  const fieldLabel = {
+    locationId: clinicCopy.title,
+    start: t.start,
+    end: t.end,
+    breakStart: t.breakStart,
+    breakEnd: t.breakEnd,
+  };
   const summary = errorItems(
     errors,
     (name) => {
@@ -104,7 +131,7 @@ export function HoursCard({
         ? t.fieldOf(day, fieldLabel[field as keyof typeof fieldLabel])
         : undefined;
     },
-    WEEKDAYS.flatMap((weekday) => TIME_FIELDS.map((field) => `${weekday}.${field}`)),
+    WEEKDAYS.flatMap((weekday) => FIELDS.map((field) => `${weekday}.${field}`)),
   );
   const idempotency = useIdempotencyKey();
 
@@ -125,6 +152,7 @@ export function HoursCard({
         const row = rows[weekday]!;
         return {
           weekday,
+          locationId: row.locationId,
           start: row.start,
           end: row.end,
           breakStart: row.breakStart || null,
@@ -169,14 +197,14 @@ export function HoursCard({
         <CardTitle id="hours-title" className="text-heading">
           {t.title}
         </CardTitle>
-        <p className="m-0 text-body-sm text-ink-muted">{t.text}</p>
+        <p className="m-0 text-body-sm text-ink-muted">{clinicCopy.scheduleHint}</p>
       </div>
       <div ref={container} className="flex flex-col gap-2">
         <FormErrorSummary errors={summary} onSelect={(name) => reveal({ name })} />
         {WEEKDAYS.map((weekday) => {
           const row = rows[weekday]!;
           const error = (field: string) => errors[`${weekday}.${field}`];
-          const dayErrors = [...new Set(TIME_FIELDS.map(error).filter(Boolean))] as string[];
+          const dayErrors = [...new Set(FIELDS.map(error).filter(Boolean))] as string[];
           const name = days[weekday] ?? "";
           return (
             <fieldset
@@ -193,11 +221,41 @@ export function HoursCard({
                   {row.working ? t.workday : t.dayOff}
                   <Switch
                     checked={row.working}
-                    onCheckedChange={(checked) => update(weekday, { working: checked })}
+                    onCheckedChange={(checked) =>
+                      update(weekday, {
+                        working: checked,
+                        locationId: activeClinics.some((clinic) => clinic.id === row.locationId)
+                          ? row.locationId
+                          : (defaultClinic?.id ?? ""),
+                      })
+                    }
                     aria-label={t.workdaySwitch(name)}
                   />
                 </span>
               </div>
+              {row.working && (
+                <div
+                  className="flex flex-col gap-1"
+                  data-field={`${weekday}.locationId`}
+                  data-invalid={error("locationId") ? "true" : undefined}
+                >
+                  <span aria-hidden="true" className="text-caption font-semibold text-ink-muted">
+                    {clinicCopy.title}
+                  </span>
+                  <Select
+                    aria-label={t.fieldOf(name, clinicCopy.title)}
+                    aria-invalid={error("locationId") ? true : undefined}
+                    value={row.locationId}
+                    onValueChange={(locationId) => update(weekday, { locationId })}
+                    options={clinicOptions(
+                      clinics.filter((clinic) => clinic.isActive || clinic.id === row.locationId),
+                      locale,
+                    )}
+                    placeholder={clinicCopy.placeholder}
+                    disabledReason={activeClinics.length === 0 && clinicCopy.none}
+                  />
+                </div>
+              )}
               {row.working && (
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {TIME_FIELDS.map((field) => {

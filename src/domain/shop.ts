@@ -105,6 +105,8 @@ export interface ShopSpecialistService {
 }
 
 export interface ShopLocation {
+  id: number;
+  directions: string;
   name: string;
   address: string;
   phone: string | null;
@@ -128,11 +130,21 @@ export interface ShopSpecialist {
   bio: string;
   qualifications: string;
   experienceYears: number | null;
-  location: ShopLocation;
+  locations: ReadonlyArray<ShopLocation>;
   services: ReadonlyArray<ShopSpecialistService>;
   /** Language of `bio`/`qualifications` (`uz` on a fallback); `null` from an older API. */
   contentLanguage: ContentLanguage | null;
   updatedAt: string | null;
+}
+
+export function specialistLocations(specialists: ReadonlyArray<ShopSpecialist>): ShopLocation[] {
+  return [
+    ...new Map(
+      specialists.flatMap((specialist) =>
+        specialist.locations.map((location) => [location.id, location] as const),
+      ),
+    ).values(),
+  ];
 }
 
 export interface ShopService {

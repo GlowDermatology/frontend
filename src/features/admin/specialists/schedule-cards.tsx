@@ -18,6 +18,8 @@ import { createBlock, createOverride, deleteScheduleEntry } from "@/data/clinic.
 import { clinicSchemas } from "@/data/clinic.schema";
 import {
   BLOCK_LABEL_MAX,
+  clinicText,
+  type ClinicLocation,
   OVERRIDE_NOTE_MAX,
   type BlockedPeriod,
   type BlockKind,
@@ -26,9 +28,10 @@ import {
 import { clinicDataCopy } from "@/domain/copy/clinic";
 import { addDays, toLocalIsoDate, type AdminFormatter } from "@/lib/format";
 import { useErrorReveal } from "@/lib/forms/reveal";
-import { useCopy } from "@/lib/i18n/admin-context";
+import { useAdminLocale, useCopy } from "@/lib/i18n/admin-context";
 import { useFormat, useLocalized } from "@/lib/i18n/admin-hooks";
 
+import { clinicOptions } from "../clinics/options";
 import { runAction } from "../shared/action-client";
 import { useIdempotencyKey } from "../shared/idempotency";
 import { specialistsCopy } from "./copy";
@@ -129,15 +132,24 @@ const overrideDay = (fmt: AdminFormatter, date: string) => fmt.dateLong(`${date}
  */
 export function OverridesCard({
   specialistId,
+  clinics,
+  defaultClinicId,
   overrides,
   today,
 }: {
   specialistId: string;
+  clinics: ReadonlyArray<ClinicLocation>;
+  defaultClinicId: string;
   overrides: ReadonlyArray<HoursOverride>;
   today: string;
 }) {
   const copy = useCopy(specialistsCopy);
   const t = copy.overrides;
+  const locationCopy = copy.location;
+  const locale = useAdminLocale();
+  const activeClinics = clinics.filter((clinic) => clinic.isActive);
+  const defaultClinic =
+    activeClinics.find((clinic) => clinic.id === defaultClinicId) ?? activeClinics[0];
   const m = useCopy(clinicDataCopy);
   const fmt = useFormat();
   const schemas = useLocalized(clinicSchemas);
@@ -150,6 +162,10 @@ export function OverridesCard({
   }
   const [date, setDate] = useState(today);
   const [dayOff, setDayOff] = useState(true);
+  const [pickedClinicId, setPickedClinicId] = useState("");
+  const locationId = activeClinics.some((clinic) => clinic.id === pickedClinicId)
+    ? pickedClinicId
+    : (defaultClinic?.id ?? "");
   const [start, setStart] = useState("10:00");
   const [end, setEnd] = useState("16:00");
   const [note, setNote] = useState("");
@@ -165,16 +181,23 @@ export function OverridesCard({
   );
   const labels: Record<string, string> = {
     date: t.date,
+    locationId: locationCopy.title,
     start: t.start,
     end: t.end,
     note: t.noteLabel,
   };
-  const summary = errorItems(errors, (name) => labels[name], ["date", "start", "end", "note"]);
+  const summary = errorItems(errors, (name) => labels[name], [
+    "date",
+    "locationId",
+    "start",
+    "end",
+    "note",
+  ]);
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (inFlight.current) return;
-    const local = schemas.override.safeParse({ date, dayOff, start, end, note });
+    const local = schemas.override.safeParse({ date, dayOff, locationId, start, end, note });
     if (!local.success) {
       setErrors(issuesToErrors(local.error));
       setFormError(null);
@@ -213,34 +236,40 @@ export function OverridesCard({
       </div>
       {rows.length > 0 ? (
         <ul aria-label={t.listLabel} className="m-0 flex list-none flex-col gap-1.5 p-0">
-          {rows.map((row) => (
-            <li
-              key={row.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-surface px-3.5 py-2.5"
-            >
-              <span className="flex min-w-0 flex-col">
-                <span className="font-semibold text-ink tabular-nums">
-                  {overrideDay(fmt, row.date)} · {row.dayOff ? m.dayOff : `${row.start}–${row.end}`}
-                </span>
-                {(row.note || row.createdBy) && (
-                  <span className="text-caption font-normal break-words text-ink-muted">
-                    {[row.note, row.createdBy].filter(Boolean).join(" · ")}
-                  </span>
-                )}
-              </span>
-              <IconButton
-                size="sm"
-                aria-label={t.removeOf(overrideDay(fmt, row.date))}
-                onClick={() => {
-                  remove.setError(null);
-                  remove.setTarget(row);
-                }}
-                className="hover:text-danger"
+          {rows.map((row) => {
+            const clinic = clinics.find((item) => item.id === row.locationId);
+            return (
+              <li
+                key={row.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-surface px-3.5 py-2.5"
               >
-                <Icon name="trash" size={18} />
-              </IconButton>
-            </li>
-          ))}
+                <span className="flex min-w-0 flex-col">
+                  <span className="font-semibold text-ink tabular-nums">
+                    {overrideDay(fmt, row.date)} ·{" "}
+                    {row.dayOff ? m.dayOff : `${row.start}–${row.end}`}
+                  </span>
+                  {(clinic || row.note || row.createdBy) && (
+                    <span className="text-caption font-normal break-words text-ink-muted">
+                      {[clinic && clinicText(clinic.name, locale), row.note, row.createdBy]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  )}
+                </span>
+                <IconButton
+                  size="sm"
+                  aria-label={t.removeOf(overrideDay(fmt, row.date))}
+                  onClick={() => {
+                    remove.setError(null);
+                    remove.setTarget(row);
+                  }}
+                  className="hover:text-danger"
+                >
+                  <Icon name="trash" size={18} />
+                </IconButton>
+              </li>
+            );
+          })}
         </ul>
       ) : (
         <p className="m-0 rounded-md bg-surface px-3.5 py-3 text-body-sm text-ink-muted">
@@ -273,6 +302,22 @@ export function OverridesCard({
           </div>
           {!dayOff && (
             <>
+              <Field
+                label={locationCopy.title}
+                name="locationId"
+                error={errors.locationId}
+                className="sm:col-span-2"
+              >
+                {(control) => (
+                  <Select
+                    {...control}
+                    value={locationId}
+                    onValueChange={setPickedClinicId}
+                    options={clinicOptions(activeClinics, locale)}
+                    placeholder={locationCopy.placeholder}
+                  />
+                )}
+              </Field>
               <Field label={t.start} name="start" error={errors.start}>
                 {(c) => <TimePicker {...c} value={start} onValueChange={setStart} step={5} />}
               </Field>

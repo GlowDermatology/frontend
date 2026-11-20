@@ -24,7 +24,7 @@ import { referenceNow } from "../config";
 import type { ActionResult } from "../types";
 import {
   MOCK_BLOCKS,
-  MOCK_LOCATION,
+  MOCK_CLINICS,
   MOCK_OVERRIDES,
   MOCK_SERVICES,
   MOCK_SPECIALISTS,
@@ -70,6 +70,8 @@ function profile(before: ClinicSpecialist, values: SpecialistFormValues): Clinic
     bio: { ...values.bio },
     experienceYears: values.experienceYears,
     slotStepMin: values.slotStepMin,
+    locationId: values.locationId,
+    locationIds: [...values.locationIds],
     staffUser: values.staffUserId
       ? { id: values.staffUserId, name: before.staffUser?.name ?? `Xodim #${values.staffUserId}` }
       : null,
@@ -92,7 +94,8 @@ export async function createSpecialist(
     bio: { uz: "", ru: "", en: "" },
     experienceYears: null,
     photoUrl: null,
-    locationId: MOCK_LOCATION.id,
+    locationId: values.locationId,
+    locationIds: [...values.locationIds],
     staffUser: null,
     slotStepMin: 30,
     position: MOCK_SPECIALISTS.length,
@@ -207,6 +210,7 @@ export async function createOverride(
     data: {
       id: `draft-${crypto.randomUUID()}`,
       date: values.date,
+      locationId: values.dayOff ? null : values.locationId,
       start: values.dayOff ? null : values.start,
       end: values.dayOff ? null : values.end,
       dayOff: values.dayOff,
@@ -292,16 +296,28 @@ export async function saveService(
   return { ok: true, data: serviceFrom(before, values) };
 }
 
-export async function saveLocation(
+export async function saveClinic(
+  id: string | null,
   values: LocationFormValues,
 ): Promise<ActionResult<ClinicLocation>> {
   await delay(400);
+  if (id && !id.startsWith("draft-") && !MOCK_CLINICS.some((clinic) => clinic.id === id)) {
+    return { ok: false, error: (await messages()).notFound, code: "not_found" };
+  }
+  if (
+    !values.isActive &&
+    MOCK_SPECIALISTS.some((doctor) => doctor.isActive && doctor.locationIds.includes(id ?? ""))
+  ) {
+    return fields({ isActive: (await messages()).clinicInUse });
+  }
   return {
     ok: true,
     data: {
-      ...MOCK_LOCATION,
+      id: id ?? `draft-${crypto.randomUUID()}`,
       name: { ...values.name },
       address: { ...values.address },
+      directions: { ...values.directions },
+      isActive: values.isActive,
       phone: values.phone || null,
       latitude: values.latitude,
       longitude: values.longitude,

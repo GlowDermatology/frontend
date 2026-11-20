@@ -27,9 +27,15 @@ function tashkentDay(days: number): string {
   return shifted.toISOString().slice(0, 10);
 }
 
-async function slots(page: Page, specialistId: string, serviceId: string, date: string) {
+async function slots(
+  page: Page,
+  specialistId: string,
+  serviceId: string,
+  locationId: string,
+  date: string,
+) {
   const response = await page.request.get(
-    `${API_URL}/api/v1/specialists/${specialistId}/slots/?date=${date}&service_id=${serviceId}`,
+    `${API_URL}/api/v1/specialists/${specialistId}/slots/?date=${date}&service_id=${serviceId}&location_id=${locationId}`,
   );
   expect(response.ok(), await response.text()).toBe(true);
   return (await response.json()) as {
@@ -40,15 +46,60 @@ async function slots(page: Page, specialistId: string, serviceId: string, date: 
   };
 }
 
-test("a specialist with a service and hours made in the admin is bookable", async ({ page }) => {
+test("a specialist works at two clinics and only the scheduled clinic offers bookings", async ({
+  page,
+}) => {
   test.skip(!BACKEND_DIR, "E2E_BACKEND_DIR is not set: the created rows could not be removed");
   test.skip(!API_URL, "E2E_API_URL is not set: the customer API's free slots cannot be read");
   const watcher = watchPage(page);
   const stamp = Date.now();
   const serviceName = `${PREFIX} xizmat ${stamp}`;
   const specialistName = `${PREFIX} mutaxassis ${stamp}`;
+  const firstClinic = `${PREFIX} Chilonzor ${stamp}`;
+  const secondClinic = `${PREFIX} Yunusobod ${stamp}`;
+  const firstAddress = "Toshkent, Chilonzor, Bunyodkor ko‘chasi, 11";
+  const secondAddress = "Toshkent, Yunusobod, Amir Temur ko‘chasi, 22";
+  const tomorrow = tashkentDay(1);
+  const weekdays = [
+    "Yakshanba",
+    "Dushanba",
+    "Seshanba",
+    "Chorshanba",
+    "Payshanba",
+    "Juma",
+    "Shanba",
+  ];
+  const tomorrowWeekday = weekdays[new Date(`${tomorrow}T12:00:00+05:00`).getUTCDay()]!;
 
-  // 1. A service.
+  await page.goto("/admin/clinics");
+  await expect(heading(page)).toHaveText("Klinikalar");
+  for (const [name, address] of [
+    [firstClinic, firstAddress],
+    [secondClinic, secondAddress],
+  ] as const) {
+    await page.getByRole("button", { name: "Yangi klinika" }).click();
+    const clinic = page.getByRole("dialog", { name: "Yangi klinika" });
+    await clinic.getByLabel("Nomi (o‘zbekcha)", { exact: true }).fill(name);
+    await clinic.getByLabel("Manzil (o‘zbekcha)", { exact: true }).fill(address);
+    await clinic.getByRole("button", { name: "Saqlash" }).click();
+    await expect(clinic).toBeHidden();
+    await expect(page.getByText(address, { exact: true })).toBeVisible();
+  }
+
+  await page
+    .getByRole("listitem")
+    .filter({ hasText: secondClinic })
+    .getByRole("button", { name: "Klinikani tahrirlash" })
+    .click();
+  const editClinic = page.getByRole("dialog", { name: "Klinikani tahrirlash" });
+  await editClinic
+    .getByLabel("Mo‘ljal va kirish yo‘li (o‘zbekcha)", { exact: true })
+    .fill("Kirish hovlidan");
+  await editClinic.getByRole("button", { name: "Saqlash" }).click();
+  await expect(editClinic).toBeHidden();
+  await expect(page.getByText("Kirish hovlidan", { exact: true })).toBeVisible();
+
+  // Create the service shared by both branches.
   await page.goto("/admin/services");
   await expect(heading(page)).toHaveText("Xizmatlar");
   await page.getByRole("button", { name: "Yangi xizmat" }).click();
@@ -76,6 +127,9 @@ test("a specialist with a service and hours made in the admin is bookable", asyn
   await selectOption(create, "Mutaxassislik", "Kosmetolog");
   expect(await selectValue(create, "Mutaxassislik")).toBe("cosmetologist");
   await create.getByLabel("Tajriba (yil)").fill("6");
+  await create.getByRole("checkbox", { name: new RegExp(firstClinic) }).check();
+  await create.getByRole("checkbox", { name: new RegExp(secondClinic) }).check();
+  await selectOption(create, "Asosiy klinika", firstClinic);
   await create.getByRole("button", { name: "Qo‘shish" }).click();
   // No qualifications or bio yet: "save anyway?".
   await saveAnyway(page, toast(page, "Mutaxassis qo‘shildi"));
@@ -107,6 +161,11 @@ test("a specialist with a service and hours made in the admin is bookable", asyn
   ]) {
     const toggle = hours.getByRole("switch", { name: `${day} — ish kuni`, exact: true });
     if ((await toggle.getAttribute("aria-checked")) !== "true") await toggle.click();
+    await selectOption(
+      hours,
+      `${day}: Klinika`,
+      day === tomorrowWeekday ? secondClinic : firstClinic,
+    );
     await fillTime(hours, `${day}: tanaffus boshi`, "13:00");
     await fillTime(hours, `${day}: tanaffus oxiri`, "14:00");
   }
@@ -119,9 +178,11 @@ test("a specialist with a service and hours made in the admin is bookable", asyn
   await expect(toast(page, "Ish vaqti saqlandi")).toBeVisible();
 
   // Still inactive: the customer API does not know it yet.
-  const tomorrow = tashkentDay(1);
+  const locationId = await selectValue(hours, `${tomorrowWeekday}: Klinika`);
+  const otherWeekday = weekdays.find((day) => day !== tomorrowWeekday)!;
+  const otherLocationId = await selectValue(hours, `${otherWeekday}: Klinika`);
   const hidden = await page.request.get(
-    `${API_URL}/api/v1/specialists/${specialistId}/slots/?date=${tomorrow}&service_id=${serviceId}`,
+    `${API_URL}/api/v1/specialists/${specialistId}/slots/?date=${tomorrow}&service_id=${serviceId}&location_id=${locationId}`,
   );
   expect(hidden.status()).toBe(404);
 
@@ -133,12 +194,13 @@ test("a specialist with a service and hours made in the admin is bookable", asyn
   await saveAnyway(page, toast(page, "Profil saqlandi"));
   await expect(toast(page, "Profil saqlandi")).toBeVisible();
 
-  const open = await slots(page, specialistId, serviceId, tomorrow);
+  const open = await slots(page, specialistId, serviceId, locationId, tomorrow);
   expect(open).toMatchObject({
     price: 55_000,
     duration_min: 45,
     working_hours: { start: "09:00", end: "18:00" },
   });
+  expect((await slots(page, specialistId, serviceId, otherLocationId, tomorrow)).slots).toEqual([]);
   const starts = open.slots.map((s) => s.start);
   expect(starts).toContain("09:00");
   expect(starts).toContain("10:00");
@@ -155,7 +217,7 @@ test("a specialist with a service and hours made in the admin is bookable", asyn
   await blocks.getByRole("button", { name: "Band vaqtni qo‘shish" }).click();
   await expect(toast(page, "Band vaqt qo‘shildi")).toBeVisible();
   expect(
-    (await slots(page, specialistId, serviceId, tomorrow)).slots.map((s) => s.start),
+    (await slots(page, specialistId, serviceId, locationId, tomorrow)).slots.map((s) => s.start),
   ).not.toContain("10:00");
   await blocks
     .getByRole("button", { name: /— o‘chirish$/ })
@@ -165,7 +227,7 @@ test("a specialist with a service and hours made in the admin is bookable", asyn
   await removeBlock.getByRole("button", { name: "O‘chirish" }).click();
   await expect(removeBlock).toBeHidden();
   expect(
-    (await slots(page, specialistId, serviceId, tomorrow)).slots.map((s) => s.start),
+    (await slots(page, specialistId, serviceId, locationId, tomorrow)).slots.map((s) => s.start),
   ).toContain("10:00");
 
   // 7. A day off the day after tomorrow: no hours, no slots.
@@ -175,7 +237,7 @@ test("a specialist with a service and hours made in the admin is bookable", asyn
   await overrides.getByLabel("Izoh (ixtiyoriy)").fill("E2E dam olish");
   await overrides.getByRole("button", { name: "Kunni qo‘shish" }).click();
   await expect(toast(page, "Alohida kun qo‘shildi")).toBeVisible();
-  expect(await slots(page, specialistId, serviceId, later)).toMatchObject({
+  expect(await slots(page, specialistId, serviceId, otherLocationId, later)).toMatchObject({
     working_hours: null,
     slots: [],
   });
@@ -188,6 +250,12 @@ test("a specialist with a service and hours made in the admin is bookable", asyn
   // 8. The list finds it by a folded search and exports it.
   await page.goto(`/admin/specialists?q=${encodeURIComponent(specialistName.toUpperCase())}`);
   await expect(page.getByRole("link", { name: specialistName })).toBeVisible();
+  await expect(page.getByRole("row").filter({ hasText: specialistName })).toContainText(
+    firstClinic,
+  );
+  await expect(page.getByRole("row").filter({ hasText: specialistName })).toContainText(
+    secondClinic,
+  );
   await expect(page.locator("table tbody tr")).toHaveCount(1);
   watcher.assertClean();
 });

@@ -212,20 +212,54 @@ async function SpecialistBody({
             <Icon name="calendar" size={20} />
             {t.book}
           </Link>
-          {specialist.location.name || specialist.location.address ? (
-            <div className="flex flex-col gap-1.5 border-t border-line pt-5 text-body">
-              <h2 className="m-0 text-overline text-ink-muted uppercase">{t.location}</h2>
-              <p className="m-0 font-semibold text-ink">{specialist.location.name}</p>
-              <address className="text-ink-muted not-italic">{specialist.location.address}</address>
-              {specialist.location.phone ? (
-                <a
-                  href={`tel:${specialist.location.phone}`}
-                  className="font-semibold text-ink no-underline decoration-gold underline-offset-4 hover:underline"
-                >
-                  {formatPhone(specialist.location.phone)}
-                </a>
-              ) : null}
-            </div>
+          {specialist.locations.length > 0 ? (
+            <section
+              aria-labelledby="specialist-clinics"
+              className="flex w-full flex-col gap-3 border-t border-line pt-5"
+            >
+              <h2 id="specialist-clinics" className="m-0 text-overline text-ink-muted uppercase">
+                {t.location}
+              </h2>
+              <ul className="m-0 grid list-none gap-3 p-0">
+                {specialist.locations.map((clinic) => (
+                  <li
+                    key={clinic.id}
+                    className="flex flex-col items-start gap-1 rounded-md border border-line p-4 text-body"
+                  >
+                    <p className="m-0 font-semibold text-ink">{clinic.name}</p>
+                    <address className="text-ink-muted not-italic">{clinic.address}</address>
+                    {clinic.directions ? (
+                      <p className="m-0 text-body-sm text-ink-muted">{clinic.directions}</p>
+                    ) : null}
+                    {clinic.phone ? (
+                      <a
+                        href={`tel:${clinic.phone}`}
+                        className="font-semibold text-ink underline decoration-gold underline-offset-4"
+                      >
+                        {formatPhone(clinic.phone)}
+                      </a>
+                    ) : null}
+                    {specialist.locations.length > 1 && specialist.services.length > 0 ? (
+                      <Link
+                        href={shopHref(
+                          locale,
+                          { kind: "booking" },
+                          { specialist: specialist.id, location: clinic.id },
+                        )}
+                        prefetch={false}
+                        className={buttonStyles({
+                          variant: "outline",
+                          size: "sm",
+                          className: "mt-2",
+                        })}
+                      >
+                        {t.bookAtClinic(clinic.name)}
+                      </Link>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </section>
           ) : null}
         </div>
         <div className="flex flex-col gap-10">

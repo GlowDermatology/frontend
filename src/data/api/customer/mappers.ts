@@ -3,6 +3,7 @@ import type {
   ShopBanner,
   ShopBannerLink,
   ShopCategory,
+  ShopLocation,
   ShopPage,
   ShopProduct,
   ShopProductCard,
@@ -13,6 +14,7 @@ import type {
 
 import { isAllowedMediaUrl } from "../media";
 import type {
+  ApiClinic,
   ApiCustomerBanner,
   ApiCustomerCategory,
   ApiCustomerProductCard,
@@ -225,6 +227,18 @@ export function mapBanner(api: ApiCustomerBanner, mediaHosts: ReadonlyArray<stri
   };
 }
 
+export function mapShopLocation(api: ApiClinic): ShopLocation {
+  return {
+    id: api.id,
+    name: text(api.name),
+    address: text(api.address),
+    directions: text(api.directions),
+    phone: optionalText(api.phone),
+    latitude: typeof api.latitude === "number" ? api.latitude : null,
+    longitude: typeof api.longitude === "number" ? api.longitude : null,
+  };
+}
+
 export function mapSpecialist(
   api: ApiSpecialist,
   mediaHosts: ReadonlyArray<string>,
@@ -248,13 +262,7 @@ export function mapSpecialist(
       typeof api.experience_years === "number" && api.experience_years >= 0
         ? api.experience_years
         : null,
-    location: {
-      name: text(api.location?.name),
-      address: text(api.location?.address),
-      phone: optionalText(api.location?.phone),
-      latitude: typeof api.location?.latitude === "number" ? api.location.latitude : null,
-      longitude: typeof api.location?.longitude === "number" ? api.location.longitude : null,
-    },
+    locations: api.locations.map(mapShopLocation),
     services: (api.services ?? []).map((service) => ({
       id: service.id,
       name: text(service.name),

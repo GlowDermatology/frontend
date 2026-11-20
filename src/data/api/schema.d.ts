@@ -3,8 +3,8 @@
  * GENERATED FILE — do not edit by hand. Regenerate with `npm run gen:api`.
  *
  * Source: openapi/schema.yaml of the backend repository
- * Commit: 2aac429bead9cc54f29034530bbb0e580ee23bb1
- * Generated: 2026-11-19T03:22:25.162Z (openapi-typescript)
+ * Commit: 8fbd91e8d0821775685bc00b337043918f5a87c6
+ * Generated: 2026-11-20T07:59:43.813Z (openapi-typescript)
  */
 
 export interface paths {
@@ -728,6 +728,39 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/clinics/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["admin_clinics_list"];
+        put?: never;
+        post: operations["admin_clinics_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/clinics/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["admin_clinics_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description Deactivate after reassigning active specialists and resolving upcoming visits. */
+        patch: operations["admin_clinics_partial_update"];
+        trace?: never;
+    };
     "/api/v1/admin/customers/": {
         parameters: {
             query?: never;
@@ -912,24 +945,6 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/location/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** @description The clinic (one location, decision P4); 404 until the first PATCH entered it. */
-        get: operations["admin_location_retrieve"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** @description Texts merge leaf by leaf; the first PATCH creates the clinic and needs `name.uz`. */
-        patch: operations["admin_location_partial_update"];
         trace?: never;
     };
     "/api/v1/admin/nav-counts/": {
@@ -1756,7 +1771,7 @@ export interface paths {
          */
         get: operations["admin_specialists_list"];
         put?: never;
-        /** @description Create a specialist (inactive unless `is_active: true`; the location defaults to the clinic). Add the offered services and the working hours, then activate. */
+        /** @description Create a specialist with an explicit primary clinic and assigned clinics. Add the offered services and the working hours, then activate. */
         post: operations["admin_specialists_create"];
         delete?: never;
         options?: never;
@@ -3344,12 +3359,18 @@ export interface components {
         AppointmentCancelRequest: {
             reason?: string;
         };
+        AppointmentClinic: {
+            address: string;
+            id: number;
+            name: string;
+        };
         /**
          * @description ``POST appointments/`` (T10): ``specialist_id``, ``service_id``, ``customer_id`` | ``phone`` (E.164 of
          *     an active customer), ``start`` (aware, 5-minute grid, inside working hours), ``note`` (≤ 300).
          */
         AppointmentCreateRequest: {
             customer_id?: number;
+            location_id: number;
             note?: string;
             /** @description An Uzbek mobile number; separators and a missing +998 are accepted and the value is normalised to E.164 (+998XXXXXXXXX). */
             phone?: string;
@@ -3365,6 +3386,7 @@ export interface components {
             /** Format: date-time */
             end: string;
             id: number;
+            location: components["schemas"]["AppointmentClinic"];
             price: number;
             /** Format: date-time */
             requested_at: string;
@@ -3376,11 +3398,6 @@ export interface components {
             /** Format: date-time */
             start: string;
             status: components["schemas"]["AppointmentStatusEnum"];
-        };
-        AppointmentLocation: {
-            readonly address: string;
-            readonly name: string;
-            readonly phone: string | null;
         };
         /**
          * @description ``GET appointments/range/``: ``schedules`` and ``appointments`` are present (non-null) only with
@@ -3398,6 +3415,7 @@ export interface components {
         };
         /** @description ``POST appointments/{id}/reschedule/``: ``start`` (same slot rules), optional ``specialist_id``. */
         AppointmentRescheduleRequest: {
+            location_id: number;
             specialist_id?: number;
             /** Format: date-time */
             start: string;
@@ -3742,6 +3760,7 @@ export interface components {
          */
         BlockKindEnum: "busy" | "off";
         BookingRequest: {
+            location_id: number;
             note?: string | null;
             service_id: number;
             specialist_id: number;
@@ -3758,6 +3777,7 @@ export interface components {
         };
         BookingSpecialist: {
             id: number;
+            readonly locations: components["schemas"]["AppointmentClinic"][];
             name: string;
             role: components["schemas"]["SpecialistRoleEnum"];
             services: components["schemas"]["BookingService"][];
@@ -3987,10 +4007,12 @@ export interface components {
             code: string;
             name: string;
         };
-        /** @description The clinic (decision P4: one location), shown to customers with every specialist. */
+        /** @description An admin-managed clinic branch. */
         ClinicLocation: {
             readonly address: components["schemas"]["I18nText300"];
+            readonly directions: components["schemas"]["I18nText500"];
             id: number;
+            is_active: boolean;
             /** Format: double */
             readonly latitude: number | null;
             /** Format: double */
@@ -3999,6 +4021,22 @@ export interface components {
             readonly phone: string | null;
             /** Format: date-time */
             updated_at: string;
+        };
+        /** @description Texts merge leaf by leaf. Coordinates must be set or cleared together. */
+        ClinicLocationCreateRequest: {
+            address: components["schemas"]["LocationCreateAddressRequest"];
+            directions?: components["schemas"]["LocationDirectionsRequest"];
+            is_active?: boolean;
+            /** Format: double */
+            latitude?: number | null;
+            /** Format: double */
+            longitude?: number | null;
+            name: components["schemas"]["LocationCreateNameRequest"];
+            /** @description An Uzbek mobile number; separators and a missing +998 are accepted and the value is normalised to E.164 (+998XXXXXXXXX). */
+            phone?: string | null;
+        };
+        ClinicLocations: {
+            results: components["schemas"]["ClinicLocation"][];
         };
         /**
          * @description The admin ``ClinicService``; instances come from ``selectors.service_queryset()``
@@ -4048,6 +4086,7 @@ export interface components {
             id: number;
             is_active: boolean;
             location_id: number;
+            readonly location_ids: number[];
             name: string;
             /**
              * Format: uri
@@ -4078,15 +4117,16 @@ export interface components {
          * @description Body of ``POST specialists/`` and (``partial``, see the subclass) ``PATCH specialists/{id}/``.
          *
          *     ``context["professional_id"]`` is the edited specialist (a staff account already linked to it is not a
-         *     conflict with itself). The validated data carries ``location`` and ``staff_user`` instances.
+         *     conflict with itself). The validated data carries a staff user instance when supplied.
          */
         ClinicSpecialistWriteRequest: {
             bio?: components["schemas"]["SpecialistTextRequest"];
             experience_years?: number | null;
             /** @default false */
             is_active: boolean;
-            /** @description Default: the clinic (GET location/). */
-            location_id?: number;
+            /** @description The primary clinic, which must be included in location_ids. */
+            location_id: number;
+            location_ids: number[];
             name: string;
             position?: number;
             qualifications?: components["schemas"]["SpecialistTextRequest"];
@@ -4166,7 +4206,7 @@ export interface components {
             /** Format: date-time */
             end: string;
             id: number;
-            location: components["schemas"]["AppointmentLocation"];
+            location: components["schemas"]["Location"];
             readonly note: string | null;
             price: number;
             /** Format: date-time */
@@ -4983,6 +5023,7 @@ export interface components {
             /** Format: date */
             date: string;
             duration_min: number;
+            location_id: number;
             price: number;
             service_id: number;
             slot_step_min: number;
@@ -5030,6 +5071,7 @@ export interface components {
             /** Format: time */
             end: string | null;
             id: number;
+            location_id: number | null;
             note: string;
             /** Format: time */
             start: string | null;
@@ -5049,6 +5091,8 @@ export interface components {
              * @description "HH:MM", Tashkent, minutes a multiple of 5.
              */
             end?: string | null;
+            /** @description Required when working; null on a day off. */
+            location_id?: number | null;
             note?: string;
             /**
              * Format: time
@@ -5082,6 +5126,12 @@ export interface components {
         };
         /** @description Contract 1.4: i18n text is {"uz", "ru", "en"}; "" means not filled, never null. */
         I18nText300: {
+            en: string;
+            ru: string;
+            uz: string;
+        };
+        /** @description Contract 1.4: i18n text is {"uz", "ru", "en"}; "" means not filled, never null. */
+        I18nText500: {
             en: string;
             ru: string;
             uz: string;
@@ -5290,6 +5340,7 @@ export interface components {
         };
         Location: {
             readonly address: string;
+            readonly directions: string;
             id: number;
             /** Format: double */
             readonly latitude: number | null;
@@ -5298,13 +5349,30 @@ export interface components {
             readonly name: string;
             readonly phone: string | null;
         };
-        /** @description ``address``: ``{uz, ru, en}``, each ≤ 300, optional. */
+        /** @description Translated street address. */
         LocationAddressRequest: {
             en?: string;
             ru?: string;
             uz?: string;
         };
-        /** @description ``name``: ``uz`` trimmed 2..120 (required by the first PATCH); ``ru`` / ``en`` ≤ 120. */
+        /** @description Translated street address. */
+        LocationCreateAddressRequest: {
+            en?: string;
+            ru?: string;
+            uz: string;
+        };
+        /** @description Translated clinic display name. */
+        LocationCreateNameRequest: {
+            en?: string;
+            ru?: string;
+            uz: string;
+        };
+        LocationDirectionsRequest: {
+            en?: string;
+            ru?: string;
+            uz?: string;
+        };
+        /** @description Translated clinic display name. */
         LocationNameRequest: {
             en?: string;
             ru?: string;
@@ -6133,12 +6201,11 @@ export interface components {
             seo?: components["schemas"]["SeoTextsRequest"];
             slug?: string;
         };
-        /**
-         * @description Body of ``PATCH location/`` (validated with ``partial=True``; texts merge leaf by leaf). The first
-         *     PATCH creates the clinic and then needs ``name.uz``; ``latitude`` and ``longitude`` are a pair.
-         */
+        /** @description Texts merge leaf by leaf. Coordinates must be set or cleared together. */
         PatchedClinicLocationPatchRequest: {
             address?: components["schemas"]["LocationAddressRequest"];
+            directions?: components["schemas"]["LocationDirectionsRequest"];
+            is_active?: boolean;
             /** Format: double */
             latitude?: number | null;
             /** Format: double */
@@ -6175,8 +6242,9 @@ export interface components {
             force: boolean;
             /** @default false */
             is_active: boolean;
-            /** @description Default: the clinic (GET location/). */
+            /** @description The primary clinic, which must be included in location_ids. */
             location_id?: number;
+            location_ids?: number[];
             name?: string;
             position?: number;
             qualifications?: components["schemas"]["SpecialistTextRequest"];
@@ -6698,6 +6766,7 @@ export interface components {
             blocks: components["schemas"]["DayBlock"][];
             /** Format: date */
             date: string;
+            location: components["schemas"]["AppointmentClinic"] | null;
             specialist_id: number;
             readonly working_hours: components["schemas"]["WorkingHours"] | null;
         };
@@ -7128,7 +7197,7 @@ export interface components {
             readonly content_language: components["schemas"]["ContentLanguageEnum"];
             experience_years: number | null;
             id: number;
-            location: components["schemas"]["Location"];
+            readonly locations: components["schemas"]["Location"][];
             name: string;
             /**
              * Format: uri
@@ -7158,6 +7227,7 @@ export interface components {
             blocks: components["schemas"]["DayBlock"][];
             id: number;
             is_active: boolean;
+            location: components["schemas"]["AppointmentClinic"] | null;
             name: string;
             role: components["schemas"]["SpecialistRoleEnum"];
             readonly working_hours: components["schemas"]["WorkingHours"] | null;
@@ -7486,7 +7556,6 @@ export interface components {
             phone?: string | null;
             purpose: components["schemas"]["OtpPurposeEnum"];
         };
-        /** @description One working weekday (0 = Monday … 6 = Sunday) with its optional recurring break. */
         WorkingDay: {
             /** Format: time */
             break_end: string | null;
@@ -7494,6 +7563,7 @@ export interface components {
             break_start: string | null;
             /** Format: time */
             end: string;
+            location_id: number;
             /** Format: time */
             start: string;
             weekday: number;
@@ -7514,6 +7584,7 @@ export interface components {
              * @description "HH:MM", Tashkent, minutes a multiple of 5.
              */
             end: string;
+            location_id: number;
             /**
              * Format: time
              * @description "HH:MM", Tashkent, minutes a multiple of 5.
@@ -10903,6 +10974,318 @@ export interface operations {
             };
         };
     };
+    admin_clinics_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinicLocations"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_clinics_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClinicLocationCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinicLocation"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_clinics_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinicLocation"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_clinics_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedClinicLocationPatchRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinicLocation"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     admin_customers_list: {
         parameters: {
             query?: {
@@ -11841,160 +12224,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Job"];
-                };
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    admin_location_retrieve: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ClinicLocation"];
-                };
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    admin_location_partial_update: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["PatchedClinicLocationPatchRequest"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ClinicLocation"];
                 };
             };
             400: {
@@ -24672,6 +24901,7 @@ export interface operations {
             query: {
                 /** @description YYYY-MM-DD */
                 date: string;
+                location_id: number;
                 service_id: number;
             };
             header?: {

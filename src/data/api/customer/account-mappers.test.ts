@@ -6,6 +6,7 @@ import { ApiError } from "@/data/api/errors";
 import {
   inboxTarget,
   mapAddress,
+  mapAppointment,
   mapCart,
   mapCashback,
   mapMe,
@@ -14,6 +15,7 @@ import {
   mapPayLink,
   mapQrToken,
   mapSession,
+  mapSlots,
   orderSessions,
 } from "./account-mappers";
 import type { ApiAddress, ApiCart, ApiMe, ApiOrderDetail, ApiSession } from "./account-types";
@@ -41,6 +43,67 @@ const me: ApiMe = {
   },
   default_address: null,
 };
+
+describe("clinic booking responses", () => {
+  it("keeps the booked clinic and directions in appointment history", () => {
+    const start = "2026-11-21T10:00:00+05:00";
+    const location = {
+      id: 2,
+      name: "Chilonzor",
+      address: "9-mavze, 12-uy",
+      directions: "Ikkinchi qavat",
+      latitude: 41.28,
+      longitude: 69.2,
+      phone: null,
+    };
+    const appointment = mapAppointment(
+      {
+        id: 1,
+        status: "requested",
+        status_label: "So‘rov yuborildi",
+        specialist: {
+          id: 1,
+          name: "Nodira",
+          role: "dermatologist",
+          role_label: "Dermatolog",
+          photo_url: null,
+          photo_thumbnail_url: null,
+          photo_medium_url: null,
+        },
+        service: { id: 1, name: "Konsultatsiya", short_name: "" },
+        location,
+        start,
+        end: "2026-11-21T10:30:00+05:00",
+        duration_min: 30,
+        price: 150_000,
+        note: null,
+        can_cancel: true,
+        cancelled_by: null,
+        cancelled_at: null,
+        confirmed_at: null,
+        requested_at: "2026-11-20T13:00:00+05:00",
+      },
+      HOSTS,
+    );
+    expect(appointment.location).toEqual(location);
+  });
+
+  it("keeps an empty schedule scoped to the selected clinic", () => {
+    expect(
+      mapSlots({
+        date: "2026-11-21",
+        specialist_id: 1,
+        service_id: 1,
+        location_id: 2,
+        duration_min: 30,
+        price: 150_000,
+        slot_step_min: 30,
+        working_hours: null,
+        slots: [],
+      }),
+    ).toMatchObject({ locationId: 2, workingHours: null, slots: [] });
+  });
+});
 
 describe("mapAddress", () => {
   const address: ApiAddress = {

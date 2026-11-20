@@ -1,9 +1,16 @@
 export type AppointmentStatus = "requested" | "confirmed" | "rejected" | "attended" | "cancelled";
 
+export interface AppointmentClinic {
+  id: string;
+  name: string;
+  address: string;
+}
+
 export interface Specialist {
   id: string;
   name: string;
   role: "Dermatolog" | "Kosmetolog";
+  location?: AppointmentClinic | null;
   /** Working hours for the shown day as "HH:MM" (Tashkent time). */
   workingHours: { start: string; end: string };
   /** Blocks without a booking, e.g. a break. */

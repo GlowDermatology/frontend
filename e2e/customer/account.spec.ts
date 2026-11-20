@@ -13,6 +13,10 @@ test("book an appointment, then cancel it from «Qabullarim»", async ({ page })
   await ready(page);
   await page.getByRole("region", { name: "Mutaxassis" }).getByRole("button").first().click();
   await page.getByRole("region", { name: "Xizmat" }).getByRole("button").first().click();
+  const clinic = page.getByRole("region", { name: "Klinika", exact: true });
+  const clinicAddress = (await clinic.locator("p").textContent())?.trim();
+  expect(clinicAddress).toBeTruthy();
+  await expect(page).toHaveURL(/[?&]location=\d+/);
 
   // The first day (within two weeks) that has a free time.
   const days = page.getByRole("radiogroup", { name: "Sanani tanlang" }).getByRole("radio");
@@ -28,9 +32,13 @@ test("book an appointment, then cancel it from «Qabullarim»", async ({ page })
   await page.getByLabel("Izoh (ixtiyoriy)").fill("E2E: birinchi qabul");
   await page.getByRole("button", { name: "Yozilish", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Siz qabulga yozildingiz" })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: clinicAddress! })).toBeVisible();
 
   await page.getByRole("link", { name: "Qabullarim" }).first().click();
   await expect(page).toHaveURL(/\/qabullarim$/);
+  await expect(
+    page.getByRole("main").getByText(clinicAddress!, { exact: false }).first(),
+  ).toBeVisible();
   const cancel = page.getByRole("button", { name: "Bekor qilish" }).first();
   await expect(cancel).toBeVisible();
   const before = await page.getByRole("button", { name: "Bekor qilish" }).count();

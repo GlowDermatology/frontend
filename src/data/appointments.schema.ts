@@ -36,6 +36,7 @@ export const appointmentSchemas = localized(appointmentDataCopy, (m) => {
     time,
     create: z.object({
       specialistId: id(m.chooseSpecialist),
+      locationId: id(m.chooseClinic),
       serviceId: id(m.chooseService),
       phone: z.string().trim().regex(PHONE_PATTERN, m.phone),
       date,
@@ -44,6 +45,7 @@ export const appointmentSchemas = localized(appointmentDataCopy, (m) => {
     }),
     reschedule: z.object({
       specialistId: id(m.chooseSpecialist),
+      locationId: id(m.chooseClinic),
       date,
       time,
     }),

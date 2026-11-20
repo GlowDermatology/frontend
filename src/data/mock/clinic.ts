@@ -31,10 +31,27 @@ export const MOCK_LOCATION: ClinicLocation = {
   name: { uz: "Glow Derma klinikasi", ru: "", en: "" },
   address: { uz: "Toshkent, Chilonzor tumani, Bunyodkor shoh ko‘chasi, 12", ru: "", en: "" },
   phone: "+998712000000",
+  directions: { ...empty },
+  isActive: true,
   latitude: null,
   longitude: null,
   updatedAt: SEEDED,
 };
+
+export const MOCK_CLINICS: ReadonlyArray<ClinicLocation> = [
+  MOCK_LOCATION,
+  {
+    ...MOCK_LOCATION,
+    id: "2",
+    name: { uz: "Glow Derma Yunusobod", ru: "Glow Derma Юнусабад", en: "Glow Derma Yunusabad" },
+    address: {
+      uz: "Toshkent, Yunusobod tumani",
+      ru: "Ташкент, Юнусабадский район",
+      en: "Tashkent, Yunusabad District",
+    },
+    phone: null,
+  },
+];
 
 const service = (
   id: string,
@@ -83,6 +100,7 @@ export function offerOf(serviceId: string, price: number, durationMin?: number):
 const week = (withBreak: boolean): WorkingDay[] =>
   [0, 1, 2, 3, 4, 5].map((weekday) => ({
     weekday,
+    locationId: MOCK_LOCATION.id,
     start: "09:00",
     end: "18:00",
     breakStart: withBreak ? "13:00" : null,
@@ -104,7 +122,8 @@ const specialist = (
   bio: { ...empty },
   experienceYears: null,
   photoUrl: null,
-  locationId: "1",
+  locationId: MOCK_LOCATION.id,
+  locationIds: [MOCK_LOCATION.id],
   staffUser: null,
   slotStepMin: 30,
   position: Number(id) - 1,
@@ -149,6 +168,7 @@ export const MOCK_OVERRIDES: Readonly<Record<string, ReadonlyArray<HoursOverride
     {
       id: "1",
       date: "2026-10-31",
+      locationId: null,
       start: null,
       end: null,
       dayOff: true,

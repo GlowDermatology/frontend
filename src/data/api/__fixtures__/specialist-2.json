@@ -17,6 +17,7 @@
   "photo_thumbnail_url": null,
   "photo_medium_url": null,
   "location_id": 1,
+  "location_ids": [1],
   "staff_user": null,
   "slot_step_min": 30,
   "position": 1,
@@ -46,6 +47,7 @@
   "working_hours": [
     {
       "weekday": 0,
+      "location_id": 1,
       "start": "09:00",
       "end": "18:00",
       "break_start": "13:00",
@@ -53,6 +55,7 @@
     },
     {
       "weekday": 1,
+      "location_id": 1,
       "start": "09:00",
       "end": "18:00",
       "break_start": "13:00",
@@ -60,6 +63,7 @@
     },
     {
       "weekday": 2,
+      "location_id": 1,
       "start": "09:00",
       "end": "18:00",
       "break_start": "13:00",
@@ -67,6 +71,7 @@
     },
     {
       "weekday": 3,
+      "location_id": 1,
       "start": "09:00",
       "end": "18:00",
       "break_start": "13:00",
@@ -74,6 +79,7 @@
     },
     {
       "weekday": 4,
+      "location_id": 1,
       "start": "09:00",
       "end": "18:00",
       "break_start": "13:00",
@@ -81,6 +87,7 @@
     },
     {
       "weekday": 5,
+      "location_id": 1,
       "start": "09:00",
       "end": "18:00",
       "break_start": "13:00",

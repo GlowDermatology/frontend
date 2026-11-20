@@ -1,4 +1,4 @@
-import type { BookingMeta, Specialist } from "@/domain/appointment";
+import type { AppointmentClinic, BookingMeta, Specialist } from "@/domain/appointment";
 import { toLocalIsoDate } from "@/lib/format";
 
 import type {
@@ -8,6 +8,7 @@ import type {
   PendingAppointments,
 } from "../../appointments";
 import type {
+  ApiAppointmentClinic,
   ApiAppointmentItem,
   ApiAppointmentRange,
   ApiAppointmentsMeta,
@@ -49,12 +50,17 @@ export function roleLabel(role: string): Specialist["role"] {
   return role === "cosmetologist" ? ROLE_LABEL.cosmetologist : ROLE_LABEL.dermatologist;
 }
 
+function mapAppointmentClinic(api: ApiAppointmentClinic): AppointmentClinic {
+  return { ...api, id: idString(api.id) };
+}
+
 export function mapSpecialistDay(api: ApiSpecialistDay): Specialist {
   if (api.working_hours === null) {
     return {
       id: idString(api.id),
       name: api.name,
       role: roleLabel(api.role),
+      location: null,
       workingHours: { ...DEFAULT_HOURS },
       blocks: [{ ...DEFAULT_HOURS, kind: "off", label: FALLBACK_BLOCK_LABEL.dayOff }],
       working: false,
@@ -65,6 +71,7 @@ export function mapSpecialistDay(api: ApiSpecialistDay): Specialist {
     id: idString(api.id),
     name: api.name,
     role: roleLabel(api.role),
+    location: api.location ? mapAppointmentClinic(api.location) : null,
     workingHours: { start: api.working_hours.start, end: api.working_hours.end },
     blocks: api.blocks.map((block) => ({
       start: block.start,
@@ -81,6 +88,7 @@ export function mapDayAppointment(api: ApiAppointmentItem): DayAppointment {
   return {
     id: idString(api.id),
     specialistId: idString(api.specialist_id),
+    location: mapAppointmentClinic(api.location),
     customer: {
       id: idString(api.customer.id),
       name: api.customer.name || DELETED_CUSTOMER_NAME,
@@ -125,6 +133,7 @@ export function mapAppointmentRange(api: ApiAppointmentRange): AppointmentRange 
             );
             return mapSpecialistDay({
               ...specialist,
+              location: schedule?.location ?? null,
               working_hours: schedule?.working_hours ?? null,
               blocks: schedule?.blocks ?? [],
             });
@@ -194,6 +203,7 @@ export function mapBookingMeta(api: ApiAppointmentsMeta): BookingMeta {
 export const BOOKING_FIELD_REMAP: FieldRemap = {
   start: "time",
   specialist_id: "specialistId",
+  location_id: "locationId",
   service_id: "serviceId",
   customer_id: "phone",
   phone: "phone",

@@ -57,18 +57,14 @@ async function BookingBody({
     settle(getSettings(locale), null, "settings"),
   ]);
   const options: BookingSpecialist[] = specialists
-    .filter((item) => item.services.length > 0)
+    .filter((item) => item.services.length > 0 && item.locations.length > 0)
     .map((item) => ({
       id: item.id,
       name: item.name,
       roleLabel: item.roleLabel,
       photo: item.photoThumb ?? item.photo,
       experienceYears: item.experienceYears,
-      location: {
-        name: item.location.name,
-        address: item.location.address,
-        phone: item.location.phone,
-      },
+      locations: item.locations,
       services: item.services.map((service) => ({
         id: service.id,
         name: service.shortName || service.name,
@@ -79,6 +75,11 @@ async function BookingBody({
   const today = toLocalIsoDate(new Date());
   const date = first(params.date);
   const time = first(params.time);
+  const specialist = options.find((item) => item.id === positive(first(params.specialist)));
+  const requestedLocation = positive(first(params.location));
+  const location =
+    specialist?.locations.find((item) => item.id === requestedLocation) ??
+    (specialist?.locations.length === 1 ? specialist.locations[0] : null);
   return (
     <BookingFlow
       locale={locale}
@@ -87,10 +88,11 @@ async function BookingBody({
       termsVersion={settings?.termsVersion ?? null}
       termsHref={shopPath(locale, { kind: "terms" })}
       initial={{
-        specialist: positive(first(params.specialist)),
+        specialist: specialist?.id ?? null,
         service: positive(first(params.service)),
-        date: date && /^\d{4}-\d{2}-\d{2}$/.test(date) && date >= today ? date : null,
-        time: time && /^\d{2}:\d{2}$/.test(time) ? time : null,
+        location: location?.id ?? null,
+        date: location && date && /^\d{4}-\d{2}-\d{2}$/.test(date) && date >= today ? date : null,
+        time: location && time && /^\d{2}:\d{2}$/.test(time) ? time : null,
       }}
     />
   );
@@ -233,8 +235,13 @@ async function AppointmentsBody({
                       {item.specialist.name} · {item.specialist.roleLabel}
                     </span>
                     <span className="text-body-sm text-ink">{when}</span>
-                    {item.location.address ? (
-                      <span className="text-caption text-ink-muted">{item.location.address}</span>
+                    <span className="text-caption text-ink-muted">
+                      {[item.location.name, item.location.address].filter(Boolean).join(" · ")}
+                    </span>
+                    {item.location.directions ? (
+                      <span className="text-caption text-ink-muted">
+                        {item.location.directions}
+                      </span>
                     ) : null}
                     {item.cancelledBy === "admin" ? (
                       <span className="text-caption text-ink-muted">{t.cancelledByClinic}</span>

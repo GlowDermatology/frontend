@@ -17,7 +17,9 @@ import { createSpecialist } from "@/data/clinic.actions";
 import { clinicSchemas, EMPTY_SPECIALIST } from "@/data/clinic.schema";
 import type { Page } from "@/data/types";
 import {
+  clinicText,
   specialistRecommendedMissing,
+  type ClinicLocation,
   workingDaysShort,
   type ClinicSpecialist,
   type SpecialistListQuery,
@@ -56,8 +58,7 @@ interface SpecialistsViewProps {
   page: Page<ClinicSpecialist>;
   query: SpecialistListQuery;
   staffOptions: ReadonlyArray<StaffOption>;
-  /** No clinic yet: a specialist cannot be created before it (§2.17 `location_id`). */
-  hasClinic: boolean;
+  clinics: ReadonlyArray<ClinicLocation>;
 }
 
 /**
@@ -66,7 +67,7 @@ interface SpecialistsViewProps {
  * mutaxassis» creates one (inactive, decision PS-6) and opens its page to
  * add the services and the hours.
  */
-export function SpecialistsView({ page, query, staffOptions, hasClinic }: SpecialistsViewProps) {
+export function SpecialistsView({ page, query, staffOptions, clinics }: SpecialistsViewProps) {
   const copy = useCopy(specialistsCopy);
   const t = copy.list;
   const m = useCopy(clinicDataCopy);
@@ -84,6 +85,8 @@ export function SpecialistsView({ page, query, staffOptions, hasClinic }: Specia
   const [instance, setInstance] = useState(0);
   const idempotency = useIdempotencyKey();
   const filtered = hasDirectoryFilters(query);
+  const activeClinics = clinics.filter((clinic) => clinic.isActive);
+  const hasClinic = activeClinics.length > 0;
 
   return (
     <>
@@ -103,8 +106,12 @@ export function SpecialistsView({ page, query, staffOptions, hasClinic }: Specia
               <Icon name="sparkle" size={18} />
               {t.services}
             </Link>
+            <Link href="/admin/clinics" className={buttonStyles({ variant: "secondary" })}>
+              <Icon name="map-pin" size={18} />
+              {copy.location.listTitle}
+            </Link>
             <Button
-              disabledReason={!hasClinic && t.noClinicReason}
+              disabledReason={!hasClinic && copy.location.none}
               onClick={() => {
                 setInstance((n) => n + 1);
                 setOpen(true);
@@ -122,7 +129,7 @@ export function SpecialistsView({ page, query, staffOptions, hasClinic }: Specia
           className="m-0 flex items-start gap-2 rounded-md bg-warning-soft px-3.5 py-3 text-body-sm text-ink"
         >
           <Icon name="info" size={18} className="mt-px shrink-0 text-gold-ink" />
-          {t.noClinicHint}
+          {copy.location.none}
         </p>
       )}
 
@@ -139,6 +146,7 @@ export function SpecialistsView({ page, query, staffOptions, hasClinic }: Specia
                 <thead className="uppercase">
                   <tr>
                     <th scope="col">{t.specialist}</th>
+                    <th scope="col">{copy.location.listTitle}</th>
                     <th scope="col">{t.offers}</th>
                     <th scope="col">{t.days}</th>
                     <th scope="col" className="text-right!">
@@ -190,6 +198,12 @@ export function SpecialistsView({ page, query, staffOptions, hasClinic }: Specia
                               </span>
                             </span>
                           </span>
+                        </td>
+                        <td>
+                          {clinics
+                            .filter((clinic) => row.locationIds.includes(clinic.id))
+                            .map((clinic) => clinicText(clinic.name, locale))
+                            .join(", ") || copy.location.placeholder}
                         </td>
                         <td>
                           {offers.length > 0 ? (
@@ -252,6 +266,7 @@ export function SpecialistsView({ page, query, staffOptions, hasClinic }: Specia
         onOpenChange={setOpen}
         idempotency={idempotency}
         staffOptions={staffOptions}
+        clinics={activeClinics}
         onCreated={(specialist) => {
           toast({ tone: "success", title: t.created, description: t.createdText });
           if (specialist.id.startsWith("draft-")) {
@@ -271,19 +286,24 @@ function CreateSpecialistDialog({
   onOpenChange,
   idempotency,
   staffOptions,
+  clinics,
   onCreated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   idempotency: ReturnType<typeof useIdempotencyKey>;
   staffOptions: ReadonlyArray<StaffOption>;
+  clinics: ReadonlyArray<ClinicLocation>;
   onCreated: (specialist: ClinicSpecialist) => void;
 }) {
   const copy = useCopy(specialistsCopy);
   const t = copy.create;
   const schemas = useLocalized(clinicSchemas);
   const toast = useToast();
-  const [values, setValues] = useState(EMPTY_SPECIALIST);
+  const [values, setValues] = useState(() => {
+    const locationId = clinics.length === 1 ? clinics[0]!.id : "";
+    return { ...EMPTY_SPECIALIST, locationId, locationIds: locationId ? [locationId] : [] };
+  });
   const [experience, setExperience] = useState("");
   const [language, setLanguage] = useState<ContentLanguage>("uz");
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -375,6 +395,7 @@ function CreateSpecialistDialog({
           onExperienceChange={setExperience}
           errors={errors}
           staffOptions={staffOptions}
+          clinics={clinics}
           linkedStaff={null}
           activeHint={copy.profile.activeHint}
           savedSlug={null}

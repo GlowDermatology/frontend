@@ -64,6 +64,7 @@ export function mapClinicSpecialist(api: ApiClinicSpecialist): ClinicSpecialist 
     // 40 px table, 80 px profile card: the 400 px variant (spec 2026-11-13-image-variants)
     photoUrl: api.photo_thumbnail_url ?? api.photo_url ?? null,
     locationId: idString(api.location_id),
+    locationIds: api.location_ids.map(idString),
     staffUser: api.staff_user
       ? { id: idString(api.staff_user.id), name: api.staff_user.display_name }
       : null,
@@ -84,6 +85,7 @@ export function mapClinicSpecialist(api: ApiClinicSpecialist): ClinicSpecialist 
     workingHours: api.working_hours
       .map((day) => ({
         weekday: day.weekday,
+        locationId: idString(day.location_id),
         start: hhmm(day.start),
         end: hhmm(day.end),
         breakStart: hhmmOrNull(day.break_start),
@@ -117,6 +119,7 @@ export function mapOverride(api: ApiHoursOverride): HoursOverride {
   return {
     id: idString(api.id),
     date: api.date,
+    locationId: api.location_id === null ? null : idString(api.location_id),
     start: hhmmOrNull(api.start),
     end: hhmmOrNull(api.end),
     dayOff: api.day_off,
@@ -143,6 +146,8 @@ export function mapLocation(api: ApiClinicLocation): ClinicLocation {
     id: idString(api.id),
     name: i18n(api.name),
     address: i18n(api.address),
+    directions: i18n(api.directions),
+    isActive: api.is_active,
     phone: api.phone ?? null,
     latitude: api.latitude ?? null,
     longitude: api.longitude ?? null,
@@ -190,6 +195,8 @@ export function specialistFormValues(specialist: ClinicSpecialist): SpecialistFo
     experienceYears: specialist.experienceYears,
     slotStepMin: step as SpecialistFormValues["slotStepMin"],
     staffUserId: specialist.staffUser?.id ?? "",
+    locationId: specialist.locationId,
+    locationIds: [...specialist.locationIds],
     isActive: specialist.isActive,
     slug: specialist.slug,
   };
@@ -211,6 +218,8 @@ export function locationFormValues(location: ClinicLocation | null): LocationFor
   return {
     name: { ...(location?.name ?? { uz: "", ru: "", en: "" }) },
     address: { ...(location?.address ?? { uz: "", ru: "", en: "" }) },
+    directions: { ...(location?.directions ?? { uz: "", ru: "", en: "" }) },
+    isActive: location?.isActive ?? true,
     phone: location?.phone ?? "",
     latitude: location?.latitude ?? null,
     longitude: location?.longitude ?? null,
@@ -230,6 +239,8 @@ export function specialistCreateBody(values: SpecialistFormValues): ApiSpecialis
     experience_years: values.experienceYears,
     slot_step_min: values.slotStepMin,
     staff_user_id: staffUserId(values.staffUserId),
+    location_id: Number(values.locationId),
+    location_ids: values.locationIds.map(Number),
     is_active: values.isActive,
   };
   // An empty slug lets the server derive it from the name (B-W1).
@@ -269,6 +280,13 @@ export function specialistPatchBody(
   if (values.staffUserId !== baseline.staffUserId) {
     body.staff_user_id = staffUserId(values.staffUserId);
   }
+  if (values.locationId !== baseline.locationId) body.location_id = Number(values.locationId);
+  if (
+    values.locationIds.length !== baseline.locationIds.length ||
+    values.locationIds.some((id) => !baseline.locationIds.includes(id))
+  ) {
+    body.location_ids = values.locationIds.map(Number);
+  }
   // `""` keeps the stored slug (the server refuses an empty one).
   if (values.slug && values.slug !== baseline.slug) body.slug = values.slug;
   if (values.isActive !== baseline.isActive) {
@@ -295,6 +313,7 @@ export function workingWeekBody(values: WorkingWeekValues): ApiWorkingWeekWrite 
       .sort((a, b) => a.weekday - b.weekday)
       .map((day) => ({
         weekday: day.weekday,
+        location_id: Number(day.locationId),
         start: day.start,
         end: day.end,
         break_start: day.breakStart,
@@ -304,9 +323,13 @@ export function workingWeekBody(values: WorkingWeekValues): ApiWorkingWeekWrite 
 }
 
 export function overrideBody(values: OverrideFormValues): ApiOverrideWrite {
-  return values.dayOff
-    ? { date: values.date, start: null, end: null, note: values.note }
-    : { date: values.date, start: values.start, end: values.end, note: values.note };
+  return {
+    date: values.date,
+    start: values.dayOff ? null : values.start,
+    end: values.dayOff ? null : values.end,
+    location_id: values.dayOff ? null : Number(values.locationId),
+    note: values.note,
+  };
 }
 
 export function blockBody(values: BlockFormValues): ApiBlockWrite {
@@ -359,7 +382,7 @@ export function servicePatchBody(
   return body;
 }
 
-/** `PATCH location/`: the changed leaves (everything on the first PATCH, which creates the clinic). */
+/** Changed fields for a clinic update, or all values for a new clinic. */
 export function locationPatchBody(
   baseline: LocationFormValues | null,
   values: LocationFormValues,
@@ -369,6 +392,9 @@ export function locationPatchBody(
   if (name) body.name = name;
   const address = changedLeaves(baseline?.address ?? null, values.address);
   if (address) body.address = address;
+  const directions = changedLeaves(baseline?.directions ?? null, values.directions);
+  if (directions) body.directions = directions;
+  if (!baseline || values.isActive !== baseline.isActive) body.is_active = values.isActive;
   if (!baseline || values.phone !== baseline.phone) body.phone = values.phone || null;
   if (
     !baseline ||

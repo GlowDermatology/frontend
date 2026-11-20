@@ -4,7 +4,7 @@ import type { CopySet } from "@/lib/i18n/copy";
 /**
  * Texts of /admin/specialists and a specialist's page (uz / ru / en): the directory toolbar
  * (shared with /admin/services), the list, the create dialog, the profile and photo, the offered
- * services, the weekly hours, the date overrides and blocked periods, the clinic card, the
+ * services, the weekly hours, the date overrides and blocked periods, the clinics page, the
  * conflicts card and the mock export headers. Role, category, weekday and block names and the
  * form messages live in `src/domain/copy/clinic.ts`. Numbers and amounts arrive formatted.
  */
@@ -39,10 +39,6 @@ const uz = {
     found: (_n: number, shown: string) => `${shown} ta mutaxassis topildi`,
     services: "Xizmatlar",
     create: "Yangi mutaxassis",
-    noClinicReason:
-      "Avval pastdagi «Klinika» kartasida klinika nomini saqlang: mutaxassis klinikaga bog‘lanadi.",
-    noClinicHint:
-      "Avval pastdagi «Klinika» kartasida klinika nomi va manzilini saqlang: mutaxassis klinikaga bog‘lanadi.",
     listLabel: "Mutaxassislar ro‘yxati",
     tableLabel: "Mutaxassislar jadvali",
     caption: "Mutaxassislar",
@@ -209,9 +205,18 @@ const uz = {
 
   location: {
     title: "Klinika",
-    text: "Ilovada har bir mutaxassis va qabul bilan ko‘rsatiladi.",
-    updated: (at: string) => `Oxirgi o‘zgarish: ${at}.`,
-    missing: "Klinika hali kiritilmagan.",
+    listTitle: "Klinikalar",
+    add: "Yangi klinika",
+    edit: "Klinikani tahrirlash",
+    empty: "Klinikalar hali yo‘q.",
+    directions: "Mo‘ljal va kirish yo‘li",
+    active: "Klinika faol",
+    scheduleHint: "Mutaxassis biriktirilgan haftalik kun uchun klinika tanlang.",
+    assigned: "Biriktirilgan klinikalar",
+    primary: "Asosiy klinika",
+    placeholder: "Klinika tanlanmagan",
+    none: "Faol klinikani qo‘shish uchun Klinikalar bo‘limini oching.",
+    details: "Klinika nomi va mijozlar ko‘radigan manzilni kiriting.",
     name: "Nomi",
     address: "Manzil",
     phone: "Telefon",
@@ -293,10 +298,6 @@ export const specialistsCopy = {
         `${ru(n, ["Найден", "Найдено", "Найдено"])} ${shown} ${ru(n, ["специалист", "специалиста", "специалистов"])}`,
       services: "Услуги",
       create: "Новый специалист",
-      noClinicReason:
-        "Сначала сохраните название клиники в карточке «Клиника» ниже: специалист привязывается к клинике.",
-      noClinicHint:
-        "Сначала сохраните название и адрес клиники в карточке «Клиника» ниже: специалист привязывается к клинике.",
       listLabel: "Список специалистов",
       tableLabel: "Таблица специалистов",
       caption: "Специалисты",
@@ -464,9 +465,18 @@ export const specialistsCopy = {
 
     location: {
       title: "Клиника",
-      text: "Показывается в приложении у каждого специалиста и приёма.",
-      updated: (at: string) => `Последнее изменение: ${at}.`,
-      missing: "Клиника ещё не указана.",
+      listTitle: "Клиники",
+      add: "Новая клиника",
+      edit: "Редактировать клинику",
+      empty: "Клиник пока нет.",
+      directions: "Ориентир и вход",
+      active: "Клиника активна",
+      scheduleHint: "Выберите клинику для рабочего дня специалиста.",
+      assigned: "Прикреплённые клиники",
+      primary: "Основная клиника",
+      placeholder: "Клиника не выбрана",
+      none: "Добавьте активную клинику в разделе «Клиники».",
+      details: "Укажите название клиники и адрес для клиентов.",
       name: "Название",
       address: "Адрес",
       phone: "Телефон",
@@ -540,10 +550,6 @@ export const specialistsCopy = {
         `${shown} ${pluralEn(n, ["specialist", "specialists"])} found`,
       services: "Services",
       create: "New specialist",
-      noClinicReason:
-        "First save the clinic name in the “Clinic” card below: every specialist belongs to the clinic.",
-      noClinicHint:
-        "First save the clinic name and address in the “Clinic” card below: every specialist belongs to the clinic.",
       listLabel: "Specialist list",
       tableLabel: "Specialists table",
       caption: "Specialists",
@@ -710,9 +716,18 @@ export const specialistsCopy = {
 
     location: {
       title: "Clinic",
-      text: "Shown in the app with every specialist and appointment.",
-      updated: (at: string) => `Last change: ${at}.`,
-      missing: "The clinic has not been entered yet.",
+      listTitle: "Clinics",
+      add: "New clinic",
+      edit: "Edit clinic",
+      empty: "No clinics yet.",
+      directions: "Directions and entrance",
+      active: "Clinic is active",
+      scheduleHint: "Choose where the specialist works on each scheduled day.",
+      assigned: "Assigned clinics",
+      primary: "Primary clinic",
+      placeholder: "No clinic selected",
+      none: "Add an active clinic in Clinics.",
+      details: "Enter the clinic name and the address clients will see.",
       name: "Name",
       address: "Address",
       phone: "Phone",

@@ -49,6 +49,9 @@ const uz = {
   enterNumber: "Son kiriting.",
   maxDecimals: "Ko‘pi bilan 6 ta kasr raqam.",
   clinicName: "Klinika nomini kiriting.",
+  clinicAddress: "Klinika manzilini kiriting.",
+  chooseClinic: "Klinikani tanlang.",
+  clinicInUse: "Bu klinikaga faol mutaxassis biriktirilgan.",
   coordinatesBoth: "Kenglik va uzunlikni birga kiriting.",
 
   /* Server Actions and the mock backend */
@@ -113,6 +116,9 @@ export const clinicDataCopy = {
     enterNumber: "Введите число.",
     maxDecimals: "Не больше 6 знаков после запятой.",
     clinicName: "Укажите название клиники.",
+    clinicAddress: "Укажите адрес клиники.",
+    chooseClinic: "Выберите клинику.",
+    clinicInUse: "К этой клинике прикреплён активный специалист.",
     coordinatesBoth: "Укажите и широту, и долготу.",
 
     checkFields: "Проверьте поля.",
@@ -171,6 +177,9 @@ export const clinicDataCopy = {
     enterNumber: "Enter a number.",
     maxDecimals: "No more than 6 decimal places.",
     clinicName: "Enter the clinic name.",
+    clinicAddress: "Enter the clinic address.",
+    chooseClinic: "Choose a clinic.",
+    clinicInUse: "An active specialist is assigned to this clinic.",
     coordinatesBoth: "Enter both the latitude and the longitude.",
 
     checkFields: "Check the fields.",

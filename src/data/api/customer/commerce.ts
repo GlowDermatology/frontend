@@ -185,10 +185,16 @@ export function apiQr(locale: Locale) {
 /* --- appointments -------------------------------------------------------- */
 
 /** Free start times (**O**): anonymous, but forwarded per visitor so the API throttles them. */
-export function apiSlots(locale: Locale, specialistId: number, serviceId: number, date: string) {
+export function apiSlots(
+  locale: Locale,
+  specialistId: number,
+  serviceId: number,
+  locationId: number,
+  date: string,
+) {
   return customerFetch<ApiFreeSlots>(`${V1}/specialists/${specialistId}/slots/`, {
     locale,
-    query: { date, service_id: serviceId },
+    query: { date, service_id: serviceId, location_id: locationId },
   });
 }
 

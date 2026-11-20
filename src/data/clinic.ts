@@ -13,7 +13,7 @@ import type {
 } from "@/domain/clinic";
 
 import {
-  apiGetLocation,
+  apiListClinics,
   apiGetSpecialist,
   apiListBlocks,
   apiListOverrides,
@@ -94,19 +94,13 @@ export async function listAllServices(): Promise<ClinicService[]> {
   return [...mock.MOCK_SERVICES];
 }
 
-/** The clinic; `null` until the first save creates it (404). */
-export async function getLocation(): Promise<ClinicLocation | null> {
+export const listClinics = cache(async (): Promise<ClinicLocation[]> => {
   if ((await dataSource()) === "api") {
     const token = await requireApiToken();
-    try {
-      return mapLocation((await apiGetLocation(token)).data);
-    } catch (error) {
-      if (isApiError(error) && error.status === 404) return null;
-      throw error;
-    }
+    return (await apiListClinics(token)).data.results.map(mapLocation);
   }
-  return mock.MOCK_LOCATION;
-}
+  return [...mock.MOCK_CLINICS];
+});
 
 /** The specialist's date overrides from today on (Tashkent), by date. */
 export async function listOverrides(id: string, page = 1): Promise<Page<HoursOverride>> {

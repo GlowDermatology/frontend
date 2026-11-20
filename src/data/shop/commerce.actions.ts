@@ -394,18 +394,20 @@ export async function freeSlots(input: {
   locale: string;
   specialistId: number;
   serviceId: number;
+  locationId: number;
   date: string;
 }): Promise<ActionResult<ShopSlots>> {
   const locale = localeOf(input.locale);
   const specialistId = positiveInt(input.specialistId);
   const serviceId = positiveInt(input.serviceId);
+  const locationId = positiveInt(input.locationId);
   const date =
     typeof input.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(input.date) ? input.date : null;
-  if (!specialistId || !serviceId || !date) return invalid(locale);
+  if (!specialistId || !serviceId || !locationId || !date) return invalid(locale);
   try {
     return {
       ok: true,
-      data: mapSlots((await apiSlots(locale, specialistId, serviceId, date)).data),
+      data: mapSlots((await apiSlots(locale, specialistId, serviceId, locationId, date)).data),
     };
   } catch (error) {
     return toShopFailure(error, locale, { route: "auth" });
@@ -416,6 +418,7 @@ export async function bookAppointment(input: {
   locale: string;
   specialistId: number;
   serviceId: number;
+  locationId: number;
   start: string;
   note: string;
   idempotencyKey: string;
@@ -426,9 +429,11 @@ export async function bookAppointment(input: {
   if (!guard.ok) return guard;
   const specialistId = positiveInt(input.specialistId);
   const serviceId = positiveInt(input.serviceId);
+  const locationId = positiveInt(input.locationId);
   if (
     !specialistId ||
     !serviceId ||
+    !locationId ||
     typeof input.start !== "string" ||
     Number.isNaN(Date.parse(input.start))
   ) {
@@ -440,6 +445,7 @@ export async function bookAppointment(input: {
       {
         specialist_id: specialistId,
         service_id: serviceId,
+        location_id: locationId,
         start: input.start,
         note:
           String(input.note ?? "")

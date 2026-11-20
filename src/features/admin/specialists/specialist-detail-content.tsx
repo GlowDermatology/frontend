@@ -5,6 +5,7 @@ import { requireStaff } from "@/data/auth";
 import {
   getSpecialist,
   listAllServices,
+  listClinics,
   listBlocks,
   listConflicts,
   listOverrides,
@@ -30,8 +31,9 @@ export async function SpecialistDetailContent({
   const { specialistId } = await params;
   const specialist = await getSpecialist(specialistId);
   if (!specialist) notFound();
-  const [services, overrides, blocks, conflicts, staff, now] = await Promise.all([
+  const [services, clinics, overrides, blocks, conflicts, staff, now] = await Promise.all([
     listAllServices(),
+    listClinics(),
     listOverrides(specialist.id),
     listBlocks(specialist.id),
     optionalRead("specialist conflicts", () => listConflicts(specialist.id), []),
@@ -42,6 +44,7 @@ export async function SpecialistDetailContent({
     <SpecialistDetailView
       specialist={specialist}
       services={services}
+      clinics={clinics}
       overrides={overrides.items}
       blocks={blocks.items}
       conflicts={conflicts}

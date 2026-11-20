@@ -13,6 +13,10 @@ import type { ContentLanguage } from "./product";
 
 export type I18n = Record<ContentLanguage, string>;
 
+export function clinicText(text: I18n, locale: Locale): string {
+  return text[locale] || text.uz || text.ru || text.en;
+}
+
 export const SPECIALIST_ROLES = ["dermatologist", "cosmetologist"] as const;
 export type SpecialistRole = (typeof SPECIALIST_ROLES)[number];
 /** Uzbek names (kept for older callers); `clinicDataCopy[locale].role` in the admin language. */
@@ -58,6 +62,7 @@ export interface OfferedService {
 
 export interface WorkingDay {
   weekday: number;
+  locationId: string;
   start: string;
   end: string;
   breakStart: string | null;
@@ -73,6 +78,7 @@ export interface ClinicSpecialist {
   experienceYears: number | null;
   photoUrl: string | null;
   locationId: string;
+  locationIds: string[];
   /** The linked staff account (informational); `null` when none. */
   staffUser: { id: string; name: string } | null;
   slotStepMin: number;
@@ -106,6 +112,7 @@ export interface ClinicService {
 
 export interface HoursOverride {
   id: string;
+  locationId: string | null;
   date: string;
   /** Both `null` = a day off. */
   start: string | null;
@@ -133,6 +140,8 @@ export interface ClinicLocation {
   id: string;
   name: I18n;
   address: I18n;
+  directions: I18n;
+  isActive: boolean;
   phone: string | null;
   latitude: number | null;
   longitude: number | null;
@@ -174,6 +183,7 @@ export const BLOCK_LABEL_MAX = 80;
 export const SERVICE_NAME_MAX = 120;
 export const SERVICE_SHORT_MAX = 40;
 export const LOCATION_ADDRESS_MAX = 300;
+export const LOCATION_DIRECTIONS_MAX = 500;
 
 export const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 export const TIME_FORMAT_MESSAGE = clinicDataCopy.uz.timeFormat;

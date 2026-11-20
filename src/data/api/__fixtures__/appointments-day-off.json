@@ -7,7 +7,8 @@
       "role": "dermatologist",
       "is_active": true,
       "working_hours": null,
-      "blocks": []
+      "blocks": [],
+      "location": null
     },
     {
       "id": 2,
@@ -15,7 +16,8 @@
       "role": "dermatologist",
       "is_active": true,
       "working_hours": null,
-      "blocks": []
+      "blocks": [],
+      "location": null
     },
     {
       "id": 3,
@@ -23,7 +25,8 @@
       "role": "cosmetologist",
       "is_active": true,
       "working_hours": null,
-      "blocks": []
+      "blocks": [],
+      "location": null
     }
   ],
   "appointments": []

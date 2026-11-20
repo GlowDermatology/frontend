@@ -9,7 +9,8 @@ import { Field, TextArea } from "@/components/ui/field";
 import { Icon } from "@/components/ui/icon";
 import { acceptTerms } from "@/data/shop/account.actions";
 import { bookAppointment, freeSlots } from "@/data/shop/commerce.actions";
-import type { ShopSlots } from "@/domain/shop-account";
+import type { ShopLocation } from "@/domain/shop";
+import type { ShopAppointment, ShopSlots } from "@/domain/shop-account";
 import { useIdempotencyKey } from "@/lib/actions/idempotency";
 import { cn } from "@/lib/cn";
 import {
@@ -17,6 +18,7 @@ import {
   formatDayMonthShortLocale,
   formatDuration,
   formatLongDate,
+  formatTime,
   formatWeekdayShort,
   startOfLocalDay,
 } from "@/lib/format";
@@ -32,9 +34,8 @@ import { shopHref, shopPath } from "../routing/routes";
 import { hasSignedInHint, runShopAction } from "../shared/action-client";
 
 /**
- * Booking (contract §2.11): specialist → service → date → free time →
- * confirm. The selection lives in the URL (`?specialist=&service=&date=
- * &time=`), so the links of the specialist and service pages land on the
+ * Booking (contract §2.11): specialist → service → clinic → date and time →
+ * confirm. The selection lives in the URL so directory links open the
  * right step and sign-in returns to it. Free times come from the public
  * slots endpoint; confirming needs a session and a phone (the gate), and a
  * lost race (`slot_taken`) reloads the day's times.
@@ -46,13 +47,14 @@ export interface BookingSpecialist {
   roleLabel: string;
   photo: string | null;
   experienceYears: number | null;
-  location: { name: string; address: string; phone: string | null };
+  locations: ReadonlyArray<ShopLocation>;
   services: ReadonlyArray<{ id: number; name: string; durationMin: number; price: number }>;
 }
 
 interface Selection {
   specialist: number | null;
   service: number | null;
+  location: number | null;
   date: string | null;
   time: string | null;
 }
@@ -63,6 +65,7 @@ export function selectionQuery(selection: Selection) {
   return {
     specialist: selection.specialist ?? undefined,
     service: selection.service ?? undefined,
+    location: selection.location ?? undefined,
     date: selection.date ?? undefined,
     time: selection.time ?? undefined,
   };
@@ -89,10 +92,11 @@ export function BookingFlow({
   const [selection, setSelection] = useState<Selection>(initial);
   const [slots, setSlots] = useState<ShopSlots | null>(null);
   const [slotsFor, setSlotsFor] = useState<string | null>(null);
+  const [slotReload, setSlotReload] = useState(0);
   const [note, setNote] = useState("");
   const [gateOpen, setGateOpen] = useState(false);
   const [consent, setConsent] = useState(false);
-  const [booked, setBooked] = useState(false);
+  const [booked, setBooked] = useState<ShopAppointment | null>(null);
   const slotRunner = useShopAction(locale);
   const bookRunner = useShopAction(locale);
   const key = useIdempotencyKey();
@@ -100,17 +104,29 @@ export function BookingFlow({
 
   const specialist = specialists.find((item) => item.id === selection.specialist) ?? null;
   const service = specialist?.services.find((item) => item.id === selection.service) ?? null;
+  const location = specialist?.locations.find((item) => item.id === selection.location) ?? null;
   const visibleSpecialists =
     selection.service && !selection.specialist
       ? specialists.filter((item) => item.services.some((s) => s.id === selection.service))
       : specialists;
   const slotKey =
-    specialist && service && selection.date
-      ? `${specialist.id}:${service.id}:${selection.date}`
+    specialist && service && location && selection.date
+      ? `${specialist.id}:${service.id}:${location.id}:${selection.date}`
       : null;
 
   const update = (patch: Partial<Selection>) => {
     const next = { ...selection, ...patch };
+    if (
+      next.specialist !== selection.specialist ||
+      next.service !== selection.service ||
+      next.location !== selection.location ||
+      next.date !== selection.date
+    ) {
+      setSlotsFor(null);
+      key.renew();
+    } else if (next.time !== selection.time) {
+      key.renew();
+    }
     setSelection(next);
     window.history.replaceState(
       null,
@@ -121,21 +137,27 @@ export function BookingFlow({
 
   const loadSlots = slotRunner.run;
   useEffect(() => {
-    if (!slotKey || !specialist || !service || !selection.date) return;
+    if (!slotKey || !specialist || !service || !location || !selection.date) return;
     let cancelled = false;
     const date = selection.date;
     void loadSlots((csrf) => {
       void csrf;
-      return freeSlots({ locale, specialistId: specialist.id, serviceId: service.id, date });
+      return freeSlots({
+        locale,
+        specialistId: specialist.id,
+        serviceId: service.id,
+        locationId: location.id,
+        date,
+      });
     }).then((result) => {
       if (cancelled) return;
-      setSlots(result.ok ? result.data : null);
+      setSlots(result.ok && result.data.locationId === location.id ? result.data : null);
       setSlotsFor(slotKey);
     });
     return () => {
       cancelled = true;
     };
-  }, [slotKey, specialist, service, selection.date, locale, loadSlots]);
+  }, [slotKey, specialist, service, location, selection.date, locale, loadSlots, slotReload]);
 
   const days = Array.from({ length: HORIZON_DAYS }, (_, index) => addDays(today, index));
   const slot =
@@ -145,7 +167,7 @@ export function BookingFlow({
   const currentPath = shopHref(locale, { kind: "booking" }, selectionQuery(selection));
 
   const confirm = async () => {
-    if (!specialist || !service || !slot) return;
+    if (!specialist || !service || !location || !slot) return;
     if (!hasSignedInHint()) {
       window.location.assign(shopHref(locale, { kind: "signIn" }, { next: currentPath }));
       return;
@@ -156,6 +178,7 @@ export function BookingFlow({
           locale,
           specialistId: specialist.id,
           serviceId: service.id,
+          locationId: location.id,
           start: slot.startAt,
           note,
           idempotencyKey: key.key,
@@ -164,14 +187,21 @@ export function BookingFlow({
       ),
     );
     if (result.ok) {
-      setBooked(true);
+      setBooked(result.data);
       return;
     }
     if (result.code === "phone_required") setGateOpen(true);
     else if (result.code === "terms_update_required") setConsent(true);
-    else if (result.code === "slot_taken" || result.fieldErrors?.start) {
+    else if (result.fieldErrors?.location_id) {
+      update({
+        location: specialist.locations.length === 1 ? location.id : null,
+        date: null,
+        time: null,
+      });
+    } else if (result.code === "slot_taken" || result.fieldErrors?.start) {
       update({ time: null });
       setSlotsFor(null);
+      setSlotReload((count) => count + 1);
     }
   };
 
@@ -186,7 +216,7 @@ export function BookingFlow({
     }
   };
 
-  if (booked && specialist && service && slot) {
+  if (booked) {
     return (
       <section
         role="status"
@@ -197,11 +227,16 @@ export function BookingFlow({
         </span>
         <h2 className="m-0 font-serif text-headline-sm font-semibold">{copy.successTitle}</h2>
         <p className="m-0 text-lead text-ink">
-          {specialist.name} · {service.name}
+          {booked.specialist.name} · {booked.service.name}
         </p>
         <p className="m-0 text-body text-ink-muted">
-          {formatLongDate(slot.startAt, locale)}, {slot.start}
+          {formatLongDate(booked.start, locale)}, {formatTime(booked.start)}
         </p>
+        <div className="flex flex-col gap-1 text-body">
+          <strong>{booked.location.name}</strong>
+          <span>{booked.location.address}</span>
+          {booked.location.directions ? <span>{booked.location.directions}</span> : null}
+        </div>
         <p className="m-0 max-w-[460px] text-body text-ink-muted">{copy.successBody}</p>
         <div className="flex flex-wrap justify-center gap-2 pt-2">
           <Link
@@ -214,8 +249,9 @@ export function BookingFlow({
             variant="secondary"
             size="lg"
             onClick={() => {
-              setBooked(false);
-              update({ specialist: null, service: null, date: null, time: null });
+              setBooked(null);
+              setNote("");
+              update({ specialist: null, service: null, location: null, date: null, time: null });
             }}
           >
             {copy.bookAnother}
@@ -258,7 +294,7 @@ export function BookingFlow({
           1,
           copy.chooseSpecialist,
           specialist ? `${specialist.name} · ${specialist.roleLabel}` : null,
-          () => update({ specialist: null, service: selection.service, date: null, time: null }),
+          () => update({ specialist: null, location: null, date: null, time: null }),
         )}
         {!specialist ? (
           visibleSpecialists.length === 0 ? (
@@ -275,6 +311,8 @@ export function BookingFlow({
                         service: item.services.some((s) => s.id === selection.service)
                           ? selection.service
                           : null,
+                        location:
+                          item.locations.length === 1 ? (item.locations[0]?.id ?? null) : null,
                         date: null,
                         time: null,
                       })
@@ -320,7 +358,11 @@ export function BookingFlow({
                   <button
                     type="button"
                     onClick={() =>
-                      update({ service: item.id, date: selection.date ?? today, time: null })
+                      update({
+                        service: item.id,
+                        date: location ? (selection.date ?? today) : null,
+                        time: null,
+                      })
                     }
                     className="flex w-full items-center justify-between gap-4 rounded-md border border-line p-4 text-left transition-colors hover:border-gold-ink hover:bg-gold-soft/40"
                   >
@@ -339,10 +381,47 @@ export function BookingFlow({
         </section>
       ) : null}
 
-      {/* 3–4. Date and time */}
       {specialist && service ? (
+        <section className={stepClass} aria-label={copy.steps.location}>
+          {heading(
+            3,
+            copy.chooseLocation,
+            location?.name ?? null,
+            specialist.locations.length > 1
+              ? () => update({ location: null, date: null, time: null })
+              : undefined,
+          )}
+          {bookRunner.error?.fieldErrors?.location_id ? (
+            <FormAlert>{bookRunner.error.fieldErrors.location_id}</FormAlert>
+          ) : null}
+          {location ? (
+            <p className="m-0 text-body-sm text-ink-muted">{location.address}</p>
+          ) : (
+            <ul className="m-0 grid list-none gap-2 p-0 sm:grid-cols-2">
+              {specialist.locations.map((clinic) => (
+                <li key={clinic.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      bookRunner.setError(null);
+                      update({ location: clinic.id, date: null, time: null });
+                    }}
+                    className="flex h-full w-full flex-col gap-1 rounded-md border border-line p-4 text-left transition-colors hover:border-gold-ink hover:bg-gold-soft/40"
+                  >
+                    <span className="text-label">{clinic.name}</span>
+                    <span className="text-body-sm text-ink-muted">{clinic.address}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ) : null}
+
+      {/* Date and time */}
+      {specialist && service && location ? (
         <section className={stepClass} aria-label={`${copy.steps.date}, ${copy.steps.time}`}>
-          {heading(3, copy.chooseDate, null)}
+          {heading(4, copy.chooseDate, null)}
           <div
             role="radiogroup"
             aria-label={copy.chooseDate}
@@ -357,7 +436,10 @@ export function BookingFlow({
                   type="button"
                   role="radio"
                   aria-checked={active}
-                  onClick={() => update({ date: day, time: null })}
+                  onClick={() => {
+                    bookRunner.setError(null);
+                    update({ date: day, time: null });
+                  }}
                   className={cn(
                     "flex w-16 shrink-0 flex-col items-center gap-1 rounded-md border py-2.5 transition-colors",
                     active ? "border-ink bg-ink text-surface" : "border-line hover:border-gold-ink",
@@ -381,6 +463,9 @@ export function BookingFlow({
           {selection.date ? (
             <div className="flex flex-col gap-3">
               <h3 className="m-0 text-label text-ink">{copy.chooseTime}</h3>
+              {!slot && bookRunner.error?.code === "slot_taken" ? (
+                <FormAlert>{copy.slotTaken}</FormAlert>
+              ) : null}
               {slotRunner.pending || slotsFor !== slotKey ? (
                 <p className="m-0 text-body-sm text-ink-muted" role="status">
                   {copy.loadingSlots}
@@ -425,8 +510,7 @@ export function BookingFlow({
         </section>
       ) : null}
 
-      {/* 5. Confirm */}
-      {specialist && service && slot ? (
+      {specialist && service && location && slot ? (
         <section className={cn(stepClass, "border-gold-ink")} aria-labelledby="booking-confirm">
           <h2 id="booking-confirm" className="m-0 font-serif text-[26px] leading-8 font-semibold">
             {copy.summaryTitle}
@@ -453,14 +537,14 @@ export function BookingFlow({
                 {formatDuration(slots?.durationMin ?? service.durationMin, locale)}
               </dd>
             </div>
-            {specialist.location.address ? (
-              <div className="flex flex-col sm:col-span-2">
-                <dt className="text-body-sm text-ink-muted">{copy.where}</dt>
-                <dd className="m-0">
-                  {specialist.location.name} · {specialist.location.address}
-                </dd>
-              </div>
-            ) : null}
+            <div className="flex flex-col sm:col-span-2">
+              <dt className="text-body-sm text-ink-muted">{copy.where}</dt>
+              <dd className="m-0 flex flex-col">
+                <strong>{location.name}</strong>
+                <span>{location.address}</span>
+                {location.directions ? <span>{location.directions}</span> : null}
+              </dd>
+            </div>
           </dl>
           <Field label={copy.noteLabel}>
             {(control) => (

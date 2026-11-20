@@ -112,7 +112,7 @@ describe("category and specialist variants", () => {
       bio: "",
       qualifications: "",
       experience_years: null,
-      location: { name: "", address: "" },
+      locations: [],
       services: [],
       slot_step_min: 30,
     } as unknown as ApiSpecialist;

@@ -94,6 +94,12 @@ export function SpecialistCard({
       {specialist.bio ? (
         <p className="m-0 line-clamp-3 text-body text-pretty text-ink-muted">{specialist.bio}</p>
       ) : null}
+      {specialist.locations.length > 0 ? (
+        <p className="m-0 flex items-start gap-2 text-body-sm text-ink-muted">
+          <Icon name="map-pin" size={17} className="shrink-0 text-gold-ink" />
+          {specialist.locations.map((clinic) => clinic.name).join(" · ")}
+        </p>
+      ) : null}
       <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4 text-body-sm">
         <span className="text-ink-muted">
           {dict.specialists.servicesCount(specialist.services.length)}

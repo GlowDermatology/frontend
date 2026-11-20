@@ -6,6 +6,7 @@ import {
   DURATION_MIN,
   EXPERIENCE_MAX,
   LOCATION_ADDRESS_MAX,
+  LOCATION_DIRECTIONS_MAX,
   minutesOf,
   NAME_MAX,
   NAME_MIN,
@@ -65,29 +66,42 @@ export const clinicSchemas = localized((locale) => {
     .regex(/^\d{4}-\d{2}-\d{2}$/, v.chooseDate)
     .refine((value) => !Number.isNaN(Date.parse(`${value}T00:00:00Z`)), { error: v.chooseDate });
 
+  const locationId = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/, m.chooseClinic);
+
   /* --- Specialist profile --- */
-  const specialist = z.object({
-    name: z.string().trim().min(NAME_MIN, v.minChars(NAME_MIN)).max(NAME_MAX, v.maxChars(NAME_MAX)),
-    role: z.enum(SPECIALIST_ROLES, { error: m.chooseRole }),
-    qualifications: i18n(TEXT_MAX),
-    bio: i18n(TEXT_MAX),
-    experienceYears: integer(0, EXPERIENCE_MAX).nullable(),
-    slotStepMin: z.union(
-      SLOT_STEPS.map((step) => z.literal(step)) as unknown as [
-        z.ZodLiteral<10>,
-        z.ZodLiteral<15>,
-        z.ZodLiteral<20>,
-        z.ZodLiteral<30>,
-        z.ZodLiteral<60>,
-      ],
-      { error: m.slotSteps },
-    ),
-    /** A staff account id, or `""` for none. */
-    staffUserId: z.string().regex(/^(|[1-9]\d{0,17})$/, m.chooseStaff),
-    isActive: z.boolean(),
-    /** The website URL segment (B-W1); `""` on create = derived from the name. */
-    slug: slugFieldSchema(SPECIALIST_SLUG_MAX, locale),
-  });
+  const specialist = z
+    .object({
+      name: z
+        .string()
+        .trim()
+        .min(NAME_MIN, v.minChars(NAME_MIN))
+        .max(NAME_MAX, v.maxChars(NAME_MAX)),
+      role: z.enum(SPECIALIST_ROLES, { error: m.chooseRole }),
+      qualifications: i18n(TEXT_MAX),
+      bio: i18n(TEXT_MAX),
+      experienceYears: integer(0, EXPERIENCE_MAX).nullable(),
+      slotStepMin: z.union(
+        SLOT_STEPS.map((step) => z.literal(step)) as unknown as [
+          z.ZodLiteral<10>,
+          z.ZodLiteral<15>,
+          z.ZodLiteral<20>,
+          z.ZodLiteral<30>,
+          z.ZodLiteral<60>,
+        ],
+        { error: m.slotSteps },
+      ),
+      /** A staff account id, or `""` for none. */
+      staffUserId: z.string().regex(/^(|[1-9]\d{0,17})$/, m.chooseStaff),
+      locationId,
+      locationIds: z.array(locationId).min(1, m.chooseClinic),
+      isActive: z.boolean(),
+      /** The website URL segment (B-W1); `""` on create = derived from the name. */
+      slug: slugFieldSchema(SPECIALIST_SLUG_MAX, locale),
+    })
+    .refine((values) => values.locationIds.includes(values.locationId), {
+      path: ["locationId"],
+      message: m.chooseClinic,
+    });
 
   /* --- Offered services --- */
   const offers = z.object({
@@ -124,6 +138,7 @@ export const clinicSchemas = localized((locale) => {
         z
           .object({
             weekday: z.number().int().min(0).max(6),
+            locationId,
             start: time,
             end: time,
             breakStart: time.nullable(),
@@ -164,12 +179,16 @@ export const clinicSchemas = localized((locale) => {
     .object({
       date: isoDate,
       dayOff: z.boolean(),
+      locationId: z.string(),
       start: z.string().trim(),
       end: z.string().trim(),
       note: text(OVERRIDE_NOTE_MAX),
     })
     .superRefine((values, ctx) => {
       if (values.dayOff) return;
+      if (!locationId.safeParse(values.locationId).success) {
+        ctx.addIssue({ code: "custom", path: ["locationId"], message: m.chooseClinic });
+      }
       for (const field of ["start", "end"] as const) {
         const value = values[field];
         if (!TIME_PATTERN.test(value)) {
@@ -225,7 +244,7 @@ export const clinicSchemas = localized((locale) => {
     isActive: z.boolean(),
   });
 
-  /* --- The clinic --- */
+  /* --- Clinics --- */
   const coordinate = (limit: number) =>
     z
       .number({ error: m.enterNumber })
@@ -245,7 +264,11 @@ export const clinicSchemas = localized((locale) => {
         ru: text(SERVICE_NAME_MAX),
         en: text(SERVICE_NAME_MAX),
       }),
-      address: i18n(LOCATION_ADDRESS_MAX),
+      address: i18n(LOCATION_ADDRESS_MAX).extend({
+        uz: text(LOCATION_ADDRESS_MAX).min(1, m.clinicAddress),
+      }),
+      directions: i18n(LOCATION_DIRECTIONS_MAX),
+      isActive: z.boolean(),
       /** E.164 or `""` (none). */
       phone: z
         .string()
@@ -289,6 +312,8 @@ export const EMPTY_SPECIALIST: SpecialistFormValues = {
   experienceYears: null,
   slotStepMin: 30,
   staffUserId: "",
+  locationId: "",
+  locationIds: [],
   // Decision PS-6: a new specialist starts inactive (add the offer and the hours, then activate).
   isActive: false,
   slug: "",

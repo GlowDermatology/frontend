@@ -9,10 +9,15 @@ import { AlertDialog, AlertDialogCancel } from "@/components/ui/dialog";
 import { FormErrorSummary } from "@/components/ui/form-errors";
 import { Icon } from "@/components/ui/icon";
 import { useToast } from "@/components/ui/toast";
+import { specialistFormValues as toValues } from "@/data/api/mappers/clinic";
 import { setSpecialistPhoto, updateSpecialist } from "@/data/clinic.actions";
-import { clinicSchemas, type SpecialistFormValues } from "@/data/clinic.schema";
+import { clinicSchemas } from "@/data/clinic.schema";
 import { imageFileProblem, IMAGE_TYPES } from "@/data/products.schema";
-import { specialistRecommendedToAsk, type ClinicSpecialist } from "@/domain/clinic";
+import {
+  specialistRecommendedToAsk,
+  type ClinicLocation,
+  type ClinicSpecialist,
+} from "@/domain/clinic";
 import type { ContentLanguage } from "@/domain/product";
 import { cn } from "@/lib/cn";
 import { useErrorReveal } from "@/lib/forms/reveal";
@@ -37,21 +42,6 @@ import {
   type StaffOption,
 } from "./profile-fields";
 
-function toValues(specialist: ClinicSpecialist): SpecialistFormValues {
-  const step = [10, 15, 20, 30, 60].includes(specialist.slotStepMin) ? specialist.slotStepMin : 30;
-  return {
-    name: specialist.name,
-    role: specialist.role,
-    qualifications: { ...specialist.qualifications },
-    bio: { ...specialist.bio },
-    experienceYears: specialist.experienceYears,
-    slotStepMin: step as SpecialistFormValues["slotStepMin"],
-    staffUserId: specialist.staffUser?.id ?? "",
-    isActive: specialist.isActive,
-    slug: specialist.slug,
-  };
-}
-
 /**
  * Profile and photo of a specialist (contract §2.17 `PATCH specialists/{id}/`,
  * `PUT|DELETE …/photo/`). Switching «Faol» off with appointments ahead is
@@ -64,10 +54,12 @@ function toValues(specialist: ClinicSpecialist): SpecialistFormValues {
 export function ProfileCard({
   specialist,
   staffOptions,
+  clinics,
   onUpdated,
 }: {
   specialist: ClinicSpecialist;
   staffOptions: ReadonlyArray<StaffOption>;
+  clinics: ReadonlyArray<ClinicLocation>;
   onUpdated: (specialist: ClinicSpecialist) => void;
 }) {
   const copy = useCopy(specialistsCopy);
@@ -196,6 +188,7 @@ export function ProfileCard({
             onExperienceChange={setExperience}
             errors={errors}
             staffOptions={staffOptions}
+            clinics={clinics}
             linkedStaff={specialist.staffUser}
             activeHint={
               specialist.upcomingAppointments > 0

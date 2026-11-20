@@ -14,7 +14,7 @@ import {
   getSettings,
   getSpecialists,
 } from "@/data/shop/catalog";
-import type { ShopBanner, ShopSettings } from "@/domain/shop";
+import { specialistLocations, type ShopBanner, type ShopSettings } from "@/domain/shop";
 import { formatPhone } from "@/lib/format";
 import type { Locale } from "@/lib/i18n/locales";
 import { cn } from "@/lib/cn";
@@ -376,10 +376,7 @@ async function Clinic({ locale, dict }: { locale: Locale; dict: ShopDictionary }
     settle(getSpecialists(locale), [], "specialists"),
   ]);
   if (!settings) return null;
-  // The first location with coordinates (the clinic's geo, U14).
-  const location =
-    specialists.find((s) => s.location.latitude !== null && s.location.longitude !== null)
-      ?.location ?? null;
+  const clinics = specialistLocations(specialists);
   const origin = siteConfig.url;
   const phones = phonesOf(settings, dict);
   return (
@@ -393,7 +390,7 @@ async function Clinic({ locale, dict }: { locale: Locale; dict: ShopDictionary }
       <JsonLd
         data={[
           organizationLd({ origin, settings }),
-          clinicLd({ origin, settings, location, facts: clinicFacts() }),
+          clinicLd({ origin, settings, location: clinics[0], facts: clinicFacts() }),
           websiteLd({
             origin,
             url: absoluteUrl(shopPath(locale, { kind: "home" })),
@@ -433,6 +430,20 @@ async function Clinic({ locale, dict }: { locale: Locale; dict: ShopDictionary }
           </div>
         </div>
         <dl className="m-0 grid content-start gap-8 sm:grid-cols-2">
+          {clinics.length > 0 ? (
+            <div className="flex flex-col gap-3 sm:col-span-2">
+              <dt className="text-overline text-banner-ink uppercase">
+                {dict.specialists.location}
+              </dt>
+              {clinics.map((clinic) => (
+                <dd key={clinic.id} className="m-0 flex flex-col leading-7">
+                  <strong className="text-banner-ink">{clinic.name}</strong>
+                  <span>{clinic.address}</span>
+                  {clinic.directions ? <span>{clinic.directions}</span> : null}
+                </dd>
+              ))}
+            </div>
+          ) : null}
           {settings.pickupAddress ? (
             <div className="flex flex-col gap-2">
               <dt className="text-overline text-banner-ink uppercase">{dict.home.addressLabel}</dt>

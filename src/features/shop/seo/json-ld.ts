@@ -87,7 +87,12 @@ export function organizationLd(input: { origin: string; settings: ShopSettings }
 export function clinicLd(input: {
   origin: string;
   settings: ShopSettings;
-  location?: { latitude: number | null; longitude: number | null } | null;
+  location?: {
+    latitude: number | null;
+    longitude: number | null;
+    address?: string;
+    phone?: string | null;
+  } | null;
   /** Configured fallbacks (`clinic-facts.ts`). */
   facts?: {
     openingHours: ReadonlyArray<JsonLdNode>;
@@ -98,7 +103,9 @@ export function clinicLd(input: {
   const point =
     location && location.latitude !== null && location.longitude !== null
       ? { latitude: location.latitude, longitude: location.longitude }
-      : (facts?.geo ?? null);
+      : location?.address
+        ? null
+        : (facts?.geo ?? null);
   const geo = point ? { "@type": "GeoCoordinates", ...point } : undefined;
   return compact({
     "@context": "https://schema.org",
@@ -107,8 +114,8 @@ export function clinicLd(input: {
     name: "Glow Derma",
     url: origin,
     image: `${origin}/og.png`,
-    telephone: phones(settings)[0],
-    address: postalAddress(settings.pickupAddress),
+    telephone: location?.phone ?? phones(settings)[0],
+    address: postalAddress(location?.address || settings.pickupAddress),
     geo,
     openingHoursSpecification: facts?.openingHours.length ? [...facts.openingHours] : undefined,
     medicalSpecialty: ["Dermatology"],
@@ -208,7 +215,9 @@ export function specialistLd(input: {
   url: string;
 }): JsonLdNode {
   const { specialist, origin } = input;
-  const address = postalAddress(specialist.location.address);
+  const addresses = specialist.locations
+    .map((clinic) => postalAddress(clinic.address))
+    .filter(Boolean);
   const services = specialist.services.map((service) => ({
     "@type": "MedicalProcedure",
     name: service.name,
@@ -223,8 +232,8 @@ export function specialistLd(input: {
       image: specialist.photoUrl ?? undefined,
       description: specialist.bio || undefined,
       medicalSpecialty: "Dermatology",
-      address,
-      telephone: specialist.location.phone ?? undefined,
+      address: addresses.length > 1 ? addresses : addresses[0],
+      telephone: specialist.locations[0]?.phone ?? undefined,
       availableService: services,
       parentOrganization: { "@id": ids(origin).clinic },
     });

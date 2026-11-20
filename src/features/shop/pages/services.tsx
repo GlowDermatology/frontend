@@ -7,7 +7,7 @@ import { buttonStyles } from "@/components/ui/button";
 import { siteConfig } from "@/config/site";
 import { getServices, getSpecialists } from "@/data/shop/catalog";
 import { storefrontEnabled } from "@/data/shop/mode";
-import type { ShopService } from "@/domain/shop";
+import { specialistLocations, type ShopService } from "@/domain/shop";
 import { formatDuration, formatPrice } from "@/lib/format";
 import type { Locale } from "@/lib/i18n/locales";
 import { cn } from "@/lib/cn";
@@ -97,6 +97,7 @@ async function ServicesBody({ locale }: { locale: Locale }) {
                   const offeredBy = service.specialistIds
                     .map((id) => byId.get(id))
                     .filter((specialist) => specialist !== undefined);
+                  const clinics = specialistLocations(offeredBy);
                   return (
                     <li key={service.id} id={`service-${service.id}`} className="scroll-mt-24">
                       <article className="flex h-full flex-col gap-4 rounded-lg border border-line bg-surface-raised p-[clamp(20px,2.4vw,32px)]">
@@ -137,6 +138,23 @@ async function ServicesBody({ locale }: { locale: Locale }) {
                                     {specialist.name}
                                   </Link>
                                 ))}
+                              </dd>
+                            </>
+                          ) : null}
+                          {clinics.length > 0 ? (
+                            <>
+                              <dt className="text-ink-muted">{t.clinics}</dt>
+                              <dd className="m-0">
+                                <ul className="m-0 grid list-none gap-1 p-0">
+                                  {clinics.map((clinic) => (
+                                    <li key={clinic.id}>
+                                      <span className="font-semibold">{clinic.name}</span>
+                                      {clinic.address ? (
+                                        <span className="text-ink-muted"> · {clinic.address}</span>
+                                      ) : null}
+                                    </li>
+                                  ))}
+                                </ul>
                               </dd>
                             </>
                           ) : null}

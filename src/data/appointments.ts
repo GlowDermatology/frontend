@@ -1,6 +1,12 @@
 import "server-only";
 
-import type { Appointment, AppointmentStatus, BookingMeta, Specialist } from "@/domain/appointment";
+import type {
+  Appointment,
+  AppointmentClinic,
+  AppointmentStatus,
+  BookingMeta,
+  Specialist,
+} from "@/domain/appointment";
 import { diffDays, isIsoDate } from "@/lib/datetime";
 import { toLocalIsoDate } from "@/lib/format";
 
@@ -30,7 +36,7 @@ import { dataSource } from "./source";
  */
 
 /** A visit on the day board: the domain appointment plus the service's short name. */
-export type DayAppointment = Appointment & { serviceShort: string };
+export type DayAppointment = Appointment & { serviceShort: string; location: AppointmentClinic };
 
 export interface AppointmentDay {
   date: string;

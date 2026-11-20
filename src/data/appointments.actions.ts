@@ -130,7 +130,10 @@ export async function createAppointment(
   if ((await dataSource()) === "api") {
     const specialistId = apiId(input.specialistId);
     const serviceId = apiId(input.serviceId);
+    const locationId = apiId(input.locationId);
     if (specialistId === null) return specialistNotFound(m);
+    if (locationId === null)
+      return { ok: false, error: m.chooseClinic, fieldErrors: { locationId: m.chooseClinic } };
     if (serviceId === null) {
       return { ok: false, error: m.serviceNotFound, fieldErrors: { serviceId: m.serviceNotFound } };
     }
@@ -141,6 +144,7 @@ export async function createAppointment(
           {
             specialist_id: specialistId,
             service_id: serviceId,
+            location_id: locationId,
             phone: input.phone,
             start: tashkentStart(input.date, input.time),
             note: input.note,
@@ -183,7 +187,13 @@ export async function rescheduleAppointment(
   const input = parsed.data;
   if ((await dataSource()) === "api") {
     if (apiId(parsedId.data) === null) return notFound(m);
-    const body: ApiAppointmentReschedule = { start: tashkentStart(input.date, input.time) };
+    const locationId = apiId(input.locationId);
+    if (locationId === null)
+      return { ok: false, error: m.chooseClinic, fieldErrors: { locationId: m.chooseClinic } };
+    const body: ApiAppointmentReschedule = {
+      start: tashkentStart(input.date, input.time),
+      location_id: locationId,
+    };
     if (input.specialistId !== baselineSpecialistId) {
       const specialistId = apiId(input.specialistId);
       if (specialistId === null) return specialistNotFound(m);

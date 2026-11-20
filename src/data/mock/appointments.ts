@@ -1,12 +1,27 @@
-import type { Appointment, BookingMeta, BookingService, Specialist } from "@/domain/appointment";
+import type {
+  Appointment,
+  AppointmentClinic,
+  BookingMeta,
+  BookingService,
+  Specialist,
+} from "@/domain/appointment";
 import { addDays } from "@/lib/format";
 
+import { MOCK_CLINICS } from "./clinic";
 import { CUSTOMERS, CUSTOMER_IDS, customerRef } from "./people";
 import { createRandom } from "./random";
+
+const appointmentClinics: AppointmentClinic[] = MOCK_CLINICS.map((clinic) => ({
+  id: clinic.id,
+  name: clinic.name.uz,
+  address: clinic.address.uz,
+}));
+const locationFor = (specialistId: string) => appointmentClinics[specialistId === "s-3" ? 1 : 0]!;
 
 export const SPECIALISTS: ReadonlyArray<Specialist> = [
   {
     id: "s-1",
+    location: locationFor("s-1"),
     name: "Nodira Rahimova",
     role: "Dermatolog",
     workingHours: { start: "09:00", end: "18:00" },
@@ -14,6 +29,7 @@ export const SPECIALISTS: ReadonlyArray<Specialist> = [
   },
   {
     id: "s-2",
+    location: locationFor("s-2"),
     name: "Jasur Aliyev",
     role: "Dermatolog",
     workingHours: { start: "09:00", end: "18:00" },
@@ -21,6 +37,7 @@ export const SPECIALISTS: ReadonlyArray<Specialist> = [
   },
   {
     id: "s-3",
+    location: locationFor("s-3"),
     name: "Dilnoza Yusupova",
     role: "Kosmetolog",
     workingHours: { start: "09:00", end: "18:00" },
@@ -82,7 +99,7 @@ function make(
   status: Appointment["status"],
   requestedAt: string,
   requestedVia: Appointment["requestedVia"] = "ilova",
-): Appointment & { serviceShort: string } {
+): Appointment & { serviceShort: string; location: AppointmentClinic } {
   const [h, m] = start.split(":").map(Number) as [number, number];
   const endMinutes = h * 60 + m + service.durationMin;
   const end = `${String(Math.floor(endMinutes / 60)).padStart(2, "0")}:${String(endMinutes % 60).padStart(2, "0")}`;
@@ -90,6 +107,7 @@ function make(
   return {
     id,
     specialistId,
+    location: locationFor(specialistId),
     customer: { id: customer.id, name: customer.name, phone: customer.phone },
     serviceId: service.id,
     service: service.name,

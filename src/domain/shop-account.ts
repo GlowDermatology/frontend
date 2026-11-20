@@ -7,6 +7,7 @@
  * datetimes are ISO strings.
  */
 
+import type { ShopLocation } from "./shop";
 import type {
   DeliveryMethod,
   DeliveryProvider,
@@ -267,7 +268,7 @@ export interface ShopAppointment {
   statusLabel: string;
   specialist: { id: number; name: string; roleLabel: string; photo: string | null };
   service: { id: number; name: string };
-  location: { name: string; address: string; phone: string | null };
+  location: ShopLocation;
   start: string;
   end: string;
   durationMin: number;
@@ -278,6 +279,7 @@ export interface ShopAppointment {
 }
 
 export interface ShopSlots {
+  locationId: number;
   date: string;
   durationMin: number;
   price: number;

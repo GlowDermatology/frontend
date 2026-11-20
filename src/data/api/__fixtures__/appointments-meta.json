@@ -19,6 +19,13 @@
           "duration_min": 20,
           "price": 100000
         }
+      ],
+      "locations": [
+        {
+          "id": 1,
+          "name": "Glow Derma",
+          "address": "Toshkent, Chilonzor"
+        }
       ]
     },
     {
@@ -39,6 +46,13 @@
           "short_name": "Qayta ko‘rik",
           "duration_min": 20,
           "price": 90000
+        }
+      ],
+      "locations": [
+        {
+          "id": 1,
+          "name": "Glow Derma",
+          "address": "Toshkent, Chilonzor"
         }
       ]
     },
@@ -67,6 +81,13 @@
           "short_name": "Namlantiruvchi parvarish",
           "duration_min": 60,
           "price": 260000
+        }
+      ],
+      "locations": [
+        {
+          "id": 1,
+          "name": "Glow Derma",
+          "address": "Toshkent, Chilonzor"
         }
       ]
     }

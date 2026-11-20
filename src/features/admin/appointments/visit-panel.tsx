@@ -161,6 +161,12 @@ export function VisitPanel({ selected, specialistName, onChanged, onReschedule }
               <DetailRow label={t.specialist} className="leading-5">
                 {specialistName ?? "—"}
               </DetailRow>
+              <DetailRow label={t.clinic} className="leading-5">
+                <span className="flex flex-col gap-1">
+                  <span>{selected.location.name}</span>
+                  <span className="font-normal text-ink-muted">{selected.location.address}</span>
+                </span>
+              </DetailRow>
               <DetailRow label={t.time} className="leading-5">
                 <span className="tabular-nums">
                   {fmt.weekdayShortDateTime(selected.start)}–{fmt.time(selected.end)}

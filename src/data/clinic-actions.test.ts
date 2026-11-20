@@ -10,6 +10,7 @@ import type { StaffSession, VerifyStaffOptions } from "./auth";
 
 const verifyStaff = vi.fn<(options?: VerifyStaffOptions) => Promise<StaffSession>>();
 const refresh = vi.fn();
+const updateTag = vi.fn();
 const apiFetch = vi.fn();
 const cachedGet = vi.fn();
 
@@ -25,7 +26,10 @@ vi.mock("next/headers", () => ({
   }),
   headers: async () => new Headers(),
 }));
-vi.mock("next/cache", () => ({ refresh: () => refresh() }));
+vi.mock("next/cache", () => ({
+  refresh: () => refresh(),
+  updateTag: (tag: string) => updateTag(tag),
+}));
 vi.mock("./auth", () => ({
   verifyStaff: (options?: VerifyStaffOptions) => verifyStaff(options),
   requireApiToken: async () => "t",
@@ -52,6 +56,7 @@ import type { ApiClinicSpecialist, ErrorEnvelope } from "./api/types";
 import {
   createBlock,
   createOverride,
+  saveClinic,
   saveOfferedServices,
   saveWorkingHours,
   updateSpecialist,
@@ -69,6 +74,7 @@ beforeEach(() => {
   verifyStaff.mockReset();
   verifyStaff.mockResolvedValue({ ok: true, mode: "mock" });
   refresh.mockClear();
+  updateTag.mockClear();
   apiFetch.mockReset();
   cachedGet.mockReset();
 });
@@ -95,6 +101,7 @@ describe("clinic mappers", () => {
     });
     expect(jasur.workingHours[0]).toEqual({
       weekday: 0,
+      locationId: "1",
       start: "09:00",
       end: "18:00",
       breakStart: "13:00",
@@ -123,6 +130,10 @@ describe("clinic mappers", () => {
     const base = specialistFormValues(jasur);
     expect(specialistPatchBody(base, base)).toEqual({});
     expect(
+      specialistPatchBody(base, { ...base, locationId: "2", locationIds: ["1", "2"] }),
+    ).toEqual({ location_id: 2, location_ids: [1, 2] });
+    expect(specialistCreateBody(base)).toMatchObject({ location_id: 1, location_ids: [1] });
+    expect(
       specialistPatchBody(
         base,
         { ...base, qualifications: { ...base.qualifications, ru: "Врач" }, isActive: false },
@@ -144,7 +155,14 @@ describe("clinic mappers", () => {
   });
 
   it("validates the week (grid, order, break inside) and sends it by weekday", () => {
-    const day = { weekday: 2, start: "09:00", end: "18:00", breakStart: null, breakEnd: null };
+    const day = {
+      weekday: 2,
+      locationId: "1",
+      start: "09:00",
+      end: "18:00",
+      breakStart: null,
+      breakEnd: null,
+    };
     expect(workingWeekSchema.safeParse({ days: [{ ...day, start: "09:03" }] }).success).toBe(false);
     const late = workingWeekSchema.safeParse({
       days: [{ ...day, breakStart: "17:30", breakEnd: "18:30" }],
@@ -196,7 +214,14 @@ describe("clinic actions in mock mode", () => {
       expect.unreachable("the deactivation must be refused");
     }
     adminLanguage.value = "en";
-    const override = { date: "2026-10-20", dayOff: true, start: "", end: "", note: "" };
+    const override = {
+      date: "2026-10-20",
+      dayOff: true,
+      locationId: "",
+      start: "",
+      end: "",
+      note: "",
+    };
     expect(await createOverride("2", override, KEY, CSRF)).toMatchObject({
       error: "Check the fields.",
       fieldErrors: { date: "A past date cannot be chosen." },
@@ -204,7 +229,14 @@ describe("clinic actions in mock mode", () => {
     expect(
       await createOverride(
         "2",
-        { ...override, dayOff: false, date: "2026-10-30", start: "9", end: "10:00" },
+        {
+          ...override,
+          dayOff: false,
+          locationId: "1",
+          date: "2026-10-30",
+          start: "9",
+          end: "10:00",
+        },
         KEY,
         CSRF,
       ),
@@ -212,7 +244,14 @@ describe("clinic actions in mock mode", () => {
   });
 
   it("answers the schedule rules: past dates, a taken date, overlapping blocks", async () => {
-    const override = { date: "2026-10-20", dayOff: true, start: "", end: "", note: "" };
+    const override = {
+      date: "2026-10-20",
+      dayOff: true,
+      locationId: "",
+      start: "",
+      end: "",
+      note: "",
+    };
     expect(await createOverride("2", override, KEY, CSRF)).toMatchObject({
       fieldErrors: { date: "O‘tgan sanani tanlab bo‘lmaydi." },
     });
@@ -224,7 +263,14 @@ describe("clinic actions in mock mode", () => {
     expect(
       await createOverride(
         "2",
-        { ...override, date: "2026-11-02", dayOff: false, start: "10:00", end: "14:00" },
+        {
+          ...override,
+          date: "2026-11-02",
+          dayOff: false,
+          locationId: "1",
+          start: "10:00",
+          end: "14:00",
+        },
         KEY,
         CSRF,
       ),
@@ -263,6 +309,58 @@ describe("clinic actions in api mode", () => {
     verifyStaff.mockResolvedValue({ ok: true, mode: "api", token: "t", sid: null });
   });
 
+  it("creates a clinic and patches only the changed address details", async () => {
+    const values = {
+      name: { uz: "Yunusobod klinikasi", ru: "", en: "" },
+      address: { uz: "Amir Temur ko‘chasi, 10", ru: "", en: "" },
+      directions: { uz: "Kirish hovlidan", ru: "", en: "" },
+      phone: "",
+      latitude: null,
+      longitude: null,
+      isActive: true,
+    };
+    const saved = {
+      ...values,
+      id: 2,
+      is_active: true,
+      updated_at: "2026-10-26T09:00:00+05:00",
+      phone: null,
+    };
+    apiFetch.mockResolvedValue(respond(201, saved));
+    expect(await saveClinic(null, values, null, KEY, CSRF)).toMatchObject({
+      ok: true,
+      data: { id: "2", directions: values.directions },
+    });
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/clinics/",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.objectContaining({
+          name: values.name,
+          address: values.address,
+          directions: values.directions,
+          is_active: true,
+          phone: null,
+        }),
+      }),
+    );
+    expect(updateTag).toHaveBeenCalledWith("shop:specialists");
+    await saveClinic(
+      "2",
+      { ...values, directions: { ...values.directions, en: "Courtyard entrance" } },
+      values,
+      KEY,
+      CSRF,
+    );
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/clinics/2/",
+      expect.objectContaining({
+        method: "PATCH",
+        body: { directions: { en: "Courtyard entrance" } },
+      }),
+    );
+  });
+
   it("PATCHes with force after the 409 and maps the conflict message", async () => {
     const base = specialistFormValues(jasur);
     apiFetch.mockRejectedValueOnce(
@@ -295,7 +393,18 @@ describe("clinic actions in api mode", () => {
     apiFetch.mockResolvedValueOnce(respond(200, specialistFixture));
     await saveWorkingHours(
       "2",
-      { days: [{ weekday: 1, start: "10:00", end: "15:00", breakStart: null, breakEnd: null }] },
+      {
+        days: [
+          {
+            weekday: 1,
+            locationId: "2",
+            start: "10:00",
+            end: "15:00",
+            breakStart: null,
+            breakEnd: null,
+          },
+        ],
+      },
       KEY,
       CSRF,
     );
@@ -304,7 +413,16 @@ describe("clinic actions in api mode", () => {
       expect.objectContaining({
         method: "PUT",
         body: {
-          days: [{ weekday: 1, start: "10:00", end: "15:00", break_start: null, break_end: null }],
+          days: [
+            {
+              weekday: 1,
+              location_id: 2,
+              start: "10:00",
+              end: "15:00",
+              break_start: null,
+              break_end: null,
+            },
+          ],
         },
       }),
     );

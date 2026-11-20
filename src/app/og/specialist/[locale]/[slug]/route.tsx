@@ -19,6 +19,6 @@ export async function GET(
   return brandImage({
     eyebrow: specialist.roleLabel,
     title: specialist.name,
-    footer: specialist.location.name || dict.footer.clinicHeading,
+    footer: specialist.locations[0]?.name || dict.footer.clinicHeading,
   });
 }

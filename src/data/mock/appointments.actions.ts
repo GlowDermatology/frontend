@@ -10,7 +10,7 @@ import {
 import { appointmentDataCopy, type AppointmentDataCopy } from "@/domain/copy/appointments";
 import { copyFor } from "@/lib/i18n/admin-locale";
 
-import type { DayAppointment } from "../appointments";
+import type { AppointmentDay, DayAppointment } from "../appointments";
 import type { AppointmentAction } from "../appointments.actions";
 import type { CreateAppointmentValues, RescheduleAppointmentValues } from "../appointments.schema";
 import { referenceNow } from "../config";
@@ -71,14 +71,14 @@ const endOf = (start: string, durationMin: number) =>
 async function startFailure(
   m: AppointmentDataCopy,
   specialistId: string,
-  date: string,
+  day: AppointmentDay,
   time: string,
   durationMin: number,
   excludeId?: string,
 ): Promise<ActionFailure | null> {
-  const start = tashkentStart(date, time);
+  const start = tashkentStart(day.date, time);
   const problem = bookingProblem(
-    specialistSchedule(await getAppointmentDay(date), specialistId),
+    specialistSchedule(day, specialistId),
     minutesOfDay(time),
     durationMin,
     { inPast: Date.parse(start) <= referenceNow().getTime(), excludeId },
@@ -115,20 +115,19 @@ export async function createAppointment(
   if (!service) return fieldError(m, "serviceId", m.serviceNotOffered);
   const customer = CUSTOMERS.find((c) => c.phone === values.phone);
   if (!customer) return fieldError(m, "phone", m.customerNotFound);
-  const failure = await startFailure(
-    m,
-    specialist.id,
-    values.date,
-    values.time,
-    service.durationMin,
-  );
+  const day = await getAppointmentDay(values.date);
+  const failure = await startFailure(m, specialist.id, day, values.time, service.durationMin);
   if (failure) return failure;
+  const location = day.specialists.find((entry) => entry.id === specialist.id)?.location;
+  if (!location || location.id !== values.locationId)
+    return fieldError(m, "locationId", m.wrongClinic);
   const start = tashkentStart(values.date, values.time);
   return {
     ok: true,
     data: {
       id: `a-new-${crypto.randomUUID()}`,
       specialistId: specialist.id,
+      location,
       customer: { id: customer.id, name: customer.name, phone: customer.phone },
       serviceId: service.id,
       service: service.name,
@@ -158,15 +157,12 @@ export async function rescheduleAppointment(
   // Changing the specialist re-snapshots duration and price from that link.
   const service = specialist.services.find((s) => s.id === appointment.serviceId);
   if (!service) return fieldError(m, "specialistId", m.serviceNotOffered);
-  const failure = await startFailure(
-    m,
-    specialist.id,
-    values.date,
-    values.time,
-    service.durationMin,
-    id,
-  );
+  const day = await getAppointmentDay(values.date);
+  const failure = await startFailure(m, specialist.id, day, values.time, service.durationMin, id);
   if (failure) return failure;
+  const location = day.specialists.find((entry) => entry.id === specialist.id)?.location;
+  if (!location || location.id !== values.locationId)
+    return fieldError(m, "locationId", m.wrongClinic);
   const start = tashkentStart(values.date, values.time);
   const changedSpecialist = specialist.id !== appointment.specialistId;
   return {
@@ -174,6 +170,7 @@ export async function rescheduleAppointment(
     data: {
       ...appointment,
       specialistId: specialist.id,
+      location,
       durationMin: changedSpecialist ? service.durationMin : appointment.durationMin,
       price: changedSpecialist ? service.price : appointment.price,
       start,

@@ -78,6 +78,7 @@ export type ApiAssistantAcceptResult = Schemas["AssistantAcceptResult"];
 
 /* --- Appointments (contract §2.9) --- */
 
+export type ApiAppointmentClinic = Schemas["AppointmentClinic"];
 export type ApiDaySchedule = Schemas["DaySchedule"];
 export type ApiSpecialistDay = Schemas["SpecialistDay"];
 export type ApiDayBlock = Schemas["DayBlock"];
@@ -89,10 +90,6 @@ export type ApiAppointmentRange = Schemas["AppointmentRange"];
 export type ApiRangeDay = Schemas["RangeDay"];
 export type ApiRangeSchedule = Schemas["RangeSchedule"];
 export type ApiBookingSpecialist = Schemas["BookingSpecialist"];
-/**
- * `POST appointments/`. The generated schema marks `note` required, the
- * contract makes it optional (≤300); the action always sends a string.
- */
 export type ApiAppointmentCreate = Schemas["AppointmentCreateRequest"];
 export type ApiAppointmentReschedule = Schemas["AppointmentRescheduleRequest"];
 export type ApiAppointmentCancel = Partial<Schemas["AppointmentCancelRequest"]>;
@@ -232,10 +229,11 @@ export type ApiServicePatch = Omit<
   "name" | "short_name" | "description"
 > & { name?: I18nPartial; short_name?: I18nPartial; description?: I18nPartial };
 export type ApiClinicLocation = Schemas["ClinicLocation"];
+export type ApiClinicLocations = Schemas["ClinicLocations"];
 export type ApiLocationPatch = Omit<
   Partial<Schemas["PatchedClinicLocationPatchRequest"]>,
-  "name" | "address"
-> & { name?: I18nPartial; address?: I18nPartial };
+  "name" | "address" | "directions"
+> & { name?: I18nPartial; address?: I18nPartial; directions?: I18nPartial };
 export type ApiConflicts = { results: ApiAppointmentItem[] };
 
 /* --- Yandex Delivery: carrier view, exception queue, dispatch switch (plan §3.9, §3.10) --- */

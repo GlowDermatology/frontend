@@ -6,12 +6,21 @@ import { Field, TextArea, TextInput } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import type { SpecialistFormValues } from "@/data/clinic.schema";
-import { EXPERIENCE_MAX, NAME_MAX, SLOT_STEPS, SPECIALIST_ROLES, TEXT_MAX } from "@/domain/clinic";
+import {
+  clinicText,
+  EXPERIENCE_MAX,
+  NAME_MAX,
+  SLOT_STEPS,
+  SPECIALIST_ROLES,
+  TEXT_MAX,
+  type ClinicLocation,
+} from "@/domain/clinic";
 import { clinicDataCopy } from "@/domain/copy/clinic";
 import type { ContentLanguage } from "@/domain/product";
 import { slugifyName, SPECIALIST_SLUG_MAX } from "@/domain/seo";
-import { useCopy } from "@/lib/i18n/admin-context";
+import { useAdminLocale, useCopy } from "@/lib/i18n/admin-context";
 
+import { clinicOptions } from "../clinics/options";
 import { LanguageTabs } from "../products/language-tabs";
 import { SlugField } from "../shared/seo-fields";
 import { specialistsCopy, type SpecialistsCopy } from "./copy";
@@ -30,6 +39,8 @@ export const PROFILE_FIELDS = [
   "experienceYears",
   "slotStepMin",
   "staffUserId",
+  "locationIds",
+  "locationId",
   "isActive",
   "slug",
   ...LANGUAGES.flatMap((l) => [`qualifications.${l}`, `bio.${l}`]),
@@ -42,6 +53,8 @@ export const PROFILE_ORDER = [
   "experienceYears",
   "slotStepMin",
   "staffUserId",
+  "locationIds",
+  "locationId",
   "slug",
   ...LANGUAGES.flatMap((l) => [`qualifications.${l}`, `bio.${l}`]),
   "isActive",
@@ -60,6 +73,8 @@ export function profileFieldLabel(name: string, t: SpecialistsCopy): string | un
     experienceYears: p.experience,
     slotStepMin: p.slotStep,
     staffUserId: p.staff,
+    locationIds: t.location.assigned,
+    locationId: t.location.primary,
     slug: p.slug,
     isActive: p.active,
     photo: p.photo,
@@ -99,6 +114,7 @@ interface ProfileFieldsProps {
   onExperienceChange: (value: string) => void;
   errors: Record<string, string>;
   staffOptions: ReadonlyArray<StaffOption>;
+  clinics: ReadonlyArray<ClinicLocation>;
   /** The account linked now, shown even when it is no longer in the options (deactivated). */
   linkedStaff: StaffOption | null;
   /** Hint under the active switch. */
@@ -124,18 +140,35 @@ export function SpecialistProfileFields({
   onExperienceChange,
   errors,
   staffOptions,
+  clinics,
   linkedStaff,
   activeHint,
   savedSlug,
   language,
   onLanguageChange,
 }: ProfileFieldsProps) {
-  const t = useCopy(specialistsCopy).profile;
+  const { profile: t, location } = useCopy(specialistsCopy);
+  const locale = useAdminLocale();
   const m = useCopy(clinicDataCopy);
   const idBase = useId();
   const set = <K extends keyof SpecialistFormValues>(key: K, value: SpecialistFormValues[K]) =>
     onChange({ ...values, [key]: value });
   const linkedMissing = linkedStaff && !staffOptions.some((o) => o.id === linkedStaff.id);
+  const assigned = clinics.filter((clinic) => values.locationIds.includes(clinic.id));
+  const assignable = clinics.filter(
+    (clinic) => clinic.isActive || values.locationIds.includes(clinic.id),
+  );
+  const toggleClinic = (id: string, checked: boolean) => {
+    const locationIds = checked
+      ? [...values.locationIds, id]
+      : values.locationIds.filter((value) => value !== id);
+    const locationId = locationIds.includes(values.locationId)
+      ? values.locationId
+      : (clinics.find((clinic) => clinic.isActive && locationIds.includes(clinic.id))?.id ??
+        locationIds[0] ??
+        "");
+    onChange({ ...values, locationId, locationIds });
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -248,6 +281,52 @@ export function SpecialistProfileFields({
         />
       </div>
 
+      <fieldset
+        data-field="locationIds"
+        data-invalid={errors.locationIds ? "true" : undefined}
+        aria-describedby={errors.locationIds ? `${idBase}-clinics-error` : undefined}
+        className="m-0 flex flex-col gap-2 rounded-md border border-line p-3"
+      >
+        <legend className="px-1 text-label text-ink">{location.assigned}</legend>
+        {assignable.map((clinic) => (
+          <label
+            key={clinic.id}
+            className="flex items-start gap-2 rounded-md bg-surface p-2 text-body-sm"
+          >
+            <input
+              type="checkbox"
+              className="mt-0.5 size-4 accent-gold-ink"
+              checked={values.locationIds.includes(clinic.id)}
+              onChange={(event) => toggleClinic(clinic.id, event.target.checked)}
+              aria-invalid={errors.locationIds ? true : undefined}
+            />
+            <span className="flex flex-col">
+              <span className="font-semibold text-ink">
+                {clinicText(clinic.name, locale)}
+                {!clinic.isActive && ` · ${m.status.inactive}`}
+              </span>
+              <span className="text-ink-muted">{clinicText(clinic.address, locale)}</span>
+            </span>
+          </label>
+        ))}
+        {errors.locationIds && (
+          <p id={`${idBase}-clinics-error`} className="m-0 text-body-sm text-danger">
+            {errors.locationIds}
+          </p>
+        )}
+      </fieldset>
+      <Field label={location.primary} name="locationId" error={errors.locationId}>
+        {(control) => (
+          <Select
+            {...control}
+            value={values.locationId}
+            onValueChange={(id) => set("locationId", id)}
+            options={clinicOptions(assigned, locale)}
+            placeholder={location.placeholder}
+            disabledReason={assigned.length === 0 && location.placeholder}
+          />
+        )}
+      </Field>
       <div className="flex flex-col gap-2">
         <span className="text-label text-ink">{t.texts}</span>
         <LanguageTabs

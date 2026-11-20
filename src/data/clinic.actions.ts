@@ -1,5 +1,6 @@
 "use server";
 
+import { updateTag } from "next/cache";
 import { z } from "zod";
 
 import type {
@@ -28,9 +29,9 @@ import {
   apiDeleteBlock,
   apiDeleteOverride,
   apiDeleteSpecialistPhoto,
-  apiPatchLocation,
   apiPatchService,
   apiPatchSpecialist,
+  apiSaveClinic,
   apiPutOfferedServices,
   apiPutSpecialistPhoto,
   apiPutWorkingHours,
@@ -64,6 +65,7 @@ import {
 } from "./clinic.schema";
 import * as mock from "./mock/clinic.actions";
 import { imageFileSchemas } from "./products.schema";
+import { shopTags, tagsForEntity } from "./shop/tags";
 import { dataSource } from "./source";
 import type { ActionResult } from "./types";
 
@@ -74,14 +76,14 @@ import type { ActionResult } from "./types";
  * form then offers «Baribir nofaol qilish» (`force`). The API's field
  * paths are camelised onto the forms' names (`slot_step_min` →
  * `slotStepMin`, `services.0.price`, `days.2.break_start` →
- * `days.2.breakStart`); a missing clinic is the form-level error.
+ * `days.2.breakStart`), including clinic assignments and scheduled locations.
  */
 
 const apiId = z.string().regex(/^\d{1,18}$/);
 /** Demo ids also include the fixtures' and the drafts'. */
 const anyId = z.string().regex(/^(?:\d{1,18}|draft-[0-9a-f-]{36})$/);
 
-const SPECIALIST_REMAP: FieldRemap = { location_id: TOP_LEVEL_ERROR, force: TOP_LEVEL_ERROR };
+const SPECIALIST_REMAP: FieldRemap = { force: TOP_LEVEL_ERROR, "location_ids.*": "locationIds" };
 const BLOCK_REMAP: FieldRemap = { start: "startTime", end: "endTime" };
 const PHOTO_REMAP: FieldRemap = { file: "photo" };
 
@@ -135,6 +137,7 @@ export async function createSpecialist(
           specialistCreateBody(parsed.data),
           key,
         );
+        for (const tag of tagsForEntity("specialist", data.id)) updateTag(tag);
         return { ok: true, data: mapClinicSpecialist(data) };
       } catch (error) {
         return toActionResult(error, SPECIALIST_REMAP);
@@ -173,6 +176,7 @@ export async function updateSpecialist(
           specialistPatchBody(base.data, parsed.data, force === true),
           key,
         );
+        for (const tag of tagsForEntity("specialist", data.id)) updateTag(tag);
         return { ok: true, data: mapClinicSpecialist(data) };
       } catch (error) {
         return toActionResult(error, SPECIALIST_REMAP);
@@ -248,6 +252,7 @@ export async function saveOfferedServices(
           offeredServicesBody(parsed.data),
           key,
         );
+        for (const tag of tagsForEntity("specialist", data.id)) updateTag(tag);
         return { ok: true, data: mapClinicSpecialist(data) };
       } catch (error) {
         return toActionResult(error);
@@ -399,6 +404,7 @@ export async function saveService(
           id === null || !base
             ? await apiCreateService(token, serviceCreateBody(parsed.data), key)
             : await apiPatchService(token, id, servicePatchBody(base.data, parsed.data), key);
+        for (const tag of tagsForEntity("service", data.id)) updateTag(tag);
         return { ok: true, data: mapClinicService(data) };
       } catch (error) {
         return toActionResult(error);
@@ -408,8 +414,8 @@ export async function saveService(
   return mock.saveService(id, parsed.data);
 }
 
-/** `PATCH location/` (the first one creates the clinic, then `name.uz` is required). */
-export async function saveLocation(
+export async function saveClinic(
+  id: string | null,
   values: LocationFormValues,
   baseline: LocationFormValues | null,
   key: string,
@@ -417,22 +423,26 @@ export async function saveLocation(
 ): Promise<ActionResult<ClinicLocation>> {
   const start = await prologue(csrf, key);
   if (!start.ok) return start;
+  if (id !== null && !anyId.safeParse(id).success) return start.notFound;
   const parsed = start.schemas.location.safeParse(values);
   if (!parsed.success) return fieldErrorsFrom(parsed.error, start.m.checkFields);
   const base = baseline === null ? null : start.schemas.location.safeParse(baseline);
   if ((await dataSource()) === "api") {
-    return apiMutation("saveLocation", async () => {
+    if (id !== null && !apiId.safeParse(id).success) return start.notFound;
+    return apiMutation("saveClinic", async () => {
       try {
-        const { data } = await apiPatchLocation(
+        const { data } = await apiSaveClinic(
           sessionToken(start.guard.session),
+          id,
           locationPatchBody(base?.success ? base.data : null, parsed.data),
           key,
         );
+        updateTag(shopTags.specialists);
         return { ok: true, data: mapLocation(data) };
       } catch (error) {
         return toActionResult(error);
       }
     });
   }
-  return mock.saveLocation(parsed.data);
+  return mock.saveClinic(id, parsed.data);
 }

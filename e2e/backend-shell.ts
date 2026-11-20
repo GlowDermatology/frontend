@@ -310,14 +310,20 @@ function shellJson<T>(code: string, env: Record<string, string> = {}): T {
  * `prefix`, never a seeded one): the admin API never deletes them (§2.17),
  * and the spec books no appointment, so nothing protects them.
  */
-export function deleteClinicRows(prefix: string): { specialists: number; services: number } {
+export function deleteClinicRows(prefix: string): {
+  specialists: number;
+  services: number;
+  clinics: number;
+} {
+  if (!prefix.startsWith("e2e")) throw new Error("only e2e clinic rows are deleted");
   const code = [
     "import json",
-    "from glowderma.professionals.models import Professional, Service",
+    "from glowderma.professionals.models import Location, Professional, Service",
     `prefix = json.loads(${JSON.stringify(JSON.stringify(prefix))})`,
     "p = Professional.objects.filter(name__startswith=prefix).delete()[0]",
     "s = Service.objects.filter(name_uz__startswith=prefix).delete()[0]",
-    "print(json.dumps({'specialists': p, 'services': s}))",
+    "c = Location.objects.filter(name_uz__startswith=prefix).delete()[0]",
+    "print(json.dumps({'specialists': p, 'services': s, 'clinics': c}))",
   ].join("\n");
   return shellJson(code);
 }

@@ -105,6 +105,7 @@ describe("appointments", () => {
     expect(day.appointments[0]).toEqual({
       id: "1",
       specialistId: "1",
+      location: { id: "1", name: "Glow Derma", address: "Toshkent, Chilonzor" },
       customer: { id: "8", name: "Kamola Nazarova", phone: "+998909741823" },
       serviceId: "1",
       service: "Dermatolog konsultatsiyasi",

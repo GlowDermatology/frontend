@@ -28,6 +28,8 @@ afterEach(() => {
   else process.env.GLOWDERMA_DATA_SOURCE = originalSource;
 });
 
+const clinic = { id: 2, name: "Yunusobod", address: "Toshkent, Yunusobod" };
+
 const RANGE: ApiAppointmentRange = {
   from: "2026-10-26",
   to: "2026-10-27",
@@ -56,14 +58,16 @@ const RANGE: ApiAppointmentRange = {
       specialist_id: 1,
       date: "2026-10-26",
       working_hours: { start: "09:00", end: "18:00" },
+      location: clinic,
       blocks: [{ start: "13:00", end: "14:00", kind: "off", label: null }],
     },
-    { specialist_id: 1, date: "2026-10-27", working_hours: null, blocks: [] },
+    { specialist_id: 1, date: "2026-10-27", location: null, working_hours: null, blocks: [] },
   ],
   appointments: [
     {
       id: 7,
       specialist_id: 1,
+      location: clinic,
       customer: { id: 8, name: "Kamola Nazarova", phone: "+998909741823" },
       service_id: 1,
       service_name: "Dermatolog konsultatsiyasi",
@@ -91,7 +95,12 @@ describe("mapAppointmentRange", () => {
     expect(range.days[1]).toMatchObject({ working: false, hours: null });
     const [monday, tuesday] = range.schedules!;
     expect(monday!.appointments.map((a) => a.id)).toEqual(["7"]);
-    expect(monday!.specialists[0]).toMatchObject({ id: "1", working: true });
+    expect(monday!.specialists[0]).toMatchObject({
+      id: "1",
+      working: true,
+      location: { ...clinic, id: "2" },
+    });
+    expect(monday!.appointments[0]!.location).toEqual({ ...clinic, id: "2" });
     // No schedule entry → drawn as not working; a null working day → the day-off block.
     expect(monday!.specialists[1]).toMatchObject({ id: "3", working: false, isActive: false });
     expect(tuesday!.specialists[0]!.working).toBe(false);

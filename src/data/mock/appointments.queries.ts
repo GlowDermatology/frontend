@@ -32,6 +32,7 @@ function specialistsOn(date: string): ReadonlyArray<Specialist> {
   if (!isClosedDay(date)) return SPECIALISTS;
   return SPECIALISTS.map((specialist) => ({
     ...specialist,
+    location: null,
     workingHours: { ...OPEN_HOURS },
     blocks: [{ ...OPEN_HOURS, kind: "off", label: FALLBACK_BLOCK_LABEL.dayOff }],
     working: false,

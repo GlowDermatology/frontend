@@ -48,7 +48,7 @@ import {
   mapOrderDelivery,
   quoteIdOrNull,
 } from "./delivery-mappers";
-import { absoluteUrl, optimizable, variant } from "./mappers";
+import { absoluteUrl, mapShopLocation, optimizable, variant } from "./mappers";
 
 /**
  * Customer API → private storefront view models (pure; unit-tested). Every
@@ -430,11 +430,7 @@ export function mapAppointment(
       id: api.service.id,
       name: text(api.service.short_name) || text(api.service.name),
     },
-    location: {
-      name: text(api.location?.name),
-      address: text(api.location?.address),
-      phone: optionalText(api.location?.phone),
-    },
+    location: mapShopLocation(api.location),
     start: api.start,
     end: api.end,
     durationMin: nonNegative(api.duration_min),
@@ -448,6 +444,7 @@ export function mapAppointment(
 export function mapSlots(api: ApiFreeSlots): ShopSlots {
   return {
     date: api.date,
+    locationId: api.location_id,
     durationMin: nonNegative(api.duration_min),
     price: nonNegative(api.price),
     workingHours: api.working_hours

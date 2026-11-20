@@ -95,6 +95,7 @@ const originalSource = process.env.GLOWDERMA_DATA_SOURCE;
 
 const booking = {
   specialistId: "s-1",
+  locationId: "1",
   serviceId: "1",
   phone: "+998901234567",
   date: "2026-10-26",
@@ -161,6 +162,9 @@ describe("appointment dialogs in mock mode", () => {
     expect((await field({ phone: "+99890" })).fieldErrors).toEqual({
       phone: "Telefon raqamini to‘g‘ri kiriting.",
     });
+    expect((await field({ locationId: "2" })).fieldErrors).toEqual({
+      locationId: "Mutaxassis bu kuni ushbu klinikada ishlamaydi.",
+    });
     expect((await field({ serviceId: "3" })).fieldErrors).toEqual({
       serviceId: "Mutaxassis bu xizmatni ko‘rsatmaydi.",
     });
@@ -173,7 +177,7 @@ describe("appointment dialogs in mock mode", () => {
     // a2: Aziza, Nodira, Qayta ko‘rik 11:00–11:20, 100 000.
     const moved = await rescheduleAppointment(
       "a2",
-      { specialistId: "s-2", date: "2026-10-26", time: "11:30" },
+      { specialistId: "s-2", locationId: "1", date: "2026-10-26", time: "11:30" },
       "s-1",
       KEY,
       CSRF,
@@ -193,7 +197,7 @@ describe("appointment dialogs in mock mode", () => {
     expect(
       await rescheduleAppointment(
         "a2",
-        { specialistId: "s-1", date: "2026-10-26", time: "11:05" },
+        { specialistId: "s-1", locationId: "1", date: "2026-10-26", time: "11:05" },
         "s-1",
         KEY,
         CSRF,
@@ -203,7 +207,7 @@ describe("appointment dialogs in mock mode", () => {
     expect(
       await rescheduleAppointment(
         "a2",
-        { specialistId: "s-3", date: "2026-10-26", time: "14:00" },
+        { specialistId: "s-3", locationId: "2", date: "2026-10-26", time: "14:00" },
         "s-1",
         KEY,
         CSRF,
@@ -296,6 +300,7 @@ describe("appointment actions in api mode", () => {
         body: {
           specialist_id: 1,
           service_id: 1,
+          location_id: 1,
           phone: "+998901234567",
           start: "2026-10-26T09:30:00+05:00",
           note: "Qo‘ng‘iroq qildi",
@@ -323,25 +328,27 @@ describe("appointment actions in api mode", () => {
     apiFetch.mockResolvedValue(respond(200, item));
     await rescheduleAppointment(
       "1",
-      { specialistId: "1", date: "2026-10-27", time: "10:00" },
+      { specialistId: "1", locationId: "1", date: "2026-10-27", time: "10:00" },
       "1",
       KEY,
       CSRF,
     );
     expect(apiFetch).toHaveBeenLastCalledWith(
       "/api/v1/admin/appointments/1/reschedule/",
-      expect.objectContaining({ body: { start: "2026-10-27T10:00:00+05:00" } }),
+      expect.objectContaining({ body: { start: "2026-10-27T10:00:00+05:00", location_id: 1 } }),
     );
     await rescheduleAppointment(
       "1",
-      { specialistId: "2", date: "2026-10-27", time: "10:00" },
+      { specialistId: "2", locationId: "2", date: "2026-10-27", time: "10:00" },
       "1",
       KEY,
       CSRF,
     );
     expect(apiFetch).toHaveBeenLastCalledWith(
       "/api/v1/admin/appointments/1/reschedule/",
-      expect.objectContaining({ body: { start: "2026-10-27T10:00:00+05:00", specialist_id: 2 } }),
+      expect.objectContaining({
+        body: { start: "2026-10-27T10:00:00+05:00", specialist_id: 2, location_id: 2 },
+      }),
     );
     await cancelAppointment("1", { reason: "" }, KEY, CSRF);
     expect(apiFetch).toHaveBeenLastCalledWith(

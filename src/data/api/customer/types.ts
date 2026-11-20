@@ -52,6 +52,7 @@ export type ApiCustomerCategory = Omit<Schemas["CustomerCategory"], Exclude<SeoK
 export type ApiCustomerCategoryList = { results: ApiCustomerCategory[] };
 export type ApiCustomerBanner = Schemas["CustomerBanner"];
 export type ApiCustomerBannerList = Schemas["CustomerBannerList"];
+export type ApiClinic = Schemas["Location"];
 export type ApiSpecialist = Omit<Schemas["Specialist"], "slug" | "updated_at"> &
   Omit<PlannedSeoFields, "seo_title" | "seo_description">;
 export type ApiSpecialistList = { results: ApiSpecialist[] };

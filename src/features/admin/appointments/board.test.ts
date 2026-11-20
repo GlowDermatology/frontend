@@ -121,6 +121,7 @@ describe("WeekGrid", () => {
       ({
         id,
         specialistId: "s-1",
+        location: { id: "1", name: "Glow Derma", address: "Toshkent, Chilonzor" },
         customer: { id: "c", name: `Mijoz ${id}`, phone: "+998901234567" },
         serviceId: "v",
         service: "Konsultatsiya",

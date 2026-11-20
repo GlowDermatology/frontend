@@ -5,6 +5,7 @@ import type {
   ApiBlockedPeriod,
   ApiBlockWrite,
   ApiClinicLocation,
+  ApiClinicLocations,
   ApiClinicService,
   ApiClinicSpecialist,
   ApiConflicts,
@@ -224,16 +225,21 @@ export function apiPatchService(
   });
 }
 
-/* --- The clinic --- */
+/* --- Clinics --- */
 
-/** 404 until the first PATCH creates the clinic. */
-export function apiGetLocation(token: string) {
-  return cachedGet<ApiClinicLocation>(`${BASE}/location/`, undefined, token);
+export function apiListClinics(token: string) {
+  return cachedGet<ApiClinicLocations>(`${BASE}/clinics/`, undefined, token);
 }
 
-export function apiPatchLocation(token: string, body: ApiLocationPatch, key: string) {
-  return apiFetch<ApiClinicLocation>(`${BASE}/location/`, {
-    method: "PATCH",
+export function apiSaveClinic(
+  token: string,
+  clinicId: string | null,
+  body: ApiLocationPatch,
+  key: string,
+) {
+  const path = clinicId === null ? `${BASE}/clinics/` : `${BASE}/clinics/${id(clinicId)}/`;
+  return apiFetch<ApiClinicLocation>(path, {
+    method: clinicId === null ? "POST" : "PATCH",
     body,
     token,
     idempotencyKey: key,

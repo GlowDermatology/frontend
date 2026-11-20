@@ -288,14 +288,26 @@ describe("mapSpecialist / mapService / mapSettings", () => {
     bio: "",
     qualifications: "",
     experience_years: 8,
-    location: {
-      id: 1,
-      name: "Glow Derma klinikasi",
-      address: "Toshkent",
-      phone: "+998712000000",
-      latitude: 41.3,
-      longitude: 69.2,
-    },
+    locations: [
+      {
+        id: 1,
+        name: "Glow Derma klinikasi",
+        address: "Toshkent",
+        directions: "",
+        phone: "+998712000000",
+        latitude: 41.3,
+        longitude: 69.2,
+      },
+      {
+        id: 2,
+        name: "Chilonzor",
+        address: "Chilonzor, Toshkent",
+        directions: "Ikkinchi qavat",
+        phone: null,
+        latitude: null,
+        longitude: null,
+      },
+    ],
     services: [{ id: 1, name: "Konsultatsiya", short_name: "", duration_min: 30, price: 150000 }],
     slot_step_min: 30,
   };
@@ -310,7 +322,7 @@ describe("mapSpecialist / mapService / mapSettings", () => {
       durationMin: 30,
       price: 150000,
     });
-    expect(mapped.location.latitude).toBe(41.3);
+    expect(mapped.locations).toEqual(specialist.locations);
     expect(mapSpecialist({ ...specialist, slug: "nodira-rahimova" }, HOSTS).segment).toBe(
       "nodira-rahimova",
     );

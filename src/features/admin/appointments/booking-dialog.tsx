@@ -8,7 +8,7 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Dialog } from "@/components/ui/dialog";
-import { Field, TextArea } from "@/components/ui/field";
+import { Field, TextArea, TextInput } from "@/components/ui/field";
 import { FormErrorSummary } from "@/components/ui/form-errors";
 import { FormPhoneInput, FormSelect } from "@/components/ui/form-controls";
 import { Icon } from "@/components/ui/icon";
@@ -76,6 +76,7 @@ interface FormValues {
   specialistId: string;
   serviceId: string;
   phone: string;
+  locationId?: string;
   date: string;
   time: string;
   note: string;
@@ -86,6 +87,7 @@ const FIELDS: ReadonlyArray<keyof FormValues> = [
   "serviceId",
   "phone",
   "date",
+  "locationId",
   "time",
   "note",
 ];
@@ -166,12 +168,12 @@ export function BookingDialog({
     () =>
       zodResolver(
         editing
-          ? schemas.reschedule.extend({
+          ? schemas.reschedule.omit({ locationId: true }).extend({
               serviceId: z.string(),
               phone: z.string(),
               note: z.string(),
             })
-          : schemas.create,
+          : schemas.create.omit({ locationId: true }),
       ),
     [editing, schemas],
   );
@@ -192,6 +194,7 @@ export function BookingDialog({
       specialistId: t.specialist,
       serviceId: t.service,
       phone: t.phone,
+      locationId: t.clinic,
       date: t.date,
       time: t.time,
       note: t.note,
@@ -235,6 +238,10 @@ export function BookingDialog({
 
   const schedule =
     loaded && typeof loaded === "object" ? specialistSchedule(loaded, specialistId) : null;
+  const location =
+    loaded && typeof loaded === "object"
+      ? loaded.specialists.find((entry) => entry.id === specialistId)?.location
+      : null;
   const slots = schedule
     ? slotOptions(schedule, durationMin, {
         step: meta.slotStepMin,
@@ -259,7 +266,7 @@ export function BookingDialog({
 
   const onSubmit = (event: FormEvent<HTMLFormElement>) =>
     handleSubmit(async (values) => {
-      if (inFlight.current) return;
+      if (inFlight.current || !location) return;
       inFlight.current = true;
       setFormError(null);
       const result = idempotency.settle(
@@ -267,7 +274,12 @@ export function BookingDialog({
           editing
             ? rescheduleAppointment(
                 editing.id,
-                { specialistId: values.specialistId, date: values.date, time: values.time },
+                {
+                  specialistId: values.specialistId,
+                  locationId: location.id,
+                  date: values.date,
+                  time: values.time,
+                },
                 editing.specialistId,
                 idempotency.key,
                 csrf,
@@ -275,6 +287,7 @@ export function BookingDialog({
             : createAppointment(
                 {
                   specialistId: values.specialistId,
+                  locationId: location.id,
                   serviceId: values.serviceId,
                   phone: normalizePhone(values.phone),
                   date: values.date,
@@ -292,7 +305,7 @@ export function BookingDialog({
         // does not show becomes the form-level message.
         const { fieldErrors, formError: message } = partitionFieldErrors(
           result,
-          editing ? ["specialistId", "date", "time"] : [...FIELDS],
+          editing ? ["specialistId", "date", "locationId", "time"] : [...FIELDS],
         );
         const serverErrors: FieldErrors<FormValues> = {};
         for (const [path, text] of Object.entries(fieldErrors)) {
@@ -424,6 +437,21 @@ export function BookingDialog({
           </Field>
         </div>
 
+        <Field
+          name="locationId"
+          label={t.clinic}
+          error={errors.locationId?.message}
+          hint={location?.address}
+        >
+          {(control) => (
+            <TextInput
+              {...control}
+              readOnly
+              value={location?.name ?? (state ? t.noSlots[state] : t.noClinic)}
+            />
+          )}
+        </Field>
+
         {!editing && (
           <Field name="note" label={t.note} error={errors.note?.message} hint={t.noteHint}>
             {(c) => <TextArea {...c} {...register("note")} rows={2} maxLength={NOTE_MAX} />}
@@ -455,7 +483,11 @@ export function BookingDialog({
           >
             {t.cancel}
           </Button>
-          <Button type="submit" busy={isSubmitting}>
+          <Button
+            type="submit"
+            busy={isSubmitting}
+            disabledReason={!location && (state ? t.noSlots[state] : t.noClinic)}
+          >
             <Icon name="check" size={18} />
             {isSubmitting ? t.saving : editing ? t.submitMove : t.submitCreate}
           </Button>

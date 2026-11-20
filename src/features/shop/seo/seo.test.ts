@@ -351,13 +351,17 @@ describe("JSON-LD", () => {
       bio: "",
       qualifications: "",
       experienceYears: 8,
-      location: {
-        name: "Klinika",
-        address: "Toshkent",
-        phone: null,
-        latitude: null,
-        longitude: null,
-      },
+      locations: [
+        {
+          id: 1,
+          name: "Klinika",
+          address: "Toshkent",
+          directions: "",
+          phone: null,
+          latitude: null,
+          longitude: null,
+        },
+      ],
       services: [{ id: 1, name: "Konsultatsiya", shortName: "K", durationMin: 30, price: 1 }],
       updatedAt: null,
     };

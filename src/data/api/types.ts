@@ -73,8 +73,8 @@ export type ApiAssistantStart = Schemas["AssistantStart"];
 export type ApiAssistantJob = Schemas["AssistantJob"];
 export type ApiAssistantSuggestion = Schemas["AssistantSuggestion"];
 export type ApiAssistantJobCreate = Partial<Schemas["AssistantJobCreateRequest"]>;
-export type ApiAssistantApply = Schemas["AssistantApplyRequest"];
-export type ApiAssistantApplyResult = Schemas["AssistantApplyResult"];
+export type ApiAssistantAccept = Schemas["AssistantAcceptRequest"];
+export type ApiAssistantAcceptResult = Schemas["AssistantAcceptResult"];
 
 /* --- Appointments (contract §2.9) --- */
 

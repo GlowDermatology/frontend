@@ -192,6 +192,20 @@ interface SeoEditorProps {
   slug: string;
   /** What the website shows per language when a field is left empty. */
   fallback: Record<ContentLanguage, { title: string; description: string }>;
+  /**
+   * Extras per field (the product editor's AI assistant): a control next to the label, a note
+   * under the input and a highlight class for the input. The category dialog passes none.
+   */
+  fieldAddon?: (language: ContentLanguage, leaf: keyof SeoText) => SeoFieldAddon | undefined;
+  /** Language tabs holding an unsaved AI text (a gold dot), and how it is read out. */
+  marked?: Partial<Record<ContentLanguage, boolean>>;
+  markedLabel?: string;
+}
+
+export interface SeoFieldAddon {
+  action?: ReactNode;
+  note?: ReactNode;
+  className?: string | false;
 }
 
 export function SeoEditor({
@@ -204,6 +218,9 @@ export function SeoEditor({
   errors,
   slug,
   fallback,
+  fieldAddon,
+  marked,
+  markedLabel,
 }: SeoEditorProps) {
   const locale = useAdminLocale();
   const t = sharedCopy[locale].seo;
@@ -220,6 +237,8 @@ export function SeoEditor({
     fallbackDescription: fallback[language].description,
   });
   const fieldError = errors?.[language];
+  const titleAddon = fieldAddon?.(language, "title");
+  const descriptionAddon = fieldAddon?.(language, "description");
   const invalid = Object.fromEntries(
     CONTENT_LANGUAGES.map((l) => [l, Boolean(errors?.[l]?.title || errors?.[l]?.description)]),
   ) as Record<ContentLanguage, boolean>;
@@ -232,6 +251,8 @@ export function SeoEditor({
         onChange={onLanguageChange}
         complete={complete}
         invalid={invalid}
+        marked={marked}
+        markedLabel={markedLabel}
         idBase={tabsId}
       />
       <div
@@ -247,18 +268,27 @@ export function SeoEditor({
           name={`seo.${language}.title`}
           error={fieldError?.title}
           hint={`${idealHint("title", locale)} ${t.titleFallback}`}
-          aside={<Counter value={current.title} kind="title" max={SEO_TITLE_MAX} />}
+          aside={
+            <span className="flex items-center gap-2">
+              <Counter value={current.title} kind="title" max={SEO_TITLE_MAX} />
+              {titleAddon?.action}
+            </span>
+          }
         >
           {(c) => (
-            <TextInput
-              {...c}
-              name={`seo.${language}.title`}
-              value={current.title}
-              maxLength={SEO_TITLE_MAX}
-              autoComplete="off"
-              placeholder={fallback[language].title}
-              onChange={(event) => set("title", event.target.value)}
-            />
+            <>
+              <TextInput
+                {...c}
+                name={`seo.${language}.title`}
+                value={current.title}
+                maxLength={SEO_TITLE_MAX}
+                autoComplete="off"
+                placeholder={fallback[language].title}
+                onChange={(event) => set("title", event.target.value)}
+                className={cn(titleAddon?.className)}
+              />
+              {titleAddon?.note}
+            </>
           )}
         </Field>
         <Field
@@ -267,18 +297,25 @@ export function SeoEditor({
           error={fieldError?.description}
           hint={`${idealHint("description", locale)} ${t.descriptionFallback}`}
           aside={
-            <Counter value={current.description} kind="description" max={SEO_DESCRIPTION_MAX} />
+            <span className="flex items-center gap-2">
+              <Counter value={current.description} kind="description" max={SEO_DESCRIPTION_MAX} />
+              {descriptionAddon?.action}
+            </span>
           }
         >
           {(c) => (
-            <TextArea
-              {...c}
-              name={`seo.${language}.description`}
-              value={current.description}
-              maxLength={SEO_DESCRIPTION_MAX}
-              rows={3}
-              onChange={(event) => set("description", event.target.value)}
-            />
+            <>
+              <TextArea
+                {...c}
+                name={`seo.${language}.description`}
+                value={current.description}
+                maxLength={SEO_DESCRIPTION_MAX}
+                rows={3}
+                onChange={(event) => set("description", event.target.value)}
+                className={cn(descriptionAddon?.className)}
+              />
+              {descriptionAddon?.note}
+            </>
           )}
         </Field>
         <figure className="m-0 flex flex-col gap-2">

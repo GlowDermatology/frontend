@@ -10,43 +10,92 @@ vi.mock("next/navigation", () => ({
 import { ToastProvider } from "@/components/ui/toast";
 import { PRODUCTS } from "@/data/mock/catalog";
 import { CATEGORIES } from "@/data/mock/categories";
-import type { AssistantSuggestion } from "@/domain/assistant";
+import { buildDraft } from "@/domain/assistant";
 import { AdminLocaleProvider } from "@/lib/i18n/admin-context";
 import type { Locale } from "@/lib/i18n/locales";
 
 import { productsCopy } from "../copy";
 import { ProductEditor, productFieldLabel } from "../product-editor";
-import { AssistantCompose, composeBlocker, DEFAULT_COMPOSE } from "./assistant";
-import { AssistantReview } from "./assistant-review";
+import { AiFieldButton, AiFieldNote, AssistantBannerView, AssistantMenu } from "./assistant";
 import { assistantCopy } from "./copy";
-import { initialReview } from "./review";
+import type { ProductAssistant } from "./use-product-assistant";
 
 const LocaleProvider = AdminLocaleProvider as FC<{ locale: Locale; children?: ReactNode }>;
 const render = (node: ReturnType<typeof createElement>, locale: Locale = "uz") =>
   renderToStaticMarkup(
     createElement(LocaleProvider, { locale }, createElement(ToastProvider, null, node)),
   );
-const noop = () => undefined;
 const serum = PRODUCTS[0]!;
-const label = (key: string) => key;
+const imageIds = serum.images.map((image) => image.id);
+const draft = buildDraft(serum, imageIds);
+const noop = () => undefined;
+
+const fakeAi = (over: Partial<ProductAssistant> = {}): ProductAssistant => ({
+  enabled: true,
+  running: false,
+  fieldKeys: [],
+  changes: {},
+  problems: {},
+  banner: null,
+  savedImageIds: imageIds,
+  maxImages: 3,
+  draft: () => draft,
+  runField: noop,
+  runMenu: noop,
+  insertSuggestion: noop,
+  undo: noop,
+  undoAll: noop,
+  dismissBanner: noop,
+  clear: noop,
+  ...over,
+});
 
 describe("AI assistant in the editor", () => {
-  it("shows the button only when the assistant is enabled, and the new fields", () => {
-    const props = { product: serum, categories: CATEGORIES, lastSyncLabel: "—" };
+  const props = { product: serum, categories: CATEGORIES, lastSyncLabel: "—" };
+
+  it("shows the menu and a ✨ per field only when the assistant is enabled", () => {
+    const t = assistantCopy.uz;
     const on = render(
       createElement(ProductEditor, { ...props, assistant: { enabled: true, maxImages: 3 } }),
     );
-    expect(on).toContain(assistantCopy.uz.button);
+    expect(on).toContain(t.button);
     expect(on).toContain('data-assistant-state="idle"');
+    for (const key of [
+      "texts.uz.name",
+      "texts.uz.short_description",
+      "texts.uz.description",
+      "texts.uz.ingredients",
+      "texts.uz.usage",
+      "seo.uz.title",
+      "seo.uz.description",
+      `images.${imageIds[0]}.alt.uz`,
+    ]) {
+      expect(on).toContain(`data-ai-field="${key}"`);
+    }
+    // the empty uz short description is written, the filled description rewritten
+    expect(on).toContain(t.field.writeAria(productsCopy.uz.editor.shortDescription));
+    expect(on).toContain(t.field.rewriteAria(productsCopy.uz.editor.description));
     expect(on).toContain('name="texts.uz.shortDescription"');
     expect(on).toContain('name="images.0.alt.uz"');
-    expect(on).toContain(productsCopy.uz.editor.altTitle);
     const off = render(
       createElement(ProductEditor, { ...props, assistant: { enabled: false, maxImages: 3 } }),
     );
-    expect(off).not.toContain(assistantCopy.uz.button);
+    expect(off).not.toContain(t.button);
+    expect(off).not.toContain("data-ai-field");
     const none = render(createElement(ProductEditor, props));
-    expect(none).not.toContain(assistantCopy.uz.button);
+    expect(none).not.toContain(t.button);
+  });
+
+  it("hides the assistant on a product that is not saved yet", () => {
+    const html = render(
+      createElement(ProductEditor, {
+        ...props,
+        product: null,
+        assistant: { enabled: true, maxImages: 3 },
+      }),
+    );
+    expect(html).not.toContain(assistantCopy.uz.button);
+    expect(html).not.toContain("data-ai-field");
   });
 
   it("labels alt-text paths per photo and language", () => {
@@ -57,123 +106,135 @@ describe("AI assistant in the editor", () => {
   });
 });
 
-describe("AssistantCompose", () => {
-  const compose = (locale: Locale, settings = DEFAULT_COMPOSE, extra = {}) =>
-    render(
-      createElement(AssistantCompose, {
-        settings,
-        onChange: noop,
-        product: serum,
-        advanced: false,
-        onAdvanced: noop,
-        unsaved: false,
-        labelOf: label,
-        error: null,
-        starting: false,
-        onStart: noop,
-        ...extra,
-      }),
+describe("assistant pieces", () => {
+  it.each(["uz", "ru", "en"] as const)("names the menu and says when it runs (%s)", (locale) => {
+    const t = assistantCopy[locale];
+    expect(render(createElement(AssistantMenu, { ai: fakeAi(), draft }), locale)).toContain(
+      t.button,
+    );
+    const running = render(
+      createElement(AssistantMenu, { ai: fakeAi({ running: true }), draft }),
       locale,
     );
+    expect(running).toContain(t.buttonRunning);
+    expect(running).toContain('aria-busy="true"');
+  });
 
-  it.each(["uz", "ru", "en"] as const)("defaults to fill missing, all languages (%s)", (locale) => {
-    const t = assistantCopy[locale];
-    const html = compose(locale);
-    for (const text of [t.mode.fill_missing, t.mode.improve, t.languages, t.generate, t.advanced]) {
+  it("spins the running field's button and blocks the others with a reason", () => {
+    const t = assistantCopy.ru;
+    const ai = fakeAi({ running: true, fieldKeys: ["texts.ru.description"] });
+    const spinning = render(
+      createElement(AiFieldButton, { ai, draft, aiKey: "texts.ru.description", label: "x" }),
+      "ru",
+    );
+    expect(spinning).toContain('aria-busy="true"');
+    const waiting = render(
+      createElement(AiFieldButton, { ai, draft, aiKey: "texts.ru.usage", label: "x" }),
+      "ru",
+    );
+    expect(waiting).toContain(t.field.wait);
+    const unknownPhoto = render(
+      createElement(AiFieldButton, { ai, draft, aiKey: "images.upload-1.alt.ru", label: "x" }),
+      "ru",
+    );
+    expect(unknownPhoto).not.toContain("data-ai-field");
+  });
+
+  it("notes an AI text with its warnings, undo and another version", () => {
+    const t = assistantCopy.ru;
+    const ai = fakeAi({
+      changes: {
+        "texts.ru.usage": {
+          previous: "",
+          suggested: "1–2 раза в день",
+          warnings: ["unverified_number"],
+        },
+      },
+    });
+    const html = render(createElement(AiFieldNote, { ai, aiKey: "texts.ru.usage" }), "ru");
+    for (const text of [t.note.title, t.warnings.unverified_number, t.note.undo, t.note.again]) {
       expect(html).toContain(text);
     }
-    expect(html.match(/type="checkbox"[^>]*checked=""/g)).toHaveLength(3);
-    expect(html).not.toContain("data-assistant-fields");
-    expect(html).not.toContain(t.unsaved);
-  });
-
-  it("shows the field picker and goal for improve, and why it cannot start yet", () => {
-    const settings = { ...DEFAULT_COMPOSE, mode: "improve" as const };
-    const html = compose("uz", settings, { unsaved: true, error: "Kunlik limit tugadi." });
-    expect(html).toContain("data-assistant-fields");
-    expect(html).toContain("texts.uz.description");
-    expect(html).toContain(assistantCopy.uz.goal);
-    expect(html).toContain(assistantCopy.uz.unsaved);
-    expect(html).toContain('role="alert"');
-    expect(html).toContain(assistantCopy.uz.needFields);
-    const t = assistantCopy.uz;
-    expect(composeBlocker(t, { ...DEFAULT_COMPOSE, languages: [] }, serum)).toBe(t.needLanguage);
-    expect(composeBlocker(t, { ...DEFAULT_COMPOSE, mode: "photos" }, { images: [] })).toBe(
-      t.needPhotos,
+    expect(html.match(/<button/g)).toHaveLength(2);
+    expect(render(createElement(AiFieldNote, { ai, aiKey: "texts.ru.name" }), "ru")).not.toContain(
+      "data-ai-note",
     );
-    expect(composeBlocker(t, DEFAULT_COMPOSE, serum)).toBeUndefined();
   });
-});
 
-describe("AssistantReview", () => {
-  const suggestions: AssistantSuggestion[] = [
-    {
-      key: "texts.ru.short_description",
-      current: "",
-      suggested: "Лёгкая сыворотка.",
-      warnings: [],
-      origin: "ai",
-      checked: true,
-      maxLength: 300,
-    },
-    {
-      key: "seo.ru.title",
-      current: "Старый заголовок",
-      suggested: "Сыворотка с гиалуроновой кислотой 30 ml — Glow Derma, доставка",
-      warnings: ["seo_title_long"],
-      origin: "ai",
-      checked: true,
-      maxLength: 120,
-    },
-    {
-      key: "texts.uz.name",
-      current: "",
-      suggested: "Serum",
-      warnings: ["confirm_packaging"],
-      origin: "image",
-      checked: false,
-      maxLength: 120,
-    },
-  ];
-  const review = (locale: Locale, blocked: (key: string) => boolean = () => false) =>
-    render(
-      createElement(AssistantReview, {
-        suggestions,
-        notes: { rejected: 1, dropped: 0, extracted: { volume: "30 ml" } },
-        state: initialReview(suggestions, blocked),
-        onChange: noop,
-        isBlocked: blocked,
-        labelOf: label,
-        errors: {},
-        onApply: noop,
-        onDiscard: noop,
-        applying: false,
-        discarding: false,
+  it("says why a field got no text", () => {
+    const t = assistantCopy.ru;
+    const ai = fakeAi({ problems: { "texts.ru.usage": { kind: "unchanged" } } });
+    const html = render(createElement(AiFieldNote, { ai, aiKey: "texts.ru.usage" }), "ru");
+    expect(html).toContain(t.reasons.unchanged);
+    expect(html).toContain('role="status"');
+  });
+
+  it("holds an unchecked suggestion over the admin's text for «Insert»", () => {
+    const t = assistantCopy.ru;
+    const ai = fakeAi({
+      problems: {
+        "texts.ru.name": {
+          kind: "review",
+          suggested: "Сыворотка с упаковки",
+          warnings: ["confirm_packaging"],
+        },
+      },
+    });
+    const html = render(createElement(AiFieldNote, { ai, aiKey: "texts.ru.name" }), "ru");
+    for (const text of [
+      t.reasons.review,
+      "Сыворотка с упаковки",
+      t.warnings.confirm_packaging,
+      t.note.insert,
+    ]) {
+      expect(html).toContain(text);
+    }
+  });
+
+  it("reports a menu command in a banner, with the fields it did not change", () => {
+    const t = assistantCopy.ru;
+    const labelOf = (key: string) => `[${key}]`;
+    const filled = render(
+      createElement(AssistantBannerView, {
+        ai: fakeAi({
+          changes: { "texts.ru.description": { previous: "", suggested: "x", warnings: [] } },
+          banner: {
+            kind: "filled",
+            count: 1,
+            problems: [{ key: "texts.en.name", problem: { kind: "skipped" } }],
+            extracted: { brand: "Glow", volume: "30 ml" },
+          },
+        }),
+        labelOf,
       }),
-      locale,
+      "ru",
     );
-
-  it.each(["uz", "ru", "en"] as const)(
-    "lists suggestions by language with badges (%s)",
-    (locale) => {
-      const t = assistantCopy[locale];
-      const html = review(locale);
-      expect(html).toContain(t.review.count(3));
-      // the first language with suggestions is shown: uz (1 row)
-      expect(html).toContain('data-key="texts.uz.name"');
-      expect(html).not.toContain('data-key="seo.ru.title"');
-      expect(html).toContain(t.warnings.confirm_packaging);
-      expect(html).toContain(t.review.rejected(1));
-      expect(html).toContain("30 ml");
-      // only the two pre-checked ru rows are selected
-      expect(html).toContain(t.review.apply(2));
-      expect(html).toContain(t.review.discard);
-    },
-  );
-
-  it("blocks a field with unsaved edits", () => {
-    const html = review("uz", (key) => key === "texts.uz.name");
-    expect(html).toContain(assistantCopy.uz.review.dirty);
-    expect(html).toContain('aria-disabled="true"');
+    for (const text of [
+      t.banner.filled(1),
+      t.banner.notChanged,
+      "[texts.en.name]",
+      t.reasons.skipped,
+      t.banner.undoAll,
+      t.banner.extracted({ brand: "Glow", volume: "30 ml" }),
+    ]) {
+      expect(filled).toContain(text);
+    }
+    const nothing = render(
+      createElement(AssistantBannerView, {
+        ai: fakeAi({ banner: { kind: "nothing", problems: [], extracted: null } }),
+        labelOf,
+      }),
+      "ru",
+    );
+    expect(nothing).toContain(t.reasons.fallback);
+    expect(nothing).not.toContain(t.banner.undoAll);
+    const full = render(
+      createElement(AssistantBannerView, {
+        ai: fakeAi({ banner: { kind: "nothingToFill" } }),
+        labelOf,
+      }),
+      "ru",
+    );
+    expect(full).toContain(t.nothingToFill);
   });
 });

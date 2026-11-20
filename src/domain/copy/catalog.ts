@@ -44,6 +44,7 @@ const uz = {
     "Billz javob bermadi: mahsulot saqlanmadi. Kiritilgan ma’lumotlar joyida — birozdan so‘ng «Saqlash»ni qayta bosing.",
   productSlugTaken: "Bu manzil (slug) boshqa mahsulotda bor.",
   jobNotFound: "Jarayon topilmadi.",
+  jobClosed: "Bu jarayon allaqachon yakunlangan.",
   systemActor: "Tizim",
   lastChange: {
     created: "mahsulot yaratildi",
@@ -152,6 +153,7 @@ export const catalogDataCopy = {
       "Billz не ответил: товар не сохранён. Введённые данные на месте — через минуту снова нажмите «Сохранить».",
     productSlugTaken: "Этот адрес (slug) уже занят другим товаром.",
     jobNotFound: "Задача не найдена.",
+    jobClosed: "Эта задача уже завершена.",
     systemActor: "Система",
     lastChange: {
       created: "товар создан",
@@ -251,6 +253,7 @@ export const catalogDataCopy = {
       "Billz did not respond, so the product was not saved. Everything you entered is still here — press “Save” again in a moment.",
     productSlugTaken: "Another product already uses this address (slug).",
     jobNotFound: "Job not found.",
+    jobClosed: "This job is already closed.",
     systemActor: "System",
     lastChange: {
       created: "product created",

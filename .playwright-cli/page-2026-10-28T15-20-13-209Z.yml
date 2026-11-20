@@ -1,0 +1,19 @@
+- generic [ref=e1]:
+  - main [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - generic [ref=e5]:
+          - generic [ref=e6]: Glow Derma
+          - generic [ref=e7]: Admin
+        - heading "Tizimga kirish" [level=1] [ref=e8]
+      - generic [ref=e10]:
+        - generic [ref=e11]:
+          - generic [ref=e12]: Email
+          - textbox "Email" [active] [ref=e14]
+        - generic [ref=e15]:
+          - generic [ref=e16]: Parol
+          - textbox "Parol" [ref=e18]
+        - alert [ref=e19]
+        - button "Kirish" [ref=e20] [cursor=pointer]
+  - status
+  - alert [ref=e21]

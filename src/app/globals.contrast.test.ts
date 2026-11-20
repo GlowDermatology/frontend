@@ -10,7 +10,8 @@ import { describe, expect, it } from "vitest";
  * leak into subtrees pinned to `data-theme="light"`).
  */
 
-const CSS = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
+// CRLF → LF: a Windows checkout (core.autocrlf) must not hide the multi-line selectors below.
+const CSS = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8").replace(/\r\n/g, "\n");
 
 function block(selector: string): Map<string, string> {
   const start = CSS.indexOf(`${selector} {`);

@@ -25,6 +25,9 @@ interface LanguageTabsProps {
   complete: Record<ContentLanguage, boolean>;
   /** Languages whose fields hold a validation error: a red dot and "(xato bor)". */
   invalid?: Partial<Record<ContentLanguage, boolean>>;
+  /** Languages holding an unsaved AI text: a small gold dot, read out as `markedLabel`. */
+  marked?: Partial<Record<ContentLanguage, boolean>>;
+  markedLabel?: string;
   /** id prefix shared with the tab panel (`${idBase}-panel`). */
   idBase: string;
 }
@@ -39,6 +42,8 @@ export function LanguageTabs({
   onChange,
   complete,
   invalid,
+  marked,
+  markedLabel,
   idBase,
 }: LanguageTabsProps) {
   const t = useCopy(productsCopy).tabs;
@@ -86,6 +91,7 @@ export function LanguageTabs({
             tabIndex={selected ? 0 : -1}
             data-lang={language}
             data-has-errors={hasErrors || undefined}
+            data-ai-marked={marked?.[language] || undefined}
             onClick={() => onChange(language)}
             onKeyDown={(event) => onKeyDown(event, index)}
             className={cn(
@@ -105,6 +111,12 @@ export function LanguageTabs({
             <span className="sr-only">
               {hasErrors ? t.hasErrors : complete[language] ? t.complete : t.incomplete}
             </span>
+            {marked?.[language] && (
+              <>
+                <span aria-hidden="true" className="-ml-1 size-1.5 rounded-full bg-gold" />
+                {markedLabel && <span className="sr-only">{markedLabel}</span>}
+              </>
+            )}
           </button>
         );
       })}

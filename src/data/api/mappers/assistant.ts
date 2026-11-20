@@ -31,16 +31,26 @@ export function mapAssistantSuggestion(api: ApiAssistantSuggestion): AssistantSu
   };
 }
 
-/** `result.warnings` → counts and the photo label info (shown, never applied). */
+/**
+ * `result.warnings` → the keys that came back without a suggestion (rejected / skipped /
+ * unchanged, with their reason), the dropped count and the photo label info (shown, never applied).
+ * Malformed entries are ignored.
+ */
 export function mapAssistantNotes(
   warnings: ReadonlyArray<Record<string, unknown>>,
 ): AssistantJobNotes {
-  const notes: AssistantJobNotes = { rejected: 0, dropped: 0, extracted: null };
+  const notes: AssistantJobNotes = { keys: [], dropped: 0, extracted: null };
   for (const warning of warnings) {
-    if (warning.code === "rejected") notes.rejected += 1;
-    else if (warning.code === "dropped" && typeof warning.count === "number") {
+    const { code, key } = warning;
+    if (
+      (code === "rejected" || code === "skipped" || code === "unchanged") &&
+      typeof key === "string"
+    ) {
+      const reason = typeof warning.reason === "string" ? warning.reason : "";
+      notes.keys.push({ key, kind: code, reason });
+    } else if (code === "dropped" && typeof warning.count === "number") {
       notes.dropped += warning.count;
-    } else if (warning.code === "extracted") {
+    } else if (code === "extracted") {
       const extracted: NonNullable<AssistantJobNotes["extracted"]> = {};
       if (typeof warning.brand === "string" && warning.brand) extracted.brand = warning.brand;
       if (typeof warning.volume === "string" && warning.volume) extracted.volume = warning.volume;

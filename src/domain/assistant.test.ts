@@ -3,17 +3,21 @@ import { describe, expect, it } from "vitest";
 import { PRODUCTS } from "@/data/mock/catalog";
 
 import {
-  candidateKeys,
+  buildDraft,
+  fieldMode,
+  fillTargets,
   formPathOf,
+  hasAnyName,
+  improveTargets,
   isAwaitingReview,
+  isPlaceholder,
   keyLanguage,
   keyMaxLength,
   keyOf,
   keyValue,
+  needsSource,
   parseKey,
   productKeys,
-  suggestionProblem,
-  withKeysFrom,
 } from "./assistant";
 
 const serum = PRODUCTS[0]!;
@@ -54,41 +58,154 @@ describe("assistant keys", () => {
     expect(formPathOf("images.8.alt.uz", images)).toBeNull();
   });
 
-  it("reads values and offers empty keys, or filled ones for improve", () => {
+  it("reads saved values and lists every key in the editor's order", () => {
     expect(keyValue(serum, "texts.uz.name")).toBe("Gialuron kislotali serum");
     expect(keyValue(serum, "images.img-1.alt.uz")).toContain("serum");
     expect(keyValue(serum, "images.nope.alt.uz")).toBeNull();
     const all = productKeys(serum);
     expect(all).toHaveLength(3 * 5 + 3 * 2 + serum.images.length * 3);
-    const empty = candidateKeys(serum, "fill_missing", ["en"]);
-    expect(empty).toContain("texts.en.description");
-    expect(empty).not.toContain("texts.en.name");
-    expect(empty.every((key) => keyLanguage(key) === "en")).toBe(true);
-    const filled = candidateKeys(serum, "improve", ["uz"]);
-    expect(filled).toContain("texts.uz.description");
-    expect(filled).not.toContain("texts.uz.short_description");
   });
 
-  it("re-bases only the applied keys", () => {
-    const next = structuredClone(serum);
-    next.texts.ru.shortDescription = "Кратко";
-    next.texts.uz.name = "Changed elsewhere";
-    next.images[1]!.alt = { uz: "Qadoq", ru: "", en: "" };
-    const rebased = withKeysFrom(serum, next, [
-      "texts.ru.short_description",
-      "images.img-2.alt.uz",
-    ]);
-    expect(rebased.texts.ru.shortDescription).toBe("Кратко");
-    expect(rebased.texts.uz.name).toBe(serum.texts.uz.name);
-    expect(rebased.images[1]!.alt).toEqual({ uz: "Qadoq", ru: "", en: "" });
-    expect(serum.texts.ru.shortDescription).toBe("");
-  });
-
-  it("checks review values and job states", () => {
-    expect(suggestionProblem("  ", 10)).toBe("blank");
-    expect(suggestionProblem("x".repeat(11), 10)).toBe("too_long");
-    expect(suggestionProblem("ok", 10)).toBeNull();
+  it("checks job states", () => {
     expect(isAwaitingReview({ state: "succeeded", outcome: "pending" })).toBe(true);
     expect(isAwaitingReview({ state: "succeeded", outcome: "partial" })).toBe(false);
+  });
+});
+
+describe("placeholders", () => {
+  it.each([
+    "",
+    "   ",
+    "Test",
+    " TEST ",
+    "test2",
+    "Тест",
+    "тест12",
+    "asdf",
+    "asddd",
+    "qwerty",
+    "qwe",
+    "Lorem ipsum dolor sit amet",
+    "lorem   ipsum",
+    "xxx",
+    "XXXX",
+    "todo",
+    "TBD",
+    "placeholder",
+    "Sample",
+    "example",
+    "Пример",
+    "образец",
+    "namuna",
+    "...",
+    "---",
+    "???",
+    "123",
+    "1–2",
+    "!!!",
+  ])("%j is a placeholder", (value) => {
+    expect(isPlaceholder(value)).toBe(true);
+  });
+
+  it.each([
+    "Testosterone-free cream",
+    "test cream",
+    "Gialuron kislotali serum",
+    "Сыворотка",
+    "SPF 50",
+    "Aqua",
+    "x",
+    "examples of use",
+  ])("%j is content", (value) => {
+    expect(isPlaceholder(value)).toBe(false);
+  });
+
+  it("treats null and undefined as empty", () => {
+    expect(isPlaceholder(undefined)).toBe(true);
+    expect(isPlaceholder(null)).toBe(true);
+  });
+});
+
+describe("the draft and what each command targets", () => {
+  const form = () => {
+    const values = structuredClone({
+      texts: serum.texts,
+      seo: serum.seo,
+      images: [...serum.images, { id: "upload-1", label: "new" }],
+    });
+    return values;
+  };
+
+  it("maps every key to the form's current value, saved photos only, clipped to the limit", () => {
+    const values = form();
+    values.texts.ru.shortDescription = "Test";
+    values.seo.en.title = "x".repeat(500);
+    const draft = buildDraft(
+      values,
+      serum.images.map((image) => image.id),
+    );
+    expect(Object.keys(draft)).toEqual(productKeys(serum));
+    expect(draft["texts.ru.short_description"]).toBe("Test");
+    expect(draft["texts.uz.name"]).toBe(serum.texts.uz.name);
+    expect(draft["seo.en.title"]).toHaveLength(120);
+    expect(Object.keys(draft).some((key) => key.includes("upload-1"))).toBe(false);
+    expect(draft[`images.${serum.images[0]!.id}.alt.uz`]).toBe(serum.images[0]!.alt!.uz);
+  });
+
+  it("decides a field's mode by its current value (placeholders count as empty)", () => {
+    const values = form();
+    values.texts.uz.description = "  test ";
+    const draft = buildDraft(values, []);
+    expect(fieldMode(draft, "texts.uz.description")).toBe("fill_missing");
+    expect(fieldMode(draft, "texts.ru.description")).toBe("improve");
+    expect(fieldMode(draft, "texts.ru.short_description")).toBe("fill_missing");
+  });
+
+  it("needs a source language for names, ingredients and usage", () => {
+    const values = form();
+    for (const language of ["uz", "ru", "en"] as const) values.texts[language].usage = "";
+    values.texts.ru.name = "Test";
+    const draft = buildDraft(values, []);
+    expect(needsSource(draft, "texts.en.usage")).toBe(true);
+    expect(needsSource(draft, "texts.ru.name")).toBe(false);
+    expect(needsSource(draft, "texts.en.description")).toBe(false);
+    expect(needsSource(draft, "seo.en.title")).toBe(false);
+    expect(hasAnyName(draft)).toBe(true);
+    for (const language of ["uz", "ru", "en"] as const) values.texts[language].name = " ";
+    expect(hasAnyName(buildDraft(values, []))).toBe(false);
+  });
+
+  it("fills empty and placeholder keys the AI can write", () => {
+    const values = form();
+    values.texts.uz.description = "asdf";
+    for (const language of ["uz", "ru", "en"] as const) values.texts[language].usage = "";
+    const draft = buildDraft(
+      values,
+      serum.images.map((image) => image.id),
+    );
+    const keys = fillTargets(draft);
+    expect(keys).toContain("texts.uz.description");
+    expect(keys).toContain("texts.uz.short_description");
+    expect(keys).toContain("seo.en.title");
+    expect(keys).not.toContain("texts.uz.name");
+    expect(keys).not.toContain("texts.en.usage");
+    expect(keys.every((key) => !draft[key] || draft[key] === "asdf")).toBe(true);
+  });
+
+  it("improves filled descriptions, usage and SEO only", () => {
+    const values = form();
+    values.texts.ru.usage = "Test";
+    const draft = buildDraft(
+      values,
+      serum.images.map((image) => image.id),
+    );
+    const keys = improveTargets(draft);
+    expect(keys).toContain("texts.uz.description");
+    expect(keys).toContain("texts.uz.usage");
+    expect(keys).toContain("seo.uz.title");
+    expect(keys).not.toContain("texts.ru.usage");
+    expect(keys.some((key) => key.endsWith(".name") || key.endsWith(".ingredients"))).toBe(false);
+    expect(keys.some((key) => key.startsWith("images."))).toBe(false);
+    expect(keys).not.toContain("seo.en.title");
   });
 });

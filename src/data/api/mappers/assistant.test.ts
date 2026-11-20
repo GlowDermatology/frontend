@@ -20,7 +20,7 @@ const api: ApiAssistantJob = {
         key: "seo.ru.title",
         current: "",
         suggested: "Сыворотка — увлажнение",
-        warnings: ["seo_title_long", "brand_new_code"],
+        warnings: ["seo_title_long", "unverified_number", "brand_new_code"],
         origin: "ai",
         checked: true,
         max_length: 120,
@@ -37,6 +37,10 @@ const api: ApiAssistantJob = {
     ],
     warnings: [
       { code: "rejected", key: "texts.ru.description", reason: "unsupported_number" },
+      { code: "rejected", key: "texts.uz.name", reason: "pos_label" },
+      { code: "skipped", key: "texts.en.ingredients", reason: "no source text" },
+      { code: "unchanged", key: "texts.uz.usage" },
+      { code: "skipped" },
       { code: "dropped", count: 2 },
       { code: "extracted", brand: "Glow", volume: "30 ml" },
     ],
@@ -57,14 +61,19 @@ describe("mapAssistantJob", () => {
       key: "seo.ru.title",
       current: "",
       suggested: "Сыворотка — увлажнение",
-      warnings: ["seo_title_long"],
+      warnings: ["seo_title_long", "unverified_number"],
       origin: "ai",
       checked: true,
       maxLength: 120,
     });
     expect(job.result!.suggestions[1]!.origin).toBe("image");
     expect(job.result!.notes).toEqual({
-      rejected: 1,
+      keys: [
+        { key: "texts.ru.description", kind: "rejected", reason: "unsupported_number" },
+        { key: "texts.uz.name", kind: "rejected", reason: "pos_label" },
+        { key: "texts.en.ingredients", kind: "skipped", reason: "no source text" },
+        { key: "texts.uz.usage", kind: "unchanged", reason: "" },
+      ],
       dropped: 2,
       extracted: { brand: "Glow", volume: "30 ml" },
     });

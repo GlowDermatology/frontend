@@ -2,8 +2,8 @@ import "server-only";
 
 import { apiFetch } from "./client";
 import type {
-  ApiAssistantApply,
-  ApiAssistantApplyResult,
+  ApiAssistantAccept,
+  ApiAssistantAcceptResult,
   ApiAssistantJob,
   ApiAssistantJobCreate,
   ApiAssistantStart,
@@ -38,22 +38,13 @@ export function apiGetAssistantJob(token: string, id: string) {
   return apiFetch<ApiAssistantJob>(`${BASE}/assistant/jobs/${encodeURIComponent(id)}/`, { token });
 }
 
-export function apiApplyAssistantJob(
-  token: string,
-  id: string,
-  body: ApiAssistantApply,
-  idempotencyKey: string,
-) {
-  return apiFetch<ApiAssistantApplyResult>(
-    `${BASE}/assistant/jobs/${encodeURIComponent(id)}/apply/`,
-    { method: "POST", body, token, idempotencyKey },
+/**
+ * Records which suggestions the editor put into its form (nothing is written to the product). Not
+ * keyed: a repeat is refused with 409, which the editor ignores.
+ */
+export function apiAcceptAssistantJob(token: string, id: string, body: ApiAssistantAccept) {
+  return apiFetch<ApiAssistantAcceptResult>(
+    `${BASE}/assistant/jobs/${encodeURIComponent(id)}/accept/`,
+    { method: "POST", body, token },
   );
-}
-
-export function apiDiscardAssistantJob(token: string, id: string) {
-  return apiFetch<ApiAssistantJob>(`${BASE}/assistant/jobs/${encodeURIComponent(id)}/discard/`, {
-    method: "POST",
-    body: {},
-    token,
-  });
 }

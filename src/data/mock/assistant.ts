@@ -1,11 +1,15 @@
 import {
-  candidateKeys,
+  buildDraft,
+  fillTargets,
+  isFilled,
+  isPlaceholder,
   keyMaxLength,
   keyValue,
+  needsSource,
   parseKey,
-  type AssistantApplyItem,
-  type AssistantApplyResult,
+  type AssistantDraft,
   type AssistantJob,
+  type AssistantKeyNote,
   type AssistantStart,
   type AssistantStartInput,
   type AssistantStatus,
@@ -13,27 +17,24 @@ import {
   type ParsedKey,
 } from "@/domain/assistant";
 import { catalogDataCopy } from "@/domain/copy/catalog";
-import {
-  CONTENT_LANGUAGES,
-  productDisplayName,
-  type ContentLanguage,
-  type Product,
-} from "@/domain/product";
+import { CONTENT_LANGUAGES, type ContentLanguage, type Product } from "@/domain/product";
 import { copyFor } from "@/lib/i18n/admin-locale";
 
 import { referenceNow } from "../config";
 import type { ActionResult } from "../types";
-import { withSeoStatus } from "./catalog";
 import { delay } from "./delay";
 import { getProduct } from "./products.queries";
 
 /**
- * The demo AI assistant: deterministic, no provider and nothing stored. The job id carries the
- * start request (base64url JSON), so a poll or an apply recomputes the same suggestions from the
- * fixtures: a started job is `running` and the first poll (after ~1.5 s) finds it `succeeded`.
- * The texts are sample content (never translated with the admin language), built like the real
- * rules: missing keys only (`improve`: the chosen filled ones), ingredients and usage only copied
- * from another language, photo suggestions unchecked with «confirm against the packaging».
+ * The demo AI assistant: deterministic, no provider. The job id carries the start request
+ * (base64url JSON), so a poll recomputes the same suggestions from the fixtures: a started job is
+ * `running` and the first poll finds it `succeeded`. The start's `draft` (the editor's unsaved
+ * values) is kept in memory by job id and laid over the fixture, like the API's working values; a
+ * server restart forgets it (the saved fixture is used then). Accepted ids are remembered the same
+ * way. The texts are sample content (never translated with the admin language), built like the
+ * real rules: empty or placeholder keys only (`improve`: filled ones), names, ingredients and usage
+ * only copied from another language (else `skipped`), photo suggestions with «confirm against the
+ * packaging», an improvement equal to the text `unchanged`.
  */
 
 export const MOCK_ASSISTANT_STATUS: AssistantStatus = { enabled: true, maxImages: 3 };
@@ -46,7 +47,13 @@ interface Encoded {
   l: ContentLanguage[];
   k: string[];
   g: AssistantStartInput["goal"];
+  /** Tells starts with different drafts apart. */
+  n: number;
 }
+
+const drafts = new Map<string, AssistantDraft>();
+const accepted = new Set<string>();
+let startCount = 0;
 
 const encode = (value: Encoded) =>
   PREFIX + Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
@@ -91,25 +98,46 @@ const ALT: Record<ContentLanguage, (name: string, n: number) => string> = {
 
 const clip = (value: string, max: number) => (value.length > max ? value.slice(0, max) : value);
 
-/** The product's name in `language`, else another language's, else the Billz name. */
-function nameIn(product: Product, language: ContentLanguage): string {
-  const own = product.texts[language].name.trim();
-  if (own) return own;
-  for (const other of ["uz", "en", "ru"] as const) {
+/** The product's name in `language`, else another language's (never the Billz stock name). */
+function nameIn(product: Product, language: ContentLanguage): string | null {
+  for (const other of [language, "uz", "en", "ru"] as const) {
     const name = product.texts[other].name.trim();
-    if (name) return name;
-  }
-  return productDisplayName(product);
-}
-
-/** Ingredients and usage are never invented: copied from a language that has them. */
-function fromOtherLanguage(product: Product, parsed: ParsedKey & { kind: "text" }): string | null {
-  for (const language of CONTENT_LANGUAGES) {
-    const value = product.texts[language][parsed.field].trim();
-    if (language !== parsed.language && value) return value;
+    if (!isPlaceholder(name)) return name;
   }
   return null;
 }
+
+/** Names, ingredients and usage are never invented: copied from a language that has them. */
+function fromOtherLanguage(product: Product, parsed: ParsedKey & { kind: "text" }): string | null {
+  for (const language of CONTENT_LANGUAGES) {
+    const value = product.texts[language][parsed.field].trim();
+    if (language !== parsed.language && !isPlaceholder(value)) return value;
+  }
+  return null;
+}
+
+/** The fixture with the draft's values laid over it (the API's "working values"). */
+function withDraft(product: Product, draft: AssistantDraft): Product {
+  const out = structuredClone(product);
+  for (const [key, value] of Object.entries(draft)) {
+    const parsed = parseKey(key);
+    if (!parsed) continue;
+    if (parsed.kind === "text") out.texts[parsed.language][parsed.field] = value;
+    else if (parsed.kind === "seo") out.seo[parsed.language][parsed.field] = value;
+    else {
+      const image = out.images.find((candidate) => candidate.id === parsed.imageId);
+      if (image) image.alt = { uz: "", ru: "", en: "", ...image.alt, [parsed.language]: value };
+    }
+  }
+  return out;
+}
+
+/** Every key of a product with its value (the shape of the editor's draft). */
+const valuesOf = (product: Product) =>
+  buildDraft(
+    product,
+    product.images.map((image) => image.id),
+  );
 
 function improved(current: string, goal: Encoded["g"]): string {
   const text = current.replace(/\s+/g, " ").trim();
@@ -123,28 +151,26 @@ function suggest(product: Product, key: string, request: Encoded): AssistantSugg
   if (!parsed || current === null) return null;
   const max = keyMaxLength(parsed);
   const name = nameIn(product, parsed.language);
-  let suggested: string | null;
+  let suggested: string | null = null;
   if (request.m === "improve") suggested = improved(current, request.g);
   else if (parsed.kind === "text") {
     switch (parsed.field) {
-      case "name":
-        suggested = name;
-        break;
       case "shortDescription":
-        suggested = SHORT[parsed.language](name);
+        suggested = name && SHORT[parsed.language](name);
         break;
       case "description":
-        suggested = DESCRIPTION[parsed.language](name);
+        suggested = name && DESCRIPTION[parsed.language](name);
         break;
       default:
         suggested = fromOtherLanguage(product, parsed);
     }
   } else if (parsed.kind === "seo") {
     suggested =
-      parsed.field === "title"
+      name &&
+      (parsed.field === "title"
         ? `${name}${product.volume ? ` ${product.volume}` : ""} — Glow Derma`
-        : SEO_DESCRIPTION[parsed.language](name);
-  } else {
+        : SEO_DESCRIPTION[parsed.language](name));
+  } else if (name) {
     const index = product.images.findIndex((image) => image.id === parsed.imageId);
     suggested = ALT[parsed.language](name, index + 1);
   }
@@ -167,13 +193,28 @@ function suggest(product: Product, key: string, request: Encoded): AssistantSugg
   };
 }
 
-/** What a mode targets: the picked keys, else the mode's candidates (photos: names and ingredients). */
+/**
+ * What a start targets: the requested keys (empty ones; `improve`: filled ones), else every empty
+ * key the AI can write (photos: names and ingredients).
+ */
 function targets(product: Product, request: Encoded): string[] {
-  const candidates = candidateKeys(product, request.m, request.l);
-  const picked =
-    request.k.length > 0 ? candidates.filter((key) => request.k.includes(key)) : candidates;
-  if (request.m !== "photos" || request.k.length > 0) return picked;
-  return picked.filter((key) => /^texts\.\w+\.(name|ingredients)$/.test(key));
+  const values = valuesOf(product);
+  const inLanguages = (key: string) => request.l.includes(parseKey(key)!.language);
+  if (request.k.length > 0) {
+    return request.k.filter(
+      (key) =>
+        key in values &&
+        inLanguages(key) &&
+        (request.m === "improve" ? isFilled(values, key) : !isFilled(values, key)),
+    );
+  }
+  if (request.m === "improve") return [];
+  const empty = Object.keys(values).filter((key) => !isFilled(values, key) && inLanguages(key));
+  if (request.m === "photos") {
+    return empty.filter((key) => /^texts\.\w+\.(name|ingredients)$/.test(key));
+  }
+  const fillable = new Set(fillTargets(values));
+  return empty.filter((key) => fillable.has(key));
 }
 
 function jobOf(
@@ -184,10 +225,20 @@ function jobOf(
 ): AssistantJob {
   const at = referenceNow().toISOString();
   const keys = targets(product, request);
-  const suggestions =
-    state === "succeeded"
-      ? keys.map((key) => suggest(product, key, request)).filter((s) => s !== null)
-      : [];
+  const values = valuesOf(product);
+  const suggestions: AssistantSuggestion[] = [];
+  const notes: AssistantKeyNote[] = [];
+  if (state === "succeeded") {
+    for (const key of keys) {
+      const suggestion = suggest(product, key, request);
+      if (!suggestion) {
+        const reason = needsSource(values, key) ? "no source text" : "not enough data";
+        notes.push({ key, kind: "skipped", reason });
+      } else if (suggestion.suggested.trim() === suggestion.current.trim()) {
+        notes.push({ key, kind: "unchanged", reason: "" });
+      } else suggestions.push(suggestion);
+    }
+  }
   return {
     id,
     productId: request.p,
@@ -195,10 +246,10 @@ function jobOf(
     languages: request.l,
     keys,
     state,
-    outcome: "pending",
+    outcome: accepted.has(id) ? "applied" : "pending",
     result:
       state === "succeeded"
-        ? { suggestions, notes: { rejected: 0, dropped: 0, extracted: null } }
+        ? { suggestions, notes: { keys: notes, dropped: 0, extracted: null } }
         : null,
     error: null,
     appliedKeys: [],
@@ -212,79 +263,62 @@ export async function startAssistantJob(
   input: AssistantStartInput,
 ): Promise<ActionResult<AssistantStart>> {
   await delay(400);
-  const product = await getProduct(productId);
+  const saved = await getProduct(productId);
   const m = await copyFor(catalogDataCopy);
-  if (!product) return { ok: false, error: m.productNotFound, code: "not_found" };
+  if (!saved) return { ok: false, error: m.productNotFound, code: "not_found" };
+  const known = valuesOf(saved);
+  const invalid = Object.entries(input.draft).some(
+    ([key, value]) => !(key in known) || value.length > keyMaxLength(parseKey(key)!),
+  );
+  if (invalid) return { ok: false, error: m.checkFields, fieldErrors: { draft: m.checkFields } };
+  startCount += 1;
   const request: Encoded = {
     p: productId,
     m: input.mode,
     l: input.languages.length > 0 ? input.languages : [...CONTENT_LANGUAGES],
     k: input.keys,
     g: input.goal,
+    n: startCount,
   };
-  if (targets(product, request).length === 0)
+  const product = withDraft(saved, input.draft);
+  if (targets(product, request).length === 0) {
     return { ok: true, data: { nothingToFill: true, job: null } };
+  }
+  const id = encode(request);
+  drafts.set(id, { ...input.draft });
   return {
     ok: true,
-    data: { nothingToFill: false, job: jobOf(encode(request), request, product, "running") },
+    data: { nothingToFill: false, job: jobOf(id, request, product, "running") },
   };
 }
 
 export async function getAssistantJob(id: string): Promise<AssistantJob | null> {
   await delay(300);
   const request = decode(id);
-  const product = request ? await getProduct(request.p) : null;
-  return request && product ? jobOf(id, request, product, "succeeded") : null;
+  const saved = request ? await getProduct(request.p) : null;
+  if (!request || !saved) return null;
+  return jobOf(id, request, withDraft(saved, drafts.get(id) ?? {}), "succeeded");
 }
 
-export async function applyAssistantJob(
+/** The editor put `keys` into its form: the review closes (a second accept is refused). */
+export async function acceptAssistantJob(
   id: string,
-  items: ReadonlyArray<AssistantApplyItem>,
-): Promise<ActionResult<AssistantApplyResult>> {
-  await delay(500);
+  keys: ReadonlyArray<string>,
+): Promise<ActionResult<AssistantJob>> {
+  await delay(150);
   const m = await copyFor(catalogDataCopy);
   const job = await getAssistantJob(id);
-  const request = decode(id);
-  const product = request ? await getProduct(request.p) : null;
-  if (!job || !product) return { ok: false, error: m.jobNotFound, code: "not_found" };
-  const known = new Map(job.result?.suggestions.map((s) => [s.key, s]) ?? []);
-  const fieldErrors: Record<string, string> = {};
-  items.forEach((item, index) => {
-    const suggestion = known.get(item.key);
-    if (!suggestion) fieldErrors[`items.${index}.key`] = m.checkFields;
-    else if (item.value.trim().length > suggestion.maxLength) {
-      fieldErrors[`items.${index}.value`] = m.maxChars(suggestion.maxLength);
-    }
-  });
-  if (Object.keys(fieldErrors).length > 0) return { ok: false, error: m.checkFields, fieldErrors };
-  const next = structuredClone(product);
-  for (const item of items) {
-    const parsed = parseKey(item.key)!;
-    const value = item.value.trim();
-    if (parsed.kind === "text") next.texts[parsed.language][parsed.field] = value;
-    else if (parsed.kind === "seo") next.seo[parsed.language][parsed.field] = value;
-    else {
-      const image = next.images.find((candidate) => candidate.id === parsed.imageId);
-      if (image) image.alt = { uz: "", ru: "", en: "", ...image.alt, [parsed.language]: value };
-    }
+  if (!job) return { ok: false, error: m.jobNotFound, code: "not_found" };
+  if (job.outcome !== "pending") {
+    return { ok: false, error: m.jobClosed, code: "assistant_job_not_ready" };
   }
-  const applied = items.map((item) => item.key);
-  const all = applied.length === known.size;
-  return {
-    ok: true,
-    data: {
-      job: { ...job, outcome: all ? "applied" : "partial", appliedKeys: applied },
-      applied,
-      conflicts: [],
-      product: withSeoStatus(next),
-    },
-  };
-}
-
-export async function discardAssistantJob(id: string): Promise<ActionResult<AssistantJob>> {
-  await delay(200);
-  const job = await getAssistantJob(id);
-  if (!job)
-    return { ok: false, error: (await copyFor(catalogDataCopy)).jobNotFound, code: "not_found" };
-  return { ok: true, data: { ...job, outcome: "discarded" } };
+  const suggested = new Set(job.result?.suggestions.map((s) => s.key) ?? []);
+  if (keys.some((key) => !suggested.has(key))) {
+    return { ok: false, error: m.checkFields, fieldErrors: { keys: m.checkFields } };
+  }
+  accepted.add(id);
+  drafts.delete(id);
+  const outcome =
+    keys.length === 0 ? "discarded" : keys.length === suggested.size ? "applied" : "partial";
+  return { ok: true, data: { ...job, outcome, appliedKeys: [...keys] } };
 }

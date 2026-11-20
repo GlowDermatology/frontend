@@ -35,7 +35,7 @@ import {
   uploadProductImage,
 } from "@/data/products.actions";
 import { productFormSchemas, type ProductFormValues } from "@/data/products.schema";
-import { formPathOf, keyValue, withKeysFrom, type AssistantStatus } from "@/domain/assistant";
+import { buildDraft, formPathOf, keyOf, type AssistantStatus } from "@/domain/assistant";
 import type { Category } from "@/domain/category";
 import {
   CONTENT_LANGUAGES,
@@ -62,8 +62,16 @@ import { runAction } from "../shared/action-client";
 import { useIdempotencyKey } from "../shared/idempotency";
 import { SeoEditor, SeoStatusPanel, SlugField } from "../shared/seo-fields";
 import { productFallback, type PageFallback } from "../shared/seo-preview";
-import { Assistant } from "./assistant/assistant";
+import {
+  AiFieldButton,
+  aiFieldClass,
+  AiFieldNote,
+  AssistantBannerView,
+  AssistantMenu,
+} from "./assistant/assistant";
 import { assistantCopy } from "./assistant/copy";
+import { markedLanguages } from "./assistant/review";
+import { useProductAssistant } from "./assistant/use-product-assistant";
 import { afterDialogsClose, altLanguageToShow, languageToShow } from "./form-reveal";
 import { productsCopy, type ProductsCopy } from "./copy";
 import { ImageManager } from "./image-manager";
@@ -215,12 +223,10 @@ export function ProductEditor({
     register,
     handleSubmit,
     getValues,
+    setValue,
     reset,
-    resetField,
-    getFieldState,
     setError,
-    // `dirtyFields` is read so the AI review sees which fields hold unsaved edits.
-    formState: { errors, isDirty, isSubmitting, dirtyFields },
+    formState: { errors, isDirty, isSubmitting },
   } = useForm<ProductFormValues>({
     resolver,
     defaultValues: toFormValues(product),
@@ -305,44 +311,28 @@ export function ProductEditor({
       runAction((csrf) => updateProductImageAlt(id, imageId, alt, csrf)),
   };
 
-  /* --- AI assistant bridge --- */
+  /* --- AI assistant: writes into the form; the admin reviews in place and saves --- */
   const aiCopy = useCopy(assistantCopy);
-  void dirtyFields;
-  /** The form path of an assistant key (alt texts by the photo's place in the form). */
-  const formImages = () => getValues("images");
-  const assistantBlocked = (key: string) => {
-    const path = formPathOf(key, formImages());
-    return path ? getFieldState(path as Path<ProductFormValues>).isDirty : false;
-  };
+  const savedImageIds = saved?.images.map((image) => image.id) ?? [];
+  const ai = useProductAssistant({
+    productId: saved?.id ?? null,
+    status: assistant,
+    savedImageIds,
+    getValues,
+    setValue,
+  });
   const assistantLabel = (key: string) => {
-    const path = formPathOf(key, saved?.images ?? []);
+    const path = formPathOf(key, getValues("images"));
     if (path?.startsWith("images.")) {
       const [, index, , language] = path.split(".");
       return aiCopy.altLabel(Number(index) + 1, t.languageName[language as ContentLanguage]);
     }
-    // «SEO sarlavha · O‘zbekcha», like the other review rows (the editor's own label has brackets).
+    // «SEO sarlavha · O‘zbekcha» (the editor's own label has brackets).
     const [head, language, leaf] = key.split(".");
     if (head === "seo" && (leaf === "title" || leaf === "description")) {
       return `${aiCopy.seoLabel[leaf]} · ${t.languageName[language as ContentLanguage]}`;
     }
     return (path && productFieldLabel(t, path)) || key;
-  };
-  /**
-   * The server wrote `applied`: they become the baseline (not the rest of `next`, so a later save
-   * never writes back another admin's change), and only those fields are reset in the form, so
-   * the admin's other unsaved edits stay.
-   */
-  const onAssistantApplied = (next: Product, applied: string[]) => {
-    if (!saved) return;
-    const rebased = withKeysFrom(saved, next, applied);
-    formBaseline.current = rebased;
-    setSaved(rebased);
-    const images = getValues("images");
-    for (const key of applied) {
-      const path = formPathOf(key, images);
-      if (!path) continue;
-      resetField(path as Path<ProductFormValues>, { defaultValue: keyValue(rebased, key) ?? "" });
-    }
   };
 
   const recommendedLabel = {
@@ -412,6 +402,7 @@ export function ProductEditor({
     }
     clearPendingImages(pending);
     errorsUi.clear();
+    ai.clear();
     setSaved(result.data);
     toast({ tone: "success", title: t.saved, description: t.savedLead });
     const newId = createdId ?? (saved === null ? result.data.id : null);
@@ -429,6 +420,16 @@ export function ProductEditor({
     CONTENT_LANGUAGES.map((l) => [l, Boolean(errors.texts?.[l])]),
   ) as Record<ContentLanguage, boolean>;
   const missing = CONTENT_LANGUAGES.filter((l) => !complete[l]);
+  const formAlt = useWatch({ control, name: "images" });
+  const seoValues = useWatch({ control, name: "seo" });
+  // The form's current values per assistant key: what the ✨ buttons and the menu decide by.
+  const liveDraft = buildDraft({ texts, seo: seoValues, images: formAlt }, savedImageIds);
+  const aiKeys = Object.keys(ai.changes);
+  const textKey = (field: ProductTextField) => keyOf({ kind: "text", language: lang, field });
+  const aiAside = (key: string, label: string) => (
+    <AiFieldButton ai={ai} draft={liveDraft} aiKey={key} label={label} />
+  );
+  const aiNote = (key: string) => <AiFieldNote ai={ai} aiKey={key} />;
   const current = texts[lang];
   const emptyBorder = (value: string) => value.trim().length === 0 && "border-warning";
 
@@ -472,7 +473,6 @@ export function ProductEditor({
     })),
   ];
   const imagesError = errors.images?.message ?? errors.images?.root?.message;
-  const formAlt = useWatch({ control, name: "images" });
   const altComplete = Object.fromEntries(
     CONTENT_LANGUAGES.map((l) => [l, formAlt.every((image) => Boolean(image.alt?.[l]?.trim()))]),
   ) as Record<ContentLanguage, boolean>;
@@ -493,16 +493,7 @@ export function ProductEditor({
             {product ? t.editTitle : t.newTitle}
           </h1>
           <div className="flex flex-wrap gap-2">
-            {saved && assistant?.enabled && (
-              <Assistant
-                product={saved}
-                status={assistant}
-                isBlocked={assistantBlocked}
-                unsaved={isDirty}
-                labelOf={assistantLabel}
-                onApplied={onAssistantApplied}
-              />
-            )}
+            <AssistantMenu ai={ai} draft={liveDraft} />
             <Link
               href="/admin/products"
               onClick={(event) => {
@@ -531,6 +522,7 @@ export function ProductEditor({
           </p>
         )}
         <FormErrorSummary errors={errorsUi.summary} onSelect={revealField} />
+        <AssistantBannerView ai={ai} labelOf={assistantLabel} />
 
         <div className="flex flex-wrap items-start gap-4">
           <div className="flex min-w-0 flex-[2_1_560px] flex-col gap-4">
@@ -549,6 +541,8 @@ export function ProductEditor({
                   onChange={setLang}
                   complete={complete}
                   invalid={textInvalid}
+                  marked={markedLanguages(aiKeys, "text")}
+                  markedLabel={aiCopy.tabMarked}
                   idBase={idBase}
                 />
               </div>
@@ -568,6 +562,7 @@ export function ProductEditor({
                 )}
                 <Field
                   label={t.name}
+                  aside={aiAside(textKey("name"), t.name)}
                   error={textError("name")}
                   hint={
                     lang === "uz" && product?.isNewFromBillz
@@ -576,52 +571,97 @@ export function ProductEditor({
                   }
                 >
                   {(c) => (
-                    <TextInput {...c} {...register(`texts.${lang}.name`)} autoComplete="off" />
+                    <>
+                      <TextInput
+                        {...c}
+                        {...register(`texts.${lang}.name`)}
+                        autoComplete="off"
+                        className={cn(aiFieldClass(ai, textKey("name")))}
+                      />
+                      {aiNote(textKey("name"))}
+                    </>
                   )}
                 </Field>
                 <Field
                   label={t.shortDescription}
                   hint={t.shortDescriptionHint}
+                  aside={aiAside(textKey("shortDescription"), t.shortDescription)}
                   error={textError("shortDescription")}
                 >
                   {(c) => (
-                    <TextArea {...c} {...register(`texts.${lang}.shortDescription`)} rows={2} />
+                    <>
+                      <TextArea
+                        {...c}
+                        {...register(`texts.${lang}.shortDescription`)}
+                        rows={2}
+                        className={cn(aiFieldClass(ai, textKey("shortDescription")))}
+                      />
+                      {aiNote(textKey("shortDescription"))}
+                    </>
                   )}
                 </Field>
-                <Field label={t.description} error={textError("description")}>
+                <Field
+                  label={t.description}
+                  aside={aiAside(textKey("description"), t.description)}
+                  error={textError("description")}
+                >
                   {(c) => (
-                    <TextArea
-                      {...c}
-                      {...register(`texts.${lang}.description`)}
-                      rows={4}
-                      placeholder={t.descriptionPlaceholder}
-                      className={cn(emptyBorder(current.description))}
-                    />
+                    <>
+                      <TextArea
+                        {...c}
+                        {...register(`texts.${lang}.description`)}
+                        rows={4}
+                        placeholder={t.descriptionPlaceholder}
+                        className={cn(
+                          emptyBorder(current.description),
+                          aiFieldClass(ai, textKey("description")),
+                        )}
+                      />
+                      {aiNote(textKey("description"))}
+                    </>
                   )}
                 </Field>
-                <Field label={t.ingredients} error={textError("ingredients")}>
+                <Field
+                  label={t.ingredients}
+                  aside={aiAside(textKey("ingredients"), t.ingredients)}
+                  error={textError("ingredients")}
+                >
                   {(c) => (
-                    <textarea
-                      {...c}
-                      {...register(`texts.${lang}.ingredients`)}
-                      rows={3}
-                      className={cn(
-                        textareaClass,
-                        "text-[14px] leading-5",
-                        emptyBorder(current.ingredients),
-                      )}
-                    />
+                    <>
+                      <textarea
+                        {...c}
+                        {...register(`texts.${lang}.ingredients`)}
+                        rows={3}
+                        className={cn(
+                          textareaClass,
+                          "text-[14px] leading-5",
+                          emptyBorder(current.ingredients),
+                          aiFieldClass(ai, textKey("ingredients")),
+                        )}
+                      />
+                      {aiNote(textKey("ingredients"))}
+                    </>
                   )}
                 </Field>
-                <Field label={t.usage} error={textError("usage")}>
+                <Field
+                  label={t.usage}
+                  aside={aiAside(textKey("usage"), t.usage)}
+                  error={textError("usage")}
+                >
                   {(c) => (
-                    <TextArea
-                      {...c}
-                      {...register(`texts.${lang}.usage`)}
-                      rows={3}
-                      placeholder={t.usagePlaceholder}
-                      className={cn(emptyBorder(current.usage))}
-                    />
+                    <>
+                      <TextArea
+                        {...c}
+                        {...register(`texts.${lang}.usage`)}
+                        rows={3}
+                        placeholder={t.usagePlaceholder}
+                        className={cn(
+                          emptyBorder(current.usage),
+                          aiFieldClass(ai, textKey("usage")),
+                        )}
+                      />
+                      {aiNote(textKey("usage"))}
+                    </>
                   )}
                 </Field>
               </div>
@@ -664,6 +704,8 @@ export function ProductEditor({
                       onChange={setAltLang}
                       complete={altComplete}
                       invalid={altInvalid}
+                      marked={markedLanguages(aiKeys, "alt")}
+                      markedLabel={aiCopy.tabMarked}
                       idBase={`${idBase}-alt`}
                     />
                   </div>
@@ -676,21 +718,29 @@ export function ProductEditor({
                     lang={altLang}
                     className="grid gap-3 sm:grid-cols-2"
                   >
-                    {images.fields.map((image, index) => (
-                      <Field
-                        key={image.key}
-                        label={t.altLabel(index + 1)}
-                        error={errors.images?.[index]?.alt?.[altLang]?.message}
-                      >
-                        {(c) => (
-                          <TextInput
-                            {...c}
-                            {...register(`images.${index}.alt.${altLang}`)}
-                            autoComplete="off"
-                          />
-                        )}
-                      </Field>
-                    ))}
+                    {images.fields.map((image, index) => {
+                      const altKey = keyOf({ kind: "alt", language: altLang, imageId: image.id });
+                      return (
+                        <Field
+                          key={image.key}
+                          label={t.altLabel(index + 1)}
+                          aside={aiAside(altKey, t.altLabel(index + 1))}
+                          error={errors.images?.[index]?.alt?.[altLang]?.message}
+                        >
+                          {(c) => (
+                            <>
+                              <TextInput
+                                {...c}
+                                {...register(`images.${index}.alt.${altLang}`)}
+                                autoComplete="off"
+                                className={cn(aiFieldClass(ai, altKey))}
+                              />
+                              {aiNote(altKey)}
+                            </>
+                          )}
+                        </Field>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -735,6 +785,16 @@ export function ProductEditor({
                     errors={seoErrors}
                     slug={slug.trim() || saved?.slug || slugSuggestion}
                     fallback={seoFallback}
+                    marked={markedLanguages(aiKeys, "seo")}
+                    markedLabel={aiCopy.tabMarked}
+                    fieldAddon={(language, leaf) => {
+                      const key = `seo.${language}.${leaf}`;
+                      return {
+                        action: aiAside(key, assistantLabel(key)),
+                        note: aiNote(key),
+                        className: aiFieldClass(ai, key),
+                      };
+                    }}
                   />
                 )}
               />

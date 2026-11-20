@@ -1,0 +1,19 @@
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - generic [ref=e5]:
+          - generic [ref=e6]: Glow Derma
+          - generic [ref=e7]: Admin
+        - heading "Tizimga kirish" [level=1] [ref=e8]
+      - generic [ref=e20]:
+        - generic [ref=e21]:
+          - generic [ref=e22]: Email
+          - textbox "Email" [ref=e24]: admin@glowderma.uz
+        - generic [ref=e25]:
+          - generic [ref=e26]: Parol
+          - textbox "Parol" [ref=e28]
+        - alert [ref=e29]: API bilan bog‘lanib bo‘lmadi.
+        - button "Kirish" [ref=e30] [cursor=pointer]
+  - status
+  - alert [ref=e18]

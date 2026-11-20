@@ -11,9 +11,10 @@ import {
 import { SEO_DESCRIPTION_MAX, SEO_TITLE_MAX } from "./seo";
 
 /**
- * The AI product content assistant (admin contract §2.19). A job is started for one product,
- * polled like the Billz job (`state`), and its suggestions are reviewed by a person before the
- * chosen ones are applied: nothing reaches the product without «Qo‘llash».
+ * The AI product content assistant (admin contract §2.19). A job is started for one product with
+ * the editor's current form values (`draft`), polled like the Billz job (`state`), and its
+ * suggestions are written straight into the editor form: the admin reviews them in place and saves
+ * the product as usual. `accept` then records which suggestions went into the form.
  *
  * Every target is a snapshot key: `texts.<lang>.<name|short_description|description|ingredients|
  * usage>`, `seo.<lang>.<title|description>`, `images.<image_id>.alt.<lang>`.
@@ -28,9 +29,10 @@ export type ImproveGoal = (typeof IMPROVE_GOALS)[number];
 
 export type AssistantOutcome = "pending" | "applied" | "partial" | "discarded";
 
-/** Suggestion badges (`AssistantSuggestion.warnings`). */
+/** Suggestion warnings (`AssistantSuggestion.warnings`): shown under the field in plain words. */
 export const SUGGESTION_WARNINGS = [
   "unsupported_claim",
+  "unverified_number",
   "inci_mismatch",
   "confirm_packaging",
   "seo_title_long",
@@ -40,21 +42,32 @@ export type SuggestionWarning = (typeof SUGGESTION_WARNINGS)[number];
 
 export interface AssistantSuggestion {
   key: string;
-  /** The product's value when the job was started (`""` = empty). */
+  /** The working value when the job started (the draft's, else the saved one; `""` = empty). */
   current: string;
   suggested: string;
   /** Known codes only (unknown ones are dropped by the mapper). */
   warnings: SuggestionWarning[];
   /** `image`: read from the product photos (confirm against the packaging). */
   origin: "ai" | "image";
-  /** Pre-selected in the review. */
   checked: boolean;
   maxLength: number;
 }
 
-/** Job-level notes (`result.warnings`): rejected keys, a dropped count, label info from photos. */
+/** A requested key that came back without a suggestion, and why (`result.warnings`). */
+export interface AssistantKeyNote {
+  key: string;
+  /**
+   * `rejected`: the suggestion broke a rule (`reason` is the server's code, e.g. `pos_label`);
+   * `skipped`: the AI said it cannot write it (`reason` is its short English text);
+   * `unchanged`: the suggestion equalled the current text.
+   */
+  kind: "rejected" | "skipped" | "unchanged";
+  reason: string;
+}
+
+/** Job-level notes (`result.warnings`): keys without a suggestion, a dropped count, label info. */
 export interface AssistantJobNotes {
-  rejected: number;
+  keys: AssistantKeyNote[];
   dropped: number;
   extracted: { brand?: string; volume?: string } | null;
 }
@@ -80,32 +93,24 @@ export interface AssistantStatus {
   maxImages: number;
 }
 
+/** The admin's current form value per key (`""` = empty); keys left out use the saved value. */
+export type AssistantDraft = Record<string, string>;
+
+/** At most this many draft entries per start (contract). */
+export const DRAFT_MAX_ENTRIES = 150;
+
 export interface AssistantStartInput {
   mode: AssistantMode;
   languages: ContentLanguage[];
-  /** The «Batafsil» field picker; required (non-empty) for `improve`. */
   keys: string[];
   goal: ImproveGoal;
   imageIds: string[];
+  draft: AssistantDraft;
 }
 
 /** `POST products/{id}/assistant/jobs/`: a job (new or the active one), or nothing to fill. */
 export type AssistantStart =
   { nothingToFill: true; job: null } | { nothingToFill: false; job: AssistantJob };
-
-export interface AssistantApplyItem {
-  key: string;
-  value: string;
-}
-
-export interface AssistantApplyResult {
-  job: AssistantJob;
-  applied: string[];
-  /** Changed meanwhile: not written. */
-  conflicts: string[];
-  /** The product after the apply (§2.3 shape). */
-  product: Product;
-}
 
 /* --- Keys --- */
 
@@ -197,7 +202,7 @@ export function formPathOf(key: string, images: ReadonlyArray<{ id: string }>): 
 
 /** Every key of the product in the given languages, in the editor's order (texts, SEO, photos). */
 export function productKeys(
-  product: Pick<Product, "images">,
+  product: { images: ReadonlyArray<{ id: string }> },
   languages: ReadonlyArray<ContentLanguage> = CONTENT_LANGUAGES,
 ): string[] {
   const keys: string[] = [];
@@ -214,54 +219,112 @@ export function productKeys(
   return keys;
 }
 
+/* --- Placeholders (the same rule as the backend's) --- */
+
+const PLACEHOLDER_RE =
+  /^(test|тест|test\d*|тест\d*|asd+f*|qwe+r*t*y*|lorem ipsum.*|xxx+|todo|tbd|placeholder|sample|example|пример|образец|namuna|\.+|-+|\?+)$/u;
+
 /**
- * The keys the «Batafsil» picker offers: `improve` works on filled ones, every other mode on
- * empty ones (it never overwrites).
+ * A value that is not real content: empty, without a single letter, or a stand-in like «Test»,
+ * «asdf», «...». It counts as empty: the AI fills it and never reads it as a product fact.
  */
-export function candidateKeys(
-  product: Pick<Product, "texts" | "seo" | "images">,
-  mode: AssistantMode,
-  languages: ReadonlyArray<ContentLanguage>,
-): string[] {
-  return productKeys(product, languages).filter((key) => {
-    const filled = (keyValue(product, key) ?? "").trim().length > 0;
-    return mode === "improve" ? filled : !filled;
-  });
+export function isPlaceholder(value: string | null | undefined): boolean {
+  const text = (value ?? "").trim().toLowerCase().replace(/\s+/gu, " ");
+  if (text.length === 0 || !/\p{L}/u.test(text)) return true;
+  return PLACEHOLDER_RE.test(text);
+}
+
+/* --- The draft (the editor's current values) and what each action targets --- */
+
+export interface DraftSource {
+  texts: Record<ContentLanguage, Record<ProductTextField, string>>;
+  seo: Record<ContentLanguage, { title: string; description: string }>;
+  images: ReadonlyArray<{ id: string; alt?: Partial<Record<ContentLanguage, string>> | null }>;
 }
 
 /**
- * The product with the `keys` leaves taken from `next` and everything else from `base`: after an
- * apply, the editor's baseline gains the written values without adopting other fields another
- * admin may have changed (a later save must not write those back).
+ * Every assistant key → the form's current value (clipped to the key's API limit), in the editor's
+ * order. Alt texts only for photos the server knows (`savedImageIds`): a photo picked but not
+ * uploaded yet has no key.
  */
-export function withKeysFrom(base: Product, next: Product, keys: ReadonlyArray<string>): Product {
-  const out = structuredClone(base);
-  for (const key of keys) {
-    const parsed = parseKey(key);
-    const value = keyValue(next, key);
-    if (!parsed || value === null) continue;
-    if (parsed.kind === "text") out.texts[parsed.language][parsed.field] = value;
-    else if (parsed.kind === "seo") out.seo[parsed.language][parsed.field] = value;
-    else {
-      const image = out.images.find((candidate) => candidate.id === parsed.imageId);
-      if (image) image.alt = { uz: "", ru: "", en: "", ...image.alt, [parsed.language]: value };
-    }
+export function buildDraft(
+  values: DraftSource,
+  savedImageIds: ReadonlyArray<string>,
+): AssistantDraft {
+  const saved = new Set(savedImageIds);
+  const images = values.images.filter((image) => saved.has(image.id));
+  const draft: AssistantDraft = {};
+  for (const key of productKeys({ images })) {
+    const parsed = parseKey(key)!;
+    let value: string | undefined;
+    if (parsed.kind === "text") value = values.texts[parsed.language][parsed.field];
+    else if (parsed.kind === "seo") value = values.seo[parsed.language][parsed.field];
+    else value = images.find((image) => image.id === parsed.imageId)?.alt?.[parsed.language];
+    const text = value ?? "";
+    const max = keyMaxLength(parsed);
+    draft[key] = text.length > max ? text.slice(0, max) : text;
   }
-  return out;
+  return draft;
 }
 
-/** A value the review can send: not blank, within the key's limit. */
-export function suggestionProblem(value: string, maxLength: number): "blank" | "too_long" | null {
-  if (value.trim().length === 0) return "blank";
-  if (value.length > maxLength) return "too_long";
-  return null;
+/** Real content (not empty, not a placeholder). */
+export function isFilled(draft: AssistantDraft, key: string): boolean {
+  return !isPlaceholder(draft[key]);
+}
+
+/** Fields the AI only translates from another language, never invents. */
+export const SOURCE_FIELDS: ReadonlyArray<ProductTextField> = ["name", "ingredients", "usage"];
+
+/** Text fields «Improve all texts» rewrites (not names or ingredients); SEO texts too. */
+const IMPROVE_FIELDS: ReadonlyArray<ProductTextField> = [
+  "shortDescription",
+  "description",
+  "usage",
+];
+
+/**
+ * A name, ingredients or usage key that is empty in every language: the AI has nothing to
+ * translate from, so the admin must write it first.
+ */
+export function needsSource(draft: AssistantDraft, key: string): boolean {
+  const parsed = parseKey(key);
+  if (parsed?.kind !== "text" || !SOURCE_FIELDS.includes(parsed.field)) return false;
+  const field = parsed.field;
+  return CONTENT_LANGUAGES.every(
+    (language) => !isFilled(draft, keyOf({ kind: "text", language, field })),
+  );
+}
+
+/** Whether any language has a product name yet (the AI writes nothing about a nameless product). */
+export function hasAnyName(draft: AssistantDraft): boolean {
+  return CONTENT_LANGUAGES.some((language) => isFilled(draft, `texts.${language}.name`));
+}
+
+/** One field's ✨: write it when empty, rewrite it better when filled. */
+export function fieldMode(draft: AssistantDraft, key: string): "fill_missing" | "improve" {
+  return isFilled(draft, key) ? "improve" : "fill_missing";
+}
+
+/** «Fill empty fields»: every empty or placeholder key the AI can write. */
+export function fillTargets(draft: AssistantDraft): string[] {
+  return Object.keys(draft).filter((key) => !isFilled(draft, key) && !needsSource(draft, key));
+}
+
+/** «Improve all texts»: the filled descriptions, usage and SEO texts (not names or ingredients). */
+export function improveTargets(draft: AssistantDraft): string[] {
+  return Object.keys(draft).filter((key) => {
+    const parsed = parseKey(key);
+    if (!parsed || parsed.kind === "alt") return false;
+    if (parsed.kind === "text" && !IMPROVE_FIELDS.includes(parsed.field)) return false;
+    return isFilled(draft, key);
+  });
 }
 
 export function isAssistantJobActive(job: Pick<AssistantJob, "state">): boolean {
   return job.state === "queued" || job.state === "running";
 }
 
-/** A finished job whose suggestions still wait for «Qo‘llash» or «Bekor qilish». */
+/** A finished job whose suggestions were not yet put into the form (`accept` not called). */
 export function isAwaitingReview(job: Pick<AssistantJob, "state" | "outcome">): boolean {
   return job.state === "succeeded" && job.outcome === "pending";
 }

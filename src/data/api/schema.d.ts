@@ -3,8 +3,8 @@
  * GENERATED FILE — do not edit by hand. Regenerate with `npm run gen:api`.
  *
  * Source: openapi/schema.yaml of the backend repository
- * Commit: 2aac429bead9cc54f29034530bbb0e580ee23bb1
- * Generated: 2026-11-19T03:22:25.162Z (openapi-typescript)
+ * Commit: 2d5b81d24dd818e36648bf3393c815860bf95141
+ * Generated: 2026-11-20T08:01:50.115Z (openapi-typescript)
  */
 
 export interface paths {
@@ -136,6 +136,23 @@ export interface paths {
         get: operations["admin_assistant_jobs_retrieve"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/assistant/jobs/{id}/accept/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Record which suggestions the person took into the (unsaved) product form. The product is not written — the person saves the form. `outcome` becomes `applied` (every suggestion), `partial` (some) or `discarded` (none); each key must be one of the job's suggestions. A job that is not a pending, succeeded one is a 409. */
+        post: operations["admin_assistant_jobs_accept_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3441,6 +3458,13 @@ export interface components {
         ApproveInputRequest: {
             expected_revision: number;
         };
+        AssistantAcceptRequest: {
+            /** @description The suggestion keys the person took into the form ([] = none). */
+            keys: string[];
+        };
+        AssistantAcceptResult: {
+            job: components["schemas"]["AssistantJob"];
+        };
         AssistantApplyItemRequest: {
             key: string;
             value: string;
@@ -3488,6 +3512,10 @@ export interface components {
             state: components["schemas"]["JobStateEnum"];
         };
         AssistantJobCreateRequest: {
+            /** @description The admin's current (unsaved) form values: assistant key → value (`""` allowed), at most 150 entries. An image key must name an image of this product and each value fits its key's limit. A key's working value is its draft value when sent, else the saved one: the targets, each suggestion's `current` and the facts the model sees use working values. */
+            draft?: {
+                [key: string]: string;
+            };
             /** @default professional */
             goal: components["schemas"]["AssistantImproveGoalEnum"];
             image_ids?: number[];
@@ -3521,6 +3549,7 @@ export interface components {
         AssistantJobOutcomeEnum: "pending" | "applied" | "partial" | "discarded";
         AssistantJobResult: {
             suggestions: components["schemas"]["AssistantSuggestion"][];
+            /** @description Job-level notes by `code`: `rejected` {key, reason} (reason `too_long`, `unsupported_number`, `unsupported_spf`, `empty`, `pos_label`), `skipped` {key, reason} (the model could not write the key truthfully; short English reason), `unchanged` {key} (the suggestion equals the current value), `dropped` {count}, `extracted` {brand, volume} (photos). */
             warnings: {
                 [key: string]: unknown;
             }[];
@@ -3553,6 +3582,7 @@ export interface components {
             /** @description `ai`, or `image` (read from the photos). */
             origin: string;
             suggested: string;
+            /** @description `unsupported_claim`, `inci_mismatch`, `confirm_packaging`, `seo_title_long`, `seo_description_long`, `unverified_number` (a small count the data does not state). */
             warnings: string[];
         };
         /**
@@ -8192,6 +8222,87 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AssistantJob"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_assistant_jobs_accept_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssistantAcceptRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssistantAcceptResult"];
                 };
             };
             400: {

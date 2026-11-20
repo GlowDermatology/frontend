@@ -4,9 +4,8 @@ import { z } from "zod";
 
 import {
   ASSISTANT_MODES,
+  DRAFT_MAX_ENTRIES,
   IMPROVE_GOALS,
-  type AssistantApplyItem,
-  type AssistantApplyResult,
   type AssistantJob,
   type AssistantStart,
   type AssistantStartInput,
@@ -15,32 +14,20 @@ import { catalogDataCopy } from "@/domain/copy/catalog";
 import { CONTENT_LANGUAGES } from "@/domain/product";
 import { getAdminLocale } from "@/lib/i18n/admin-locale";
 
-import {
-  apiMutation,
-  fieldErrorsFrom,
-  guardAction,
-  idempotencyKeySchemas,
-  sessionToken,
-} from "./action-guard";
-import {
-  apiApplyAssistantJob,
-  apiDiscardAssistantJob,
-  apiGetAssistantJob,
-  apiStartAssistantJob,
-} from "./api/assistant";
+import { fieldErrorsFrom, guardAction, idempotencyKeySchemas, sessionToken } from "./action-guard";
+import { apiAcceptAssistantJob, apiGetAssistantJob, apiStartAssistantJob } from "./api/assistant";
 import { isApiError } from "./api/errors";
-import { mapProduct, toActionResult } from "./api/mappers";
+import { toActionResult } from "./api/mappers";
 import { mapAssistantJob } from "./api/mappers/assistant";
 import * as mock from "./mock/assistant";
 import { dataSource } from "./source";
 import type { ActionResult } from "./types";
 
 /**
- * The AI assistant's Server Actions (contract §2.19): start a job for a product, poll it, apply
- * the reviewed suggestions, or discard them. Start and apply are idempotency-keyed (a lost answer
- * is replayed, never a second job or a second write); a poll is a plain read (no refresh). The
- * apply writes the product on the server, so it re-renders the route (`apiMutation`); the editor
- * re-bases only the applied fields and keeps the admin's other edits.
+ * The AI assistant's Server Actions (contract §2.19): start a job for a product with the editor's
+ * current values (`draft`), poll it, and accept the suggestions the editor put into its form. The
+ * start is idempotency-keyed (a lost answer is replayed, never a second job); a poll and an accept
+ * write nothing to the product, so neither re-renders the route: the admin saves the form.
  */
 
 const productIdSchema = z.string().regex(/^[\w-]{1,64}$/);
@@ -54,6 +41,9 @@ const startSchema = z.object({
   keys: z.array(keySchema).max(200),
   goal: z.enum(IMPROVE_GOALS),
   imageIds: z.array(z.string().max(64)).max(8),
+  draft: z
+    .record(keySchema, z.string().max(5000))
+    .refine((draft) => Object.keys(draft).length <= DRAFT_MAX_ENTRIES),
 });
 
 async function messages() {
@@ -91,6 +81,7 @@ export async function startAssistantJob(
           keys: body.keys,
           goal: body.goal,
           image_ids: body.imageIds.filter((id) => apiIdSchema.safeParse(id).success).map(Number),
+          draft: body.draft,
         },
         parsed.data.key,
       );
@@ -132,76 +123,34 @@ export async function pollAssistantJob(
   return job ? { ok: true, data: job } : { ok: false, error: m.jobNotFound, code: "not_found" };
 }
 
-/** Only the checked rows, with their (possibly edited) values. */
-export async function applyAssistantJob(
+/**
+ * The suggestions the editor wrote into its form (`keys`, possibly none): closes the job's review
+ * and frees the product's job slot. Nothing is written to the product.
+ */
+export async function acceptAssistantJob(
   id: string,
-  items: AssistantApplyItem[],
-  key: string,
-  csrf: string,
-): Promise<ActionResult<AssistantApplyResult>> {
-  const guard = await guardAction(csrf);
-  if (!guard.ok) return guard;
-  const { m, locale } = await messages();
-  const parsed = z
-    .object({
-      id: jobIdSchema,
-      key: idempotencyKeySchemas[locale],
-      items: z
-        .array(z.object({ key: keySchema, value: z.string().max(5000) }))
-        .min(1)
-        .max(120),
-    })
-    .safeParse({ id, key, items });
-  if (!parsed.success) return fieldErrorsFrom(parsed.error, m.checkFields);
-  if (await isApi()) {
-    if (!apiIdSchema.safeParse(id).success) {
-      return { ok: false, error: m.jobNotFound, code: "not_found" };
-    }
-    return apiMutation("applyAssistantJob", async () => {
-      try {
-        const { data } = await apiApplyAssistantJob(
-          sessionToken(guard.session),
-          id,
-          { items: parsed.data.items },
-          parsed.data.key,
-        );
-        return {
-          ok: true,
-          data: {
-            job: mapAssistantJob(data.job),
-            applied: [...data.applied],
-            conflicts: [...data.conflicts],
-            product: mapProduct(data.product),
-          },
-        };
-      } catch (error) {
-        return toActionResult(error);
-      }
-    });
-  }
-  return mock.applyAssistantJob(id, parsed.data.items);
-}
-
-export async function discardAssistantJob(
-  id: string,
+  keys: string[],
   csrf: string,
 ): Promise<ActionResult<AssistantJob>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
   const { m } = await messages();
-  if (!jobIdSchema.safeParse(id).success) {
-    return { ok: false, error: m.jobNotFound, code: "not_found" };
-  }
+  const parsed = z
+    .object({ id: jobIdSchema, keys: z.array(keySchema).max(120) })
+    .safeParse({ id, keys });
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, m.checkFields);
   if (await isApi()) {
     if (!apiIdSchema.safeParse(id).success) {
       return { ok: false, error: m.jobNotFound, code: "not_found" };
     }
     try {
-      const { data } = await apiDiscardAssistantJob(sessionToken(guard.session), id);
-      return { ok: true, data: mapAssistantJob(data) };
+      const { data } = await apiAcceptAssistantJob(sessionToken(guard.session), id, {
+        keys: parsed.data.keys,
+      });
+      return { ok: true, data: mapAssistantJob(data.job) };
     } catch (error) {
       return toActionResult(error);
     }
   }
-  return mock.discardAssistantJob(id);
+  return mock.acceptAssistantJob(id, parsed.data.keys);
 }

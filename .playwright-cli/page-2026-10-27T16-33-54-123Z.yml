@@ -1,0 +1,192 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e33]:
+    - link "Asosiy kontentga o‘tish" [ref=e34] [cursor=pointer]:
+      - /url: "#admin-main"
+    - complementary [ref=e35]:
+      - generic [ref=e36]:
+        - generic [ref=e37]:
+          - generic [ref=e38]: Glow Derma
+          - generic [ref=e39]: Admin
+        - navigation "Admin bo‘limlari" [ref=e40]:
+          - list [ref=e41]:
+            - listitem [ref=e42]:
+              - link "Dashboard" [ref=e43] [cursor=pointer]:
+                - /url: /admin
+            - listitem [ref=e47]:
+              - link "Mahsulotlar" [ref=e48] [cursor=pointer]:
+                - /url: /admin/products
+            - listitem [ref=e53]:
+              - link "Kategoriyalar" [ref=e54] [cursor=pointer]:
+                - /url: /admin/categories
+            - listitem [ref=e59]:
+              - link "Bannerlar" [ref=e60] [cursor=pointer]:
+                - /url: /admin/banners
+            - listitem [ref=e66]:
+              - link "Buyurtmalar" [ref=e67] [cursor=pointer]:
+                - /url: /admin/orders
+            - listitem [ref=e72]:
+              - link "Qabullar" [ref=e73] [cursor=pointer]:
+                - /url: /admin/appointments
+            - listitem [ref=e78]:
+              - link "Mutaxassislar" [ref=e79] [cursor=pointer]:
+                - /url: /admin/specialists
+            - listitem [ref=e84]:
+              - link "Xizmatlar" [ref=e85] [cursor=pointer]:
+                - /url: /admin/services
+            - listitem [ref=e89]:
+              - link "Mijozlar" [ref=e90] [cursor=pointer]:
+                - /url: /admin/customers
+            - listitem [ref=e95]:
+              - link "Cashback sozlamalari" [ref=e96] [cursor=pointer]:
+                - /url: /admin/cashback
+            - listitem [ref=e102]:
+              - link "Bildirishnomalar" [ref=e103] [cursor=pointer]:
+                - /url: /admin/notifications
+            - listitem [ref=e108]:
+              - link "To‘lovlar" [ref=e109] [cursor=pointer]:
+                - /url: /admin/payments
+            - listitem [ref=e114]:
+              - link "Harakatlar jurnali" [ref=e115] [cursor=pointer]:
+                - /url: /admin/audit-log
+            - listitem [ref=e120]:
+              - link "Xodimlar" [ref=e121] [cursor=pointer]:
+                - /url: /admin/staff
+            - listitem [ref=e125]:
+              - link "Sozlamalar" [ref=e126] [cursor=pointer]:
+                - /url: /admin/settings
+            - listitem [ref=e132]:
+              - generic [ref=e133]:
+                - generic [ref=e137]: AI tahlil
+                - generic [ref=e138]: 2-BOSQICH
+        - generic [ref=e139]:
+          - generic [ref=e140]:
+            - generic [ref=e141]: Billz ulangan
+            - generic [ref=e143]: "Sinxronlangan: hali sinxronlanmagan"
+          - generic [ref=e144]:
+            - generic [aria-hidden] [ref=e145]: AD
+            - generic [ref=e146]:
+              - generic [ref=e147]: admin@glowderma.uz
+              - generic [ref=e148]: admin@glowderma.uz
+            - button "Chiqish" [ref=e150] [cursor=pointer]
+    - generic [ref=e153]:
+      - banner [ref=e154]:
+        - search [ref=e155]:
+          - generic [ref=e156]:
+            - generic [ref=e160]: Qidirish
+            - searchbox "Qidirish" [ref=e161]
+        - link "Bildirishnomalar" [ref=e162] [cursor=pointer]:
+          - /url: /admin/notifications
+      - main [ref=e166]:
+        - generic [ref=e167]:
+          - generic [ref=e168]:
+            - generic [ref=e169]: 27-oktabr, seshanba
+            - heading "Dashboard" [level=1] [ref=e170]
+          - generic [ref=e172]:
+            - radiogroup "Davr" [ref=e173]:
+              - generic [ref=e174]:
+                - radio "Bugun" [checked] [ref=e175] [cursor=pointer]
+                - generic: Bugun
+              - generic [ref=e176]:
+                - radio "Hafta" [ref=e177] [cursor=pointer]
+                - generic: Hafta
+              - generic [ref=e178]:
+                - radio "Oy" [ref=e179] [cursor=pointer]
+                - generic: Oy
+            - button "Tanlash" [ref=e180] [cursor=pointer]
+        - generic [ref=e184]:
+          - generic [ref=e185]:
+            - generic [ref=e186]: Buyurtmalar
+            - generic [ref=e190]: "0"
+            - generic [ref=e191]: "Kecha: 0 ta"
+          - generic [ref=e192]:
+            - generic [ref=e193]: Tushum
+            - generic [ref=e198]: "0"
+            - generic [ref=e199]: so‘m · to‘langan buyurtmalar
+          - generic [ref=e200]:
+            - generic [ref=e201]: Yangi mijozlar
+            - generic [ref=e205]: "0"
+            - generic [ref=e206]: ilovada ro‘yxatdan o‘tgan
+          - generic [ref=e207]:
+            - generic [ref=e208]: Jami mijozlar
+            - generic [ref=e212]: "0"
+            - generic [ref=e213]: shundan 0 tasi o‘chirilgan
+          - link "Tugagan mahsulotlar 0 Ro‘yxatni ko‘rish" [ref=e214] [cursor=pointer]:
+            - /url: /admin/products?out=1
+            - generic [ref=e215]: Tugagan mahsulotlar
+            - generic [ref=e218]: "0"
+            - generic [ref=e219]: Ro‘yxatni ko‘rish
+        - generic [ref=e223]:
+          - region [ref=e224]:
+            - generic [ref=e225]:
+              - heading "Tushum, so‘m" [level=2] [ref=e226]
+              - generic [ref=e227]: Soatlar bo‘yicha
+            - generic [ref=e228]:
+              - generic [aria-hidden] [ref=e231]: 0 mln
+              - generic [aria-hidden] [ref=e232]: 0 mln
+              - generic [aria-hidden] [ref=e233]: "0"
+              - group "Tushum, so‘m — strelkalar bilan ko‘ring" [ref=e235]:
+                - 'button "09:00: 0 so‘m" [ref=e236]'
+                - 'button "10:00: 0 so‘m" [ref=e237]'
+                - 'button "11:00: 0 so‘m" [ref=e238]'
+                - 'button "12:00: 0 so‘m" [ref=e239]'
+                - 'button "13:00: 0 so‘m" [ref=e240]'
+                - 'button "14:00: 0 so‘m" [ref=e241]'
+                - 'button "15:00: 0 so‘m" [ref=e242]'
+                - 'button "16:00: 0 so‘m" [ref=e243]'
+                - 'button "17:00: 0 so‘m" [ref=e244]'
+                - 'button "18:00: 0 so‘m" [ref=e245]'
+                - 'button "19:00: 0 so‘m" [ref=e246]'
+                - 'button "20:00: 0 so‘m" [ref=e247]'
+                - 'button "21:00: 0 so‘m" [ref=e248]'
+            - generic [aria-hidden] [ref=e249]:
+              - generic [ref=e250]: 09:00
+              - generic [ref=e251]: 15:00
+              - generic [ref=e252]: 21:00
+          - region [ref=e253]:
+            - generic [ref=e254]:
+              - heading "Buyurtmalar soni" [level=2] [ref=e255]
+              - generic [ref=e256]: Soatlar bo‘yicha
+            - generic [ref=e257]:
+              - generic [aria-hidden] [ref=e260]: "2"
+              - generic [aria-hidden] [ref=e261]: "1"
+              - generic [aria-hidden] [ref=e262]: "0"
+              - group "Buyurtmalar soni — strelkalar bilan ko‘ring" [ref=e265]:
+                - 'button "09:00: 0 ta buyurtma" [ref=e266]'
+                - 'button "10:00: 0 ta buyurtma" [ref=e267]'
+                - 'button "11:00: 0 ta buyurtma" [ref=e268]'
+                - 'button "12:00: 0 ta buyurtma" [ref=e269]'
+                - 'button "13:00: 0 ta buyurtma" [ref=e270]'
+                - 'button "14:00: 0 ta buyurtma" [ref=e271]'
+                - 'button "15:00: 0 ta buyurtma" [ref=e272]'
+                - 'button "16:00: 0 ta buyurtma" [ref=e273]'
+                - 'button "17:00: 0 ta buyurtma" [ref=e274]'
+                - 'button "18:00: 0 ta buyurtma" [ref=e275]'
+                - 'button "19:00: 0 ta buyurtma" [ref=e276]'
+                - 'button "20:00: 0 ta buyurtma" [ref=e277]'
+                - 'button "21:00: 0 ta buyurtma" [ref=e278]'
+            - generic [aria-hidden] [ref=e279]:
+              - generic [ref=e280]: 09:00
+              - generic [ref=e281]: 15:00
+              - generic [ref=e282]: 21:00
+        - generic [ref=e283]:
+          - region [ref=e284]:
+            - generic [ref=e285]:
+              - heading "So‘nggi buyurtmalar" [level=2] [ref=e286]
+              - link "Barchasi" [ref=e287] [cursor=pointer]:
+                - /url: /admin/orders
+            - region "So‘nggi buyurtmalar jadvali" [ref=e290]:
+              - table [ref=e291]:
+                - rowgroup [ref=e292]:
+                  - row [ref=e293]:
+                    - columnheader "№" [ref=e294]
+                    - columnheader "MIJOZ" [ref=e295]
+                    - columnheader "SANA" [ref=e296]
+                    - columnheader "SUMMA" [ref=e297]
+                    - columnheader "USUL" [ref=e298]
+                    - columnheader "HOLAT" [ref=e299]
+                - rowgroup
+          - region [ref=e300]:
+            - heading "Diqqat talab qiladi" [level=2] [ref=e301]
+            - paragraph [ref=e302]: Hozircha hammasi joyida.
+  - status
+  - alert [ref=e18]: Dashboard

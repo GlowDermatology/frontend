@@ -1,98 +1,157 @@
-import {
-  keyLanguage,
-  suggestionProblem,
-  type AssistantApplyItem,
-  type AssistantSuggestion,
-} from "@/domain/assistant";
 import { CONTENT_LANGUAGES, type ContentLanguage } from "@/domain/product";
+import {
+  fieldMode,
+  fillTargets,
+  hasAnyName,
+  improveTargets,
+  keyLanguage,
+  needsSource,
+  parseKey,
+  type AssistantDraft,
+  type AssistantJobNotes,
+  type AssistantStartInput,
+  type SuggestionWarning,
+} from "@/domain/assistant";
+
+import type { AssistantCopyT } from "./copy";
 
 /**
- * The review's pure parts (framework-free, unit-tested): the row state per suggestion, the
- * grouping by language, the items an apply sends, and the job id kept per product so a closed
- * dialog (or a reloaded editor) resumes the same job.
+ * The assistant's pure parts (framework-free, unit-tested): the start request of a field's ✨ and
+ * of the three menu commands, and why one cannot run; why a requested field came back
+ * without a text, in plain words; the suggestion warnings in plain words; which language tabs hold
+ * AI texts; and the job id kept per product so a reloaded editor resumes the same job.
  */
 
-export interface ReviewRow {
-  checked: boolean;
-  value: string;
+/* --- What a click starts --- */
+
+export type MenuAction = "fill" | "improve" | "photos";
+
+/** One field's ✨: write it (empty or placeholder) or rewrite it (filled), in its language. */
+export function fieldRequest(draft: AssistantDraft, key: string): AssistantStartInput {
+  return {
+    mode: fieldMode(draft, key),
+    languages: [keyLanguage(key)!],
+    keys: [key],
+    goal: "professional",
+    imageIds: [],
+    draft,
+  };
 }
 
-/** A key whose editor field holds an unsaved edit: shown, but it cannot be applied now. */
-export type IsBlocked = (key: string) => boolean;
+/** Why a field's ✨ cannot run now; `undefined` when it can. */
+export function fieldBlocker(
+  t: AssistantCopyT,
+  draft: AssistantDraft,
+  key: string,
+  running: boolean,
+): string | undefined {
+  if (running) return t.field.wait;
+  if (needsSource(draft, key)) return t.field.needSource;
+  // An empty description, SEO or alt text is written from the name: without one the AI has nothing.
+  if (fieldMode(draft, key) === "fill_missing" && !hasAnyName(draft)) return t.fill.needName;
+  return undefined;
+}
 
-export type ReviewState = Record<string, ReviewRow>;
-
-/** The starting rows: the server's pre-selection, except fields the admin is editing. */
-export function initialReview(
-  suggestions: ReadonlyArray<AssistantSuggestion>,
-  isBlocked: IsBlocked,
-): ReviewState {
-  const state: ReviewState = {};
-  for (const suggestion of suggestions) {
-    state[suggestion.key] = {
-      checked: suggestion.checked && !isBlocked(suggestion.key),
-      value: suggestion.suggested,
-    };
+/**
+ * A menu command's request: «fill» every empty key, «improve» the filled descriptions, usage and
+ * SEO texts, «photos» reads the saved photos (at most `maxImages`).
+ */
+export function menuRequest(
+  action: MenuAction,
+  draft: AssistantDraft,
+  savedImageIds: ReadonlyArray<string>,
+  maxImages: number,
+): AssistantStartInput {
+  const base = { languages: [...CONTENT_LANGUAGES], goal: "professional" as const, draft };
+  if (action === "fill") {
+    return { ...base, mode: "fill_missing", keys: fillTargets(draft), imageIds: [] };
   }
-  return state;
+  if (action === "improve") {
+    return { ...base, mode: "improve", keys: improveTargets(draft), imageIds: [] };
+  }
+  return { ...base, mode: "photos", keys: [], imageIds: savedImageIds.slice(0, maxImages) };
 }
 
-/** Suggestions per content language, in uz → ru → en order; languages without any are left out. */
-export function groupByLanguage(
-  suggestions: ReadonlyArray<AssistantSuggestion>,
-): Array<{ language: ContentLanguage; suggestions: AssistantSuggestion[] }> {
-  return CONTENT_LANGUAGES.map((language) => ({
-    language,
-    suggestions: suggestions.filter((s) => keyLanguage(s.key) === language),
-  })).filter((group) => group.suggestions.length > 0);
+/** Why a menu command cannot run now; `undefined` when it can. */
+export function menuBlocker(
+  t: AssistantCopyT,
+  action: MenuAction,
+  draft: AssistantDraft,
+  savedImageIds: ReadonlyArray<string>,
+): string | undefined {
+  if (action === "fill") {
+    if (!hasAnyName(draft)) return t.fill.needName;
+    return fillTargets(draft).length === 0 ? t.fill.none : undefined;
+  }
+  if (action === "improve") return improveTargets(draft).length === 0 ? t.improve.none : undefined;
+  return savedImageIds.length === 0 ? t.photos.none : undefined;
 }
 
-export type RowProblem = "blank" | "too_long" | null;
-
-export function rowProblem(
-  row: ReviewRow | undefined,
-  suggestion: AssistantSuggestion,
-): RowProblem {
-  return row ? suggestionProblem(row.value, suggestion.maxLength) : null;
+/**
+ * Why a requested key got no text in the form: `edited` (the admin typed in it while the AI was
+ * writing), `review` (an unchecked suggestion — read from the photos, or with an unverified claim
+ * or number — over a filled text: shown with «Insert», never written by itself), `nothingToDo`
+ * (the server found nothing to write: no product name yet), `fallback` (no text and no reason).
+ */
+export interface KeyProblem {
+  kind: "rejected" | "skipped" | "unchanged" | "edited" | "fallback" | "review" | "nothingToDo";
+  /** `rejected`: the server's reason code (`pos_label`, `unsupported_number`, …). */
+  reason?: string;
+  /** `review`: the suggested text and its warnings. */
+  suggested?: string;
+  warnings?: SuggestionWarning[];
 }
 
-/** Checked and not blocked. */
-export function isSelected(state: ReviewState, key: string, isBlocked: IsBlocked): boolean {
-  return Boolean(state[key]?.checked) && !isBlocked(key);
+/** The job's per-key notes, by key (the first note of a key wins). */
+export function problemsOf(
+  notes: AssistantJobNotes | null | undefined,
+): Record<string, KeyProblem> {
+  const out: Record<string, KeyProblem> = {};
+  for (const note of notes?.keys ?? []) {
+    out[note.key] ??= { kind: note.kind, reason: note.reason };
+  }
+  return out;
 }
 
-/** The selected rows as apply items (values trimmed), in the suggestions' order. */
-export function applyItems(
-  suggestions: ReadonlyArray<AssistantSuggestion>,
-  state: ReviewState,
-  isBlocked: IsBlocked,
-): AssistantApplyItem[] {
-  return suggestions
-    .filter((s) => isSelected(state, s.key, isBlocked))
-    .map((s) => ({ key: s.key, value: state[s.key]!.value.trim() }));
+/** A problem in the admin's words; never a raw code. */
+export function problemText(t: AssistantCopyT, problem: KeyProblem): string {
+  switch (problem.kind) {
+    case "unchanged":
+      return t.reasons.unchanged;
+    case "skipped":
+      return t.reasons.skipped;
+    case "edited":
+      return t.reasons.edited;
+    case "fallback":
+      return t.reasons.fallback;
+    case "review":
+      return t.reasons.review;
+    case "nothingToDo":
+      return t.reasons.nothingToDo;
+    case "rejected":
+      if (problem.reason === "pos_label") return t.reasons.posLabel;
+      if (problem.reason === "too_long") return t.reasons.tooLong;
+      if (problem.reason === "empty") return t.reasons.empty;
+      return t.reasons.factAdded;
+  }
 }
 
-/** Whether a selected row would be refused (blank or too long). */
-export function hasSelectedProblem(
-  suggestions: ReadonlyArray<AssistantSuggestion>,
-  state: ReviewState,
-  isBlocked: IsBlocked,
-): boolean {
-  return suggestions.some(
-    (s) => isSelected(state, s.key, isBlocked) && rowProblem(state[s.key], s) !== null,
-  );
+/** The suggestion's warnings in the admin's words. */
+export function warningTexts(
+  t: AssistantCopyT,
+  warnings: ReadonlyArray<SuggestionWarning>,
+): string[] {
+  return warnings.map((warning) => t.warnings[warning]);
 }
 
-/** Server field errors of an apply (`items.<i>.value`) → per key, by the index of the sent item. */
-export function itemErrors(
-  items: ReadonlyArray<AssistantApplyItem>,
-  fieldErrors: Record<string, string> | undefined,
-): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const [path, message] of Object.entries(fieldErrors ?? {})) {
-    const match = /^items\.(\d+)\.(value|key)$/.exec(path);
-    const item = match ? items[Number(match[1])] : undefined;
-    if (item) out[item.key] ??= message;
+/** The languages whose `kind` fields hold an AI text (the gold dot on the language tabs). */
+export function markedLanguages(
+  keys: Iterable<string>,
+  kind: "text" | "seo" | "alt",
+): Partial<Record<ContentLanguage, boolean>> {
+  const out: Partial<Record<ContentLanguage, boolean>> = {};
+  for (const key of keys) {
+    if (parseKey(key)?.kind === kind) out[keyLanguage(key)!] = true;
   }
   return out;
 }

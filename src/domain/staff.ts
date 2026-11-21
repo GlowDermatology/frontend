@@ -32,6 +32,7 @@ export interface StaffAccountRow {
   fullName: string;
   isActive: boolean;
   isManager: boolean;
+  isSpecialist?: boolean;
   /** Start of the newest session; `null` = never signed in. */
   lastLoginAt: string | null;
   /** Linked social sign-ins (`google`, `facebook`). */

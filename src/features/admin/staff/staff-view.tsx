@@ -295,7 +295,11 @@ export function StaffView(props: StaffViewProps) {
                       </td>
                       <td>
                         <Badge tone={row.isManager ? "gold" : "neutral"} dot={false}>
-                          {row.isManager ? t.roles.manager : t.roles.staff}
+                          {row.isSpecialist
+                            ? t.roles.specialist
+                            : row.isManager
+                              ? t.roles.manager
+                              : t.roles.staff}
                         </Badge>
                       </td>
                       <td className="text-ink-muted tabular-nums">

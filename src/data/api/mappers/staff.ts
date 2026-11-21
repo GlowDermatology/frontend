@@ -40,6 +40,7 @@ export function mapStaffRow(api: ApiStaffListItem | ApiStaffMember): StaffAccoun
     fullName: api.full_name ?? "",
     isActive: api.is_active,
     isManager: api.is_manager ?? false,
+    ...(api.role === "specialist" ? { isSpecialist: true } : {}),
     lastLoginAt: api.last_login_at ?? null,
     linkedProviders: [...(api.linked_providers ?? [])],
     createdAt: api.created_at ?? null,

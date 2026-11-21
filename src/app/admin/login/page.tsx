@@ -3,9 +3,9 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
-import { verifyStaff } from "@/data/auth";
+import { getMe, verifyStaff } from "@/data/auth";
 import { cookieNames } from "@/data/auth/cookie-names";
-import { safeNext } from "@/data/auth/next-param";
+import { safeNext, staffDestination } from "@/data/auth/next-param";
 import { OAUTH_PROVIDER_LABEL } from "@/data/auth/oauth";
 import { oauthConfig, requestNotice } from "@/data/auth/oauth-env";
 import { mockMfaState } from "@/data/mfa";
@@ -45,7 +45,10 @@ async function LoginGate({
   const session = await verifyStaff();
   // Mock mode has no sessions (the admin is open); with the demo's MFA on the form stays, so the
   // sign-in's second step can be previewed (`GLOWDERMA_MOCK_MFA`, DESIGN §E).
-  if (session.ok && !(session.mode === "mock" && (await mockMfaState()).enabled)) redirect(next);
+  if (session.ok && !(session.mode === "mock" && (await mockMfaState()).enabled)) {
+    const me = await getMe();
+    if (session.mode === "mock" || me) redirect(staffDestination(me?.role, next));
+  }
   const csrf = (await cookies()).get(cookieNames(serverEnv.cookieSecure()).csrf)?.value ?? "";
   const notice = await requestNotice(query.oauth);
   const config = oauthConfig();

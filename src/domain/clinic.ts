@@ -80,7 +80,7 @@ export interface ClinicSpecialist {
   locationId: string;
   locationIds: string[];
   /** The linked staff account (informational); `null` when none. */
-  staffUser: { id: string; name: string } | null;
+  staffUser: { id: string; name: string; role?: "admin" | "specialist" | null } | null;
   slotStepMin: number;
   position: number;
   isActive: boolean;

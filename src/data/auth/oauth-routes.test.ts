@@ -477,6 +477,7 @@ describe("GET /admin/auth/oauth/[provider]/callback", () => {
             id: 1,
             email: "admin@glowderma.uz",
             display_name: "Administrator",
+            role: "admin",
             is_superuser: true,
             is_manager: true,
             linked_providers: ["google"],

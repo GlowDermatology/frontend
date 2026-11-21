@@ -40,6 +40,7 @@ import {
   withNotice,
 } from "@/data/auth/oauth-route";
 import { renewAccess } from "@/data/auth/oauth-session";
+import { staffDestination } from "@/data/auth/next-param";
 import { applyStaffSession } from "@/data/auth/session-cookies";
 import { MOCK_MFA_COOKIE, mockChallenge, readMockMfaState } from "@/data/mock/mfa";
 import { authDataCopy, type AuthDataCopy } from "@/domain/copy/auth";
@@ -154,7 +155,7 @@ async function login(ctx: Context, flow: OAuthFlow, body: OAuthCallbackRequest) 
   if (isMfaChallengeAnswer(data)) {
     return toMfaStep(ctx, data, flow.next) ?? failure(ctx, "login", ctx.m.unreachable, flow.next);
   }
-  const response = seeOther(flow.next);
+  const response = seeOther(staffDestination(data.user?.role, flow.next));
   // The same code path as the password login and the MFA step.
   if (!applyStaffSession(response.cookies, data, ctx.secure, ctx.nowMs)) {
     return failure(ctx, "login", ctx.m.unreachable, flow.next);

@@ -26,8 +26,10 @@ import { ThemeCard } from "./theme-card";
  */
 export async function SettingsContent({
   searchParams,
+  specialist = false,
 }: {
   searchParams: PageProps<"/admin/settings">["searchParams"];
+  specialist?: boolean;
 }) {
   await requireStaff();
   const [account, mfa, query, t, themeLabels] = await Promise.all([
@@ -58,7 +60,7 @@ export async function SettingsContent({
           <MfaCard status={mfa} account={account?.email ?? null} />
           <LanguageCard />
           <ThemeCard t={t.theme} labels={themeLabels} />
-          <OpsConsoleCard consoleUrl={serverEnv.opsConsoleUrl()} t={t.store} />
+          {!specialist && <OpsConsoleCard consoleUrl={serverEnv.opsConsoleUrl()} t={t.store} />}
         </div>
       </div>
     </>

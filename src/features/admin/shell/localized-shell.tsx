@@ -1,5 +1,8 @@
+import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 
+import { getMe } from "@/data/auth";
+import { SPECIALIST_HOME } from "@/data/auth/next-param";
 import { ToastProvider } from "@/components/ui/toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AdminLocaleProvider } from "@/lib/i18n/admin-context";
@@ -17,7 +20,8 @@ import { HtmlLang } from "./html-lang";
  * shell is the skeleton, everything else streams.
  */
 export async function LocalizedShell({ children }: { children: ReactNode }) {
-  const locale = await getAdminLocale();
+  const [locale, me] = await Promise.all([getAdminLocale(), getMe()]);
+  if (me?.role === "specialist") redirect(SPECIALIST_HOME);
   return (
     <AdminLocaleProvider locale={locale}>
       <HtmlLang locale={locale} />

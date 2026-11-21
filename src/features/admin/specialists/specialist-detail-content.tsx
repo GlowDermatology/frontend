@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { optionalRead } from "@/data/api/optional-read";
-import { requireStaff } from "@/data/auth";
+import { getMe, requireStaff } from "@/data/auth";
 import {
   getSpecialist,
   listAllServices,
@@ -27,7 +27,8 @@ export async function SpecialistDetailContent({
 }: {
   params: Promise<{ specialistId: string }>;
 }) {
-  await requireStaff();
+  const session = await requireStaff();
+  const me = await getMe();
   const { specialistId } = await params;
   const specialist = await getSpecialist(specialistId);
   if (!specialist) notFound();
@@ -43,6 +44,11 @@ export async function SpecialistDetailContent({
   return (
     <SpecialistDetailView
       specialist={specialist}
+      manageAccess={
+        session.mode === "api" &&
+        Boolean((me?.is_manager || me?.is_superuser) && me.capabilities?.specialist_provisioning)
+      }
+      emailInvite={Boolean(me?.capabilities.staff_email_invite)}
       services={services}
       clinics={clinics}
       overrides={overrides.items}

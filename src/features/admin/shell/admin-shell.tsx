@@ -1,7 +1,5 @@
-import Link from "next/link";
 import { Suspense, type ReactNode } from "react";
 
-import { Icon } from "@/components/ui/icon";
 import { copyFor } from "@/lib/i18n/admin-locale";
 
 import { ContentErrorBoundary } from "./content-error";
@@ -11,6 +9,7 @@ import { GlobalSearch } from "./global-search";
 import { IssuesAlert, IssuesAlertFallback } from "./issues-alert";
 import { MobileNav } from "./mobile-nav";
 import { SidebarContent } from "./sidebar";
+import { HeaderProfile, HeaderProfileFallback } from "./header-profile";
 
 /**
  * Sidebar + top bar + page content, rendered once by `src/app/admin/(panel)/layout.tsx` (inside
@@ -46,13 +45,9 @@ export async function AdminShell({ children }: { children: ReactNode }) {
           <Suspense fallback={<IssuesAlertFallback />}>
             <IssuesAlert />
           </Suspense>
-          <Link
-            href="/admin/notifications"
-            aria-label={t.notifications}
-            className="relative flex size-11 items-center justify-center rounded-md border border-line bg-surface-raised text-ink transition-colors duration-150 hover:bg-surface"
-          >
-            <Icon name="bell" size={20} />
-          </Link>
+          <Suspense fallback={<HeaderProfileFallback />}>
+            <HeaderProfile />
+          </Suspense>
         </header>
 
         <main

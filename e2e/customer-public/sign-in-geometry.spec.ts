@@ -153,10 +153,8 @@ for (const viewport of VIEWPORTS) {
       await page.locator("[data-auth-art]").evaluate((element) => {
         element.setAttribute("data-geometry-marker", "1");
       });
-      await page
-        .getByRole("group", { name: "Interfeys tili" })
-        .getByRole("button", { name: "Русский" })
-        .click();
+      await page.getByRole("button", { name: "Interfeys tili" }).click();
+      await page.getByRole("menuitem", { name: "Русский" }).click();
       await expect(page.locator("html")).toHaveAttribute("lang", "ru");
       await expect(page.locator("[data-auth-art][data-geometry-marker]")).toHaveCount(1);
       expectSameFrame(await frame(page), before, "staff sign-in in Russian");

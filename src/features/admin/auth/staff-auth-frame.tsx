@@ -1,10 +1,11 @@
 import { Suspense, type ReactNode } from "react";
 
 import { STAFF_SIGN_IN_PATH, AudienceSwitch } from "@/components/brand/audience-switch";
+import { AuthLanguageMenu } from "@/components/brand/auth-language-menu";
 import { AuthCaption, AuthCaptionSkeleton, AuthLayout } from "@/components/brand/auth-layout";
 import { themeCopy } from "@/components/brand/copy";
-import { Icon } from "@/components/ui/icon";
 import { ThemeMenu } from "@/components/ui/theme-control";
+import { chooseSignInLanguage } from "@/data/admin-language.actions";
 import { shopPath } from "@/features/shop/routing/routes";
 import { HtmlLang } from "@/features/admin/shell/html-lang";
 import { AdminLocaleProvider } from "@/lib/i18n/admin-context";
@@ -12,7 +13,6 @@ import { getAdminLocale } from "@/lib/i18n/admin-locale";
 
 import { Skeleton } from "../shared/skeleton";
 import { staffAuthCopy } from "./copy";
-import { SignInLanguageSwitch } from "./language-switch";
 
 /**
  * The staff auth frame (DESIGN §F) for every staff page outside the panel shell — sign-in,
@@ -62,7 +62,7 @@ async function StaffCaption() {
 
 /**
  * The staff card's content: the brand row with the small language switch, «Mijoz | Xodim» (sign-in
- * only), `children`, and the fine print — inside the admin locale (`AdminLocaleProvider`,
+ * only) and `children` inside the admin locale (`AdminLocaleProvider`,
  * `<html lang>`), so client islands in `children` can `useCopy`. Reads the language cookie: render
  * it inside the `<Suspense>` of a `StaffAuthFrame`, with `StaffAuthCardSkeleton` as the fallback.
  */
@@ -83,7 +83,7 @@ export async function StaffAuthCard({
     <AdminLocaleProvider locale={locale}>
       <HtmlLang locale={locale} />
       <StaffBrand>
-        <SignInLanguageSwitch />
+        <AuthLanguageMenu current={locale} label={t.language.label} choose={chooseSignInLanguage} />
         <ThemeMenu labels={themeCopy[locale]} triggerClassName={themeTriggerClass} />
       </StaffBrand>
       {switchAudience && withCustomerLink ? (
@@ -97,10 +97,6 @@ export async function StaffAuthCard({
         />
       ) : null}
       {children}
-      <p className="m-0 flex items-start gap-2 border-t border-line pt-5 text-body-sm text-ink-muted">
-        <Icon name="lock" size={16} className="mt-px shrink-0 text-gold-ink" />
-        {t.frame.footnote}
-      </p>
     </AdminLocaleProvider>
   );
 }
@@ -174,7 +170,7 @@ export function StaffAuthSkeleton({ fields = 2 }: { fields?: number }) {
  * The card's content before the language is known, laid out like `StaffAuthCard`: the brand row
  * (the brand is language-neutral, the switch a pill of its size, the theme menu a circle), the
  * «Mijoz | Xodim» bar when
- * the page offers it, a heading with `leadLines` of lead, the form skeleton and the fine print.
+ * the page offers it, a heading with `leadLines` of lead, and the form skeleton.
  */
 export function StaffAuthCardSkeleton({
   fields = 2,
@@ -188,16 +184,12 @@ export function StaffAuthCardSkeleton({
   return (
     <>
       <StaffBrand>
-        <Skeleton className="h-[38px] w-[186px] rounded-full" />
+        <Skeleton className="h-[38px] w-[76px] rounded-full" />
         <Skeleton className="size-[38px] rounded-full" />
       </StaffBrand>
       {audienceSwitch ? <Skeleton className="h-[46px] rounded-full" /> : null}
       <StaffAuthHeadingSkeleton leadLines={leadLines} />
       <StaffAuthSkeleton fields={fields} />
-      <div aria-hidden="true" className="flex flex-col gap-1.5 border-t border-line pt-5">
-        <Skeleton className="h-3 w-full rounded-sm" />
-        <Skeleton className="h-3 w-2/3 rounded-sm" />
-      </div>
     </>
   );
 }

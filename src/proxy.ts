@@ -16,6 +16,7 @@ import { lookupSlug } from "@/data/customer-auth/legacy-redirect";
 import { slugExists } from "@/data/customer-auth/slug-exists";
 import { decideShopProxy } from "@/data/customer-auth/proxy-decision";
 import { shopPath } from "@/features/shop/routing/routes";
+import { adminLocaleCookie, knownAdminLocale } from "@/lib/i18n/admin-locale-cookie";
 
 /**
  * One proxy, two audiences.
@@ -58,6 +59,16 @@ function mode(): "api" | "mock" {
 function adminProxy(request: NextRequest, secure: boolean): NextResponse {
   const names = cookieNames(secure);
   const { pathname, search } = request.nextUrl;
+  const language = knownAdminLocale(request.nextUrl.searchParams.get("lang"));
+  if (request.method === "GET" && pathname === "/admin/login" && language) {
+    const location = request.nextUrl.clone();
+    location.searchParams.delete("lang");
+    const response = NextResponse.redirect(location, 303);
+    const cookie = adminLocaleCookie(language, secure);
+    response.cookies.set(cookie.name, cookie.value, cookie.attributes);
+    response.headers.set("Cache-Control", "no-store");
+    return response;
+  }
 
   const decision = decideProxy({
     method: request.method,

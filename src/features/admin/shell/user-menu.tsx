@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { DropdownMenu } from "radix-ui";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { themeCopy } from "@/components/brand/copy";
 import { LocaleFlag } from "@/components/brand/locale-flag";
@@ -36,19 +37,21 @@ interface UserMenuProps {
   initials: string;
   /** The `gd_csrf` value at render time; the cookie is read again when signing out. */
   csrf: string;
+  notificationActivity?: string | null;
+  staffId?: string;
 }
 
-/**
- * The admin profile menu (the sidebar's user block): the trigger is the avatar, name and email
- * row (as tall as the block it replaces) and the menu opens upward from it: «Sozlamalar», «Til ›»
- * (the three admin languages; choosing one saves it like Settings → «Interfeys tili», the panel
- * re-renders in it), «Mavzu» (light · dark · like the device, the menu stays open) and «Chiqish»
- * (submits the hidden POST form to the logout route; without JavaScript the sidebar shows the
- * plain `LogoutButton` instead). In the phone drawer the menu portals into the drawer's layer
- * host (`MobileNav`), so it stays inside the dialog.
- */
-export function UserMenu({ name, email, initials, csrf }: UserMenuProps) {
-  const t = useCopy(shellCopy).user;
+/** The header avatar opens staff identity and personal controls. */
+export function UserMenu({
+  name,
+  email,
+  initials,
+  csrf,
+  notificationActivity,
+  staffId,
+}: UserMenuProps) {
+  const copy = useCopy(shellCopy);
+  const t = copy.user;
   const languageText = useCopy(languageCopy);
   const locale = useAdminLocale();
   const toast = useOptionalToast();
@@ -56,6 +59,35 @@ export function UserMenu({ name, email, initials, csrf }: UserMenuProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const csrfRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
+  const pathname = usePathname();
+  const viewingNotifications = pathname === "/admin/notifications";
+  const storageKey = staffId ? `gd-admin-notification-activity:${staffId}` : null;
+  const [seenActivity, setSeenActivity] = useState<string>();
+  useEffect(() => {
+    if (!storageKey || !notificationActivity) return;
+    const sync = () => {
+      try {
+        setSeenActivity(localStorage.getItem(storageKey) ?? "");
+      } catch {
+        // Storage can be blocked. The menu still works without the badge.
+      }
+    };
+    try {
+      if (viewingNotifications) localStorage.setItem(storageKey, notificationActivity);
+    } catch {
+      // Storage is optional.
+    }
+    sync();
+    window.addEventListener("storage", sync);
+    return () => window.removeEventListener("storage", sync);
+  }, [storageKey, notificationActivity, viewingNotifications]);
+  const unread = Boolean(
+    storageKey &&
+    notificationActivity &&
+    seenActivity !== undefined &&
+    seenActivity !== notificationActivity &&
+    !viewingNotifications,
+  );
 
   const chooseLanguage = async (next: Locale) => {
     if (saving || next === locale) return;
@@ -79,26 +111,23 @@ export function UserMenu({ name, email, initials, csrf }: UserMenuProps) {
     <>
       <DropdownMenu.Root modal={false}>
         <DropdownMenu.Trigger
-          aria-label={`${t.menuLabel}: ${name}`}
+          aria-label={`${t.menuLabel}: ${name}${unread ? ` · ${t.unreadNotifications}` : ""}`}
           data-user-menu=""
           {...(saving ? { "aria-busy": true } : {})}
-          className="group flex min-h-11 w-full min-w-0 items-center gap-2.5 rounded-md px-1 text-left transition-colors duration-150 hover:bg-gold-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold-ink data-[state=open]:bg-gold-soft"
+          className="relative flex size-11 shrink-0 items-center justify-center rounded-full border border-line bg-surface-raised transition-colors duration-150 hover:bg-gold-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold-ink data-[state=open]:bg-gold-soft"
         >
           <Avatar name={name} initials={initials} />
-          <span className="flex min-w-0 flex-1 flex-col">
-            <span className="truncate text-body-sm font-bold text-ink">{name}</span>
-            <span className="truncate text-caption font-normal text-ink-muted">{email}</span>
-          </span>
-          <Icon
-            name="chevron-up"
-            size={18}
-            className="mr-1.5 shrink-0 text-ink-muted transition-transform duration-150 group-data-[state=open]:rotate-180"
-          />
+          {unread ? (
+            <span
+              aria-hidden="true"
+              className="absolute top-0 right-0 size-3 rounded-full border-2 border-surface-raised bg-danger-strong"
+            />
+          ) : null}
         </DropdownMenu.Trigger>
         <DropdownMenu.Portal container={container}>
           <DropdownMenu.Content
-            side="top"
-            align="start"
+            side="bottom"
+            align="end"
             sideOffset={8}
             collisionPadding={8}
             aria-label={t.menuLabel}
@@ -107,7 +136,18 @@ export function UserMenu({ name, email, initials, csrf }: UserMenuProps) {
               "min-w-[max(var(--radix-dropdown-menu-trigger-width),256px)]",
             )}
           >
-            <UserMenuItems onLanguage={(next) => void chooseLanguage(next)} onSignOut={signOut} />
+            <DropdownMenu.Label className="flex flex-col gap-0.5 px-3 py-2">
+              <span className="truncate text-label">{name}</span>
+              {email !== name ? (
+                <span className="truncate text-caption text-ink-muted">{email}</span>
+              ) : null}
+            </DropdownMenu.Label>
+            <DropdownMenu.Separator className={menuSeparatorClass} />
+            <UserMenuItems
+              unread={unread}
+              onLanguage={(next) => void chooseLanguage(next)}
+              onSignOut={signOut}
+            />
           </DropdownMenu.Content>
         </DropdownMenu.Portal>
       </DropdownMenu.Root>
@@ -124,18 +164,32 @@ export function UserMenu({ name, email, initials, csrf }: UserMenuProps) {
  * «Til · [flag] O‘zbekcha ›» (radio rows, a check on the current language), «Mavzu», «Chiqish».
  */
 export function UserMenuItems({
+  unread = false,
   onLanguage,
   onSignOut,
 }: {
+  unread?: boolean;
   onLanguage: (locale: Locale) => void;
   onSignOut: () => void;
 }) {
-  const t = useCopy(shellCopy).user;
+  const copy = useCopy(shellCopy);
+  const t = copy.user;
   const theme = useCopy(themeCopy);
   const languageText = useCopy(languageCopy);
   const locale = useAdminLocale();
   return (
     <>
+      <DropdownMenu.Item asChild className={menuItemClass}>
+        <Link href="/admin/notifications" prefetch={false}>
+          <Icon name="bell" size={18} className="text-ink-muted" />
+          {copy.notifications}
+          {unread ? (
+            <span className="ml-auto size-2 rounded-full bg-danger-strong">
+              <span className="sr-only">{t.unreadNotifications}</span>
+            </span>
+          ) : null}
+        </Link>
+      </DropdownMenu.Item>
       <DropdownMenu.Item asChild className={menuItemClass}>
         <Link href="/admin/settings">
           <Icon name="sliders" size={18} className="text-ink-muted" />

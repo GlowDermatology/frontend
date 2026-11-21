@@ -17,12 +17,10 @@ const uz = {
       appointments: "Qabullar va mutaxassislar jadvali",
       customers: "Mijozlar, cashback va bildirishnomalar",
     },
-    footnote: "Faqat Glow Derma xodimlari uchun. Har bir kirish harakatlar jurnaliga yoziladi.",
   },
   audience: { label: "Kim sifatida kirasiz", customer: "Mijoz", staff: "Xodim" },
   language: {
     label: "Interfeys tili",
-    changing: "Til almashtirilmoqda…",
   },
   form: {
     title: "Tizimga kirish",
@@ -68,12 +66,10 @@ export const staffAuthCopy = {
         appointments: "Приёмы и расписание специалистов",
         customers: "Клиенты, кешбэк и уведомления",
       },
-      footnote: "Только для сотрудников Glow Derma. Каждый вход записывается в журнал действий.",
     },
     audience: { label: "Как вы входите", customer: "Клиент", staff: "Сотрудник" },
     language: {
       label: "Язык интерфейса",
-      changing: "Меняем язык…",
     },
     form: {
       title: "Вход в систему",
@@ -116,12 +112,10 @@ export const staffAuthCopy = {
         appointments: "Appointments and specialist schedules",
         customers: "Customers, cashback and notifications",
       },
-      footnote: "For Glow Derma staff only. Every sign-in is recorded in the audit log.",
     },
     audience: { label: "Who is signing in", customer: "Customer", staff: "Staff" },
     language: {
       label: "Interface language",
-      changing: "Switching the language…",
     },
     form: {
       title: "Sign in",

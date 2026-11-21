@@ -24,7 +24,11 @@ export function GlobalSearch() {
   };
 
   return (
-    <form role="search" onSubmit={onSubmit} className="max-w-[480px] min-w-0 flex-[1_1_280px]">
+    <form
+      role="search"
+      onSubmit={onSubmit}
+      className="max-w-[480px] min-w-0 flex-[1_1_120px] sm:basis-[280px]"
+    >
       <SearchInput
         label={t.label}
         name="q"

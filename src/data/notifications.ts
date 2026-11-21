@@ -42,6 +42,26 @@ export interface NotificationsMe {
   isSuperuser: boolean;
 }
 
+/** Recent campaign activity for the staff profile badge, without loading the composer. */
+export async function getNotificationActivity(): Promise<string | null> {
+  const query: NotificationHistoryQuery = { page: 1, pageSize: 20 };
+  try {
+    const records =
+      (await dataSource()) === "api"
+        ? (
+            await apiListNotifications(await requireApiToken(), notificationListParams(query))
+          ).data.results.map(mapNotificationRecord)
+        : (await mock.getNotificationsOverview(query, { id: "", isSuperuser: false })).history
+            .items;
+    return records.length
+      ? JSON.stringify(records.map(({ id, state, updatedAt }) => [id, state, updatedAt]))
+      : null;
+  } catch {
+    // The profile menu remains usable if the optional badge cannot load.
+    return null;
+  }
+}
+
 export interface NotificationsOverview {
   /** The requested page of the history. */
   history: Page<NotificationRecord>;

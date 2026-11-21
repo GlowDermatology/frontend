@@ -41,7 +41,7 @@ const text = (html: string) =>
     .trim();
 
 describe("UserMenu", () => {
-  it("is the user block itself: avatar, name and email open the profile menu", () => {
+  it("uses a compact avatar trigger named for the staff member", () => {
     const html = within(
       "uz",
       createElement(UserMenu, {
@@ -54,8 +54,8 @@ describe("UserMenu", () => {
     expect(html).toContain('aria-label="Profil menyusi: Malika Yusupova"');
     expect(html).toContain('aria-haspopup="menu"');
     expect(html).toContain('data-user-menu=""');
-    expect(html).toContain("min-h-11");
-    expect(text(html)).toContain("MY Malika Yusupova malika@glowderma.uz");
+    expect(html).toContain("size-11");
+    expect(text(html)).toContain("MY");
     // Sign-out posts the hidden form (csrf, this session only).
     expect(html).toContain('<form hidden="" action="/admin/auth/logout" method="post">');
     expect(html).toContain('name="csrf" value="tok"');
@@ -66,6 +66,7 @@ describe("UserMenu", () => {
 describe("UserMenuItems", () => {
   it("lists Settings, the language row, the theme switch and Sign out, in order", () => {
     const html = items("uz");
+    expect(html).toContain('href="/admin/notifications"');
     expect(html).toContain('href="/admin/settings"');
     const order = ["Sozlamalar", "Til", "O‘zbekcha", "Mavzu", "Chiqish"].map((label) =>
       text(html).indexOf(label),

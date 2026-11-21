@@ -4,26 +4,26 @@ import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { STAFF_SIGN_IN_PATH } from "@/components/brand/audience-switch";
+import { AuthLanguageMenu } from "@/components/brand/auth-language-menu";
 import { AuthCaption, AuthLayout } from "@/components/brand/auth-layout";
 import { themeCopy } from "@/components/brand/copy";
-import { Icon, type IconName } from "@/components/ui/icon";
+import type { IconName } from "@/components/ui/icon";
 import { ThemeMenu } from "@/components/ui/theme-control";
 import { safeShopNext } from "@/data/customer-auth/next-param";
 import { readCustomerSession } from "@/data/customer-auth/session";
 import { getSettings } from "@/data/shop/catalog";
 import { storefrontEnabled } from "@/data/shop/mode";
 import { cn } from "@/lib/cn";
-import type { Locale } from "@/lib/i18n/locales";
+import { LOCALES, type Locale } from "@/lib/i18n/locales";
 
 import { privateMetadata } from "../../account/account-shell";
 import { AuthPanel, type AuthMode } from "../../auth/auth-panel";
 import { socialConfig } from "../../auth/social-config";
 import { getShopDictionary } from "../../content";
-import { LanguageLinks } from "../../components/language-switcher";
 import { textLink } from "../../components/layout-primitives";
 import { authCopy } from "../../copy/auth";
 import { commonCopy } from "../../copy/common";
-import { shopPath } from "../../routing/routes";
+import { shopHref, shopPath } from "../../routing/routes";
 import { settle } from "../settle";
 import { first, type LocaleInput, type SearchParams } from "./shared";
 
@@ -109,35 +109,60 @@ function FormSkeleton() {
  * home page, the way back to the store, the language links (plain anchors, no JS needed) and the
  * theme menu (light · dark · like the device).
  */
-function CardBrand({ locale }: { locale: Locale }) {
+async function CustomerLanguageMenu({
+  locale,
+  searchParams,
+}: {
+  locale: Locale;
+  searchParams: SearchParams;
+}) {
+  const params = await searchParams;
+  const next = first(params.next);
+  const hrefs = Object.fromEntries(
+    LOCALES.map((target) => [
+      target,
+      shopHref(
+        target,
+        { kind: "signIn" },
+        {
+          mode: modeOf(first(params.mode)),
+          switch: first(params.switch) === "1",
+          next: next ? safeShopNext(next, target) : undefined,
+        },
+      ),
+    ]),
+  ) as Record<Locale, string>;
+  return (
+    <AuthLanguageMenu
+      current={locale}
+      label={getShopDictionary(locale).header.languageLabel}
+      hrefs={hrefs}
+    />
+  );
+}
+
+function CardBrand({ locale, searchParams }: { locale: Locale; searchParams: SearchParams }) {
   const dict = getShopDictionary(locale);
   const home = shopPath(locale, { kind: "home" });
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <Link
-          href={home}
-          aria-label={dict.header.home}
-          className={cn(
-            "font-serif text-title font-semibold tracking-[-0.01em] whitespace-nowrap text-ink",
-            textLink,
-          )}
+    <div className="flex min-h-[38px] flex-wrap items-center justify-between gap-3">
+      <Link
+        href={home}
+        aria-label={authCopy[locale].backToStore}
+        title={dict.header.home}
+        className={cn(
+          "font-serif text-title font-semibold tracking-[-0.01em] whitespace-nowrap text-ink",
+          textLink,
+        )}
+      >
+        Glow Derma
+      </Link>
+      <div className="flex items-center gap-2">
+        <Suspense
+          fallback={<span aria-hidden="true" className="h-[38px] w-[76px] skeleton rounded-full" />}
         >
-          Glow Derma
-        </Link>
-        <Link
-          href={home}
-          className={cn(
-            "inline-flex min-h-6 items-center gap-1 text-label text-ink-muted hover:text-ink",
-            textLink,
-          )}
-        >
-          <Icon name="chevron-left" size={16} />
-          {authCopy[locale].backToStore}
-        </Link>
-      </div>
-      <div className="flex items-center justify-between gap-3">
-        <LanguageLinks current={locale} label={dict.header.languageLabel} layout="inline" />
+          <CustomerLanguageMenu locale={locale} searchParams={searchParams} />
+        </Suspense>
         <ThemeMenu labels={themeCopy[locale]} />
       </div>
     </div>
@@ -169,7 +194,7 @@ export async function SignInPage({
       switchLinks={{
         label: copy.audience.label,
         customer: { href: shopPath(locale, { kind: "signIn" }), label: copy.audience.customer },
-        staff: { href: STAFF_SIGN_IN_PATH, label: copy.audience.staff },
+        staff: { href: `${STAFF_SIGN_IN_PATH}?lang=${locale}`, label: copy.audience.staff },
       }}
       caption={
         <AuthCaption
@@ -184,7 +209,7 @@ export async function SignInPage({
           points={BENEFITS.map((benefit) => ({ icon: benefit.icon, text: nav[benefit.key] }))}
         />
       }
-      header={<CardBrand locale={locale} />}
+      header={<CardBrand locale={locale} searchParams={searchParams} />}
     >
       <Suspense fallback={<FormSkeleton />}>
         <Body locale={locale} searchParams={searchParams} />

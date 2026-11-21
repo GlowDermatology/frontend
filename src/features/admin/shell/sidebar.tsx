@@ -12,7 +12,6 @@ import { shellCopy } from "./copy";
 import { IssuesNavPill } from "./issues-badge";
 import { NavLink } from "./nav-link";
 import { NAV_ITEMS, type NavItem } from "./nav-items";
-import { SidebarUser, SidebarUserFallback } from "./sidebar-user";
 
 /**
  * Count of work waiting for the admin (`nav-counts/`, one call per request);
@@ -65,7 +64,7 @@ export async function SidebarContent() {
 
       <nav aria-label={t.sections}>
         <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
-          {NAV_ITEMS.map((item) => {
+          {NAV_ITEMS.filter(({ section }) => section !== "notifications").map((item) => {
             const entry = (
               <li key={item.section}>
                 <NavLink section={item.section} href={item.href}>
@@ -112,9 +111,6 @@ export async function SidebarContent() {
       <div className="mt-auto flex flex-col gap-3">
         <Suspense fallback={<BillzStatusFallback />}>
           <BillzStatus />
-        </Suspense>
-        <Suspense fallback={<SidebarUserFallback />}>
-          <SidebarUser />
         </Suspense>
       </div>
     </div>

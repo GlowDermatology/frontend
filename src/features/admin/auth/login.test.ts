@@ -1,9 +1,8 @@
-import { createElement, type FC, type ReactNode } from "react";
+import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-import { AdminLocaleProvider } from "@/lib/i18n/admin-context";
-import type { Locale } from "@/lib/i18n/locales";
+import { AuthLanguageMenu } from "@/components/brand/auth-language-menu";
 
 import { staffAuthCopy } from "./copy";
 import { hasLoginErrors, validateLogin } from "./login-validation";
@@ -11,9 +10,7 @@ import { ProviderMark } from "./provider-mark";
 
 vi.mock("@/data/admin-language.actions", () => ({ chooseSignInLanguage: vi.fn() }));
 
-const { SignInLanguageSwitch } = await import("./language-switch");
 const { StaffAuthCardSkeleton } = await import("./staff-auth-frame");
-const LocaleProvider = AdminLocaleProvider as FC<{ locale: Locale; children?: ReactNode }>;
 
 describe("validateLogin", () => {
   const m = staffAuthCopy.uz.errors;
@@ -57,24 +54,22 @@ describe("staff sign-in copy", () => {
   });
 });
 
-describe("SignInLanguageSwitch", () => {
-  it("offers the three languages and presses the current one", () => {
+describe("AuthLanguageMenu", () => {
+  it("shows one compact trigger with the current language", () => {
     const html = renderToStaticMarkup(
-      createElement(LocaleProvider, { locale: "ru" }, createElement(SignInLanguageSwitch)),
+      createElement(AuthLanguageMenu, { current: "ru", label: "Язык интерфейса", choose: vi.fn() }),
     );
-    expect(html).toContain('role="group" aria-label="Язык интерфейса"');
-    expect(html.match(/<button /g)).toHaveLength(3);
-    expect(html).toMatch(/lang="ru" aria-pressed="true"/);
-    expect(html).toMatch(/lang="uz" aria-pressed="false"/);
-    expect(html).toContain("O‘zbekcha");
-    expect(html).toContain('role="status"');
+    expect(html).toContain('aria-label="Язык интерфейса"');
+    expect(html).toContain('aria-haspopup="menu"');
+    expect(html.match(/<button /g)).toHaveLength(1);
+    expect(html).toContain('title="Русский"');
   });
 });
 
 describe("StaffAuthCardSkeleton", () => {
   it("holds the brand row's language pill and theme circle at their sizes", () => {
     const html = renderToStaticMarkup(createElement(StaffAuthCardSkeleton));
-    expect(html).toContain("h-[38px] w-[186px]");
+    expect(html).toContain("h-[38px] w-[76px]");
     expect(html).toContain("size-[38px] rounded-full");
   });
 });

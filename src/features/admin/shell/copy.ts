@@ -68,8 +68,9 @@ const uz = {
   user: {
     noSession: "Sessiya topilmadi",
     logout: "Chiqish",
-    /** The profile menu's trigger and list (avatar + name at the foot of the sidebar). */
+    /** The top bar profile menu trigger. */
     menuLabel: "Profil menyusi",
+    unreadNotifications: "Ko‘rilmagan bildirishnomalar",
     settings: "Sozlamalar",
     /** The «Til ›» row; its submenu lists the three admin languages. */
     language: "Til",
@@ -217,6 +218,7 @@ export const shellCopy = {
       noSession: "Сессия не найдена",
       logout: "Выйти",
       menuLabel: "Меню профиля",
+      unreadNotifications: "Непросмотренные уведомления",
       settings: "Настройки",
       language: "Язык",
     },
@@ -313,6 +315,7 @@ export const shellCopy = {
       noSession: "No session found",
       logout: "Sign out",
       menuLabel: "Profile menu",
+      unreadNotifications: "Unseen notifications",
       settings: "Settings",
       language: "Language",
     },

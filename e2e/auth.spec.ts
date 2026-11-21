@@ -50,16 +50,15 @@ test("the sign-in page's language switch re-renders the page and keeps the typed
   await page.goto("/admin/login");
   await expect(page.getByRole("heading", { level: 1, name: "Tizimga kirish" })).toBeVisible();
   await page.getByLabel("Email").fill("someone@glowderma.uz");
-  const languages = page.getByRole("group", { name: "Interfeys tili" });
-  await languages.getByRole("button", { name: "English" }).click();
+  await page.getByRole("button", { name: "Interfeys tili" }).click();
+  await page.getByRole("menuitem", { name: "English" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Sign in" })).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
   await expect(page.getByLabel("Email")).toHaveValue("someone@glowderma.uz");
-  await expect(
-    page
-      .getByRole("group", { name: "Interface language" })
-      .getByRole("button", { name: "English" }),
-  ).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "Interface language" })).toHaveAttribute(
+    "title",
+    "English",
+  );
 
   // An empty password is caught before the post: the field is marked and focused.
   await page.locator('button[type="submit"]').click();

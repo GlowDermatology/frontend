@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
 import type { SpecialistAvailability } from "@/data/specialist";
@@ -79,24 +80,11 @@ function WeekRow({
       {working && (
         <div className="grid gap-2 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <label className="flex min-w-0 flex-col gap-1 text-caption font-semibold text-ink-muted">
-              {t.clinic}
-              <select
-                className={inputClass}
-                name={"clinic-" + weekday}
-                defaultValue={hours?.location_id}
-                required
-              >
-                {hours && !clinics.some((clinic) => clinic.id === hours.location_id) && (
-                  <option value="" />
-                )}
-                {clinics.map((clinic) => (
-                  <option key={clinic.id} value={clinic.id}>
-                    {clinic.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <ClinicSelect
+              clinics={clinics}
+              name={"clinic-" + weekday}
+              defaultValue={hours ? String(hours.location_id) : undefined}
+            />
           </div>
           <Clock
             name={"start-" + weekday}
@@ -291,10 +279,14 @@ function BlockForm({ row, today, close }: { row?: Block; today: string; close?: 
           />
         </Field>
         <Field label={t.availability}>
-          <select name="kind" className={inputClass} defaultValue={row?.kind ?? "busy"}>
-            <option value="busy">{t.busy}</option>
-            <option value="off">{t.off}</option>
-          </select>
+          <Select
+            name="kind"
+            defaultValue={row?.kind ?? "busy"}
+            options={[
+              { value: "busy", label: t.busy },
+              { value: "off", label: t.off },
+            ]}
+          />
         </Field>
         <Field label={t.label}>
           <input
@@ -365,6 +357,17 @@ export function Availability({ data, today }: { data: SpecialistAvailability; to
   const hours = useCopy(specialistsCopy).hours;
   const fmt = useFormat();
   const date = (value: string) => fmt.dateLong(value + "T12:00:00+05:00");
+  if (data.clinics.length === 0) {
+    // A draft (or a profile whose clinics were all unassigned): nothing to schedule yet.
+    return (
+      <Card className="grid gap-3" data-no-clinic="">
+        <CardTitle>{t.availability}</CardTitle>
+        <p role="status" className="m-0 rounded-md bg-warning-soft px-3.5 py-3 text-body-sm">
+          {t.noClinic}
+        </p>
+      </Card>
+    );
+  }
   return (
     <Card className="grid gap-4">
       <CardTitle>{t.availability}</CardTitle>

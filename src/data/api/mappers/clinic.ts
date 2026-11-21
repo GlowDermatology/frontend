@@ -5,9 +5,11 @@ import type {
   ClinicSpecialist,
   HoursOverride,
   I18n,
+  PublishBlocker,
   ServiceListQuery,
   SpecialistListQuery,
 } from "@/domain/clinic";
+import { PUBLISH_BLOCKERS } from "@/domain/clinic";
 
 import type {
   BlockFormValues,
@@ -32,7 +34,6 @@ import type {
   ApiServicePatch,
   ApiServiceWrite,
   ApiSpecialistPatch,
-  ApiSpecialistWrite,
   ApiWorkingWeekWrite,
 } from "../types";
 import { actorName, idString } from "./common";
@@ -57,21 +58,27 @@ export function mapClinicSpecialist(api: ApiClinicSpecialist): ClinicSpecialist 
   return {
     id: idString(api.id),
     name: api.name,
-    role: api.role,
+    role: api.role ?? "",
     qualifications: i18n(api.qualifications),
     bio: i18n(api.bio),
     experienceYears: api.experience_years ?? null,
     // 40 px table, 80 px profile card: the 400 px variant (spec 2026-11-13-image-variants)
     photoUrl: api.photo_thumbnail_url ?? api.photo_url ?? null,
-    locationId: idString(api.location_id),
-    locationIds: api.location_ids.map(idString),
-    staffUser: api.staff_user
+    locationId: api.location_id == null ? null : idString(api.location_id),
+    locationIds: (api.location_ids ?? []).map(idString),
+    account: api.account
       ? {
-          id: idString(api.staff_user.id),
-          name: api.staff_user.display_name,
-          role: api.staff_user_role,
+          id: idString(api.account.id),
+          displayName: api.account.display_name || api.account.email,
+          email: api.account.email,
+          role: api.account.role,
+          isActive: api.account.is_active,
         }
       : null,
+    // An unknown blocker (a newer backend) is dropped rather than shown raw.
+    publishBlockers: (api.publish_blockers ?? []).filter((blocker): blocker is PublishBlocker =>
+      (PUBLISH_BLOCKERS as ReadonlyArray<string>).includes(blocker),
+    ),
     slotStepMin: api.slot_step_min,
     slug: api.slug ?? "",
     position: api.position,
@@ -198,8 +205,7 @@ export function specialistFormValues(specialist: ClinicSpecialist): SpecialistFo
     bio: { ...specialist.bio },
     experienceYears: specialist.experienceYears,
     slotStepMin: step as SpecialistFormValues["slotStepMin"],
-    staffUserId: specialist.staffUser?.id ?? "",
-    locationId: specialist.locationId,
+    locationId: specialist.locationId ?? "",
     locationIds: [...specialist.locationIds],
     isActive: specialist.isActive,
     slug: specialist.slug,
@@ -232,26 +238,6 @@ export function locationFormValues(location: ClinicLocation | null): LocationFor
 
 /* --- Write bodies --- */
 
-const staffUserId = (value: string): number | null => (value ? Number(value) : null);
-
-export function specialistCreateBody(values: SpecialistFormValues): ApiSpecialistWrite {
-  const body: ApiSpecialistWrite = {
-    name: values.name,
-    role: values.role,
-    qualifications: { ...values.qualifications },
-    bio: { ...values.bio },
-    experience_years: values.experienceYears,
-    slot_step_min: values.slotStepMin,
-    staff_user_id: staffUserId(values.staffUserId),
-    location_id: Number(values.locationId),
-    location_ids: values.locationIds.map(Number),
-    is_active: values.isActive,
-  };
-  // An empty slug lets the server derive it from the name (B-W1).
-  if (values.slug) body.slug = values.slug;
-  return body;
-}
-
 function changedLeaves(before: I18n | null, after: I18n): Partial<I18n> | undefined {
   const leaves: Partial<I18n> = {};
   for (const language of LANGUAGES) {
@@ -272,7 +258,8 @@ export function specialistPatchBody(
 ): ApiSpecialistPatch {
   const body: ApiSpecialistPatch = {};
   if (values.name !== baseline.name) body.name = values.name;
-  if (values.role !== baseline.role) body.role = values.role;
+  // A draft's blank discipline is never sent back (the API takes a discipline or nothing).
+  if (values.role !== baseline.role && values.role !== "") body.role = values.role;
   const qualifications = changedLeaves(baseline.qualifications, values.qualifications);
   if (qualifications) body.qualifications = qualifications;
   const bio = changedLeaves(baseline.bio, values.bio);
@@ -281,15 +268,13 @@ export function specialistPatchBody(
     body.experience_years = values.experienceYears;
   }
   if (values.slotStepMin !== baseline.slotStepMin) body.slot_step_min = values.slotStepMin;
-  if (values.staffUserId !== baseline.staffUserId) {
-    body.staff_user_id = staffUserId(values.staffUserId);
-  }
-  if (values.locationId !== baseline.locationId) body.location_id = Number(values.locationId);
-  if (
+  const clinicsChanged =
     values.locationIds.length !== baseline.locationIds.length ||
-    values.locationIds.some((id) => !baseline.locationIds.includes(id))
-  ) {
-    body.location_ids = values.locationIds.map(Number);
+    values.locationIds.some((id) => !baseline.locationIds.includes(id));
+  if (clinicsChanged) body.location_ids = values.locationIds.map(Number);
+  // The primary clinic goes with its list: a draft's first clinic sends both together.
+  if (values.locationId && (values.locationId !== baseline.locationId || clinicsChanged)) {
+    body.location_id = Number(values.locationId);
   }
   // `""` keeps the stored slug (the server refuses an empty one).
   if (values.slug && values.slug !== baseline.slug) body.slug = values.slug;

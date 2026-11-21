@@ -1,6 +1,8 @@
+import { join } from "node:path";
+
 import { expect, test, type Page } from "@playwright/test";
 
-import { BACKEND_DIR, deleteClinicRows } from "./backend-shell";
+import { BACKEND_DIR, deleteClinicRows, deleteStaffAccounts } from "./backend-shell";
 import { saveAnyway } from "./catalog-helpers";
 import { API_URL } from "./env";
 import { heading, toast, watchPage } from "./helpers";
@@ -8,17 +10,24 @@ import { fillDate, fillTime, selectOption, selectValue } from "./ui";
 
 /**
  * Specialists and services (gap FND-1 / FND-7, contract §2.17): a service
- * and a specialist created in the admin, offered with a price, given weekly
- * hours and switched on are bookable at once through the customer API's
- * free slots; a blocked period and a day off take slots away. The admin API
- * never deletes specialists or services, so the rows (named `e2e …`) are
- * removed through the backend shell afterwards; the spec books nothing.
+ * created in the admin and a specialist invited on «Xodimlar» (the account and
+ * its draft profile together), completed, offered with a price, given weekly
+ * hours and published are bookable at once through the customer API's free
+ * slots; a blocked period and a day off take slots away. The admin API never
+ * deletes specialists or services, so the rows (named `e2e …`) and the invited
+ * account are removed through the backend shell afterwards; the spec books
+ * nothing.
  */
 
 const PREFIX = "e2e klinika";
+const EMAIL_PREFIX = "e2e-mutaxassis-";
+const PHOTO = join(__dirname, "..", "public", "mock", "banner-night.png");
 
 test.afterEach(() => {
-  if (BACKEND_DIR) deleteClinicRows(PREFIX);
+  if (!BACKEND_DIR) return;
+  // The profile first: it belongs to the account.
+  deleteClinicRows(PREFIX);
+  deleteStaffAccounts(EMAIL_PREFIX);
 });
 
 /** `YYYY-MM-DD` of the Tashkent day `days` from today. */
@@ -119,23 +128,40 @@ test("a specialist works at two clinics and only the scheduled clinic offers boo
   await saveAnyway(page, toast(page, "Xizmat qo‘shildi"));
   await expect(toast(page, "Xizmat qo‘shildi")).toBeVisible();
 
-  // 2. A specialist (created inactive), opened on its page.
-  await page.goto("/admin/specialists");
-  await page.getByRole("button", { name: "Yangi mutaxassis" }).click();
-  const create = page.getByRole("dialog", { name: "Yangi mutaxassis" });
-  await create.getByLabel("Ism familiya").fill(specialistName);
-  await selectOption(create, "Mutaxassislik", "Kosmetolog");
-  expect(await selectValue(create, "Mutaxassislik")).toBe("cosmetologist");
-  await create.getByLabel("Tajriba (yil)").fill("6");
-  await create.getByRole("checkbox", { name: new RegExp(firstClinic) }).check();
-  await create.getByRole("checkbox", { name: new RegExp(secondClinic) }).check();
-  await selectOption(create, "Asosiy klinika", firstClinic);
-  await create.getByRole("button", { name: "Qo‘shish" }).click();
-  // No qualifications or bio yet: "save anyway?".
-  await saveAnyway(page, toast(page, "Mutaxassis qo‘shildi"));
+  // 2. A Specialist invited on «Xodimlar»: the account and its draft profile together.
+  await page.goto("/admin/staff");
+  await page.getByRole("button", { name: "Yangi xodim" }).click();
+  const invite = page.getByRole("dialog", { name: "Yangi xodim" });
+  await invite.getByLabel("Email", { exact: true }).fill(`${EMAIL_PREFIX}${stamp}@glowderma.uz`);
+  await invite.getByLabel("To‘liq ism").fill(specialistName);
+  await selectOption(invite, "Rol", "Mutaxassis");
+  await invite
+    .getByRole("group", { name: "Kirish usuli" })
+    .getByText("Vaqtinchalik parol", { exact: true })
+    .click();
+  await invite.getByRole("button", { name: "Xodim qo‘shish" }).click();
+  const invited = page.getByRole("dialog", { name: "Mutaxassis taklif qilindi" });
+  await invited.getByRole("link", { name: "Profilni ochish" }).click();
   await expect(page).toHaveURL(/\/admin\/specialists\/\d+$/);
   await expect(heading(page)).toHaveText(specialistName);
   const specialistId = page.url().split("/").at(-1)!;
+  const checklist = page.getByRole("region", { name: "E’lon qilish" });
+  await expect(checklist).toContainText("Mutaxassislik");
+
+  // The draft is completed: discipline, experience, the first clinics, a bio and a photo.
+  const profile = page.getByRole("region", { name: "Profil" });
+  await selectOption(profile, "Mutaxassislik", "Kosmetolog");
+  expect(await selectValue(profile, "Mutaxassislik")).toBe("cosmetologist");
+  await profile.getByLabel("Tajriba (yil)").fill("6");
+  await profile.getByRole("checkbox", { name: new RegExp(firstClinic) }).check();
+  await profile.getByRole("checkbox", { name: new RegExp(secondClinic) }).check();
+  await selectOption(profile, "Asosiy klinika", firstClinic);
+  await profile.getByLabel("Qisqacha ma’lumot").fill("E2E: teri parvarishi bo‘yicha mutaxassis.");
+  await profile.getByRole("button", { name: "Saqlash" }).click();
+  await saveAnyway(page, toast(page, "Profil saqlandi"));
+  await expect(toast(page, "Profil saqlandi")).toBeVisible();
+  await profile.locator('input[type="file"]').setInputFiles(PHOTO);
+  await expect(toast(page, "Rasm saqlandi")).toBeVisible();
 
   // 3. The offer: the new service at 55 000 so‘m.
   const offers = page.getByRole("region", { name: "Xizmatlar va narxlar" });
@@ -177,7 +203,7 @@ test("a specialist works at two clinics and only the scheduled clinic offers boo
   await hours.getByRole("button", { name: "Saqlash" }).click();
   await expect(toast(page, "Ish vaqti saqlandi")).toBeVisible();
 
-  // Still inactive: the customer API does not know it yet.
+  // Still a draft: the customer API does not know it yet.
   const locationId = await selectValue(hours, `${tomorrowWeekday}: Klinika`);
   const otherWeekday = weekdays.find((day) => day !== tomorrowWeekday)!;
   const otherLocationId = await selectValue(hours, `${otherWeekday}: Klinika`);
@@ -186,11 +212,12 @@ test("a specialist works at two clinics and only the scheduled clinic offers boo
   );
   expect(hidden.status()).toBe(404);
 
-  // 5. Switched on.
-  const profile = page.getByRole("region", { name: "Profil" });
-  await profile.getByRole("switch", { name: "Mutaxassis faol" }).click();
+  // 5. Published once the checklist is complete (the page re-reads it).
+  await page.reload();
+  await expect(page.getByRole("region", { name: "E’lon qilish" })).toContainText("Profil tayyor");
+  await profile.getByRole("switch", { name: "Profilni e’lon qilish" }).click();
   await profile.getByRole("button", { name: "Saqlash" }).click();
-  // Active without a photo, qualifications or bio: "save anyway?".
+  // Published without qualifications: "save anyway?".
   await saveAnyway(page, toast(page, "Profil saqlandi"));
   await expect(toast(page, "Profil saqlandi")).toBeVisible();
 

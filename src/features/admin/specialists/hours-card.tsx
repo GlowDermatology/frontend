@@ -48,7 +48,7 @@ function toRows(specialist: ClinicSpecialist): DayRow[] {
         }
       : {
           working: false,
-          locationId: specialist.locationId,
+          locationId: specialist.locationId ?? "",
           start: "09:00",
           end: "18:00",
           breakStart: "",
@@ -190,6 +190,21 @@ export function HoursCard({
     setErrors({});
     toast({ tone: "success", title: t.saved });
   };
+
+  if (clinics.length === 0 && specialist.workingHours.length === 0) {
+    // A draft without a clinic: nothing to schedule yet (the profile card assigns the first).
+    return (
+      <Card aria-labelledby="hours-title" className="flex flex-col gap-4">
+        <CardTitle id="hours-title" className="text-heading">
+          {t.title}
+        </CardTitle>
+        <p className="m-0 flex items-start gap-2 rounded-md bg-warning-soft px-3.5 py-3 text-body-sm text-ink">
+          <Icon name="info" size={18} className="mt-px shrink-0 text-gold-ink" />
+          {t.noClinic}
+        </p>
+      </Card>
+    );
+  }
 
   return (
     <Card aria-labelledby="hours-title" className="flex flex-col gap-4">

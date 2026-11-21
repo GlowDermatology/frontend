@@ -76,7 +76,8 @@ export const clinicSchemas = localized((locale) => {
         .trim()
         .min(NAME_MIN, v.minChars(NAME_MIN))
         .max(NAME_MAX, v.maxChars(NAME_MAX)),
-      role: z.enum(SPECIALIST_ROLES, { error: m.chooseRole }),
+      /** `""` only while a draft has no discipline yet (never sent back to the API). */
+      role: z.enum(SPECIALIST_ROLES, { error: m.chooseRole }).or(z.literal("")),
       qualifications: i18n(TEXT_MAX),
       bio: i18n(TEXT_MAX),
       experienceYears: integer(0, EXPERIENCE_MAX).nullable(),
@@ -90,18 +91,21 @@ export const clinicSchemas = localized((locale) => {
         ],
         { error: m.slotSteps },
       ),
-      /** A staff account id, or `""` for none. */
-      staffUserId: z.string().regex(/^(|[1-9]\d{0,17})$/, m.chooseStaff),
-      locationId,
-      locationIds: z.array(locationId).min(1, m.chooseClinic),
+      /** The primary clinic, `""` while a draft has none. */
+      locationId: locationId.or(z.literal("")),
+      /** Empty only while a draft has no clinic yet. */
+      locationIds: z.array(locationId),
       isActive: z.boolean(),
       /** The website URL segment (B-W1); `""` on create = derived from the name. */
       slug: slugFieldSchema(SPECIALIST_SLUG_MAX, locale),
     })
-    .refine((values) => values.locationIds.includes(values.locationId), {
-      path: ["locationId"],
-      message: m.chooseClinic,
-    });
+    .refine(
+      (values) =>
+        values.locationIds.length === 0
+          ? values.locationId === ""
+          : values.locationIds.includes(values.locationId),
+      { path: ["locationId"], message: m.chooseClinic },
+    );
 
   /* --- Offered services --- */
   const offers = z.object({
@@ -306,15 +310,14 @@ export const workingWeekSchema = clinicSchemas.uz.week;
 
 export const EMPTY_SPECIALIST: SpecialistFormValues = {
   name: "",
-  role: "dermatologist",
+  role: "",
   qualifications: { uz: "", ru: "", en: "" },
   bio: { uz: "", ru: "", en: "" },
   experienceYears: null,
   slotStepMin: 30,
-  staffUserId: "",
   locationId: "",
   locationIds: [],
-  // Decision PS-6: a new specialist starts inactive (add the offer and the hours, then activate).
+  // A draft profile starts unpublished (staff complete it, then publish).
   isActive: false,
   slug: "",
 };

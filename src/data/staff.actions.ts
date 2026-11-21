@@ -48,6 +48,10 @@ import type { ActionResult } from "./types";
  *
  * `snapshot` is the row as the screen shows it, used by the demo only (it keeps no rows, so an
  * account invited in the demo is known by it alone); the API never sees it.
+ *
+ * Specialist accounts use the same routes for the password and the link (resending a Specialist's
+ * invitation = `send-password-link/` or `reset-password/`: same account, same profile); inviting
+ * one and the Staff ↔ Specialist role change live in `specialist.actions.ts`.
  */
 
 const inviteSchema = z
@@ -147,15 +151,31 @@ export async function updateStaff(
   const parsed = schema.safeParse(values);
   if (!parsed.success) return fieldErrorsFrom(parsed.error, r.checkFields);
   const base = schema.safeParse(baseline);
+  if (parsed.data.fullName === "" && (!base.success || base.data.fullName !== "")) {
+    const name = (await getLocalized(staffSchemas)).invite.shape.fullName.safeParse("");
+    if (!name.success) {
+      return {
+        ok: false,
+        error: r.checkFields,
+        fieldErrors: { fullName: name.error.issues[0]!.message },
+      };
+    }
+  }
   if ((await dataSource()) === "api") {
     if (!staffIdSchema.safeParse(id).success) return r.notFound;
     // Only what changed (a resent unchanged role would still be checked).
-    const body: { full_name?: string; is_manager?: boolean } = {};
+    const body: { full_name?: string; is_manager?: boolean; email?: string } = {};
     if (!base.success || base.data.fullName !== parsed.data.fullName) {
       body.full_name = parsed.data.fullName;
     }
     if (!base.success || base.data.isManager !== parsed.data.isManager) {
       body.is_manager = parsed.data.isManager;
+    }
+    if (
+      parsed.data.email !== undefined &&
+      (!base.success || base.data.email !== parsed.data.email)
+    ) {
+      body.email = parsed.data.email;
     }
     return apiMutation("updateStaff", async () => {
       try {

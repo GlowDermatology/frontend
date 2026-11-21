@@ -6,9 +6,12 @@ import {
   type StaffInvite,
   type StaffListQuery,
   type StaffMember,
+  type SpecialistRoleChange,
 } from "@/domain/staff";
 
 import type {
+  ApiSpecialistInviteCredentials,
+  ApiSpecialistRoleChangeResult,
   ApiStaffCredentials,
   ApiStaffInvite,
   ApiStaffLinkSent,
@@ -41,6 +44,8 @@ export function mapStaffRow(api: ApiStaffListItem | ApiStaffMember): StaffAccoun
     isActive: api.is_active,
     isManager: api.is_manager ?? false,
     ...(api.role === "specialist" ? { isSpecialist: true } : {}),
+    ...(api.is_superuser ? { isSuperuser: true } : {}),
+    ...(api.has_ops_console_access ? { hasOpsConsoleAccess: true } : {}),
     lastLoginAt: api.last_login_at ?? null,
     linkedProviders: [...(api.linked_providers ?? [])],
     createdAt: api.created_at ?? null,
@@ -71,6 +76,22 @@ export function mapStaffCredentials(api: ApiStaffCredentials): StaffCredentials 
     staff: mapStaffRow(api.staff),
     temporaryPassword: api.temporary_password || null,
     activation: mapActivation(api.activation),
+  };
+}
+
+/** `POST specialists/invite/` → the invitation's credentials with the new draft profile's id. */
+export function mapSpecialistInviteCredentials(
+  api: ApiSpecialistInviteCredentials,
+): StaffCredentials {
+  return { ...mapStaffCredentials(api), specialistId: idString(api.specialist_id) };
+}
+
+/** `POST staff/{id}/specialist-role/` → the account, its profile and the visits left to handle. */
+export function mapSpecialistRoleChange(api: ApiSpecialistRoleChangeResult): SpecialistRoleChange {
+  return {
+    staff: mapStaffRow(api.account),
+    specialistId: api.specialist_id == null ? null : idString(api.specialist_id),
+    upcomingAppointments: api.upcoming_appointments ?? 0,
   };
 }
 

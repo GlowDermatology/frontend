@@ -149,6 +149,12 @@ export type ApiSegmentMembersInput = Schemas["SegmentMembersInputRequest"];
 export type ApiStaffListItem = Schemas["StaffListItem"];
 export type ApiStaffMember = Schemas["StaffMember"];
 export type ApiStaffCredentials = Schemas["StaffCredentials"];
+/** `POST specialists/invite/` 201: the account, its credentials and the new draft profile. */
+export type ApiSpecialistInviteCredentials = Schemas["SpecialistInviteCredentials"];
+export type ApiSpecialistInvite = Schemas["WorkforceInviteRequest"];
+/** `POST staff/{id}/specialist-role/` body and 200. */
+export type ApiSpecialistRoleChange = Schemas["SpecialistRoleChangeRequest"];
+export type ApiSpecialistRoleChangeResult = Schemas["SpecialistRoleChangeResult"];
 export type ApiStaffCreate = Schemas["StaffCreateRequest"];
 export type ApiStaffPatch = Partial<Schemas["PatchedStaffUpdateRequest"]>;
 export type ApiPaginatedStaff = Schemas["PaginatedStaffListItemList"];
@@ -206,13 +212,14 @@ export type ApiDashboardRange = Schemas["DashboardRangeEnum"];
 
 export type ApiClinicSpecialist = Schemas["ClinicSpecialist"];
 export type ApiPaginatedSpecialists = Schemas["PaginatedClinicSpecialistList"];
-export type ApiSpecialistWrite = Schemas["ClinicSpecialistWriteRequest"];
 type I18nPartial = Partial<Record<"uz" | "ru" | "en", string>>;
 /** `PATCH specialists/{id}/`: every field optional (the generated type marks the defaulted booleans required). */
 export type ApiSpecialistPatch = Omit<
   Partial<Schemas["PatchedClinicSpecialistPatchRequest"]>,
   "qualifications" | "bio"
 > & { qualifications?: I18nPartial; bio?: I18nPartial };
+/** `PATCH specialist/profile/` (the specialist's own profile): the public name and the bio. */
+export type ApiOwnProfilePatch = { name?: string; bio?: I18nPartial };
 export type ApiOfferedServicesWrite = Schemas["OfferedServicesRequest"];
 export type ApiWorkingWeekWrite = Schemas["WorkingWeekRequest"];
 export type ApiHoursOverride = Schemas["HoursOverride"];

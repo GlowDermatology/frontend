@@ -25,7 +25,6 @@ import {
   apiCreateBlock,
   apiCreateOverride,
   apiCreateService,
-  apiCreateSpecialist,
   apiDeleteBlock,
   apiDeleteOverride,
   apiDeleteSpecialistPhoto,
@@ -48,7 +47,6 @@ import {
   overrideBody,
   serviceCreateBody,
   servicePatchBody,
-  specialistCreateBody,
   specialistPatchBody,
   workingWeekBody,
 } from "./api/mappers/clinic";
@@ -120,36 +118,10 @@ async function prologue(
   };
 }
 
-export async function createSpecialist(
-  values: SpecialistFormValues,
-  key: string,
-  csrf: string,
-): Promise<ActionResult<ClinicSpecialist>> {
-  const start = await prologue(csrf, key);
-  if (!start.ok) return start;
-  const parsed = start.schemas.specialist.safeParse(values);
-  if (!parsed.success) return fieldErrorsFrom(parsed.error, start.m.checkFields);
-  if ((await dataSource()) === "api") {
-    return apiMutation("createSpecialist", async () => {
-      try {
-        const { data } = await apiCreateSpecialist(
-          sessionToken(start.guard.session),
-          specialistCreateBody(parsed.data),
-          key,
-        );
-        for (const tag of tagsForEntity("specialist", data.id)) updateTag(tag);
-        return { ok: true, data: mapClinicSpecialist(data) };
-      } catch (error) {
-        return toActionResult(error, SPECIALIST_REMAP);
-      }
-    });
-  }
-  return mock.createSpecialist(parsed.data);
-}
-
 /**
  * `PATCH specialists/{id}/` with what differs from `baseline`; `force`
- * confirms a deactivation with appointments ahead (decision PS-2).
+ * confirms an unpublish with appointments ahead (decision PS-2). Publishing
+ * an incomplete profile answers 409 `conflict` with what is missing.
  */
 export async function updateSpecialist(
   id: string,
@@ -166,6 +138,14 @@ export async function updateSpecialist(
   if (!parsed.success) return fieldErrorsFrom(parsed.error, start.m.checkFields);
   const base = start.schemas.specialist.safeParse(baseline);
   if (!base.success) return fieldErrorsFrom(base.error, start.m.checkFields);
+  // Only a draft may have no clinic: one that has clinics keeps at least one.
+  if (parsed.data.locationIds.length === 0 && base.data.locationIds.length > 0) {
+    return {
+      ok: false,
+      error: start.m.checkFields,
+      fieldErrors: { locationIds: start.m.chooseClinic },
+    };
+  }
   if ((await dataSource()) === "api") {
     if (!apiId.safeParse(id).success) return start.notFound;
     return apiMutation("updateSpecialist", async () => {

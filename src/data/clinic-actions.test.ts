@@ -46,7 +46,6 @@ import specialistFixture from "./api/__fixtures__/specialist-2.json";
 import { ApiError } from "./api/errors";
 import {
   mapClinicSpecialist,
-  specialistCreateBody,
   specialistFormValues,
   specialistListParams,
   specialistPatchBody,
@@ -93,7 +92,14 @@ describe("clinic mappers", () => {
       role: "dermatologist",
       slotStepMin: 30,
       isActive: true,
-      staffUser: null,
+      account: {
+        id: "12",
+        displayName: "Jasur Aliyev",
+        email: "jasur@glowderma.uz",
+        role: "specialist",
+        isActive: true,
+      },
+      publishBlockers: [],
       services: [
         { serviceId: "1", shortName: "Konsultatsiya", price: 120_000, durationMin: 30 },
         { serviceId: "2", price: 90_000, durationMin: 20 },
@@ -132,7 +138,6 @@ describe("clinic mappers", () => {
     expect(
       specialistPatchBody(base, { ...base, locationId: "2", locationIds: ["1", "2"] }),
     ).toEqual({ location_id: 2, location_ids: [1, 2] });
-    expect(specialistCreateBody(base)).toMatchObject({ location_id: 1, location_ids: [1] });
     expect(
       specialistPatchBody(
         base,
@@ -148,10 +153,37 @@ describe("clinic mappers", () => {
     expect(base.slug).toBe("jasur-aliyev");
     expect(specialistPatchBody(base, { ...base, slug: "dr-jasur" })).toEqual({ slug: "dr-jasur" });
     expect(specialistPatchBody(base, { ...base, slug: "" })).toEqual({});
-    expect(specialistCreateBody({ ...base, slug: "" })).not.toHaveProperty("slug");
-    expect(specialistCreateBody({ ...base, slug: "dr-jasur" })).toMatchObject({ slug: "dr-jasur" });
     expect(specialistFormSchema.safeParse({ ...base, slug: "123" }).success).toBe(false);
     expect(specialistFormSchema.safeParse({ ...base, slug: "" }).success).toBe(true);
+  });
+
+  it("tolerates a draft without a clinic or a discipline and assigns its first clinic", () => {
+    const draft = mapClinicSpecialist({
+      ...(specialistFixture as unknown as ApiClinicSpecialist),
+      role: "",
+      location_id: null,
+      location_ids: [],
+      is_active: false,
+      working_hours: [],
+      publish_blockers: ["discipline", "clinic", "availability", "photo", "future" as never],
+    });
+    expect(draft).toMatchObject({ role: "", locationId: null, locationIds: [], isActive: false });
+    // An unknown blocker (a newer backend) is dropped.
+    expect(draft.publishBlockers).toEqual(["discipline", "clinic", "availability", "photo"]);
+    const base = specialistFormValues(draft);
+    expect(base).toMatchObject({ role: "", locationId: "", locationIds: [] });
+    expect(specialistFormSchema.safeParse(base).success).toBe(true);
+    // The blank discipline is never sent back; the first clinic travels with its list.
+    expect(specialistPatchBody(base, { ...base, name: "Dr. Jasur" })).toEqual({
+      name: "Dr. Jasur",
+    });
+    expect(specialistPatchBody(base, { ...base, locationId: "3", locationIds: ["3"] })).toEqual({
+      location_id: 3,
+      location_ids: [3],
+    });
+    expect(
+      specialistFormSchema.safeParse({ ...base, locationId: "3", locationIds: [] }).success,
+    ).toBe(false);
   });
 
   it("validates the week (grid, order, break inside) and sends it by weekday", () => {

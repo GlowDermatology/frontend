@@ -25,6 +25,10 @@ import type {
   ApiSegmentPatch,
   ApiSegmentWrite,
   ApiPaginatedStaff,
+  ApiSpecialistInvite,
+  ApiSpecialistInviteCredentials,
+  ApiSpecialistRoleChange,
+  ApiSpecialistRoleChangeResult,
   ApiStaffCreate,
   ApiStaffCredentials,
   ApiStaffMember,
@@ -429,6 +433,38 @@ export function apiPatchStaff(
 ) {
   return apiFetch<ApiStaffMember>(`${BASE}/staff/${id(staffId)}/`, {
     method: "PATCH",
+    body,
+    token,
+    idempotencyKey,
+  });
+}
+
+/**
+ * Staff → Add employee → Specialist (manager only): the Specialist account and its draft profile
+ * are created together; 201 = the staff credentials plus `specialist_id`.
+ */
+export function apiInviteSpecialist(
+  token: string,
+  body: ApiSpecialistInvite,
+  idempotencyKey: string,
+) {
+  return apiFetch<ApiSpecialistInviteCredentials>(`${BASE}/specialists/invite/`, {
+    method: "POST",
+    body,
+    token,
+    idempotencyKey,
+  });
+}
+
+/** Staff → Edit: the confirmed Staff ↔ Specialist role change of one account (manager only). */
+export function apiChangeSpecialistRole(
+  token: string,
+  staffId: string,
+  body: ApiSpecialistRoleChange,
+  idempotencyKey: string,
+) {
+  return apiFetch<ApiSpecialistRoleChangeResult>(`${BASE}/staff/${id(staffId)}/specialist-role/`, {
+    method: "POST",
     body,
     token,
     idempotencyKey,

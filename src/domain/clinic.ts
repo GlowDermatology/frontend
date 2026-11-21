@@ -69,20 +69,53 @@ export interface WorkingDay {
   breakEnd: string | null;
 }
 
+/**
+ * What keeps a profile from being published (`ClinicSpecialist.publish_blockers`); `account`
+ * means the owner account is not a Specialist right now (it was changed to Staff).
+ */
+export const PUBLISH_BLOCKERS = [
+  "account",
+  "name",
+  "discipline",
+  "bio",
+  "photo",
+  "clinic",
+  "service",
+  "availability",
+] as const;
+export type PublishBlocker = (typeof PUBLISH_BLOCKERS)[number];
+
+/** The account that owns a profile (read-only here: managed on «Xodimlar»). */
+export interface SpecialistOwner {
+  id: string;
+  displayName: string;
+  email: string;
+  /** `admin` = a Staff or Manager account (the profile is paused), `specialist` = active owner. */
+  role: "admin" | "specialist";
+  /** The account may sign in (login activation, separate from publication). */
+  isActive: boolean;
+}
+
 export interface ClinicSpecialist {
   id: string;
+  /** The public display name (may differ from the owner account's full name). */
   name: string;
-  role: SpecialistRole;
+  /** `""` while a draft has no discipline yet. */
+  role: SpecialistRole | "";
   qualifications: I18n;
   bio: I18n;
   experienceYears: number | null;
   photoUrl: string | null;
-  locationId: string;
+  /** The primary clinic; `null` while a draft has none. */
+  locationId: string | null;
   locationIds: string[];
-  /** The linked staff account (informational); `null` when none. */
-  staffUser: { id: string; name: string; role?: "admin" | "specialist" | null } | null;
+  /** The owner account; `null` only in the demo fixtures. */
+  account: SpecialistOwner | null;
+  /** What is missing before the profile can be published (`[]` = ready). */
+  publishBlockers: PublishBlocker[];
   slotStepMin: number;
   position: number;
+  /** Published: listed on the website and bookable. */
   isActive: boolean;
   services: OfferedService[];
   workingHours: WorkingDay[];

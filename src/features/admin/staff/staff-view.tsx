@@ -37,7 +37,7 @@ import { resetMfaCopy } from "./reset-mfa-copy";
 import { ResetMfaDialog } from "./reset-mfa-dialog";
 import { staffListHref } from "./query";
 import { StaffBadges } from "./staff-badges";
-import { EditDialog, InviteDialog, ResetDialog } from "./staff-dialogs";
+import { EditDialog, InviteDialog, ResetDialog, RoleChangeDialog } from "./staff-dialogs";
 
 const PROVIDER_LABEL: Record<string, string> = { google: "Google", facebook: "Facebook" };
 
@@ -51,6 +51,8 @@ interface StaffViewProps {
   selfId: string;
   /** `capabilities.staff_email_invite`: the e-mailed link options work. */
   emailInvite: boolean;
+  /** `capabilities.specialist_provisioning`: Specialists can be invited and accounts changed to one. */
+  specialistProvisioning?: boolean;
   /** "Now" of the data source (the demo's fixed instant in mock mode), for the link badges. */
   nowMs: number;
   eyebrow: string;
@@ -65,8 +67,10 @@ interface StaffViewProps {
  * Xodimlar (gap FND-4, contract §2.16, §7 item 20, DESIGN §E): the staff accounts with search and
  * the «Faol» / «Nofaol» tabs, badges for the password and MFA state; «Yangi xodim» invites one
  * with a «Kirish usuli» (temporary password, e-mailed link or both) and shows the temporary
- * password once; each row edits the name and manager role, resets the password (same choice),
- * resends the link, deactivates or reactivates — every irreversible step behind a confirmation.
+ * password once (a Specialist invitation also creates the draft profile); each row edits the name,
+ * the login email and Staff / Manager, changes Staff ↔ Specialist in one confirmed step, resets the
+ * password (same choice), resends the link (Specialist accounts too: same account and profile),
+ * deactivates or reactivates — every irreversible step behind a confirmation.
  * The server's refusals (own account, last active manager, superuser, no e-mail) show as they come.
  */
 export function StaffView(props: StaffViewProps) {
@@ -90,6 +94,12 @@ export function StaffView(props: StaffViewProps) {
   const [editing, setEditing] = useState<StaffAccountRow | null>(null);
   const [editInstance, setEditInstance] = useState(0);
   const editKey = useIdempotencyKey();
+  // Staff ↔ Specialist: its own confirmation (and key), one instance per opening.
+  const [roleChange, setRoleChange] = useState<{
+    row: StaffAccountRow;
+    role: "staff" | "specialist";
+  } | null>(null);
+  const [roleChangeInstance, setRoleChangeInstance] = useState(0);
   const [resetting, setResetting] = useState<StaffAccountRow | null>(null);
   const resetKey = useIdempotencyKey();
   const [lastReset, setLastReset] = useState<string | null>(null);
@@ -294,7 +304,10 @@ export function StaffView(props: StaffViewProps) {
                         </span>
                       </td>
                       <td>
-                        <Badge tone={row.isManager ? "gold" : "neutral"} dot={false}>
+                        <Badge
+                          tone={row.isManager ? "gold" : row.isSpecialist ? "success" : "neutral"}
+                          dot={false}
+                        >
                           {row.isSpecialist
                             ? t.roles.specialist
                             : row.isManager
@@ -375,6 +388,7 @@ export function StaffView(props: StaffViewProps) {
         onOpenChange={setInviteOpen}
         idempotency={inviteKey}
         emailInvite={emailInvite}
+        specialistProvisioning={props.specialistProvisioning}
         onInvited={(data) => {
           if (query.status === "active" && query.page === 1) {
             setRows((current) =>
@@ -391,13 +405,28 @@ export function StaffView(props: StaffViewProps) {
         <EditDialog
           key={`edit-${editInstance}`}
           row={editing}
-          self={editing.id === selfId}
+          selfId={selfId}
+          specialistProvisioning={props.specialistProvisioning}
           idempotency={editKey}
           onClose={() => setEditing(null)}
           onSaved={(row) => {
             replace(row);
             toast({ tone: "success", title: t.edit.saved, description: row.displayName });
           }}
+          onChangeRole={(row, role) => {
+            setRoleChangeInstance((n) => n + 1);
+            setRoleChange({ row, role });
+          }}
+        />
+      )}
+
+      {roleChange && (
+        <RoleChangeDialog
+          key={`role-${roleChangeInstance}`}
+          row={roleChange.row}
+          role={roleChange.role}
+          onClose={() => setRoleChange(null)}
+          onChanged={(change) => replace(change.staff)}
         />
       )}
 

@@ -23,21 +23,27 @@ export const staffSchemas = localized(staffDataCopy, (m) => {
     .min(STAFF_FULL_NAME_MIN, m.fullNameMin(STAFF_FULL_NAME_MIN))
     .max(STAFF_FULL_NAME_MAX, m.maxChars(STAFF_FULL_NAME_MAX));
   const delivery = z.enum(STAFF_PASSWORD_DELIVERIES, { error: m.delivery });
+  const email = z
+    .string()
+    .trim()
+    .toLowerCase()
+    .max(EMAIL_MAX, m.maxChars(EMAIL_MAX))
+    .pipe(z.email({ error: m.email }));
   return {
     invite: z.object({
-      email: z
-        .string()
-        .trim()
-        .toLowerCase()
-        .max(EMAIL_MAX, m.maxChars(EMAIL_MAX))
-        .pipe(z.email({ error: m.email })),
+      email,
       fullName,
       isManager: z.boolean(),
       delivery,
       /** The new account's panel language (`StaffUser.language`); the inviter's by default. */
       language: z.enum(LOCALES).optional(),
     }),
-    update: z.object({ fullName, isManager: z.boolean() }),
+    /** `email` is the login address (same account and, for a specialist, the same profile). */
+    update: z.object({
+      fullName: fullName.or(z.literal("")),
+      isManager: z.boolean(),
+      email: email.optional(),
+    }),
     reset: z.object({ delivery }),
   };
 });
@@ -45,7 +51,7 @@ export const staffSchemas = localized(staffDataCopy, (m) => {
 type StaffSchemas = LocalizedOf<typeof staffSchemas>;
 export type InviteStaffValues = z.input<StaffSchemas["invite"]>;
 export type InviteStaffData = z.output<StaffSchemas["invite"]>;
-export type UpdateStaffValues = z.infer<StaffSchemas["update"]>;
+export type UpdateStaffValues = z.input<StaffSchemas["update"]>;
 export type ResetStaffValues = z.infer<StaffSchemas["reset"]>;
 
 /** An API staff id (a positive integer). */

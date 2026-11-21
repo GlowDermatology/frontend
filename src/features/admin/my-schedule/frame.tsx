@@ -32,6 +32,12 @@ export async function MyScheduleFrame({ children }: { children: ReactNode }) {
                 >
                   {t.title}
                 </Link>
+                <Link
+                  href="/admin/my-schedule/profile"
+                  className="py-2 text-body-sm font-semibold text-ink"
+                >
+                  {t.myProfile}
+                </Link>
                 <Link href="/admin/settings" className="py-2 text-body-sm font-semibold text-ink">
                   {t.account}
                 </Link>

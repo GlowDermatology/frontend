@@ -151,12 +151,25 @@ export async function updateStaff(
     if (before.isActive && otherManagers(id) === 0) return conflict(m.refusals.lastManager);
   }
   const fullName = values.fullName.trim();
+  const email = values.email?.trim().toLowerCase() || before.email;
+  if (
+    email !== before.email.toLowerCase() &&
+    MOCK_STAFF_ACCOUNTS.some((row) => row.id !== id && row.email.toLowerCase() === email)
+  ) {
+    return {
+      ok: false,
+      error: m.checkFields,
+      code: "validation_error",
+      fieldErrors: { email: m.refusals.emailTaken },
+    };
+  }
   return {
     ok: true,
     data: {
       ...before,
+      email,
       fullName,
-      displayName: fullName || before.email,
+      displayName: fullName || email,
       isManager: values.isManager,
     },
   };

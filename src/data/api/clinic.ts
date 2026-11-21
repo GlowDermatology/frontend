@@ -12,6 +12,7 @@ import type {
   ApiHoursOverride,
   ApiLocationPatch,
   ApiOfferedServicesWrite,
+  ApiOwnProfilePatch,
   ApiOverrideWrite,
   ApiPaginatedBlocks,
   ApiPaginatedOverrides,
@@ -20,7 +21,6 @@ import type {
   ApiServicePatch,
   ApiServiceWrite,
   ApiSpecialistPatch,
-  ApiSpecialistWrite,
   ApiWorkingWeekWrite,
 } from "./types";
 
@@ -46,15 +46,6 @@ export function apiGetSpecialist(token: string, specialistId: string) {
     undefined,
     token,
   );
-}
-
-export function apiCreateSpecialist(token: string, body: ApiSpecialistWrite, key: string) {
-  return apiFetch<ApiClinicSpecialist>(`${BASE}/specialists/`, {
-    method: "POST",
-    body,
-    token,
-    idempotencyKey: key,
-  });
 }
 
 export function apiPatchSpecialist(
@@ -194,6 +185,37 @@ export function apiSpecialistConflicts(token: string, specialistId: string) {
     undefined,
     token,
   );
+}
+
+/* --- The signed-in specialist's own profile (role specialist only; 403 for anyone else) --- */
+
+export function apiGetOwnProfile(token: string) {
+  return apiFetch<ApiClinicSpecialist>(`${BASE}/specialist/profile/`, { token });
+}
+
+/** The public name and the bio; only the languages sent change. */
+export function apiPatchOwnProfile(token: string, body: ApiOwnProfilePatch, key: string) {
+  return apiFetch<ApiClinicSpecialist>(`${BASE}/specialist/profile/`, {
+    method: "PATCH",
+    body,
+    token,
+    idempotencyKey: key,
+  });
+}
+
+/** Multipart, one part `file` (JPEG, PNG or WebP, ≤ 5 MiB). */
+export function apiPutOwnProfilePhoto(token: string, form: FormData, key: string) {
+  return apiFetch<ApiClinicSpecialist>(`${BASE}/specialist/profile/photo/`, {
+    method: "PUT",
+    formData: form,
+    token,
+    idempotencyKey: key,
+    timeoutMs: 30_000,
+  });
+}
+
+export function apiDeleteOwnProfilePhoto(token: string) {
+  return apiFetch<undefined>(`${BASE}/specialist/profile/photo/`, { method: "DELETE", token });
 }
 
 /* --- Services --- */

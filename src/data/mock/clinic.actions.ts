@@ -65,50 +65,18 @@ function profile(before: ClinicSpecialist, values: SpecialistFormValues): Clinic
   return {
     ...before,
     name: values.name,
-    role: values.role,
     qualifications: { ...values.qualifications },
     bio: { ...values.bio },
     experienceYears: values.experienceYears,
     slotStepMin: values.slotStepMin,
-    locationId: values.locationId,
+    role: values.role,
+    locationId: values.locationId || null,
     locationIds: [...values.locationIds],
-    staffUser: values.staffUserId
-      ? { id: values.staffUserId, name: before.staffUser?.name ?? `Xodim #${values.staffUserId}` }
-      : null,
     isActive: values.isActive,
     slug:
       values.slug || before.slug || slugifyName(values.name, SPECIALIST_SLUG_MAX) || "mutaxassis",
     updatedAt: now(),
   };
-}
-
-export async function createSpecialist(
-  values: SpecialistFormValues,
-): Promise<ActionResult<ClinicSpecialist>> {
-  await delay(400);
-  const blank: ClinicSpecialist = {
-    id: `draft-${crypto.randomUUID()}`,
-    name: "",
-    role: values.role,
-    qualifications: { uz: "", ru: "", en: "" },
-    bio: { uz: "", ru: "", en: "" },
-    experienceYears: null,
-    photoUrl: null,
-    locationId: values.locationId,
-    locationIds: [...values.locationIds],
-    staffUser: null,
-    slotStepMin: 30,
-    position: MOCK_SPECIALISTS.length,
-    isActive: false,
-    services: [],
-    workingHours: [],
-    upcomingAppointments: 0,
-    slug: "",
-    createdAt: now(),
-    updatedAt: now(),
-  };
-  if (slugTaken(values.slug, null)) return fields({ slug: (await messages()).slugTaken });
-  return { ok: true, data: profile(blank, values) };
 }
 
 export async function updateSpecialist(
@@ -120,6 +88,9 @@ export async function updateSpecialist(
   const before = byId(id);
   if (!before) return specialistMissing();
   if (slugTaken(values.slug, id)) return fields({ slug: (await messages()).slugTaken });
+  if (!before.isActive && values.isActive && before.publishBlockers.length > 0) {
+    return { ok: false, error: (await messages()).checkFields, code: "conflict" };
+  }
   if (before.isActive && !values.isActive && before.upcomingAppointments > 0 && !force) {
     return {
       ok: false,

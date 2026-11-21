@@ -32,7 +32,12 @@ export interface StaffAccountRow {
   fullName: string;
   isActive: boolean;
   isManager: boolean;
+  /** `role` "specialist": signs in to My Schedule only (Staff = admin, Manager = admin + manager). */
   isSpecialist?: boolean;
+  /** Protected: its role cannot be changed here. */
+  isSuperuser?: boolean;
+  /** Operations-console access: revoke it before the account can become a Specialist. */
+  hasOpsConsoleAccess?: boolean;
   /** Start of the newest session; `null` = never signed in. */
   lastLoginAt: string | null;
   /** Linked social sign-ins (`google`, `facebook`). */
@@ -80,6 +85,44 @@ export interface StaffCredentials {
   temporaryPassword: string | null;
   /** The e-mailed link, else `null`. */
   activation: StaffActivation | null;
+  /** A Specialist invitation: the draft profile created with the account. */
+  specialistId?: string;
+}
+
+/** The three account roles of the one staff sign-in page. */
+export type StaffAccountRole = "staff" | "manager" | "specialist";
+
+export function staffAccountRole(
+  row: Pick<StaffAccountRow, "isSpecialist" | "isManager">,
+): StaffAccountRole {
+  return row.isSpecialist ? "specialist" : row.isManager ? "manager" : "staff";
+}
+
+/** Why an account cannot be switched between Staff and Specialist here (texts in `staffCopy`). */
+export type SpecialistRoleBlock = "self" | "inactive" | "superuser" | "opsConsole";
+
+/**
+ * The Staff ↔ Specialist change is offered for an eligible account only (the server refuses the
+ * same cases with 409, plus the last active manager); `null` = allowed.
+ */
+export function specialistRoleBlock(
+  row: Pick<StaffAccountRow, "id" | "isActive" | "isSuperuser" | "hasOpsConsoleAccess">,
+  selfId: string,
+): SpecialistRoleBlock | null {
+  if (row.id === selfId) return "self";
+  if (row.isSuperuser) return "superuser";
+  if (row.hasOpsConsoleAccess) return "opsConsole";
+  if (!row.isActive) return "inactive";
+  return null;
+}
+
+/** `POST staff/{id}/specialist-role/` 200. */
+export interface SpecialistRoleChange {
+  staff: StaffAccountRow;
+  /** The profile the account owns; `null` for an account that never had one. */
+  specialistId: string | null;
+  /** → Staff: requested / confirmed visits ahead on the paused profile, for staff to handle. */
+  upcomingAppointments: number;
 }
 
 /** A row's status badges, in display order (texts in `staffCopy.badges`). */

@@ -2,6 +2,7 @@
 
 import { useState, useTransition, type ReactNode } from "react";
 
+import { Select } from "@/components/ui/select";
 import { updateMySchedule } from "@/data/specialist.actions";
 import type { SpecialistAvailability } from "@/data/specialist";
 import { useCopy } from "@/lib/i18n/admin-context";
@@ -27,31 +28,29 @@ export function ClinicSelect({
   defaultValue,
   onChange,
   extra,
+  name = "clinic",
 }: {
   clinics: SpecialistAvailability["clinics"];
   defaultValue?: string;
   onChange?: (clinic: string) => void;
   extra?: { id: number; name: string };
+  name?: string;
 }) {
   const t = useCopy(myScheduleCopy);
   return (
     <Field label={t.clinic}>
-      <select
-        name="clinic"
+      <Select<string>
+        name={name}
         required
-        className={inputClass}
-        defaultValue={defaultValue}
-        onChange={(event) => onChange?.(event.target.value)}
-      >
-        {extra && !clinics.some((clinic) => clinic.id === extra.id) && (
-          <option value={extra.id}>{extra.name}</option>
-        )}
-        {clinics.map((clinic) => (
-          <option key={clinic.id} value={clinic.id}>
-            {clinic.name}
-          </option>
-        ))}
-      </select>
+        defaultValue={defaultValue ?? (clinics[0] ? String(clinics[0].id) : "")}
+        onValueChange={onChange}
+        options={[
+          ...(extra && !clinics.some((clinic) => clinic.id === extra.id)
+            ? [{ value: String(extra.id), label: extra.name }]
+            : []),
+          ...clinics.map((clinic) => ({ value: String(clinic.id), label: clinic.name })),
+        ]}
+      />
     </Field>
   );
 }

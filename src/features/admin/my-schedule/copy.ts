@@ -38,13 +38,29 @@ const uz = {
   reason: "Sabab (ixtiyoriy)",
   customerAgreed: "Mijoz yangi filialga rozi bo‘ldi",
   tashkent: "Toshkent vaqti",
-  access: "Mutaxassis hisobi",
-  invite: "Mutaxassisni taklif qilish",
-  inviteDescription: "Kirish uchun xodimlarning umumiy kirish sahifasidan foydalanadi.",
-  convert: "Mutaxassisga o‘tkazish",
-  convertDescription:
-    "Hisob shu emailni saqlaydi. Amaldagi sessiyalar tugatiladi va hisob faqat mutaxassis jadvaliga kiradi.",
-  converted: "Hisob mutaxassisga o‘tkazildi.",
+  noClinic:
+    "Xodimlar sizga hali klinika biriktirmagan. Klinika biriktirilgach, ish vaqtingizni shu yerda kiritasiz.",
+  myProfile: "Mening profilim",
+  profile: {
+    lead: "Mijozlar saytda ko‘radigan ism, rasm va qisqacha ma’lumot. Profilni xodimlar ko‘rib chiqib, e’lon qiladi.",
+    published: "E’lon qilingan",
+    draft: "Qoralama",
+    name: "Saytdagi ism",
+    nameHint: "Mijozlar ko‘radigan ism; hisobingizdagi to‘liq ismdan farq qilishi mumkin.",
+    nameMin: "Ism kamida 2 ta belgidan iborat bo‘lsin.",
+    bio: "Qisqacha ma’lumot",
+    bioHint: "Ta’lim, tajriba va yo‘nalishlaringiz haqida bir necha jumla.",
+    texts: "Til",
+    save: "Saqlash",
+    saving: "Saqlanmoqda…",
+    saved: "Profil saqlandi",
+    saveFailed: "Profil saqlanmadi",
+    noChanges: "Hali hech narsa o‘zgartirilmagan.",
+    ready: "Profilingiz tayyor: e’lon qilish uchun xodimlar uni ko‘rib chiqadi.",
+    managedByStaff:
+      "Mutaxassislik, klinikalar va xizmatlarni xodimlar biriktiradi. O‘zgartirish kerak bo‘lsa, menejerga murojaat qiling.",
+    unavailable: "Profilni hozir ochib bo‘lmadi.",
+  },
 };
 
 const en: typeof uz = {
@@ -86,13 +102,29 @@ const en: typeof uz = {
   reason: "Reason (optional)",
   customerAgreed: "The customer agreed to the new clinic",
   tashkent: "Tashkent time",
-  access: "Specialist account",
-  invite: "Invite specialist",
-  inviteDescription: "The specialist uses the shared staff sign-in page.",
-  convert: "Convert to Specialist",
-  convertDescription:
-    "The account keeps its email. Existing sessions end and the account switches to Specialist access.",
-  converted: "Account converted to Specialist.",
+  noClinic:
+    "Staff haven’t assigned a clinic to you yet. Once they do, you can set your availability here.",
+  myProfile: "My profile",
+  profile: {
+    lead: "The name, photo and short bio customers see on the website. Staff review the profile and publish it.",
+    published: "Published",
+    draft: "Draft",
+    name: "Public name",
+    nameHint: "The name customers see; it may differ from your account’s full name.",
+    nameMin: "The name needs at least 2 characters.",
+    bio: "Short bio",
+    bioHint: "A few sentences about your training, experience and focus areas.",
+    texts: "Language",
+    save: "Save",
+    saving: "Saving…",
+    saved: "Profile saved",
+    saveFailed: "The profile was not saved",
+    noChanges: "Nothing has changed yet.",
+    ready: "Your profile is complete: staff will review it for publishing.",
+    managedByStaff:
+      "Staff assign your specialty, clinics and services. Contact your manager if something needs to change.",
+    unavailable: "Your profile cannot be opened right now.",
+  },
 };
 
 const ru: typeof uz = {
@@ -134,13 +166,29 @@ const ru: typeof uz = {
   reason: "Причина (необязательно)",
   customerAgreed: "Клиент согласился на новый филиал",
   tashkent: "Ташкентское время",
-  access: "Аккаунт специалиста",
-  invite: "Пригласить специалиста",
-  inviteDescription: "Специалист входит через общую страницу входа для сотрудников.",
-  convert: "Перевести в специалисты",
-  convertDescription:
-    "Почта аккаунта сохранится. Текущие сеансы завершатся, и аккаунт получит доступ специалиста.",
-  converted: "Аккаунт переведён в специалисты.",
+  noClinic:
+    "Сотрудники ещё не назначили вам клинику. Когда назначат, здесь можно будет указать рабочее время.",
+  myProfile: "Мой профиль",
+  profile: {
+    lead: "Имя, фото и краткая информация, которые клиенты видят на сайте. Сотрудники проверяют профиль и публикуют его.",
+    published: "Опубликован",
+    draft: "Черновик",
+    name: "Имя на сайте",
+    nameHint: "Имя, которое видят клиенты; может отличаться от полного имени в аккаунте.",
+    nameMin: "Имя должно содержать не менее 2 символов.",
+    bio: "Кратко о себе",
+    bioHint: "Несколько предложений об образовании, опыте и направлениях работы.",
+    texts: "Язык",
+    save: "Сохранить",
+    saving: "Сохранение…",
+    saved: "Профиль сохранён",
+    saveFailed: "Профиль не сохранён",
+    noChanges: "Пока ничего не изменено.",
+    ready: "Профиль заполнен: сотрудники проверят его для публикации.",
+    managedByStaff:
+      "Специализацию, клиники и услуги назначают сотрудники. Если нужно что-то изменить, обратитесь к менеджеру.",
+    unavailable: "Сейчас не удалось открыть профиль.",
+  },
 };
 
 export const myScheduleCopy = { uz, en, ru };

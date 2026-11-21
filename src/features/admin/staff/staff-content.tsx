@@ -17,7 +17,8 @@ import { StaffView } from "./staff-view";
  * sidebar hides the item for everyone else; a direct visit by a staff member who is not a
  * manager explains why there is nothing to see instead of reading the list (whose manager
  * columns would be empty). `capabilities.staff_email_invite` decides whether the e-mailed link
- * options are offered.
+ * options are offered; `capabilities.specialist_provisioning` whether a Specialist can be invited
+ * (and an account changed to Specialist).
  */
 export async function StaffContent({ searchParams }: { searchParams: Promise<SearchParams> }) {
   await requireStaff();
@@ -58,6 +59,7 @@ export async function StaffContent({ searchParams }: { searchParams: Promise<Sea
       query={query}
       selfId={account.id}
       emailInvite={me?.capabilities.staff_email_invite ?? false}
+      specialistProvisioning={me?.capabilities.specialist_provisioning === true}
       nowMs={now.getTime()}
       eyebrow={t.eyebrow(page.total, fmt.number(page.total), query.status === "active")}
       resetMfa={resetStaffMfa}

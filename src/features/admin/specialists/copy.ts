@@ -3,8 +3,8 @@ import type { CopySet } from "@/lib/i18n/copy";
 
 /**
  * Texts of /admin/specialists and a specialist's page (uz / ru / en): the directory toolbar
- * (shared with /admin/services), the list, the create dialog, the profile and photo, the offered
- * services, the weekly hours, the date overrides and blocked periods, the clinics page, the
+ * (shared with /admin/services), the list, the profile and photo, the publish checklist, the
+ * owner account, the offered services, the weekly hours, the date overrides and blocked periods, the clinics page, the
  * conflicts card and the mock export headers. Role, category, weekday and block names and the
  * form messages live in `src/domain/copy/clinic.ts`. Numbers and amounts arrive formatted.
  */
@@ -38,7 +38,6 @@ const uz = {
     count: (_n: number, shown: string) => `${shown} ta mutaxassis`,
     found: (_n: number, shown: string) => `${shown} ta mutaxassis topildi`,
     services: "Xizmatlar",
-    create: "Yangi mutaxassis",
     listLabel: "Mutaxassislar ro‘yxati",
     tableLabel: "Mutaxassislar jadvali",
     caption: "Mutaxassislar",
@@ -51,33 +50,25 @@ const uz = {
     noServices: "Xizmat yo‘q",
     noSchedule: "Jadval yo‘q",
     emptyTitle: "Mutaxassis topilmadi",
-    emptyAll: "«Yangi mutaxassis» bilan birinchi mutaxassisni qo‘shing.",
-    created: "Mutaxassis qo‘shildi",
-    createdText: "Endi xizmatlar va ish vaqtini kiriting, so‘ng faollashtiring.",
-    createFailed: "Mutaxassis qo‘shilmadi",
-  },
-
-  create: {
-    title: "Yangi mutaxassis",
-    description:
-      "Mutaxassis nofaol holda qo‘shiladi: xizmatlar va ish vaqtini kiritgach, faollashtiring.",
-    submit: "Qo‘shish",
-    submitting: "Qo‘shilmoqda…",
+    emptyAll:
+      "Mutaxassis Xodimlar bo‘limida qo‘shiladi: «Yangi xodim» → rol «Mutaxassis». Taklif bilan birga qoralama profil yaratiladi.",
+    published: "E’lon qilingan",
+    draft: "Qoralama",
+    noRole: "Mutaxassislik tanlanmagan",
+    openStaff: "Xodimlar bo‘limiga o‘tish",
   },
 
   profile: {
     title: "Profil",
-    name: "Ism familiya",
+    name: "Saytdagi ism",
+    nameHint: "Mijozlar ko‘radigan ism; hisobdagi to‘liq ismdan farq qilishi mumkin.",
     role: "Mutaxassislik",
     experience: "Tajriba (yil)",
     experienceHint: "Bo‘sh qoldirish mumkin.",
     slotStep: "Yozilish qadami",
     slotStepHint: "Ilovada bo‘sh vaqtlar shu oraliqda ko‘rsatiladi.",
     slotStepOption: (minutes: number) => `${minutes} daqiqa`,
-    staff: "Bog‘langan xodim hisobi",
-    staffHint: "Ixtiyoriy: mutaxassis o‘zi admin panelga kirsa.",
-    staffNone: "Bog‘lanmagan",
-    staffInactive: "Faol emas",
+    rolePlaceholder: "Mutaxassislikni tanlang",
     texts: "Malaka va tavsif",
     qualifications: "Malakasi",
     qualificationsHint: "Ilovada mutaxassis kartasida: ta’lim, sertifikatlar, yo‘nalishlar.",
@@ -86,16 +77,49 @@ const uz = {
     language: { uz: "o‘zbekcha", ru: "ruscha", en: "inglizcha" },
     slug: "Sayt manzili (slug)",
     photo: "Rasm",
-    active: "Faol",
-    activeSwitch: "Mutaxassis faol",
-    activeHint: "Faol mutaxassis ilovada ko‘rinadi va unga yozilish mumkin.",
+    active: "E’lon qilingan",
+    activeSwitch: "Profilni e’lon qilish",
+    activeHint: "E’lon qilingan profil saytda va ilovada ko‘rinadi, unga yozilish mumkin.",
     inactiveHint: (_n: number, shown: string) =>
-      `Nofaol mutaxassis ilovadan yo‘qoladi. ${shown} ta kelgusi qabul o‘zgarmaydi.`,
+      `E’londan olingan profil saytdan yo‘qoladi. ${shown} ta kelgusi qabul o‘zgarmaydi.`,
+    publishBlocked: "E’lon qilish uchun avval tekshiruv ro‘yxatidagi bandlarni to‘ldiring.",
     saved: "Profil saqlandi",
-    conflictTitle: "Mutaxassisni baribir nofaol qilasizmi?",
+    conflictTitle: "Profilni baribir e’londan olasizmi?",
     conflictText:
-      "Mutaxassis ilovadan va yozilish oynalaridan darhol yo‘qoladi; uning qabullari qabullar jadvalida qoladi.",
-    force: "Baribir nofaol qilish",
+      "Profil saytdan va yozilish oynalaridan darhol yo‘qoladi; uning qabullari qabullar jadvalida qoladi.",
+    force: "Baribir e’londan olish",
+  },
+
+  publish: {
+    title: "E’lon qilish",
+    published: "Profil e’lon qilingan: mijozlar uni ko‘radi va yozila oladi.",
+    ready: "Profil tayyor. Profil kartasida «Profilni e’lon qilish»ni yoqib saqlang.",
+    missing: "E’lon qilishdan oldin to‘ldiring:",
+    blockers: {
+      account:
+        "Egasi hisobi hozir mutaxassis emas — avval Xodimlar bo‘limida rolni «Mutaxassis»ga o‘zgartiring.",
+      name: "Saytdagi ism",
+      discipline: "Mutaxassislik",
+      bio: "Qisqacha ma’lumot",
+      photo: "Rasm",
+      clinic: "Biriktirilgan faol klinika",
+      service: "Kamida bitta faol xizmat",
+      availability: "Haftalik ish vaqti",
+    },
+  },
+
+  owner: {
+    title: "Hisob",
+    text: "Kirish va rol Xodimlar bo‘limida boshqariladi. Profilni e’lon qilish kirish huquqidan alohida.",
+    name: "Ism",
+    email: "Email",
+    role: "Rol",
+    roles: { specialist: "Mutaxassis", admin: "Xodim (profil to‘xtatilgan)" },
+    login: "Kirish",
+    loginActive: "Faol",
+    loginInactive: "O‘chirilgan",
+    none: "Hisob ma’lumoti yo‘q.",
+    manage: "Xodimlar bo‘limida boshqarish",
   },
 
   photo: {
@@ -149,6 +173,7 @@ const uz = {
     breakEnd: "Tanaffus oxiri",
     fieldOf: (day: string, field: string) => `${day}: ${field}`,
     saved: "Ish vaqti saqlandi",
+    noClinic: "Ish vaqtini kiritish uchun avval profilda klinika biriktiring.",
   },
 
   overrides: {
@@ -233,7 +258,7 @@ const uz = {
     summary: (role: string, offers: string, upcoming: string) =>
       `${role} · ${offers} ta faol xizmat · ${upcoming} ta kelgusi qabul`,
     notBookable:
-      "Mutaxassisga yozilish uchun kamida bitta faol xizmat va haftalik ish vaqti kerak; so‘ng profilda «Faol»ni yoqing.",
+      "Mutaxassisga yozilish uchun kamida bitta faol xizmat va haftalik ish vaqti kerak; so‘ng profilni e’lon qiling.",
     conflictsTitle: "Jadvalga to‘g‘ri kelmaydigan qabullar",
     conflictsText:
       "Bu qabullar o‘zgarmagan, lekin endi ish vaqtidan tashqarida. Ularni boshqa vaqtga yoki mutaxassisga ko‘chiring yoki bekor qiling.",
@@ -297,7 +322,6 @@ export const specialistsCopy = {
       found: (n: number, shown: string) =>
         `${ru(n, ["Найден", "Найдено", "Найдено"])} ${shown} ${ru(n, ["специалист", "специалиста", "специалистов"])}`,
       services: "Услуги",
-      create: "Новый специалист",
       listLabel: "Список специалистов",
       tableLabel: "Таблица специалистов",
       caption: "Специалисты",
@@ -310,33 +334,25 @@ export const specialistsCopy = {
       noServices: "Нет услуг",
       noSchedule: "Нет графика",
       emptyTitle: "Специалисты не найдены",
-      emptyAll: "Добавьте первого специалиста кнопкой «Новый специалист».",
-      created: "Специалист добавлен",
-      createdText: "Теперь укажите услуги и рабочее время, затем активируйте специалиста.",
-      createFailed: "Специалист не добавлен",
-    },
-
-    create: {
-      title: "Новый специалист",
-      description:
-        "Специалист добавляется неактивным: укажите услуги и рабочее время, затем активируйте его.",
-      submit: "Добавить",
-      submitting: "Добавляем…",
+      emptyAll:
+        "Специалисты добавляются в разделе «Сотрудники»: «Новый сотрудник» → роль «Специалист». Вместе с приглашением создаётся черновик профиля.",
+      published: "Опубликован",
+      draft: "Черновик",
+      noRole: "Специализация не выбрана",
+      openStaff: "Перейти в «Сотрудники»",
     },
 
     profile: {
       title: "Профиль",
-      name: "Имя и фамилия",
+      name: "Имя на сайте",
+      nameHint: "Имя, которое видят клиенты; может отличаться от полного имени в аккаунте.",
       role: "Специализация",
       experience: "Опыт (лет)",
       experienceHint: "Можно оставить пустым.",
       slotStep: "Шаг записи",
       slotStepHint: "С таким интервалом в приложении показываются свободные слоты.",
       slotStepOption: (minutes: number) => `${minutes} минут`,
-      staff: "Связанная учётная запись сотрудника",
-      staffHint: "Необязательно: если специалист сам входит в админ-панель.",
-      staffNone: "Не связан",
-      staffInactive: "Неактивен",
+      rolePlaceholder: "Выберите специализацию",
       texts: "Квалификация и описание",
       qualifications: "Квалификация",
       qualificationsHint:
@@ -346,16 +362,50 @@ export const specialistsCopy = {
       language: { uz: "узбекский", ru: "русский", en: "английский" },
       slug: "Адрес на сайте (slug)",
       photo: "Фото",
-      active: "Активен",
-      activeSwitch: "Специалист активен",
-      activeHint: "Активный специалист виден в приложении, к нему можно записаться.",
+      active: "Опубликован",
+      activeSwitch: "Опубликовать профиль",
+      activeHint:
+        "Опубликованный профиль виден на сайте и в приложении, к специалисту можно записаться.",
       inactiveHint: (n: number, shown: string) =>
-        `Неактивный специалист пропадёт из приложения. ${shown} ${ru(n, ["предстоящий приём", "предстоящих приёма", "предстоящих приёмов"])} не изменятся.`,
+        `Снятый с публикации профиль пропадёт с сайта. ${shown} ${ru(n, ["предстоящий приём", "предстоящих приёма", "предстоящих приёмов"])} не изменятся.`,
+      publishBlocked: "Чтобы опубликовать профиль, сначала выполните пункты контрольного списка.",
       saved: "Профиль сохранён",
-      conflictTitle: "Всё равно сделать специалиста неактивным?",
+      conflictTitle: "Всё равно снять профиль с публикации?",
       conflictText:
-        "Специалист сразу пропадёт из приложения и окон записи; его приёмы останутся в расписании.",
-      force: "Всё равно сделать неактивным",
+        "Профиль сразу пропадёт с сайта и из окон записи; приёмы специалиста останутся в расписании.",
+      force: "Всё равно снять с публикации",
+    },
+
+    publish: {
+      title: "Публикация",
+      published: "Профиль опубликован: клиенты видят его и могут записаться.",
+      ready: "Профиль готов. Включите «Опубликовать профиль» в карточке профиля и сохраните.",
+      missing: "Перед публикацией заполните:",
+      blockers: {
+        account:
+          "Аккаунт владельца сейчас не специалист — сначала смените роль на «Специалист» в разделе «Сотрудники».",
+        name: "Имя на сайте",
+        discipline: "Специализация",
+        bio: "Кратко о специалисте",
+        photo: "Фото",
+        clinic: "Назначенная активная клиника",
+        service: "Хотя бы одна активная услуга",
+        availability: "Рабочее время по неделе",
+      },
+    },
+
+    owner: {
+      title: "Аккаунт",
+      text: "Вход и роль управляются в разделе «Сотрудники». Публикация профиля не зависит от доступа ко входу.",
+      name: "Имя",
+      email: "Почта",
+      role: "Роль",
+      roles: { specialist: "Специалист", admin: "Сотрудник (профиль приостановлен)" },
+      login: "Вход",
+      loginActive: "Разрешён",
+      loginInactive: "Отключён",
+      none: "Нет данных об аккаунте.",
+      manage: "Управлять в разделе «Сотрудники»",
     },
 
     photo: {
@@ -409,6 +459,7 @@ export const specialistsCopy = {
       breakEnd: "Конец перерыва",
       fieldOf: (day: string, field: string) => `${day}: ${field}`,
       saved: "Рабочее время сохранено",
+      noClinic: "Чтобы задать рабочее время, сначала назначьте клинику в профиле.",
     },
 
     overrides: {
@@ -493,7 +544,7 @@ export const specialistsCopy = {
       summary: (role: string, offers: string, upcoming: string) =>
         `${role} · активных услуг: ${offers} · предстоящих приёмов: ${upcoming}`,
       notBookable:
-        "Чтобы к специалисту можно было записаться, нужны хотя бы одна активная услуга и рабочее время по неделе; затем включите «Активен» в профиле.",
+        "Чтобы к специалисту можно было записаться, нужны хотя бы одна активная услуга и рабочее время по неделе; затем опубликуйте профиль.",
       conflictsTitle: "Приёмы вне графика",
       conflictsText:
         "Эти приёмы не изменились, но теперь оказались вне рабочего времени. Перенесите их на другое время или к другому специалисту либо отмените.",
@@ -549,7 +600,6 @@ export const specialistsCopy = {
       found: (n: number, shown: string) =>
         `${shown} ${pluralEn(n, ["specialist", "specialists"])} found`,
       services: "Services",
-      create: "New specialist",
       listLabel: "Specialist list",
       tableLabel: "Specialists table",
       caption: "Specialists",
@@ -562,33 +612,25 @@ export const specialistsCopy = {
       noServices: "No services",
       noSchedule: "No schedule",
       emptyTitle: "No specialists found",
-      emptyAll: "Add the first specialist with “New specialist”.",
-      created: "Specialist added",
-      createdText: "Now enter the services and working hours, then activate the specialist.",
-      createFailed: "The specialist was not added",
-    },
-
-    create: {
-      title: "New specialist",
-      description:
-        "The specialist is added inactive: enter the services and working hours, then activate them.",
-      submit: "Add",
-      submitting: "Adding…",
+      emptyAll:
+        "Specialists are added in Staff: “New staff member” → role “Specialist”. The invitation creates a draft profile.",
+      published: "Published",
+      draft: "Draft",
+      noRole: "No specialty yet",
+      openStaff: "Go to Staff",
     },
 
     profile: {
       title: "Profile",
-      name: "Full name",
+      name: "Public name",
+      nameHint: "The name customers see; it may differ from the account’s full name.",
       role: "Specialty",
       experience: "Experience (years)",
       experienceHint: "May be left empty.",
       slotStep: "Booking step",
       slotStepHint: "Free times are offered in the app at this interval.",
       slotStepOption: (minutes: number) => `${minutes} minutes`,
-      staff: "Linked staff account",
-      staffHint: "Optional: if the specialist signs in to the admin panel.",
-      staffNone: "Not linked",
-      staffInactive: "Inactive",
+      rolePlaceholder: "Choose a specialty",
       texts: "Qualifications and bio",
       qualifications: "Qualifications",
       qualificationsHint: "On the specialist card in the app: education, certificates, areas.",
@@ -597,16 +639,49 @@ export const specialistsCopy = {
       language: { uz: "Uzbek", ru: "Russian", en: "English" },
       slug: "Website address (slug)",
       photo: "Photo",
-      active: "Active",
-      activeSwitch: "Specialist active",
-      activeHint: "An active specialist is shown in the app and can be booked.",
+      active: "Published",
+      activeSwitch: "Publish profile",
+      activeHint: "A published profile is shown on the website and in the app and can be booked.",
       inactiveHint: (n: number, shown: string) =>
-        `An inactive specialist disappears from the app. ${shown} upcoming ${pluralEn(n, ["appointment", "appointments"])} stay as they are.`,
+        `An unpublished profile disappears from the website. ${shown} upcoming ${pluralEn(n, ["appointment", "appointments"])} stay as they are.`,
+      publishBlocked: "Complete the checklist before publishing the profile.",
       saved: "Profile saved",
-      conflictTitle: "Deactivate the specialist anyway?",
+      conflictTitle: "Unpublish the profile anyway?",
       conflictText:
-        "The specialist disappears from the app and the booking windows at once; their appointments stay on the board.",
-      force: "Deactivate anyway",
+        "The profile disappears from the website and the booking windows at once; the specialist’s appointments stay on the board.",
+      force: "Unpublish anyway",
+    },
+
+    publish: {
+      title: "Publishing",
+      published: "The profile is published: customers can see it and book.",
+      ready: "The profile is ready. Switch on “Publish profile” in the profile card and save.",
+      missing: "Complete before publishing:",
+      blockers: {
+        account:
+          "The owner account is not a Specialist right now — change its role to Specialist in Staff first.",
+        name: "Public name",
+        discipline: "Specialty",
+        bio: "Short bio",
+        photo: "Photo",
+        clinic: "An assigned active clinic",
+        service: "At least one active service",
+        availability: "Weekly working hours",
+      },
+    },
+
+    owner: {
+      title: "Account",
+      text: "Sign-in and role are managed in Staff. Publishing the profile is separate from sign-in access.",
+      name: "Name",
+      email: "Email",
+      role: "Role",
+      roles: { specialist: "Specialist", admin: "Staff (profile paused)" },
+      login: "Sign-in",
+      loginActive: "Active",
+      loginInactive: "Deactivated",
+      none: "No account details.",
+      manage: "Manage in Staff",
     },
 
     photo: {
@@ -660,6 +735,7 @@ export const specialistsCopy = {
       breakEnd: "Break end",
       fieldOf: (day: string, field: string) => `${day}: ${field}`,
       saved: "Working hours saved",
+      noClinic: "Assign a clinic in the profile before setting working hours.",
     },
 
     overrides: {
@@ -744,7 +820,7 @@ export const specialistsCopy = {
       summary: (role: string, offers: string, upcoming: string) =>
         `${role} · ${offers} active services · ${upcoming} upcoming appointments`,
       notBookable:
-        "To be bookable the specialist needs at least one active service and weekly working hours; then switch on “Active” in the profile.",
+        "To be bookable the specialist needs at least one active service and weekly working hours; then publish the profile.",
       conflictsTitle: "Appointments outside the schedule",
       conflictsText:
         "These appointments did not change, but they now fall outside the working hours. Move them to another time or specialist, or cancel them.",

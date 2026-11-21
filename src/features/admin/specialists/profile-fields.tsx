@@ -27,19 +27,12 @@ import { specialistsCopy, type SpecialistsCopy } from "./copy";
 
 export const LANGUAGES: ReadonlyArray<ContentLanguage> = ["uz", "ru", "en"];
 
-export interface StaffOption {
-  id: string;
-  name: string;
-  role?: "admin" | "specialist" | null;
-}
-
 /** The profile's field names that have a place on the form (for `partitionFieldErrors`). */
 export const PROFILE_FIELDS = [
   "name",
   "role",
   "experienceYears",
   "slotStepMin",
-  "staffUserId",
   "locationIds",
   "locationId",
   "isActive",
@@ -53,7 +46,6 @@ export const PROFILE_ORDER = [
   "role",
   "experienceYears",
   "slotStepMin",
-  "staffUserId",
   "locationIds",
   "locationId",
   "slug",
@@ -73,7 +65,6 @@ export function profileFieldLabel(name: string, t: SpecialistsCopy): string | un
     role: p.role,
     experienceYears: p.experience,
     slotStepMin: p.slotStep,
-    staffUserId: p.staff,
     locationIds: t.location.assigned,
     locationId: t.location.primary,
     slug: p.slug,
@@ -114,12 +105,14 @@ interface ProfileFieldsProps {
   experience: string;
   onExperienceChange: (value: string) => void;
   errors: Record<string, string>;
-  staffOptions: ReadonlyArray<StaffOption>;
   clinics: ReadonlyArray<ClinicLocation>;
-  /** The account linked now, shown even when it is no longer in the options (deactivated). */
-  linkedStaff: StaffOption | null;
-  /** Hint under the active switch. */
+  /** Hint under the publish switch. */
   activeHint: string;
+  /**
+   * Why the profile cannot be published yet (the checklist is not complete); only refuses
+   * switching it on — an already published profile can always be unpublished.
+   */
+  publishBlocked?: string | null;
   /** The stored website slug; `null` while creating (derived from the name on save). */
   savedSlug: string | null;
   /** The content language whose qualifications and bio are shown (the parent switches it to an error). */
@@ -128,11 +121,13 @@ interface ProfileFieldsProps {
 }
 
 /**
- * The specialist's profile fields (contract §2.17 `ClinicSpecialist`): name,
- * category, experience, the customer slot grid, the linked staff account,
- * the active flag, and the qualifications and bio per language. Shared by
- * the create dialog and the detail page; the parent owns submit and the
- * shown language (so an error in another language's text can be revealed).
+ * The specialist's profile fields (contract §2.17 `ClinicSpecialist`): the
+ * public name, category, experience, the customer slot grid, the clinics
+ * (a draft may have none: checking the first one makes it the primary), the
+ * publish flag, and the qualifications and bio per language. The owner
+ * account is not edited here (it is managed on «Xodimlar»). The parent owns
+ * submit and the shown language (so an error in another language's text can
+ * be revealed).
  */
 export function SpecialistProfileFields({
   values,
@@ -140,10 +135,9 @@ export function SpecialistProfileFields({
   experience,
   onExperienceChange,
   errors,
-  staffOptions,
   clinics,
-  linkedStaff,
   activeHint,
+  publishBlocked,
   savedSlug,
   language,
   onLanguageChange,
@@ -154,7 +148,6 @@ export function SpecialistProfileFields({
   const idBase = useId();
   const set = <K extends keyof SpecialistFormValues>(key: K, value: SpecialistFormValues[K]) =>
     onChange({ ...values, [key]: value });
-  const linkedMissing = linkedStaff && !staffOptions.some((o) => o.id === linkedStaff.id);
   const assigned = clinics.filter((clinic) => values.locationIds.includes(clinic.id));
   const assignable = clinics.filter(
     (clinic) => clinic.isActive || values.locationIds.includes(clinic.id),
@@ -174,7 +167,7 @@ export function SpecialistProfileFields({
   return (
     <div className="flex flex-col gap-4">
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label={t.name} name="name" error={errors.name}>
+        <Field label={t.name} name="name" error={errors.name} hint={t.nameHint}>
           {(c) => (
             <TextInput
               {...c}
@@ -193,6 +186,7 @@ export function SpecialistProfileFields({
               name="role"
               value={values.role}
               onValueChange={(role) => set("role", role)}
+              placeholder={t.rolePlaceholder}
               options={SPECIALIST_ROLES.map((role) => ({ value: role, label: m.role[role] }))}
             />
           )}
@@ -238,41 +232,6 @@ export function SpecialistProfileFields({
             />
           )}
         </Field>
-        {linkedStaff?.role === "specialist" ? (
-          <p className="sm:col-span-2">
-            <strong>{t.staff}</strong> · {linkedStaff.name}
-          </p>
-        ) : (
-          <Field
-            label={t.staff}
-            name="staffUserId"
-            error={errors.staffUserId}
-            hint={t.staffHint}
-            className="sm:col-span-2"
-          >
-            {(c) => (
-              <Select<string>
-                {...c}
-                name="staffUserId"
-                value={values.staffUserId}
-                onValueChange={(id) => set("staffUserId", id)}
-                options={[
-                  { value: "", label: t.staffNone },
-                  ...(linkedMissing && linkedStaff
-                    ? [
-                        {
-                          value: linkedStaff.id,
-                          label: linkedStaff.name,
-                          description: t.staffInactive,
-                        },
-                      ]
-                    : []),
-                  ...staffOptions.map((option) => ({ value: option.id, label: option.name })),
-                ]}
-              />
-            )}
-          </Field>
-        )}
       </div>
 
       <div data-field="slug" data-invalid={errors.slug ? "true" : undefined}>
@@ -414,6 +373,7 @@ export function SpecialistProfileFields({
           checked={values.isActive}
           onCheckedChange={(checked) => set("isActive", checked)}
           aria-label={t.activeSwitch}
+          disabledReason={!values.isActive && publishBlocked ? publishBlocked : null}
         />
       </div>
     </div>

@@ -30,6 +30,62 @@ const uz = {
   neverSignedIn: "Hali kirmagan",
   none: "—",
   roles: { manager: "Menejer", staff: "Xodim", specialist: "Mutaxassis" },
+  roleField: {
+    label: "Rol",
+    descriptions: {
+      staff: "Kundalik boshqaruv panelidan foydalanadi.",
+      manager: "Boshqaruv paneli va xodim hisoblarini boshqaradi.",
+      specialist: "Faqat «Mening jadvalim»ga kiradi: o‘z jadvali, profili va hisobi.",
+    },
+    specialistDisabled: "Bu muhitda mutaxassislarni taklif qilish o‘chirilgan.",
+    specialistInvite:
+      "Hisob bilan birga qoralama mutaxassis profili yaratiladi. Uni Mutaxassislar bo‘limida to‘ldirib, e’lon qilasiz.",
+    specialistFixed:
+      "Mutaxassis hisobi menejer bo‘la olmaydi: kerak bo‘lsa, avval uni xodimga o‘tkazing.",
+    superuserBlock: "Superadmin roli himoyalangan.",
+  },
+  specialistRole: {
+    title: "Mutaxassis roli",
+    toSpecialistText: "Hisob mutaxassisga o‘tkazilsa, faqat «Mening jadvalim»ga kiradi.",
+    toStaffText:
+      "Hisob xodimga qaytarilsa, boshqaruv paneliga kiradi; mutaxassis profili to‘xtatiladi.",
+    toSpecialist: "Mutaxassisga o‘tkazish",
+    toStaff: "Xodimga o‘tkazish",
+    blocked: {
+      self: "O‘z hisobingiz rolini o‘zgartira olmaysiz.",
+      inactive: "Avval hisobni qayta faollashtiring.",
+      superuser: "Superadmin hisobining rolini o‘zgartirib bo‘lmaydi.",
+      opsConsole: "Avval operatsiyalar konsoliga kirish huquqini olib tashlang.",
+      disabled: "Bu muhitda mutaxassis hisoblari o‘chirilgan.",
+    },
+    confirmTitle: {
+      specialist: "Hisobni mutaxassisga o‘tkazasizmi?",
+      staff: "Hisobni xodimga o‘tkazasizmi?",
+    },
+    sessions: "Hisobning barcha sessiyalari darhol tugatiladi; u qayta kirishi kerak bo‘ladi.",
+    consequences: {
+      specialist: [
+        "Hisob faqat «Mening jadvalim»ga kiradi; boshqaruv paneli yopiladi.",
+        "Menejer huquqlari bo‘lsa, olib tashlanadi.",
+        "Hisobning avvalgi profili bo‘lsa, o‘sha profil qayta ishlatiladi va e’lon qilinmagan holda qoladi: e’lon qilishdan oldin uni Mutaxassislar bo‘limida tekshiring. Profil bo‘lmasa, qoralama yaratiladi.",
+      ],
+      staff: [
+        "Profil e’londan olinadi: yangi yozilishlar to‘xtaydi.",
+        "Profil va qabullar tarixi shu hisobda qoladi.",
+        "Kelgusi qabullar o‘z-o‘zidan o‘zgarmaydi: ularni xodimlar ko‘chirishi yoki bekor qilishi kerak.",
+      ],
+    },
+    done: {
+      specialist: "Hisob mutaxassisga o‘tkazildi",
+      staff: "Hisob xodimga o‘tkazildi",
+    },
+    reviewProfile: "Profilni tekshirib, tayyor bo‘lgach Mutaxassislar bo‘limida e’lon qiling.",
+    upcoming: (_n: number, shown: string) =>
+      `To‘xtatilgan profilda ${shown} ta kelgusi qabul bor. Ularni ko‘chiring yoki bekor qiling.`,
+    openAppointments: "Qabullarni ochish",
+    openProfile: "Profilni ochish",
+    close: "Yopish",
+  },
   status: { label: "Holat", active: "Faol", inactive: "Nofaol" },
   search: "Ism yoki email",
   pageSize: "Sahifadagi qatorlar",
@@ -109,7 +165,9 @@ const uz = {
   edit: {
     title: "Xodimni tahrirlash",
     fullName: "To‘liq ism",
-    emailLocked: "Emailni o‘zgartirib bo‘lmaydi: kerak bo‘lsa, yangi xodim qo‘shing.",
+    email: "Email",
+    emailHint:
+      "Kirish manzili. O‘zgartirilsa, hisob (va mutaxassis profili) o‘sha-o‘sha qoladi; eski parol havolalari bekor qilinadi.",
     submit: "Saqlash",
     submitting: "Saqlanmoqda…",
     saved: "Xodim saqlandi",
@@ -147,6 +205,10 @@ const uz = {
   },
   credentials: {
     invited: "Xodim qo‘shildi",
+    invitedSpecialist: "Mutaxassis taklif qilindi",
+    specialistDraft:
+      "Qoralama profil yaratildi. Mutaxassislar bo‘limida uni to‘ldiring, klinika va xizmatlarni biriktiring va e’lon qiling.",
+    openProfile: "Profilni ochish",
     resetPassword: "Yangi vaqtinchalik parol",
     resetLink: "Parol tiklandi",
     resent: "Havola yuborildi",
@@ -204,6 +266,63 @@ export const staffCopy = {
     neverSignedIn: "Ещё не входил",
     none: "—",
     roles: { manager: "Менеджер", staff: "Сотрудник", specialist: "Специалист" },
+    roleField: {
+      label: "Роль",
+      descriptions: {
+        staff: "Доступ к повседневной работе в панели.",
+        manager: "Доступ к панели и управлению аккаунтами сотрудников.",
+        specialist: "Только «Моё расписание»: своё расписание, профиль и аккаунт.",
+      },
+      specialistDisabled: "Приглашения специалистов отключены в этой среде.",
+      specialistInvite:
+        "Вместе с аккаунтом создаётся черновик профиля специалиста. Заполните и опубликуйте его в разделе «Специалисты».",
+      specialistFixed:
+        "Аккаунт специалиста не может быть менеджером: при необходимости сначала переведите его в сотрудники.",
+      superuserBlock: "Роль суперадминистратора защищена.",
+    },
+    specialistRole: {
+      title: "Роль специалиста",
+      toSpecialistText: "После перевода в специалисты аккаунт видит только «Моё расписание».",
+      toStaffText:
+        "После перевода в сотрудники аккаунт получит доступ к панели; профиль специалиста будет приостановлен.",
+      toSpecialist: "Перевести в специалисты",
+      toStaff: "Перевести в сотрудники",
+      blocked: {
+        self: "Нельзя менять роль своего аккаунта.",
+        inactive: "Сначала активируйте аккаунт снова.",
+        superuser: "Роль суперадминистратора изменить нельзя.",
+        opsConsole: "Сначала отзовите доступ к операционной консоли.",
+        disabled: "Аккаунты специалистов отключены в этой среде.",
+      },
+      confirmTitle: {
+        specialist: "Перевести аккаунт в специалисты?",
+        staff: "Перевести аккаунт в сотрудники?",
+      },
+      sessions: "Все сеансы аккаунта сразу завершатся; потребуется войти заново.",
+      consequences: {
+        specialist: [
+          "Аккаунт получит доступ только к «Моему расписанию»; панель станет недоступна.",
+          "Права менеджера, если они есть, будут сняты.",
+          "Если у аккаунта уже был профиль, он будет использован снова и останется неопубликованным: проверьте его в разделе «Специалисты» перед публикацией. Если профиля нет, будет создан черновик.",
+        ],
+        staff: [
+          "Профиль будет снят с публикации: новые записи прекратятся.",
+          "Профиль и история приёмов останутся у этого аккаунта.",
+          "Предстоящие приёмы сами не изменятся: сотрудникам нужно перенести или отменить их.",
+        ],
+      },
+      done: {
+        specialist: "Аккаунт переведён в специалисты",
+        staff: "Аккаунт переведён в сотрудники",
+      },
+      reviewProfile:
+        "Проверьте профиль и опубликуйте его в разделе «Специалисты», когда он будет готов.",
+      upcoming: (n: number, shown: string) =>
+        `У приостановленного профиля ${shown} ${pluralRu(n, ["предстоящий приём", "предстоящих приёма", "предстоящих приёмов"])}. Перенесите или отмените их.`,
+      openAppointments: "Открыть приёмы",
+      openProfile: "Открыть профиль",
+      close: "Закрыть",
+    },
     status: { label: "Статус", active: "Активные", inactive: "Неактивные" },
     search: "Имя или почта",
     pageSize: "Строк на странице",
@@ -283,7 +402,9 @@ export const staffCopy = {
     edit: {
       title: "Изменение сотрудника",
       fullName: "Полное имя",
-      emailLocked: "Почту изменить нельзя: при необходимости добавьте нового сотрудника.",
+      email: "Почта",
+      emailHint:
+        "Адрес для входа. При смене аккаунт (и профиль специалиста) остаётся тем же; прежние ссылки для пароля отзываются.",
       submit: "Сохранить",
       submitting: "Сохранение…",
       saved: "Сотрудник сохранён",
@@ -321,6 +442,10 @@ export const staffCopy = {
     },
     credentials: {
       invited: "Сотрудник добавлен",
+      invitedSpecialist: "Специалист приглашён",
+      specialistDraft:
+        "Создан черновик профиля. В разделе «Специалисты» заполните его, назначьте клинику и услуги и опубликуйте.",
+      openProfile: "Открыть профиль",
       resetPassword: "Новый временный пароль",
       resetLink: "Пароль сброшен",
       resent: "Ссылка отправлена",
@@ -367,6 +492,62 @@ export const staffCopy = {
     neverSignedIn: "Never signed in",
     none: "—",
     roles: { manager: "Manager", staff: "Staff", specialist: "Specialist" },
+    roleField: {
+      label: "Role",
+      descriptions: {
+        staff: "Can use the admin panel for day-to-day work.",
+        manager: "Can use the admin panel and manage staff accounts.",
+        specialist: "Only My Schedule: their own schedule, profile and account.",
+      },
+      specialistDisabled: "Specialist invitations are disabled in this environment.",
+      specialistInvite:
+        "A draft specialist profile is created with the account. Complete and publish it in Specialists.",
+      specialistFixed:
+        "A Specialist account cannot be a manager: change it to Staff first if needed.",
+      superuserBlock: "The superuser role is protected.",
+    },
+    specialistRole: {
+      title: "Specialist role",
+      toSpecialistText: "Once changed to Specialist, the account only sees My Schedule.",
+      toStaffText:
+        "Once changed to Staff, the account uses the admin panel; the specialist profile is paused.",
+      toSpecialist: "Change to Specialist",
+      toStaff: "Change to Staff",
+      blocked: {
+        self: "You cannot change the role of your own account.",
+        inactive: "Reactivate the account first.",
+        superuser: "The role of a superuser account cannot be changed.",
+        opsConsole: "Revoke operations console access first.",
+        disabled: "Specialist accounts are disabled in this environment.",
+      },
+      confirmTitle: {
+        specialist: "Change this account to Specialist?",
+        staff: "Change this account to Staff?",
+      },
+      sessions: "All sessions of the account end at once; they will need to sign in again.",
+      consequences: {
+        specialist: [
+          "The account only has access to My Schedule; the admin panel closes.",
+          "Manager permissions, if any, are removed.",
+          "If the account already had a profile, that profile is reused and stays unpublished: review it in Specialists before republishing. Otherwise a draft profile is created.",
+        ],
+        staff: [
+          "The profile is unpublished: new bookings stop.",
+          "The profile and its appointment history stay on this account.",
+          "Upcoming visits do not change by themselves: staff must reschedule or cancel them.",
+        ],
+      },
+      done: {
+        specialist: "Account changed to Specialist",
+        staff: "Account changed to Staff",
+      },
+      reviewProfile: "Review the profile and publish it in Specialists when it is ready.",
+      upcoming: (n: number, shown: string) =>
+        `The paused profile has ${shown} upcoming ${pluralEn(n, ["visit", "visits"])}. Reschedule or cancel them.`,
+      openAppointments: "Open appointments",
+      openProfile: "Open profile",
+      close: "Close",
+    },
     status: { label: "Status", active: "Active", inactive: "Inactive" },
     search: "Name or email",
     pageSize: "Rows per page",
@@ -446,7 +627,9 @@ export const staffCopy = {
     edit: {
       title: "Edit staff member",
       fullName: "Full name",
-      emailLocked: "The email cannot be changed: add a new staff member if needed.",
+      email: "Email",
+      emailHint:
+        "The sign-in address. Changing it keeps the same account (and specialist profile); earlier password links are revoked.",
       submit: "Save",
       submitting: "Saving…",
       saved: "Staff member saved",
@@ -484,6 +667,10 @@ export const staffCopy = {
     },
     credentials: {
       invited: "Staff member added",
+      invitedSpecialist: "Specialist invited",
+      specialistDraft:
+        "A draft profile was created. In Specialists, complete it, assign clinics and services, and publish it.",
+      openProfile: "Open profile",
       resetPassword: "New temporary password",
       resetLink: "Password reset",
       resent: "Link sent",

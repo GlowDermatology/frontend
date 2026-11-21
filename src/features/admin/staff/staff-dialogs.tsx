@@ -1,32 +1,38 @@
 "use client";
 
-import { useId, useRef, useState, type FormEvent, type ReactNode } from "react";
+import type { Route } from "next";
+import Link from "next/link";
+import { useRef, useState, type FormEvent, type ReactNode } from "react";
 
-import { Button } from "@/components/ui/button";
-import { Dialog } from "@/components/ui/dialog";
+import { Button, buttonStyles } from "@/components/ui/button";
+import { AlertDialog, Dialog } from "@/components/ui/dialog";
 import { Field, TextInput } from "@/components/ui/field";
 import { FormErrorSummary } from "@/components/ui/form-errors";
 import { Icon } from "@/components/ui/icon";
-import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/toast";
+import { changeSpecialistRole, inviteSpecialist } from "@/data/specialist.actions";
 import { inviteStaff, resetStaffPassword, updateStaff } from "@/data/staff.actions";
 import { EMAIL_MAX, staffSchemas } from "@/data/staff.schema";
 import {
   STAFF_FULL_NAME_MAX,
+  specialistRoleBlock,
+  staffAccountRole,
+  type SpecialistRoleChange,
+  type StaffAccountRole,
   type StaffAccountRow,
   type StaffCredentials,
   type StaffPasswordDelivery,
 } from "@/domain/staff";
 import { revealFirstError, useErrorReveal } from "@/lib/forms/reveal";
 import { useCopy } from "@/lib/i18n/admin-context";
-import { inviteSpecialist } from "@/data/specialist.actions";
-import { useLocalized } from "@/lib/i18n/admin-hooks";
+import { useFormat, useLocalized } from "@/lib/i18n/admin-hooks";
 
 import { runAction } from "../shared/action-client";
 import { partitionFieldErrors } from "../shared/field-errors";
-import type { useIdempotencyKey } from "../shared/idempotency";
+import { useIdempotencyKey } from "../shared/idempotency";
 import { staffCopy } from "./copy";
 import { DeliveryChoice } from "./delivery-choice";
+import { AccountRoleField } from "./role-fields";
 
 type Idempotency = ReturnType<typeof useIdempotencyKey>;
 type Errors = Record<string, string>;
@@ -81,62 +87,31 @@ function DialogActions({
   );
 }
 
-/** «Menejer» switch with its explanation; `reason` keeps it focusable but unchangeable. */
-function ManagerSwitch({
-  checked,
-  onChange,
-  reason,
-}: {
-  checked: boolean;
-  onChange: (value: boolean) => void;
-  reason?: string | null;
-}) {
-  const t = useCopy(staffCopy).manager;
-  const id = useId();
-  return (
-    <div
-      data-disabled={reason ? "" : undefined}
-      className="flex items-center justify-between gap-4 rounded-md border border-line bg-surface px-4 py-3.5"
-    >
-      <span className="flex flex-col gap-0.5">
-        <span className="text-label text-ink" aria-hidden="true">
-          {t.label}
-        </span>
-        <span id={`${id}-hint`} className="text-caption font-normal text-ink-muted">
-          {reason ?? t.hint}
-        </span>
-      </span>
-      <Switch
-        checked={checked}
-        onCheckedChange={onChange}
-        aria-label={t.label}
-        aria-describedby={reason ? undefined : `${id}-hint`}
-        disabledReason={reason}
-      />
-    </div>
-  );
-}
-
+/**
+ * «Yangi xodim»: email, full name, the role (Staff, Manager or Specialist) and the «Kirish usuli».
+ * A Specialist goes through `specialists/invite/`, which creates the account and its draft
+ * profile together (offered only with `capabilities.specialist_provisioning`).
+ */
 export function InviteDialog({
   open,
   onOpenChange,
   idempotency,
   emailInvite,
   onInvited,
-  specialist,
+  specialistProvisioning,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   idempotency: Idempotency;
   emailInvite: boolean;
   onInvited: (data: StaffCredentials) => void;
-  specialist?: { id: string; name: string; title: string; description: string };
+  specialistProvisioning?: boolean;
 }) {
   const t = useCopy(staffCopy);
   const schema = useLocalized(staffSchemas).invite;
   const [email, setEmail] = useState("");
-  const [fullName, setFullName] = useState(specialist?.name ?? "");
-  const [isManager, setIsManager] = useState(false);
+  const [fullName, setFullName] = useState("");
+  const [role, setRole] = useState<StaffAccountRole>("staff");
   const [delivery, setDelivery] = useState<StaffPasswordDelivery>(defaultDelivery(emailInvite));
   const [errors, setErrors] = useState<Errors>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -164,7 +139,7 @@ export function InviteDialog({
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (inFlight.current) return;
-    const values = { email, fullName, isManager, delivery };
+    const values = { email, fullName, isManager: role === "manager", delivery };
     const local = schema.safeParse(values);
     if (!local.success) {
       setErrors(issuesToErrors(local.error.issues));
@@ -178,8 +153,8 @@ export function InviteDialog({
     setFormError(null);
     const result = idempotency.settle(
       await runAction((csrf) =>
-        specialist
-          ? inviteSpecialist(specialist.id, values, idempotency.key, csrf)
+        role === "specialist"
+          ? inviteSpecialist(values, idempotency.key, csrf)
           : inviteStaff(values, idempotency.key, csrf),
       ),
     );
@@ -203,8 +178,8 @@ export function InviteDialog({
         if (busy) return;
         onOpenChange(next);
       }}
-      title={specialist?.title ?? t.invite.title}
-      description={specialist?.description ?? t.invite.description}
+      title={t.invite.title}
+      description={t.invite.description}
       className="max-w-[640px]"
     >
       <form ref={formRef} noValidate onSubmit={onSubmit} className="flex flex-col gap-5">
@@ -247,7 +222,15 @@ export function InviteDialog({
             )}
           </Field>
         </div>
-        {!specialist && <ManagerSwitch checked={isManager} onChange={setIsManager} />}
+        <AccountRoleField
+          role={role}
+          disabledReason={busy && t.common.busy}
+          restrictions={{
+            specialist: specialistProvisioning ? undefined : t.roleField.specialistDisabled,
+          }}
+          hint={role === "specialist" ? t.roleField.specialistInvite : undefined}
+          onChange={setRole}
+        />
         <DeliveryChoice
           value={delivery}
           onChange={(value) => {
@@ -269,25 +252,38 @@ export function InviteDialog({
   );
 }
 
+/**
+ * «Xodimni tahrirlash»: the full name, the login email (same account and profile) and Staff /
+ * Manager. Switching between Staff and Specialist is a separate confirmed action
+ * (`onChangeRole` opens `RoleChangeDialog`), offered only for an eligible account: not one's own,
+ * a superuser, an account with operations-console access or an inactive one.
+ */
 export function EditDialog({
   row,
-  self,
+  selfId,
+  specialistProvisioning,
   idempotency,
   onClose,
   onSaved,
+  onChangeRole,
 }: {
   row: StaffAccountRow;
-  self: boolean;
+  selfId: string;
+  specialistProvisioning?: boolean;
   idempotency: Idempotency;
   onClose: () => void;
   onSaved: (row: StaffAccountRow) => void;
+  onChangeRole: (row: StaffAccountRow, role: "staff" | "specialist") => void;
 }) {
   const t = useCopy(staffCopy);
   const toast = useToast();
   const schema = useLocalized(staffSchemas).update;
-  const baseline = { fullName: row.fullName, isManager: row.isManager };
+  const self = row.id === selfId;
+  const currentRole = staffAccountRole(row);
+  const baseline = { fullName: row.fullName, isManager: row.isManager, email: row.email };
   const [fullName, setFullName] = useState(row.fullName);
-  const [isManager, setIsManager] = useState(row.isManager);
+  const [email, setEmail] = useState(row.email);
+  const [role, setRole] = useState<StaffAccountRole>(currentRole);
   const [errors, setErrors] = useState<Errors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -295,11 +291,21 @@ export function EditDialog({
   const inFlight = useRef(false);
   const formRef = useRef<HTMLFormElement>(null);
   const reveal = useErrorReveal(formRef);
+  const pendingRoleChange = useRef<"staff" | "specialist" | null>(null);
+
+  const block = specialistRoleBlock(row, selfId);
+  const target = currentRole === "specialist" ? "staff" : "specialist";
+  // Becoming a Specialist needs the capability; going back to Staff always works.
+  const roleChangeReason = block
+    ? t.specialistRole.blocked[block]
+    : target === "specialist" && !specialistProvisioning
+      ? t.specialistRole.blocked.disabled
+      : null;
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (inFlight.current) return;
-    const values = { fullName, isManager };
+    const values = { fullName, isManager: role === "manager", email };
     const local = schema.safeParse(values);
     if (!local.success) {
       setErrors(issuesToErrors(local.error.issues));
@@ -319,10 +325,10 @@ export function EditDialog({
     inFlight.current = false;
     setBusy(false);
     if (!result.ok) {
-      const split = partitionFieldErrors(result, ["fullName"]);
+      const split = partitionFieldErrors(result, ["fullName", "email"]);
       setErrors(split.fieldErrors);
       setFormError(split.formError);
-      if (!split.fieldErrors.fullName) {
+      if (!split.fieldErrors.fullName && !split.fieldErrors.email) {
         toast({
           tone: "danger",
           title: t.common.failed,
@@ -343,10 +349,15 @@ export function EditDialog({
         if (busy) return;
         setOpen(next);
       }}
-      onCloseAutoFocus={() => onClose()}
+      onCloseAutoFocus={() => {
+        onClose();
+        // The confirmation opens once the focus is back on the row's menu (it returns there).
+        const next = pendingRoleChange.current;
+        if (next) onChangeRole(row, next);
+      }}
       title={t.edit.title}
-      description={row.email}
-      className="max-w-[520px]"
+      description={row.displayName}
+      className="max-w-[560px]"
     >
       <form ref={formRef} noValidate onSubmit={onSubmit} className="flex flex-col gap-4">
         <Field label={t.edit.fullName} error={errors.fullName}>
@@ -361,17 +372,73 @@ export function EditDialog({
             />
           )}
         </Field>
-        {!row.isSpecialist && (
-          <ManagerSwitch
-            checked={isManager}
-            onChange={setIsManager}
-            reason={self ? t.manager.selfHint : null}
+        <Field label={t.edit.email} error={errors.email} hint={t.edit.emailHint}>
+          {(c) => (
+            <TextInput
+              {...c}
+              name="email"
+              type="email"
+              inputMode="email"
+              autoComplete="off"
+              spellCheck={false}
+              maxLength={EMAIL_MAX}
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+          )}
+        </Field>
+        {currentRole === "specialist" ? (
+          <AccountRoleField
+            role="specialist"
+            roles={["specialist"]}
+            disabledReason={t.roleField.specialistFixed}
+            onChange={() => undefined}
+          />
+        ) : (
+          <AccountRoleField
+            role={role}
+            roles={["staff", "manager"]}
+            disabledReason={
+              busy
+                ? t.common.busy
+                : row.isSuperuser
+                  ? t.roleField.superuserBlock
+                  : self && row.isManager
+                    ? t.manager.selfHint
+                    : null
+            }
+            onChange={setRole}
           />
         )}
-        <p className="m-0 flex items-start gap-1.5 text-caption font-normal text-ink-muted">
-          <Icon name="lock" size={14} className="mt-px shrink-0" />
-          {t.edit.emailLocked}
-        </p>
+
+        <section
+          aria-labelledby="specialist-role-title"
+          className="flex flex-col gap-2 rounded-md border border-line bg-surface p-3.5"
+          data-specialist-role=""
+        >
+          <h3 id="specialist-role-title" className="m-0 text-label text-ink">
+            {t.specialistRole.title}
+          </h3>
+          <p className="m-0 text-body-sm text-ink-muted">
+            {target === "specialist"
+              ? t.specialistRole.toSpecialistText
+              : t.specialistRole.toStaffText}
+          </p>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="self-start"
+            disabledReason={busy ? t.common.busy : roleChangeReason}
+            onClick={() => {
+              pendingRoleChange.current = target;
+              setOpen(false);
+            }}
+          >
+            <Icon name="users" size={16} />
+            {target === "specialist" ? t.specialistRole.toSpecialist : t.specialistRole.toStaff}
+          </Button>
+        </section>
+
         <FormAlert message={formError} label={t.common.failed} />
         <DialogActions busy={busy} onCancel={() => setOpen(false)}>
           <Button type="submit" busy={busy}>
@@ -381,6 +448,165 @@ export function EditDialog({
         </DialogActions>
       </form>
     </Dialog>
+  );
+}
+
+/**
+ * The one confirmed Staff ↔ Specialist change (`POST staff/{id}/specialist-role/`): the
+ * consequences first (sessions end; → Staff pauses new bookings, the profile and its history stay,
+ * outstanding visits are for staff to handle; → Specialist reuses the existing profile, to be
+ * reviewed before republishing). A 409 (own account, inactive, superuser, operations console,
+ * last active manager) shows the server's message. After → Staff with visits ahead, the dialog
+ * stays open with their count and a link to the appointments of that specialist.
+ */
+export function RoleChangeDialog({
+  row,
+  role,
+  onClose,
+  onChanged,
+}: {
+  row: StaffAccountRow;
+  role: "staff" | "specialist";
+  onClose: () => void;
+  onChanged: (change: SpecialistRoleChange) => void;
+}) {
+  const t = useCopy(staffCopy);
+  const r = t.specialistRole;
+  const fmt = useFormat();
+  const toast = useToast();
+  const idempotency = useIdempotencyKey();
+  const [open, setOpen] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<SpecialistRoleChange | null>(null);
+  const inFlight = useRef(false);
+
+  const confirm = async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
+    setError(null);
+    const result = idempotency.settle(
+      await runAction((csrf) => changeSpecialistRole(row.id, role, idempotency.key, csrf)),
+    );
+    inFlight.current = false;
+    setBusy(false);
+    if (!result.ok) return setError(result.error);
+    onChanged(result.data);
+    toast({ tone: "success", title: r.done[role], description: result.data.staff.displayName });
+    // Something is left to do: the visits of the paused profile, or the profile to review.
+    if (
+      result.data.upcomingAppointments > 0 ||
+      (role === "specialist" && result.data.specialistId)
+    ) {
+      setDone(result.data);
+      return;
+    }
+    setOpen(false);
+  };
+
+  const appointmentsHref = (specialistId: string) =>
+    `/admin/appointments?view=month&specialist=${encodeURIComponent(specialistId)}` as Route;
+
+  return (
+    <AlertDialog
+      open={open}
+      onOpenChange={(next) => {
+        if (busy) return;
+        setOpen(next);
+      }}
+      onCloseAutoFocus={() => onClose()}
+      title={done ? r.done[role] : r.confirmTitle[role]}
+      description={
+        <span className="flex flex-col gap-2 text-[14px] leading-5 text-ink">
+          <span className="font-semibold">
+            {row.displayName} · {row.email}
+          </span>
+          {!done && (
+            <>
+              <span className="flex items-start gap-2">
+                <Icon name="lock" size={16} className="mt-0.5 shrink-0 text-gold-ink" />
+                {r.sessions}
+              </span>
+              <ul className="m-0 flex list-disc flex-col gap-1 pl-5">
+                {r.consequences[role].map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </>
+          )}
+        </span>
+      }
+    >
+      {done && done.upcomingAppointments > 0 && (
+        <p
+          className="m-0 flex items-start gap-2 rounded-md bg-warning-soft px-3.5 py-3 text-body-sm text-ink"
+          data-upcoming={done.upcomingAppointments}
+        >
+          <Icon name="alert-triangle" size={16} className="mt-0.5 shrink-0 text-warning" />
+          {r.upcoming(done.upcomingAppointments, fmt.number(done.upcomingAppointments))}
+        </p>
+      )}
+      {done && role === "specialist" && (
+        <p className="m-0 text-body-sm text-ink">{r.reviewProfile}</p>
+      )}
+      {error && (
+        <p
+          role="alert"
+          className="m-0 flex items-start gap-1.5 text-body-sm font-semibold text-ink"
+        >
+          <Icon name="alert-circle" size={16} className="mt-px shrink-0 text-danger" />
+          <span>
+            <span className="sr-only">{`${t.common.failed}: `}</span>
+            {error}
+          </span>
+        </p>
+      )}
+      <div className="mt-1.5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        {done ? (
+          <>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              {r.close}
+            </Button>
+            {done.specialistId &&
+              (done.upcomingAppointments > 0 ? (
+                <Link
+                  href={appointmentsHref(done.specialistId)}
+                  className={buttonStyles({ variant: "primary" })}
+                >
+                  <Icon name="calendar" size={18} />
+                  {r.openAppointments}
+                </Link>
+              ) : (
+                <Link
+                  href={`/admin/specialists/${done.specialistId}` as Route}
+                  className={buttonStyles({ variant: "primary" })}
+                >
+                  <Icon name="user" size={18} />
+                  {r.openProfile}
+                </Link>
+              ))}
+          </>
+        ) : (
+          <>
+            <Button
+              variant="outline"
+              disabledReason={busy && t.common.busy}
+              onClick={() => setOpen(false)}
+            >
+              {t.common.cancel}
+            </Button>
+            <Button
+              variant={role === "staff" ? "destructive" : "primary"}
+              onClick={confirm}
+              busy={busy}
+            >
+              {busy ? t.common.working : role === "specialist" ? r.toSpecialist : r.toStaff}
+            </Button>
+          </>
+        )}
+      </div>
+    </AlertDialog>
   );
 }
 

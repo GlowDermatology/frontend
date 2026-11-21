@@ -25,36 +25,36 @@ import { appointmentsCopy } from "../appointments/copy";
 import { customerName } from "../appointments/labels";
 import { specialistsCopy } from "./copy";
 
-import { SpecialistAccessCard } from "./access-card";
 import { HoursCard } from "./hours-card";
 import { OffersCard } from "./offers-card";
 import { ProfileCard } from "./profile-card";
-import type { StaffOption } from "./profile-fields";
+import { OwnerCard, PublishChecklist } from "./publish-cards";
 import { BlocksCard, OverridesCard } from "./schedule-cards";
 
 interface SpecialistDetailViewProps {
   specialist: ClinicSpecialist;
+  /** A manager: the owner card links to «Xodimlar» for account changes. */
   manageAccess?: boolean;
-  emailInvite?: boolean;
   services: ReadonlyArray<ClinicService>;
   clinics: ReadonlyArray<ClinicLocation>;
   overrides: ReadonlyArray<HoursOverride>;
   blocks: ReadonlyArray<BlockedPeriod>;
   conflicts: ReadonlyArray<DayAppointment>;
-  staffOptions: ReadonlyArray<StaffOption>;
   /** Today in Tashkent (`YYYY-MM-DD`), the earliest date an override or a block may take. */
   today: string;
 }
 
 /**
  * One specialist (gap FND-1, contract §2.17): the profile and photo, the
+ * publish checklist, the owner account (read-only), the
  * offered services with their prices and durations, the weekly hours, the
  * date overrides and blocked periods, and the booked appointments the
  * schedule no longer covers. Booked appointments never change when any of
  * this does; only new bookings follow it.
  */
 export function SpecialistDetailView(props: SpecialistDetailViewProps) {
-  const t = useCopy(specialistsCopy).detail;
+  const copy = useCopy(specialistsCopy);
+  const t = copy.detail;
   const m = useCopy(clinicDataCopy);
   const fmt = useFormat();
   const [source, setSource] = useState(props.specialist);
@@ -75,7 +75,7 @@ export function SpecialistDetailView(props: SpecialistDetailViewProps) {
         <div className="flex flex-col gap-1">
           <span className="text-body-sm text-ink-muted">
             {t.summary(
-              m.role[specialist.role],
+              specialist.role ? m.role[specialist.role] : copy.list.noRole,
               fmt.number(bookable),
               fmt.number(specialist.upcomingAppointments),
             )}
@@ -85,39 +85,24 @@ export function SpecialistDetailView(props: SpecialistDetailViewProps) {
               {specialist.name}
             </h1>
             {specialist.isActive ? (
-              <Badge tone="success">{m.status.active}</Badge>
+              <Badge tone="success">{copy.list.published}</Badge>
             ) : (
-              <Badge tone="muted">{m.status.inactive}</Badge>
+              <Badge tone="muted">{copy.list.draft}</Badge>
             )}
           </div>
         </div>
       </div>
-      {!specialist.isActive && (bookable === 0 || specialist.workingHours.length === 0) && (
-        <p className="m-0 flex items-start gap-2 rounded-md bg-warning-soft px-3.5 py-3 text-body-sm text-ink">
-          <Icon name="info" size={18} className="mt-px shrink-0 text-gold-ink" />
-          {t.notBookable}
-        </p>
-      )}
 
       {props.conflicts.length > 0 && <ConflictsCard conflicts={props.conflicts} />}
 
       <div className="flex flex-wrap items-start gap-4">
         <div className="flex min-w-0 flex-[3_1_560px] flex-col gap-4">
-          <ProfileCard
-            specialist={specialist}
-            staffOptions={props.staffOptions}
-            clinics={props.clinics}
-            onUpdated={setSpecialist}
-          />
-          {props.manageAccess && (
-            <SpecialistAccessCard
-              specialist={specialist}
-              emailInvite={props.emailInvite ?? false}
-            />
-          )}
+          <ProfileCard specialist={specialist} clinics={props.clinics} onUpdated={setSpecialist} />
           <OffersCard specialist={specialist} services={props.services} onUpdated={setSpecialist} />
         </div>
         <div className="flex min-w-0 flex-[2_1_380px] flex-col gap-4">
+          <PublishChecklist specialist={specialist} />
+          <OwnerCard owner={specialist.account} manageAccess={props.manageAccess ?? false} />
           <HoursCard specialist={specialist} clinics={assigned} onUpdated={setSpecialist} />
         </div>
       </div>
@@ -126,7 +111,7 @@ export function SpecialistDetailView(props: SpecialistDetailViewProps) {
           <OverridesCard
             specialistId={specialist.id}
             clinics={assigned}
-            defaultClinicId={specialist.locationId}
+            defaultClinicId={specialist.locationId ?? ""}
             overrides={props.overrides}
             today={props.today}
           />

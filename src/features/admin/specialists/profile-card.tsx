@@ -13,6 +13,7 @@ import { specialistFormValues as toValues } from "@/data/api/mappers/clinic";
 import { setSpecialistPhoto, updateSpecialist } from "@/data/clinic.actions";
 import { clinicSchemas } from "@/data/clinic.schema";
 import { imageFileProblem, IMAGE_TYPES } from "@/data/products.schema";
+import type { ActionResult } from "@/data/types";
 import {
   specialistRecommendedToAsk,
   type ClinicLocation,
@@ -39,26 +40,25 @@ import {
   profileFieldLabel,
   SpecialistProfileFields,
   specialistRecommendedFields,
-  type StaffOption,
 } from "./profile-fields";
 
 /**
  * Profile and photo of a specialist (contract §2.17 `PATCH specialists/{id}/`,
- * `PUT|DELETE …/photo/`). Switching «Faol» off with appointments ahead is
- * refused with the server's count (409); «Baribir nofaol qilish» repeats
- * the save with `force`, after which the appointments stay as they are.
+ * `PUT|DELETE …/photo/`). «Profilni e’lon qilish» stays off while the publish
+ * checklist is not complete (the server also refuses with 409 and what is
+ * missing). Unpublishing with appointments ahead is refused with the
+ * server's count (409); «Baribir e’londan olish» repeats the save with
+ * `force`, after which the appointments stay as they are.
  * Invalid fields are listed and the first one revealed (also in another
  * language's tab); an active profile without qualifications, bio or photo
  * asks "save anyway?".
  */
 export function ProfileCard({
   specialist,
-  staffOptions,
   clinics,
   onUpdated,
 }: {
   specialist: ClinicSpecialist;
-  staffOptions: ReadonlyArray<StaffOption>;
   clinics: ReadonlyArray<ClinicLocation>;
   onUpdated: (specialist: ClinicSpecialist) => void;
 }) {
@@ -139,7 +139,8 @@ export function ProfileCard({
     inFlight.current = false;
     setBusy(false);
     if (!result.ok) {
-      if (result.code === "conflict" && !force) {
+      // Only an unpublish has a «do it anyway»; a refused publish lists what is missing.
+      if (result.code === "conflict" && !force && baseline.isActive && !local.data.isActive) {
         setConflict(result.error);
         return;
       }
@@ -187,9 +188,8 @@ export function ProfileCard({
             experience={experience}
             onExperienceChange={setExperience}
             errors={errors}
-            staffOptions={staffOptions}
             clinics={clinics}
-            linkedStaff={specialist.staffUser}
+            publishBlocked={specialist.publishBlockers.length > 0 ? t.publishBlocked : null}
             activeHint={
               specialist.upcomingAppointments > 0
                 ? t.inactiveHint(
@@ -250,14 +250,28 @@ export function ProfileCard({
   );
 }
 
-/** The photo: picked and uploaded at once (JPEG/PNG/WebP ≤ 5 MB), or removed after a confirmation. */
-function PhotoField({
+type PhotoAction = (
+  form: FormData | null,
+  key: string,
+  csrf: string,
+) => Promise<ActionResult<ClinicSpecialist | null>>;
+
+/**
+ * The photo: picked and uploaded at once (JPEG/PNG/WebP ≤ 5 MB), or removed after a confirmation.
+ * `action` replaces the staff route (`specialists/{id}/photo/`), e.g. with the specialist's own
+ * `specialist/profile/photo/`.
+ */
+export function PhotoField({
   specialist,
   onUpdated,
+  action,
 }: {
   specialist: ClinicSpecialist;
   onUpdated: (specialist: ClinicSpecialist) => void;
+  action?: PhotoAction;
 }) {
+  const send: PhotoAction =
+    action ?? ((form, key, csrf) => setSpecialistPhoto(specialist.id, form, key, csrf));
   const copy = useCopy(specialistsCopy);
   const t = copy.photo;
   const locale = useAdminLocale();
@@ -289,9 +303,7 @@ function PhotoField({
     setBusy(true);
     const form = new FormData();
     form.set("photo", file, file.name);
-    const result = idempotency.settle(
-      await runAction((csrf) => setSpecialistPhoto(specialist.id, form, idempotency.key, csrf)),
-    );
+    const result = idempotency.settle(await runAction((csrf) => send(form, idempotency.key, csrf)));
     setBusy(false);
     if (!result.ok) return fail(result.fieldErrors?.photo ?? result.error);
     if (result.data) {
@@ -306,14 +318,19 @@ function PhotoField({
   const remove = async () => {
     if (busy) return;
     setBusy(true);
-    const result = idempotency.settle(
-      await runAction((csrf) => setSpecialistPhoto(specialist.id, null, idempotency.key, csrf)),
-    );
+    const result = idempotency.settle(await runAction((csrf) => send(null, idempotency.key, csrf)));
     setBusy(false);
     setConfirmRemove(false);
     if (!result.ok) return fail(result.error);
     setPreview(null);
-    onUpdated({ ...specialist, photoUrl: null });
+    // The answer is a 204: the checklist gains «Rasm» as the server's next read would show.
+    onUpdated({
+      ...specialist,
+      photoUrl: null,
+      publishBlockers: specialist.publishBlockers.includes("photo")
+        ? specialist.publishBlockers
+        : [...specialist.publishBlockers, "photo"],
+    });
     toast({ tone: "success", title: t.removed });
   };
 

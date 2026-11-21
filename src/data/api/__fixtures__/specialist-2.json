@@ -18,7 +18,14 @@
   "photo_medium_url": null,
   "location_id": 1,
   "location_ids": [1],
-  "staff_user": null,
+  "account": {
+    "id": 12,
+    "display_name": "Jasur Aliyev",
+    "email": "jasur@glowderma.uz",
+    "role": "specialist",
+    "is_active": true
+  },
+  "publish_blockers": [],
   "slot_step_min": 30,
   "position": 1,
   "is_active": true,

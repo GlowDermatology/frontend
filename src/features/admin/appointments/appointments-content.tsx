@@ -1,3 +1,4 @@
+import { optionalRead } from "@/data/api/optional-read";
 import { requireStaff } from "@/data/auth";
 import {
   defaultAppointmentDay,
@@ -6,7 +7,9 @@ import {
   getBookingMeta,
   getPendingAppointments,
 } from "@/data/appointments";
+import { getSpecialist } from "@/data/clinic";
 import { requestNow } from "@/data/now";
+import { SPECIALIST_ROLE_LABEL } from "@/domain/clinic";
 
 import type { SearchParams } from "../shared/url-state";
 import { AppointmentsView, type BoardData } from "./appointments-view";
@@ -30,10 +33,16 @@ export async function AppointmentsContent({
     getBookingMeta(),
   ]);
   const parsed = parseBoard(params, today);
-  // Only a bookable specialist can be the filter; an unknown id falls back to everyone.
-  const board: BoardState = meta.specialists.some((s) => s.id === parsed.specialist)
-    ? parsed
-    : { ...parsed, specialist: "" };
+  // A bookable specialist can be the filter; so can a paused (unpublished) profile, e.g. the
+  // visits left after its account was changed to Staff. An unknown id falls back to everyone.
+  const paused =
+    parsed.specialist && !meta.specialists.some((s) => s.id === parsed.specialist)
+      ? await optionalRead("paused specialist filter", () => getSpecialist(parsed.specialist), null)
+      : null;
+  const board: BoardState =
+    meta.specialists.some((s) => s.id === parsed.specialist) || paused
+      ? parsed
+      : { ...parsed, specialist: "" };
   const [data, pendingSummary, now] = await Promise.all([
     loadBoard(board),
     getPendingAppointments(),
@@ -44,6 +53,15 @@ export async function AppointmentsContent({
     name: s.name,
     role: s.role,
   }));
+  if (paused) {
+    specialists.push({
+      id: paused.id,
+      name: paused.name || paused.account?.displayName || paused.id,
+      // The board shows the Uzbek role label (a draft may have none yet).
+      role: (paused.role ? SPECIALIST_ROLE_LABEL[paused.role] : "") as BoardSpecialist["role"],
+      isActive: false,
+    });
+  }
 
   return (
     <AppointmentsView

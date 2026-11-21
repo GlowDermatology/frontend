@@ -27,7 +27,7 @@ export async function GET(request: Request) {
       rows: filterSpecialists(query).map((s) => [
         Number(s.id),
         s.name,
-        m.role[s.role],
+        s.role ? m.role[s.role] : "",
         s.experienceYears ?? "",
         s.services
           .filter((o) => o.isActive)

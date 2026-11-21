@@ -1,5 +1,7 @@
 "use client";
 
+import type { Route } from "next";
+import Link from "next/link";
 import { useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -24,7 +26,7 @@ export function credentialsTitle(
   shown: ShownCredentials,
   t: (typeof staffCopy)["uz"]["credentials"],
 ): string {
-  if (shown.kind === "invited") return t.invited;
+  if (shown.kind === "invited") return shown.data.specialistId ? t.invitedSpecialist : t.invited;
   if (shown.kind === "resent") return t.resent;
   return shown.data.temporaryPassword ? t.resetPassword : t.resetLink;
 }
@@ -127,6 +129,29 @@ export function CredentialsDialog({
             ) : null}
             {!password ? <p className="m-0 text-ink-muted">{t.linkActivation}</p> : null}
             {activation.demo ? <p className="m-0 text-ink-muted">{t.linkDemo}</p> : null}
+          </div>
+        </div>
+      ) : null}
+
+      {shown?.kind === "invited" && shown.data.specialistId ? (
+        <div
+          className="flex items-start gap-3 rounded-md border border-line bg-surface px-4 py-3.5"
+          data-specialist-draft=""
+        >
+          <span
+            aria-hidden="true"
+            className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-gold-soft text-gold-ink"
+          >
+            <Icon name="user" size={16} />
+          </span>
+          <div className="flex min-w-0 flex-col gap-1 text-body-sm text-ink">
+            <p className="m-0">{t.specialistDraft}</p>
+            <Link
+              href={`/admin/specialists/${shown.data.specialistId}` as Route}
+              className="self-start font-semibold text-ink underline decoration-line-strong underline-offset-4 hover:decoration-gold"
+            >
+              {t.openProfile}
+            </Link>
           </div>
         </div>
       ) : null}

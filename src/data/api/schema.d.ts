@@ -3,8 +3,8 @@
  * GENERATED FILE — do not edit by hand. Regenerate with `npm run gen:api`.
  *
  * Source: openapi/schema.yaml of the backend repository
- * Commit: 2ee842b37ce990b4f3374d9e5ad04d27be6ac936
- * Generated: 2026-11-21T19:25:38.424Z (openapi-typescript)
+ * Commit: af74c185d6e9b4add9d7d1268329babbc5705d71
+ * Generated: 2026-11-21T21:37:39.756Z (openapi-typescript)
  */
 
 export interface paths {
@@ -1929,6 +1929,39 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/specialist/profile/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["specialist_profile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["specialist_profile_update"];
+        trace?: never;
+    };
+    "/api/v1/admin/specialist/profile/photo/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description One multipart part `file` (JPEG, PNG or WebP, ≤ 5 MiB); replaces the current photo. */
+        put: operations["specialist_profile_photo_update"];
+        post?: never;
+        delete: operations["specialist_profile_photo_destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/specialist/weekly-hours/": {
         parameters: {
             query?: never;
@@ -1964,8 +1997,7 @@ export interface paths {
          */
         get: operations["admin_specialists_list"];
         put?: never;
-        /** @description Create a specialist with an explicit primary clinic and assigned clinics. Add the offered services and the working hours, then activate. */
-        post: operations["admin_specialists_create"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1997,38 +2029,6 @@ export interface paths {
         head?: never;
         /** @description Every field optional; texts merge leaf by leaf. `is_active: false` with requested/confirmed appointments ahead answers 409 `conflict` naming their count unless `force: true` (the appointments are kept either way). */
         patch: operations["admin_specialists_partial_update"];
-        trace?: never;
-    };
-    "/api/v1/admin/specialists/{id}/access/convert/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["admin_specialist_convert"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/specialists/{id}/access/invite/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["admin_specialist_invite"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
         trace?: never;
     };
     "/api/v1/admin/specialists/{id}/blocks/": {
@@ -2167,6 +2167,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/specialists/invite/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Staff → Add employee → Specialist: creates the Specialist account and its private draft profile together (the profile is named after the account; the public name can be changed later). An email already in use → 400 `unique` on `email`, nothing is created. Resend the invitation with `staff/{id}/send-password-link/` or `staff/{id}/reset-password/`: same account, same profile. */
+        post: operations["admin_specialist_invite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/staff/": {
         parameters: {
             query?: never;
@@ -2282,6 +2299,23 @@ export interface paths {
         put?: never;
         /** @description Manager only (403 `permission_denied` otherwise). E-mails the account a new single-use link to set its password (invite for an account that never signed in nor set one, else reset); the password and the sessions are not changed, earlier links are revoked. The caller's own account, an inactive account, or e-mail links not available → 409 `conflict`; 5/hour per manager and account. */
         post: operations["admin_staff_send_password_link"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/staff/{id}/specialist-role/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Staff → Edit: `specialist` converts an eligible Staff or Manager account (its draft profile is created, or the profile it already owns is reused unpublished); `staff` ends specialist access and unpublishes the profile, keeping it and its appointments on the account. Sessions are revoked on a change; the role the account already has changes nothing. The caller's own account, an inactive account, a superuser, operations-console access or the last active manager → 409 `conflict`. */
+        post: operations["admin_staff_specialist_role"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3969,6 +4003,8 @@ export interface components {
             /** Format: date-time */
             last_sync_at: string | null;
         };
+        /** @enum {unknown} */
+        BlankEnum: "";
         /** @description An absolute busy / off range of the specialist (``label`` null = none). */
         BlockedPeriod: {
             /** Format: date-time */
@@ -4318,13 +4354,16 @@ export interface components {
          *     the view's context (``upcoming``), counted once per page.
          */
         ClinicSpecialist: {
+            /** @description The account that owns the profile. */
+            account: components["schemas"]["SpecialistAccount"];
             readonly bio: components["schemas"]["I18nText2000"];
             /** Format: date-time */
             created_at: string;
             experience_years: number | null;
             id: number;
             is_active: boolean;
-            location_id: number;
+            /** @description `null` while a draft has no clinic. */
+            location_id: number | null;
             readonly location_ids: number[];
             name: string;
             /**
@@ -4340,43 +4379,24 @@ export interface components {
             /** Format: uri */
             readonly photo_url: string | null;
             position: number;
+            /** @description What keeps the profile from being published (`[]` = ready): account, name, discipline, bio, photo, clinic, service, availability. */
+            readonly publish_blockers: components["schemas"]["PublishBlockersEnum"][];
             readonly qualifications: components["schemas"]["I18nText2000"];
-            role: components["schemas"]["SpecialistRoleEnum"];
+            /**
+             * @description `""` while a draft has none.
+             *
+             *     * `dermatologist` - dermatologist
+             *     * `cosmetologist` - cosmetologist
+             */
+            role: components["schemas"]["SpecialistRoleEnum"] | components["schemas"]["BlankEnum"];
             services: components["schemas"]["OfferedService"][];
             slot_step_min: number;
             /** @description The website URL segment (B-W1): unique, editable. */
             slug: string;
-            staff_user: components["schemas"]["Actor"] | null;
-            staff_user_role?: (components["schemas"]["StaffRoleEnum"] | components["schemas"]["NullEnum"]) | null;
             readonly upcoming_appointments: number;
             /** Format: date-time */
             updated_at: string;
             working_hours: components["schemas"]["WorkingDay"][];
-        };
-        /**
-         * @description Body of ``POST specialists/`` and (``partial``, see the subclass) ``PATCH specialists/{id}/``.
-         *
-         *     ``context["professional_id"]`` is the edited specialist (a staff account already linked to it is not a
-         *     conflict with itself). The validated data carries a staff user instance when supplied.
-         */
-        ClinicSpecialistWriteRequest: {
-            bio?: components["schemas"]["SpecialistTextRequest"];
-            experience_years?: number | null;
-            /** @default false */
-            is_active: boolean;
-            /** @description The primary clinic, which must be included in location_ids. */
-            location_id: number;
-            location_ids: number[];
-            name: string;
-            position?: number;
-            qualifications?: components["schemas"]["SpecialistTextRequest"];
-            role: components["schemas"]["SpecialistRoleEnum"];
-            /** @description The customer slot grid in minutes: 10, 15, 20, 30 (default) or 60. */
-            slot_step_min?: number;
-            /** @description Optional on create (derived from the name). */
-            slug?: string;
-            /** @description An active staff account, or null. */
-            staff_user_id?: number | null;
         };
         CodeIssue: {
             attempts: number;
@@ -6193,6 +6213,10 @@ export interface components {
             activation: components["schemas"]["Activation"];
             email_masked: string;
         };
+        OwnPhotoUploadRequest: {
+            /** Format: binary */
+            file: string;
+        };
         PaginatedAdminCustomerSessionList: {
             count: number;
             page: number;
@@ -6481,8 +6505,8 @@ export interface components {
              * @default false
              */
             force: boolean;
-            /** @default false */
-            is_active: boolean;
+            /** @description Published: listed on the website and bookable. Publishing needs a complete profile. */
+            is_active?: boolean;
             /** @description The primary clinic, which must be included in location_ids. */
             location_id?: number;
             location_ids?: number[];
@@ -6494,8 +6518,6 @@ export interface components {
             slot_step_min?: number;
             /** @description Optional on create (derived from the name). */
             slug?: string;
-            /** @description An active staff account, or null. */
-            staff_user_id?: number | null;
         };
         PatchedCustomerCartQuantityRequest: {
             quantity?: number;
@@ -6531,6 +6553,14 @@ export interface components {
             title?: string;
         };
         /**
+         * @description ``PATCH specialist/profile/``: the public name and the bio (languages merge one by one). Clinics,
+         *     services, discipline and publication stay with staff.
+         */
+        PatchedOwnProfileRequest: {
+            bio?: components["schemas"]["PatchedSpecialistTextRequest"];
+            name?: string;
+        };
+        /**
          * @description ``PATCH products/{id}/``: every field optional and ``texts`` merged leaf by leaf (contract §2.3).
          *
          *     Validation is the create serializer's (``partial=True`` skips absent fields); the separate class gives the
@@ -6555,10 +6585,24 @@ export interface components {
             rules?: components["schemas"]["SegmentRulesRequest"];
         };
         /**
-         * @description ``PATCH staff/{id}/`` body: ``full_name`` and/or ``is_manager``; ``email``, ``is_active`` and
-         *     ``password`` → ``read_only``.
+         * @description ``qualifications`` / ``bio``: ``{uz, ru, en}``, each ≤ 2000, every language optional (missing on
+         *     create → ``""``; a PATCH changes only the languages sent).
+         */
+        PatchedSpecialistTextRequest: {
+            /** @default  */
+            en: string;
+            /** @default  */
+            ru: string;
+            /** @default  */
+            uz: string;
+        };
+        /**
+         * @description ``PATCH staff/{id}/`` body: ``full_name``, ``is_manager`` and/or ``email`` (the login address: the
+         *     same account, open password links are revoked); ``is_active`` and ``password`` → ``read_only``.
          */
         PatchedStaffUpdateRequest: {
+            /** Format: email */
+            email?: string;
             full_name?: string;
             is_manager?: boolean;
         };
@@ -6965,6 +7009,18 @@ export interface components {
             /** Format: uri */
             website_url: string | null;
         };
+        /**
+         * @description * `account` - account
+         *     * `name` - name
+         *     * `discipline` - discipline
+         *     * `bio` - bio
+         *     * `photo` - photo
+         *     * `clinic` - clinic
+         *     * `service` - service
+         *     * `availability` - availability
+         * @enum {string}
+         */
+        PublishBlockersEnum: "account" | "name" | "discipline" | "bio" | "photo" | "clinic" | "service" | "availability";
         /** @description Contract §2.6 ``Purchase``. */
         Purchase: {
             amount: number;
@@ -7469,6 +7525,15 @@ export interface components {
              */
             updated_at: string;
         };
+        /** @description The owner account of a profile: its login, its current role and whether it may sign in. */
+        SpecialistAccount: {
+            readonly display_name: string;
+            /** Format: email */
+            email: string;
+            id: number;
+            is_active: boolean;
+            role: components["schemas"]["StaffRoleEnum"];
+        };
         SpecialistAvailability: {
             blocks: components["schemas"]["BlockedPeriod"][];
             clinics: components["schemas"]["ScheduleClinic"][];
@@ -7504,6 +7569,19 @@ export interface components {
             role: components["schemas"]["SpecialistRoleEnum"];
             readonly working_hours: components["schemas"]["WorkingHours"] | null;
         };
+        /**
+         * @description ``POST staff/`` (201) and ``POST staff/{id}/reset-password/`` (200): the account, its temporary
+         *     password (shown once) and/or the e-mailed link.
+         */
+        SpecialistInviteCredentials: {
+            /** @description The e-mailed link (`delivery` `email_link` or `both`), else `null`. */
+            activation: components["schemas"]["Activation"] | null;
+            /** @description The draft profile created with the account. */
+            specialist_id: number;
+            staff: components["schemas"]["StaffMember"];
+            /** @description Shown once (`delivery` `temporary_password` or `both`, else `null`); the person signs in with it and must then set their own password. A replay of the same `Idempotency-Key` returns it again (stored sealed, §1.7). */
+            temporary_password: string | null;
+        };
         SpecialistList: {
             results: components["schemas"]["Specialist"][];
         };
@@ -7518,6 +7596,24 @@ export interface components {
             /** Format: date-time */
             start: string;
         };
+        SpecialistRoleChangeRequest: {
+            /** @description Must be `true`: the role change is a confirmed action. */
+            confirmed: boolean;
+            role: components["schemas"]["SpecialistRoleChangeRoleEnum"];
+        };
+        SpecialistRoleChangeResult: {
+            account: components["schemas"]["StaffMember"];
+            /** @description The profile the account owns; `null` for an account that never had one. */
+            specialist_id: number | null;
+            /** @description → staff: requested/confirmed visits ahead on the paused profile, for staff to handle. */
+            upcoming_appointments: number;
+        };
+        /**
+         * @description * `staff` - staff
+         *     * `specialist` - specialist
+         * @enum {string}
+         */
+        SpecialistRoleChangeRoleEnum: "staff" | "specialist";
         /**
          * @description * `dermatologist` - dermatologist
          *     * `cosmetologist` - cosmetologist
@@ -7542,9 +7638,6 @@ export interface components {
             ru: string;
             /** @default  */
             uz: string;
-        };
-        StaffConversionRequest: {
-            staff_user_id: number;
         };
         /** @description Create a staff account, optionally granting the manager role. */
         StaffCreateRequest: {
@@ -7626,12 +7719,14 @@ export interface components {
             email: string;
             /** @description Manager only, else `null`. */
             full_name: string | null;
+            has_ops_console_access?: boolean | null;
             id: number;
             /** @description Manager only, else `null`. */
             readonly invite: components["schemas"]["StaffInvite"] | null;
             is_active: boolean;
             /** @description Manager only, else `null`. */
             is_manager: boolean | null;
+            is_superuser?: boolean | null;
             /**
              * Format: date-time
              * @description Manager only, else `null`; `null` for a manager too when never signed in.
@@ -7653,10 +7748,12 @@ export interface components {
             /** Format: email */
             email: string;
             full_name: string;
+            has_ops_console_access?: boolean;
             id: number;
             readonly invite: components["schemas"]["StaffInvite"];
             is_active: boolean;
             is_manager: boolean;
+            is_superuser?: boolean;
             /**
              * Format: date-time
              * @description `null`: never signed in.
@@ -18047,6 +18144,316 @@ export interface operations {
             };
         };
     };
+    specialist_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinicSpecialist"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    specialist_profile_update: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedOwnProfileRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinicSpecialist"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    specialist_profile_photo_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["OwnPhotoUploadRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinicSpecialist"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    specialist_profile_photo_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     specialist_weekly_hours_update: {
         parameters: {
             query?: never;
@@ -18223,85 +18630,6 @@ export interface operations {
             };
         };
     };
-    admin_specialists_create: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ClinicSpecialistWriteRequest"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ClinicSpecialist"];
-                };
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
     admin_specialists_retrieve: {
         parameters: {
             query?: never;
@@ -18400,173 +18728,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ClinicSpecialist"];
-                };
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    admin_specialist_convert: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
-                "Idempotency-Key": string;
-            };
-            path: {
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["StaffConversionRequest"];
-            };
-        };
-        responses: {
-            /** @description No response body */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    admin_specialist_invite: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
-                "Idempotency-Key": string;
-            };
-            path: {
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WorkforceInviteRequest"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StaffCredentials"];
                 };
             };
             400: {
@@ -19503,6 +19664,88 @@ export interface operations {
             };
         };
     };
+    admin_specialist_invite: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkforceInviteRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecialistInviteCredentials"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     admin_staff_list: {
         parameters: {
             query?: {
@@ -20174,6 +20417,90 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StaffLinkSent"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_staff_specialist_role: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpecialistRoleChangeRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecialistRoleChangeResult"];
                 };
             };
             400: {

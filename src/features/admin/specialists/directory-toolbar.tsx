@@ -41,7 +41,8 @@ function useHref(props: Props) {
  */
 export function DirectoryToolbar(props: Props) {
   const { query } = props;
-  const t = useCopy(specialistsCopy).directory;
+  const copy = useCopy(specialistsCopy);
+  const t = copy.directory;
   const m = useCopy(clinicDataCopy);
   const { navigate } = useListNavigation();
   const href = useHref(props);
@@ -78,8 +79,15 @@ export function DirectoryToolbar(props: Props) {
         onValueChange={(value) => update({ status: value === "all" ? undefined : value })}
         options={[
           { value: "all", label: t.all },
-          { value: "active", label: m.status.active },
-          { value: "inactive", label: m.status.inactive },
+          // A specialist profile's `is_active` is its publication (login is managed in Staff).
+          {
+            value: "active",
+            label: props.kind === "specialists" ? copy.list.published : m.status.active,
+          },
+          {
+            value: "inactive",
+            label: props.kind === "specialists" ? copy.list.draft : m.status.inactive,
+          },
         ]}
       />
       {props.kind === "specialists" ? (

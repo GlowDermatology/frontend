@@ -279,6 +279,27 @@ describe("staff in api mode", () => {
       "/api/v1/admin/staff/7/",
       expect.objectContaining({ method: "PATCH", body: { is_manager: true } }),
     );
+    // The login email can change (same account and profile): sent normalised, only when changed.
+    apiFetch.mockResolvedValueOnce(respond(200, { ...member, email: "n.rahimova@glowderma.uz" }));
+    const base = { fullName: "Nodira Rahimova", isManager: false, email: member.email };
+    expect(
+      await updateStaff("7", { ...base, email: " N.Rahimova@GlowDerma.uz " }, base, KEY, CSRF),
+    ).toMatchObject({ ok: true, data: { email: "n.rahimova@glowderma.uz" } });
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/staff/7/",
+      expect.objectContaining({ method: "PATCH", body: { email: "n.rahimova@glowderma.uz" } }),
+    );
+    apiFetch.mockRejectedValueOnce(
+      new ApiError(400, {
+        code: "validation_error",
+        message: "Maydonlarni tekshiring.",
+        errors: [{ field: "email", code: "unique", message: "Bu email band." }],
+        request_id: "r",
+      } as ErrorEnvelope),
+    );
+    expect(
+      await updateStaff("7", { ...base, email: "taken@glowderma.uz" }, base, KEY, CSRF),
+    ).toMatchObject({ ok: false, fieldErrors: { email: "Bu email band." } });
     apiFetch.mockResolvedValueOnce(respond(200, { ...member, is_active: false }));
     expect(await setStaffActive("7", false, KEY, CSRF)).toMatchObject({
       ok: true,

@@ -301,6 +301,7 @@ function EmailDialog({
           <ReauthStep
             locale={locale}
             hasPassword={me.hasPassword}
+            hasContact={Boolean(me.phone || me.email)}
             value={reauth}
             onChange={setReauth}
             passwordError={error?.fieldErrors?.password}
@@ -375,6 +376,7 @@ function ContactCard({
       <PhoneGate
         locale={locale}
         hasPassword={me.hasPassword}
+        hasContact={Boolean(me.phone || me.email)}
         open={phoneOpen}
         onOpenChange={setPhoneOpen}
         next={shopPath(locale, { kind: "account" })}
@@ -446,7 +448,7 @@ function PasswordCard({
       <Row
         value={me.hasPassword ? copy.hasPassword : copy.noPassword}
         action={
-          !open ? (
+          !open && (me.hasPassword || me.phone || me.email) ? (
             <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>
               {me.hasPassword ? copy.change : copy.set}
             </Button>
@@ -454,6 +456,7 @@ function PasswordCard({
         }
       />
       {saved ? <FormNote>{copy.saved}</FormNote> : null}
+      {!me.hasPassword && !me.phone && !me.email ? <FormNote>{copy.needsContact}</FormNote> : null}
       {open ? (
         <form
           className="flex flex-col gap-4"
@@ -465,6 +468,7 @@ function PasswordCard({
           <ReauthStep
             locale={locale}
             hasPassword={me.hasPassword}
+            hasContact={Boolean(me.phone || me.email)}
             value={current}
             onChange={setCurrent}
             passwordError={error?.fieldErrors?.current_password}
@@ -624,6 +628,7 @@ function SocialCard({
             <ReauthStep
               locale={locale}
               hasPassword={me.hasPassword}
+              hasContact={Boolean(me.phone || me.email)}
               value={reauth}
               onChange={setReauth}
               passwordError={error?.fieldErrors?.password}
@@ -876,6 +881,7 @@ function DangerCard({ locale, me }: { locale: Locale; me: ShopMe }) {
           <ReauthStep
             locale={locale}
             hasPassword={me.hasPassword}
+            hasContact={Boolean(me.phone || me.email)}
             value={reauth}
             onChange={setReauth}
             passwordError={error?.fieldErrors?.password}

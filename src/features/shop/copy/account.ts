@@ -42,6 +42,8 @@ const uz = {
     rules: "Kamida 8 ta belgi; faqat raqamlardan iborat bo‘lmasin.",
     save: "Parolni saqlash",
     saved: "Parol saqlandi. Boshqa qurilmalardagi seanslar yakunlandi.",
+    needsContact:
+      "Parol o‘rnatish uchun avval raqam yoki email bog‘lang: parol bilan ular orqali kirasiz.",
   },
   social: {
     title: "Ijtimoiy tarmoqlar",
@@ -193,6 +195,8 @@ const ru: Copy = {
     rules: "Не меньше 8 символов и не только цифры.",
     save: "Сохранить пароль",
     saved: "Пароль сохранён. Сеансы на других устройствах завершены.",
+    needsContact:
+      "Чтобы задать пароль, сначала привяжите номер или email: с паролем входят по ним.",
   },
   social: {
     title: "Социальные сети",
@@ -343,6 +347,8 @@ const en: Copy = {
     rules: "At least 8 characters, not digits only.",
     save: "Save password",
     saved: "Password saved. Sessions on other devices were signed out.",
+    needsContact:
+      "To set a password, first add a phone or an e-mail: you sign in with them and the password.",
   },
   social: {
     title: "Social accounts",

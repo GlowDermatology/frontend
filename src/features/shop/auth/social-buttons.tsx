@@ -2,10 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonStyles } from "@/components/ui/button";
 import type { SocialProvider } from "@/domain/shop-account";
 import type { Locale } from "@/lib/i18n/locales";
-import { currentResolvedTheme, subscribeTheme } from "@/lib/theme/theme-store";
 
 import { authCopy } from "../copy/auth";
 import type { SocialConfig } from "./social-config";
@@ -14,9 +13,11 @@ import type { SocialConfig } from "./social-config";
  * Web sign-in with Google, Facebook and Apple (backend B-W1: the same
  * `auth/social/` endpoints, web client ids):
  *
- * - **Google** — Google Identity Services renders its own button; the ID
- *   token carries our single-use nonce (`auth/social/nonce/`, bound to this
- *   browser's device id), fetched before the button is initialised and
+ * - **Google** — Google Identity Services renders its own button (only it can
+ *   open the ID-token popup), laid invisibly over a button drawn like the
+ *   Facebook and Apple ones, so all three (and the staff sign-in) look alike;
+ *   the ID token carries our single-use nonce (`auth/social/nonce/`, bound to
+ *   this browser's device id), fetched before the button is initialised and
  *   renewed after every attempt.
  * - **Facebook** — the JS SDK's `FB.login` gives a user access token (no
  *   nonce: the token is bound to our app id).
@@ -97,9 +98,14 @@ const GOOGLE_LOCALE: Record<Locale, string> = { uz: "uz", ru: "ru", en: "en" };
 const FACEBOOK_LOCALE: Record<Locale, string> = { uz: "uz_UZ", ru: "ru_RU", en: "en_US" };
 const APPLE_LOCALE: Record<Locale, string> = { uz: "en_US", ru: "ru_RU", en: "en_US" };
 
+/** Google's own button is at most 400 px wide and 40 px high ("large"). */
+const GOOGLE_BUTTON_MAX_WIDTH = 400;
+const GOOGLE_BUTTON_HEIGHT = 40;
+
 function GoogleButton({
   locale,
   clientId,
+  label,
   getNonce,
   onToken,
   onError,
@@ -107,25 +113,15 @@ function GoogleButton({
 }: {
   locale: Locale;
   clientId: string;
+  label: string;
   getNonce: () => Promise<string | null>;
   onToken: (token: SocialToken) => void;
   onError: () => void;
   disabled: boolean;
 }) {
+  const frame = useRef<HTMLDivElement>(null);
   const holder = useRef<HTMLDivElement>(null);
   const [round, setRound] = useState(0);
-  // Redrawn when the page's theme changes (a switch, or the device while the choice is system).
-  const [themeRound, setThemeRound] = useState(0);
-  useEffect(() => {
-    let last = currentResolvedTheme();
-    return subscribeTheme(() => {
-      const next = currentResolvedTheme();
-      if (next !== last) {
-        last = next;
-        setThemeRound((value) => value + 1);
-      }
-    });
-  }, []);
   const callbacks = useRef({ onToken, onError, getNonce });
   useEffect(() => {
     callbacks.current = { onToken, onError, getNonce };
@@ -138,7 +134,7 @@ function GoogleButton({
         await loadScript("https://accounts.google.com/gsi/client");
         const nonce = await callbacks.current.getNonce();
         const id = window.google?.accounts?.id;
-        if (cancelled || !nonce || !id || !holder.current) return;
+        if (cancelled || !nonce || !id || !holder.current || !frame.current) return;
         id.initialize({
           client_id: clientId,
           nonce,
@@ -161,18 +157,21 @@ function GoogleButton({
             setRound((value) => value + 1);
           },
         });
+        const width = frame.current.offsetWidth || 320;
+        const height = frame.current.offsetHeight || GOOGLE_BUTTON_HEIGHT;
+        const drawn = Math.min(GOOGLE_BUTTON_MAX_WIDTH, width);
         holder.current.replaceChildren();
         id.renderButton(holder.current, {
           type: "standard",
-          // Google's own dark variant on the dark theme (its button is drawn in an iframe).
-          theme: currentResolvedTheme() === "dark" ? "filled_black" : "outline",
+          theme: "outline",
           size: "large",
           shape: "rectangular",
           text: "continue_with",
-          logo_alignment: "center",
           locale: GOOGLE_LOCALE[locale],
-          width: Math.min(400, holder.current.offsetWidth || 320),
+          width: drawn,
         });
+        // Stretch the invisible button over the whole visible one, so every pixel of it is clickable.
+        holder.current.style.transform = `scale(${width / drawn}, ${height / GOOGLE_BUTTON_HEIGHT})`;
       } catch {
         if (!cancelled) callbacks.current.onError();
       }
@@ -180,19 +179,61 @@ function GoogleButton({
     return () => {
       cancelled = true;
     };
-  }, [clientId, locale, round, themeRound]);
+  }, [clientId, locale, round]);
 
   return (
     <div
-      ref={holder}
+      ref={frame}
       aria-disabled={disabled || undefined}
-      // `color-scheme: light`: the iframe stays transparent instead of getting an opaque canvas.
-      className="flex min-h-11 w-full justify-center [color-scheme:light] [&[aria-disabled]]:pointer-events-none [&[aria-disabled]]:opacity-60"
-    />
+      className="group relative w-full [&[aria-disabled]]:pointer-events-none [&[aria-disabled]]:opacity-60"
+    >
+      {/* What the visitor sees; hover and focus come from Google's button above it. */}
+      <span
+        aria-hidden="true"
+        className={buttonStyles({
+          variant: "secondary",
+          size: "lg",
+          className:
+            "pointer-events-none w-full group-focus-within:outline-2 group-focus-within:outline-offset-2 group-focus-within:outline-gold group-hover:bg-surface",
+        })}
+      >
+        <ProviderMark provider="google" />
+        {label}
+      </span>
+      {/* Google's real button (an iframe: it alone can open the sign-in popup), kept invisible. */}
+      <div
+        className="absolute inset-0 flex items-center justify-center overflow-hidden [color-scheme:light] opacity-[0.01]"
+        title={label}
+      >
+        <div ref={holder} className="flex shrink-0 justify-center" />
+      </div>
+    </div>
   );
 }
 
-function ProviderMark({ provider }: { provider: "facebook" | "apple" }) {
+function ProviderMark({ provider }: { provider: SocialProvider }) {
+  if (provider === "google") {
+    return (
+      <svg aria-hidden="true" focusable="false" width="20" height="20" viewBox="0 0 48 48">
+        <path
+          fill="#EA4335"
+          d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+        />
+        <path
+          fill="#4285F4"
+          d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+        />
+        <path
+          fill="#FBBC05"
+          d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
+        />
+        <path
+          fill="#34A853"
+          d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+        />
+      </svg>
+    );
+  }
   if (provider === "facebook") {
     return (
       <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24">
@@ -316,6 +357,7 @@ export function SocialButtons({
         <GoogleButton
           locale={locale}
           clientId={config.google.clientId}
+          label={copy.continueWith.google}
           getNonce={getNonce}
           onToken={onToken}
           onError={onError}

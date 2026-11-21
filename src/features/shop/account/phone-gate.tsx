@@ -35,10 +35,13 @@ export function PhoneGate({
   onAttached,
   next,
   hasPassword = true,
+  hasContact = true,
 }: {
   locale: Locale;
   /** Whether the account has a password (unknown at checkout: the password is offered first). */
   hasPassword?: boolean;
+  /** Whether the account has a phone or an e-mail a re-authentication code can go to (unknown: assumed). */
+  hasContact?: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAttached: (me: ShopMe) => void;
@@ -154,6 +157,7 @@ export function PhoneGate({
                 <ReauthStep
                   locale={locale}
                   hasPassword={hasPassword}
+                  hasContact={hasContact}
                   value={reauth}
                   onChange={setReauth}
                   passwordError={error?.fieldErrors?.password}

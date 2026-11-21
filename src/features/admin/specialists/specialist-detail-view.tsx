@@ -25,6 +25,7 @@ import { appointmentsCopy } from "../appointments/copy";
 import { customerName } from "../appointments/labels";
 import { specialistsCopy } from "./copy";
 
+import { SpecialistAccessCard } from "./access-card";
 import { HoursCard } from "./hours-card";
 import { OffersCard } from "./offers-card";
 import { ProfileCard } from "./profile-card";
@@ -33,6 +34,8 @@ import { BlocksCard, OverridesCard } from "./schedule-cards";
 
 interface SpecialistDetailViewProps {
   specialist: ClinicSpecialist;
+  manageAccess?: boolean;
+  emailInvite?: boolean;
   services: ReadonlyArray<ClinicService>;
   clinics: ReadonlyArray<ClinicLocation>;
   overrides: ReadonlyArray<HoursOverride>;
@@ -106,6 +109,12 @@ export function SpecialistDetailView(props: SpecialistDetailViewProps) {
             clinics={props.clinics}
             onUpdated={setSpecialist}
           />
+          {props.manageAccess && (
+            <SpecialistAccessCard
+              specialist={specialist}
+              emailInvite={props.emailInvite ?? false}
+            />
+          )}
           <OffersCard specialist={specialist} services={props.services} onUpdated={setSpecialist} />
         </div>
         <div className="flex min-w-0 flex-[2_1_380px] flex-col gap-4">

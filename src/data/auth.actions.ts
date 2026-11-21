@@ -14,7 +14,7 @@ import { cookieNames } from "./auth/cookie-names";
 import { setCookie } from "./auth/cookies";
 import { csrfMatches } from "./auth/csrf";
 import { MFA_STEP_PATH, isMfaChallengeAnswer, mfaChallengeCookie } from "./auth/mfa-challenge";
-import { safeNext } from "./auth/next-param";
+import { safeNext, staffDestination } from "./auth/next-param";
 import { applyStaffSession } from "./auth/session-cookies";
 import { mockMfaState } from "./mfa";
 import { mockChallenge } from "./mock/mfa";
@@ -118,5 +118,5 @@ export async function login(_previous: LoginState, formData: FormData): Promise<
   }
   // Django answered 200 with a token we cannot use: treat it like an outage.
   if (!applyStaffSession(store, data, secure, nowMs)) return fail(m.unreachable);
-  redirect(next);
+  redirect(staffDestination(data.user?.role, next));
 }

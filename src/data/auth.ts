@@ -145,6 +145,7 @@ export const MOCK_ME: Me = {
   id: 1,
   email: "admin",
   display_name: "Administrator",
+  role: "admin",
   is_superuser: true,
   is_manager: true,
   linked_providers: [],

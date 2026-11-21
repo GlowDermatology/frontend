@@ -15,7 +15,7 @@ import {
   mfaChallengeCookieName,
   openPendingMfa,
 } from "./auth/mfa-challenge";
-import { safeNext } from "./auth/next-param";
+import { safeNext, staffDestination } from "./auth/next-param";
 import { applyStaffSession } from "./auth/session-cookies";
 import { mockMfaState, saveMockMfaState } from "./mfa";
 import { apiMfaVerify } from "./mfa-api";
@@ -148,7 +148,7 @@ export async function verifyMfaStep(
   if (!applyStaffSession(store, data, secure, Date.now()))
     return answer({ formError: m.unreachable });
   clearMfaChallengeCookie(store, secure);
-  redirect(pending.next);
+  redirect(staffDestination(data.user?.role, pending.next));
 }
 
 /**

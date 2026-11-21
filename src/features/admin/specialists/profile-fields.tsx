@@ -30,6 +30,7 @@ export const LANGUAGES: ReadonlyArray<ContentLanguage> = ["uz", "ru", "en"];
 export interface StaffOption {
   id: string;
   name: string;
+  role?: "admin" | "specialist" | null;
 }
 
 /** The profile's field names that have a place on the form (for `partitionFieldErrors`). */
@@ -237,35 +238,41 @@ export function SpecialistProfileFields({
             />
           )}
         </Field>
-        <Field
-          label={t.staff}
-          name="staffUserId"
-          error={errors.staffUserId}
-          hint={t.staffHint}
-          className="sm:col-span-2"
-        >
-          {(c) => (
-            <Select<string>
-              {...c}
-              name="staffUserId"
-              value={values.staffUserId}
-              onValueChange={(id) => set("staffUserId", id)}
-              options={[
-                { value: "", label: t.staffNone },
-                ...(linkedMissing && linkedStaff
-                  ? [
-                      {
-                        value: linkedStaff.id,
-                        label: linkedStaff.name,
-                        description: t.staffInactive,
-                      },
-                    ]
-                  : []),
-                ...staffOptions.map((option) => ({ value: option.id, label: option.name })),
-              ]}
-            />
-          )}
-        </Field>
+        {linkedStaff?.role === "specialist" ? (
+          <p className="sm:col-span-2">
+            <strong>{t.staff}</strong> · {linkedStaff.name}
+          </p>
+        ) : (
+          <Field
+            label={t.staff}
+            name="staffUserId"
+            error={errors.staffUserId}
+            hint={t.staffHint}
+            className="sm:col-span-2"
+          >
+            {(c) => (
+              <Select<string>
+                {...c}
+                name="staffUserId"
+                value={values.staffUserId}
+                onValueChange={(id) => set("staffUserId", id)}
+                options={[
+                  { value: "", label: t.staffNone },
+                  ...(linkedMissing && linkedStaff
+                    ? [
+                        {
+                          value: linkedStaff.id,
+                          label: linkedStaff.name,
+                          description: t.staffInactive,
+                        },
+                      ]
+                    : []),
+                  ...staffOptions.map((option) => ({ value: option.id, label: option.name })),
+                ]}
+              />
+            )}
+          </Field>
+        )}
       </div>
 
       <div data-field="slug" data-invalid={errors.slug ? "true" : undefined}>

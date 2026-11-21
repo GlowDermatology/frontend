@@ -66,7 +66,11 @@ export function mapClinicSpecialist(api: ApiClinicSpecialist): ClinicSpecialist 
     locationId: idString(api.location_id),
     locationIds: api.location_ids.map(idString),
     staffUser: api.staff_user
-      ? { id: idString(api.staff_user.id), name: api.staff_user.display_name }
+      ? {
+          id: idString(api.staff_user.id),
+          name: api.staff_user.display_name,
+          role: api.staff_user_role,
+        }
       : null,
     slotStepMin: api.slot_step_min,
     slug: api.slug ?? "",

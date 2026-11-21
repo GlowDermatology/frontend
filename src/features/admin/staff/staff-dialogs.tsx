@@ -19,6 +19,7 @@ import {
 } from "@/domain/staff";
 import { revealFirstError, useErrorReveal } from "@/lib/forms/reveal";
 import { useCopy } from "@/lib/i18n/admin-context";
+import { inviteSpecialist } from "@/data/specialist.actions";
 import { useLocalized } from "@/lib/i18n/admin-hooks";
 
 import { runAction } from "../shared/action-client";
@@ -122,17 +123,19 @@ export function InviteDialog({
   idempotency,
   emailInvite,
   onInvited,
+  specialist,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   idempotency: Idempotency;
   emailInvite: boolean;
   onInvited: (data: StaffCredentials) => void;
+  specialist?: { id: string; name: string; title: string; description: string };
 }) {
   const t = useCopy(staffCopy);
   const schema = useLocalized(staffSchemas).invite;
   const [email, setEmail] = useState("");
-  const [fullName, setFullName] = useState("");
+  const [fullName, setFullName] = useState(specialist?.name ?? "");
   const [isManager, setIsManager] = useState(false);
   const [delivery, setDelivery] = useState<StaffPasswordDelivery>(defaultDelivery(emailInvite));
   const [errors, setErrors] = useState<Errors>({});
@@ -174,7 +177,11 @@ export function InviteDialog({
     setErrors({});
     setFormError(null);
     const result = idempotency.settle(
-      await runAction((csrf) => inviteStaff(values, idempotency.key, csrf)),
+      await runAction((csrf) =>
+        specialist
+          ? inviteSpecialist(specialist.id, values, idempotency.key, csrf)
+          : inviteStaff(values, idempotency.key, csrf),
+      ),
     );
     inFlight.current = false;
     setBusy(false);
@@ -196,8 +203,8 @@ export function InviteDialog({
         if (busy) return;
         onOpenChange(next);
       }}
-      title={t.invite.title}
-      description={t.invite.description}
+      title={specialist?.title ?? t.invite.title}
+      description={specialist?.description ?? t.invite.description}
       className="max-w-[640px]"
     >
       <form ref={formRef} noValidate onSubmit={onSubmit} className="flex flex-col gap-5">
@@ -240,7 +247,7 @@ export function InviteDialog({
             )}
           </Field>
         </div>
-        <ManagerSwitch checked={isManager} onChange={setIsManager} />
+        {!specialist && <ManagerSwitch checked={isManager} onChange={setIsManager} />}
         <DeliveryChoice
           value={delivery}
           onChange={(value) => {
@@ -354,11 +361,13 @@ export function EditDialog({
             />
           )}
         </Field>
-        <ManagerSwitch
-          checked={isManager}
-          onChange={setIsManager}
-          reason={self ? t.manager.selfHint : null}
-        />
+        {!row.isSpecialist && (
+          <ManagerSwitch
+            checked={isManager}
+            onChange={setIsManager}
+            reason={self ? t.manager.selfHint : null}
+          />
+        )}
         <p className="m-0 flex items-start gap-1.5 text-caption font-normal text-ink-muted">
           <Icon name="lock" size={14} className="mt-px shrink-0" />
           {t.edit.emailLocked}

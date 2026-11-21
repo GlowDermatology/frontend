@@ -9,6 +9,16 @@ import type { Route } from "next";
 /** Typed as a `Route`: every value `safeNext` returns is a validated in-panel path. */
 export const DEFAULT_NEXT: Route = "/admin";
 
+export const SPECIALIST_HOME: Route = "/admin/my-schedule";
+
+export function staffDestination(role: string | undefined, next: Route): Route {
+  const path = next.split("?")[0];
+  if (role === "specialist") {
+    return path === SPECIALIST_HOME || path === "/admin/settings" ? next : SPECIALIST_HOME;
+  }
+  return path === SPECIALIST_HOME ? DEFAULT_NEXT : next;
+}
+
 const MAX_LENGTH = 2048;
 /** `.`, `..` and their percent-encoded spellings, which URL parsers normalise. */
 const DOT_SEGMENT = /^(?:\.|%2e){1,2}$/i;

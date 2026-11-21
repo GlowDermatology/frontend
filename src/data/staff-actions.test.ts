@@ -72,6 +72,7 @@ const member = {
   full_name: "Nodira Rahimova",
   is_active: true,
   is_manager: false,
+  role: "admin" as const,
   last_login_at: null,
   linked_providers: [],
   created_at: "2026-10-27T10:15:00+05:00",

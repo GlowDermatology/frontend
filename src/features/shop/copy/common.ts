@@ -67,6 +67,9 @@ const uz = {
     signInAgain: "Xavfsizlik uchun hisobga qaytadan kiring.",
     noPassword: "Parolni unutdim yoki parolim yo‘q — kod orqali tasdiqlash",
     usePassword: "Parol bilan tasdiqlash",
+    socialOnly:
+      "Hisobingizda parol, raqam yoki email yo‘q, shuning uchun kod yuboradigan joy yo‘q. Ijtimoiy tarmoq orqali qayta kiring: kirgandan keyin bir necha daqiqa davomida bu amal tasdiqsiz bajariladi.",
+    signInAgainAction: "Qayta kirish",
   },
   consent: {
     title: "Foydalanish shartlari yangilandi",
@@ -152,6 +155,9 @@ const ru: Copy = {
     signInAgain: "Для безопасности войдите в аккаунт заново.",
     noPassword: "Забыл пароль или его нет — подтвердить кодом",
     usePassword: "Подтвердить паролем",
+    socialOnly:
+      "У аккаунта нет пароля, номера и email, поэтому код отправить некуда. Войдите заново через соцсеть: несколько минут после входа это действие не требует подтверждения.",
+    signInAgainAction: "Войти заново",
   },
   consent: {
     title: "Условия использования обновлены",
@@ -235,6 +241,9 @@ const en: Copy = {
     signInAgain: "For your security, please sign in again.",
     noPassword: "Forgot my password or have none — confirm with a code",
     usePassword: "Confirm with my password",
+    socialOnly:
+      "Your account has no password, phone or e-mail, so there is nowhere to send a code. Sign in again with your social account: for a few minutes after signing in, this needs no confirmation.",
+    signInAgainAction: "Sign in again",
   },
   consent: {
     title: "Our terms have been updated",

@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { sendReauthCode, verifyReauthCode, type Reauth } from "@/data/shop/account.actions";
+import { shopHref } from "@/features/shop/routing/routes";
 import type { CodeSent } from "@/data/shop/auth.actions";
 import type { Locale } from "@/lib/i18n/locales";
 
@@ -17,16 +18,23 @@ import { failureText, useShopAction } from "./use-shop-action";
  * fix pass): the current password, or — "I forgot it / have none" — a
  * `reset_password` code sent to the account's own phone or e-mail. The parent receives the
  * proof (`Reauth`) and sends it with its action.
+ *
+ * An account with no password, phone or e-mail (a social sign-up) has no code
+ * to receive: the API accepts it for a few minutes after a sign-in, so the step
+ * offers to sign in again instead of a "send code" that can never work.
  */
 export function ReauthStep({
   locale,
   hasPassword,
+  hasContact = true,
   value,
   onChange,
   passwordError,
 }: {
   locale: Locale;
   hasPassword: boolean;
+  /** Whether the account has a phone or an e-mail to send a code to (unknown: assumed). */
+  hasContact?: boolean;
   value: Reauth;
   onChange: (value: Reauth) => void;
   passwordError?: string;
@@ -37,6 +45,8 @@ export function ReauthStep({
   const [sent, setSent] = useState<(CodeSent & { at: number }) | null>(null);
   const [code, setCode] = useState("");
   const [byCode, setByCode] = useState(!hasPassword);
+  // Nowhere to send a code: known up front, or learnt from the send attempt.
+  const [noTarget, setNoTarget] = useState(!hasPassword && !hasContact);
   const switchLink =
     "self-start text-body-sm font-semibold text-ink underline decoration-gold underline-offset-4 hover:text-ink";
 
@@ -69,12 +79,34 @@ export function ReauthStep({
     );
   }
 
+  if (noTarget && !value.verificationToken) {
+    return (
+      <div className="flex flex-col gap-3 rounded-md border border-line p-4">
+        <p className="m-0 text-label">{copy.title}</p>
+        <p className="m-0 text-body-sm text-ink-muted">{copy.socialOnly}</p>
+        <Button
+          variant="secondary"
+          className="self-start"
+          onClick={() => {
+            const here = `${window.location.pathname}${window.location.search}`;
+            window.location.assign(shopHref(locale, { kind: "signIn" }, { next: here, switch: 1 }));
+          }}
+        >
+          {copy.signInAgainAction}
+        </Button>
+      </div>
+    );
+  }
   if (value.verificationToken) {
     return <p className="m-0 text-body-sm font-semibold text-success">✓ {copy.verified}</p>;
   }
 
   const send = async () => {
     const result = await run((csrf) => sendReauthCode({ locale, csrf }));
+    if (!result.ok && result.code === "reauth_required" && !hasPassword) {
+      setNoTarget(true);
+      return;
+    }
     if (result.ok) {
       setSent({ ...result.data, at: Date.now() });
       setCode("");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -244,6 +244,9 @@ export function EnableMfaDialog({ open, onOpenChange, onChanged, account }: MfaD
   const [saved, setSaved] = useState(false);
   const [needsConfirm, setNeedsConfirm] = useState(false);
   const [keyCopied, setKeyCopied] = useState(false);
+  // «Can't scan?»: the manual key, folded until asked for (a kit Button discloses it).
+  const [manualOpen, setManualOpen] = useState(false);
+  const manualId = useId();
   const step: 0 | 1 | 2 = codes ? 2 : setup ? 1 : 0;
 
   const fail = (result: ActionFailure) => {
@@ -400,11 +403,30 @@ export function EnableMfaDialog({ open, onOpenChange, onChanged, account }: MfaD
             <p className="m-0 text-body-sm text-pretty text-ink-muted">{t.setup.scanLead}</p>
           </div>
           <TotpQr uri={setup.otpauthUri} label={t.setup.qrLabel} />
-          <details className="group rounded-md border border-line bg-surface px-3.5 py-2.5">
-            <summary className="cursor-pointer text-body-sm font-semibold text-ink marker:text-gold-ink">
+          <div className="flex flex-col rounded-md border border-line bg-surface px-1.5 py-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-expanded={manualOpen}
+              aria-controls={manualId}
+              onClick={() => setManualOpen((open) => !open)}
+              className="justify-between text-left text-body-sm font-semibold whitespace-normal"
+            >
               {t.setup.manualTitle}
-            </summary>
-            <dl className="m-0 mt-3 flex flex-col gap-3">
+              <Icon
+                name="chevron-down"
+                size={18}
+                className={cn(
+                  "shrink-0 text-gold-ink transition-transform duration-200 motion-reduce:transition-none",
+                  manualOpen && "rotate-180",
+                )}
+              />
+            </Button>
+            <dl
+              id={manualId}
+              hidden={!manualOpen}
+              className="m-0 flex flex-col gap-3 px-2 pt-2 pb-2.5"
+            >
               {account_ ? (
                 <div className="flex flex-col gap-0.5">
                   <dt className="text-caption text-ink-muted">{t.setup.account}</dt>
@@ -431,7 +453,7 @@ export function EnableMfaDialog({ open, onOpenChange, onChanged, account }: MfaD
                 {t.setup.keyPrivate}
               </p>
             </dl>
-          </details>
+          </div>
           <Field label={t.setup.code} hint={t.setup.codeHint} name="code" error={errors.code}>
             {(control) => (
               <OtpInput

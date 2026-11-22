@@ -4,7 +4,8 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
- * Kit-controls guard (specialist workspace): the admin areas a specialist works in are built from
+ * Kit-controls guard (specialist workspace): the admin areas a specialist works in (Settings
+ * included: the page is shared with specialists) are built from
  * the UI kit only — `DatePicker` / `TimePicker` / `DateTimePicker`, `Switch`, `AlertDialog` and
  * Button-driven disclosures — never the browser's native date/time inputs, checkboxes,
  * `window.confirm` prompts or `<details>` sections, which look and behave differently on every
@@ -17,6 +18,8 @@ const SCAN_ROOTS = [
   "src/features/admin/appointments",
   "src/features/admin/specialists",
   "src/features/admin/shell",
+  "src/app/admin/settings",
+  "src/features/admin/settings",
 ] as const;
 
 const FORBIDDEN: ReadonlyArray<{ label: string; pattern: RegExp }> = [

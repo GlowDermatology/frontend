@@ -105,6 +105,10 @@ describe("the recovery codes", () => {
     expect(html).toContain("Download (.txt)");
     expect(html).toContain('aria-invalid="true"');
     expect(html).toContain(mfaSettingsCopy.en.codes.mustConfirm);
+    // The confirmation is the kit's Switch, named by its label, not a native checkbox.
+    expect(html).toContain('role="switch"');
+    expect(html).toContain(`aria-label="${mfaSettingsCopy.en.codes.saved}"`);
+    expect(html).not.toContain('type="checkbox"');
   });
 
   it("writes a plain text file and a clipboard list", () => {

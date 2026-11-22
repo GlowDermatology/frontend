@@ -76,7 +76,7 @@ async function enableMfa(page: Page): Promise<{ key: string; codes: string[] }> 
   await expect(
     dialog.getByRole("img", { name: "Autentifikator ilovasi uchun QR kod" }),
   ).toBeVisible();
-  await dialog.getByText(/Skanerlab bo‘lmayaptimi/).click();
+  await dialog.getByRole("button", { name: /Skanerlab bo‘lmayaptimi/ }).click();
   const key = (await dialog.locator("[data-manual-key]").innerText()).trim();
   expect(key).toMatch(/^[A-Z2-7 ]{16,}$/);
 
@@ -98,7 +98,9 @@ async function enableMfa(page: Page): Promise<{ key: string; codes: string[] }> 
   await expectDisabledReason(done, "Avval kodlarni saqlaganingizni belgilang.");
   await page.keyboard.press("Escape");
   await expect(codesDialog).toBeVisible();
-  await codesDialog.getByLabel("Kodlarni xavfsiz joyga saqladim").check();
+  const savedSwitch = codesDialog.getByRole("switch", { name: "Kodlarni xavfsiz joyga saqladim" });
+  await savedSwitch.click();
+  await expect(savedSwitch).toBeChecked();
   await done.click();
   await expect(codesDialog).toBeHidden();
   await expect(card.getByText("Yoqilgan")).toBeVisible();

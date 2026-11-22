@@ -4,6 +4,7 @@ import { useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
 import { useCopy } from "@/lib/i18n/admin-context";
@@ -18,7 +19,7 @@ interface RecoveryCodesProps {
   account: string | null;
   saved: boolean;
   onSavedChange: (saved: boolean) => void;
-  /** The dialog tried to close before «I saved them»: the checkbox is marked invalid. */
+  /** The dialog tried to close before «I saved them»: the switch is marked invalid. */
   needsConfirm: boolean;
 }
 
@@ -117,21 +118,20 @@ export function RecoveryCodes({
           needsConfirm && !saved && "border-danger",
         )}
       >
-        <input
-          id={checkId}
-          type="checkbox"
-          checked={saved}
-          onChange={(event) => onSavedChange(event.target.checked)}
-          aria-invalid={needsConfirm && !saved ? true : undefined}
-          aria-describedby={`${checkId}-hint`}
-          className="mt-0.5 size-5 shrink-0 accent-[var(--color-gold-ink)]"
-        />
-        <span className="flex flex-col gap-0.5">
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="text-label text-ink">{t.saved}</span>
           <span id={`${checkId}-hint`} className="text-caption text-ink-muted">
             {needsConfirm && !saved ? t.mustConfirm : t.savedHint}
           </span>
         </span>
+        <Switch
+          id={checkId}
+          checked={saved}
+          onCheckedChange={onSavedChange}
+          aria-label={t.saved}
+          aria-invalid={needsConfirm && !saved ? true : undefined}
+          aria-describedby={`${checkId}-hint`}
+        />
       </label>
     </div>
   );

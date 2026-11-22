@@ -18,6 +18,7 @@ interface ProductImageProps {
   className?: string;
   /** Hover zoom inside a card (`group` on the card). */
   zoom?: boolean;
+  fit?: "cover" | "contain";
 }
 
 /**
@@ -33,11 +34,13 @@ export function ProductImage({
   seed = 0,
   className,
   zoom = false,
+  fit = "cover",
 }: ProductImageProps) {
   return (
     <span
       className={cn(
-        "relative block aspect-product w-full overflow-hidden rounded-lg bg-image-well",
+        "relative block w-full overflow-hidden bg-image-well",
+        fit === "contain" ? "aspect-[4/3] rounded-[14px]" : "aspect-product rounded-lg",
         className,
       )}
     >
@@ -49,7 +52,8 @@ export function ProductImage({
           sizes={sizes}
           priority={priority}
           className={cn(
-            "object-cover media-dim",
+            "media-dim",
+            fit === "contain" ? "object-contain p-[clamp(16px,2vw,28px)]" : "object-cover",
             zoom &&
               "transition-transform duration-700 ease-soft group-hover:scale-[1.035] group-focus-visible:scale-[1.035]",
           )}

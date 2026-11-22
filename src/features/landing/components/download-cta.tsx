@@ -45,7 +45,11 @@ export function DownloadCta({ content }: { content: LandingDictionary }) {
           <div className="relative flex w-full max-w-[340px] flex-col gap-3 justify-self-start">
             <a
               href={siteConfig.links.appStore ?? fallbackHref}
-              className={buttonStyles({ size: "xl", lift: true, className: "w-full gap-2.5" })}
+              className={buttonStyles({
+                size: "xl",
+                lift: true,
+                className: "w-full gap-2.5 rounded-full",
+              })}
             >
               <Icon name="download" size={20} />
               {dict.appStore}
@@ -57,7 +61,7 @@ export function DownloadCta({ content }: { content: LandingDictionary }) {
                 size: "xl",
                 lift: true,
                 className:
-                  "w-full gap-2.5 border-banner-ink-soft/50 text-banner-ink-soft hover:bg-white/5",
+                  "w-full gap-2.5 rounded-full border-banner-ink-soft/50 text-banner-ink-soft hover:bg-white/5",
               })}
             >
               <Icon name="download" size={20} />

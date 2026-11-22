@@ -102,6 +102,12 @@ export const en: ShopDictionary = {
     addressLabel: "Pickup address",
     phonesLabel: "Phones",
     servicesLink: "Services and prices",
+    map: {
+      label: "Clinic and pickup locations",
+      loading: "Loading map…",
+      unavailable: "Map unavailable. Use the directions links.",
+      directions: "Get directions",
+    },
   },
   catalog: {
     title: "Catalog",

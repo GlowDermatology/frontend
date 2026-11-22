@@ -109,6 +109,12 @@ export const uz = {
     addressLabel: "Buyurtmani olib ketish manzili",
     phonesLabel: "Telefonlar",
     servicesLink: "Xizmatlar va narxlar",
+    map: {
+      label: "Klinikalar va olib ketish punkti",
+      loading: "Xarita yuklanmoqda…",
+      unavailable: "Xarita ochilmadi. Yo‘nalish havolalaridan foydalaning.",
+      directions: "Yo‘nalishni ko‘rish",
+    },
   },
   catalog: {
     title: "Katalog",

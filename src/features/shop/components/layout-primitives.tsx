@@ -57,11 +57,12 @@ interface SectionHeadingProps {
   id: string;
   eyebrow?: string;
   title: string;
+  lead?: string;
   action?: ReactNode;
 }
 
 /** Section title row: eyebrow + serif `<h2>` on the left, an optional link on the right. */
-export function SectionHeading({ id, eyebrow, title, action }: SectionHeadingProps) {
+export function SectionHeading({ id, eyebrow, title, lead, action }: SectionHeadingProps) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-4">
       <div className="flex flex-col gap-4">
@@ -69,6 +70,7 @@ export function SectionHeading({ id, eyebrow, title, action }: SectionHeadingPro
         <h2 id={id} className="m-0 font-serif text-headline font-semibold text-balance text-ink">
           {title}
         </h2>
+        {lead ? <p className="m-0 max-w-prose text-body text-ink-muted">{lead}</p> : null}
       </div>
       {action}
     </div>

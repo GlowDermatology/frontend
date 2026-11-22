@@ -3,6 +3,8 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { CUSTOMER_DARK_COLOR } from "../lib/theme/theme-cookie";
+
 /**
  * Guard for the two token blocks of `globals.css` (light and Espresso dark): the same tokens in
  * both, WCAG AA for the dark theme's text and status pairs, the light theme's current ratios as
@@ -58,6 +60,14 @@ const ratio = (tokens: Map<string, string>, fg: string, bg: string) =>
   contrast(color(tokens, fg), color(tokens, bg));
 
 describe("globals.css theme tokens", () => {
+  it("keeps the customer browser chrome and homepage action colors legible", () => {
+    expect(color(CUSTOMER_DARK, "surface")).toBe(CUSTOMER_DARK_COLOR);
+    for (const palette of [LIGHT, CUSTOMER_DARK]) {
+      expect(ratio(palette, "home-action-ink", "home-action")).toBeGreaterThanOrEqual(4.5);
+      expect(ratio(palette, "home-action-accent", "home-action")).toBeGreaterThanOrEqual(3);
+    }
+  });
+
   it("both blocks declare the same tokens and their colour scheme", () => {
     expect([...DARK.keys()].sort()).toEqual([...LIGHT.keys()].sort());
     expect(LIGHT.size).toBeGreaterThan(30);

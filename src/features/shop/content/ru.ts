@@ -106,6 +106,12 @@ export const ru: ShopDictionary = {
     addressLabel: "Адрес самовывоза",
     phonesLabel: "Телефоны",
     servicesLink: "Услуги и цены",
+    map: {
+      label: "Клиники и пункт самовывоза",
+      loading: "Загрузка карты…",
+      unavailable: "Карта недоступна. Воспользуйтесь ссылками на маршрут.",
+      directions: "Проложить маршрут",
+    },
   },
   catalog: {
     title: "Каталог",

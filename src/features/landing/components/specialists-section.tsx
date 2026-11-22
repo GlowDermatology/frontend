@@ -1,4 +1,4 @@
-import { buttonStyles } from "@/components/ui/button";
+import { homeActionAccent, homeActionStyles } from "@/components/brand/home-actions";
 import { Icon } from "@/components/ui/icon";
 import { SECTION_IDS } from "@/config/site";
 import { cn } from "@/lib/cn";
@@ -35,10 +35,8 @@ export function SpecialistsSection({ dict }: { dict: LandingDictionary["speciali
             ))}
           </ul>
           <div>
-            <a
-              href={`#${SECTION_IDS.download}`}
-              className={buttonStyles({ size: "lg", lift: true })}
-            >
+            <a href={`#${SECTION_IDS.download}`} className={homeActionStyles()}>
+              <Icon name="calendar" size={20} className={homeActionAccent} />
               {dict.cta}
             </a>
           </div>

@@ -47,7 +47,7 @@ function viewport(dark: string): Required<Pick<Viewport, "colorScheme" | "themeC
   };
 }
 
-export const CUSTOMER_DARK_COLOR = "#101713";
+export const CUSTOMER_DARK_COLOR = "#19171a";
 export const CUSTOMER_VIEWPORT = viewport(CUSTOMER_DARK_COLOR);
 export const THEME_VIEWPORT = viewport(THEME_COLORS.dark);
 

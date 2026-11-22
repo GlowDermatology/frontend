@@ -2,7 +2,7 @@
 
 import { useId, useState, type ReactNode } from "react";
 
-import { buttonStyles } from "@/components/ui/button";
+import { homeActionAccent, homeActionStyles } from "@/components/brand/home-actions";
 import { Icon } from "@/components/ui/icon";
 import { SECTION_IDS } from "@/config/site";
 import { cn } from "@/lib/cn";
@@ -29,10 +29,10 @@ export function BookingPreview({ dict }: { dict: BookingDict }) {
     <div
       role="group"
       aria-label={dict.label}
-      className="flex w-full max-w-[520px] flex-col gap-[22px] justify-self-center rounded-lg border border-line bg-surface p-[clamp(20px,3vw,32px)] shadow-lg"
+      className="flex w-full max-w-[520px] flex-col gap-[22px] justify-self-center rounded-[24px] border border-line bg-surface-raised p-[clamp(20px,3vw,32px)] shadow-lg"
     >
-      <div className="flex items-center gap-3.5">
-        <span className="flex size-14 shrink-0 items-center justify-center rounded-full bg-gold-soft text-gold-ink">
+      <div className="flex flex-col items-center gap-4 text-center">
+        <span className="flex size-20 shrink-0 items-center justify-center rounded-full bg-gold-soft text-gold-ink ring-1 ring-gold/60 ring-offset-4 ring-offset-surface-raised">
           <Icon name="user" size={26} />
         </span>
         <span className="flex flex-1 flex-col gap-0.5">
@@ -119,10 +119,8 @@ export function BookingPreview({ dict }: { dict: BookingDict }) {
         </div>
       </Group>
 
-      <a
-        href={`#${SECTION_IDS.download}`}
-        className={buttonStyles({ size: "lg", lift: true, className: "w-full" })}
-      >
+      <a href={`#${SECTION_IDS.download}`} className={homeActionStyles({ className: "w-full" })}>
+        <Icon name="calendar" size={18} className={homeActionAccent} />
         {dict.submit}
       </a>
     </div>

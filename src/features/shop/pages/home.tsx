@@ -4,8 +4,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { CollectionHero } from "@/components/brand/collection-hero";
-import { Rings } from "@/components/brand/rings";
-import { buttonStyles } from "@/components/ui/button";
+import { homeActionAccent, homeActionStyles } from "@/components/brand/home-actions";
 import { Icon } from "@/components/ui/icon";
 import { siteConfig } from "@/config/site";
 import {
@@ -15,22 +14,28 @@ import {
   getSettings,
   getSpecialists,
 } from "@/data/shop/catalog";
+import { toPin } from "@/domain/geo-pin";
 import { specialistLocations, type ShopBanner, type ShopSettings } from "@/domain/shop";
+import { serverEnv } from "@/lib/env.server";
 import { formatPhone } from "@/lib/format";
 import type { Locale } from "@/lib/i18n/locales";
 import { cn } from "@/lib/cn";
 
+import { accountCopy } from "../copy/account";
+import { HomeLocations, type VisitLocation } from "../components/home-locations";
 import { CategoryCard } from "../components/category-card";
 import {
+  homeCardGrid,
+  HomeProductCard,
+  HomeProductGridSkeleton,
+  HomeSpecialistCard,
+} from "../components/home-cards";
+import {
   Container,
-  Eyebrow,
   SectionHeading,
   sectionSpacing,
   textLink,
 } from "../components/layout-primitives";
-import { ProductGrid } from "../components/product-card";
-import { ProductGridSkeleton } from "../components/skeletons";
-import { SpecialistCard } from "../components/specialist-card";
 import { getShopDictionary, type ShopDictionary } from "../content";
 import { shopHref, shopPath } from "../routing/routes";
 import { JsonLd } from "../seo/json-ld-script";
@@ -133,10 +138,13 @@ function BannerFrame({
 function Hero({ locale, dict }: { locale: Locale; dict: ShopDictionary }) {
   return (
     <CollectionHero>
-      <Eyebrow>{dict.home.heroEyebrow}</Eyebrow>
+      <p className="m-0 inline-flex items-center gap-2 rounded-full bg-gold-soft px-3.5 py-2 text-overline text-ink uppercase">
+        <Icon name="shield-check" size={17} className="shrink-0 text-gold-ink" />
+        {dict.home.heroEyebrow}
+      </p>
       <h1
         id="hero-title"
-        className="m-0 font-serif text-[clamp(42px,5vw,76px)] leading-[1.02] font-medium tracking-[-0.035em] text-balance text-ink"
+        className="m-0 font-serif text-[clamp(40px,4.6vw,68px)] leading-[1.02] font-medium tracking-[-0.035em] text-balance text-ink"
       >
         {dict.home.heroTitleStart}{" "}
         <em className="font-medium text-gold-ink italic">{dict.home.heroTitleEmphasis}</em>{" "}
@@ -144,17 +152,15 @@ function Hero({ locale, dict }: { locale: Locale; dict: ShopDictionary }) {
       </h1>
       <p className="m-0 max-w-[520px] text-lead text-pretty text-ink-muted">{dict.home.heroLead}</p>
       <div className="flex flex-wrap gap-3">
-        <Link
-          href={shopPath(locale, { kind: "catalog" })}
-          className={buttonStyles({ size: "lg", lift: true, className: "gap-2.5" })}
-        >
+        <Link href={shopPath(locale, { kind: "catalog" })} className={homeActionStyles()}>
+          <Icon name="bag" size={20} className={homeActionAccent} />
           {dict.home.heroCatalog}
-          <Icon name="arrow-right" size={20} />
         </Link>
         <Link
           href={shopPath(locale, { kind: "specialists" })}
-          className={buttonStyles({ variant: "outline", size: "lg", lift: true })}
+          className={homeActionStyles({ secondary: true })}
         >
+          <Icon name="calendar" size={20} className="shrink-0 text-gold-ink" />
           {dict.home.heroBook}
         </Link>
       </div>
@@ -226,11 +232,27 @@ async function Categories({ locale, dict }: { locale: Locale; dict: ShopDictiona
   );
 }
 
+const featuredCount = 6;
+
 async function Featured({ locale, dict }: { locale: Locale; dict: ShopDictionary }) {
-  const products = await settle(getFeaturedProducts(locale, 8), [], "featured products");
+  const [products, settings] = await Promise.all([
+    settle(getFeaturedProducts(locale, featuredCount), [], "featured products"),
+    settle(getSettings(locale), null, "settings"),
+  ]);
   if (products.length === 0) return null;
   return (
-    <ProductGrid products={products} locale={locale} dict={dict} label={dict.home.featuredTitle} />
+    <ul aria-label={dict.home.featuredTitle} className={homeCardGrid}>
+      {products.map((product) => (
+        <li key={product.id}>
+          <HomeProductCard
+            product={product}
+            locale={locale}
+            dict={dict}
+            onlineSalesEnabled={settings?.onlineSalesEnabled ?? true}
+          />
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -240,13 +262,14 @@ async function Specialists({ locale, dict }: { locale: Locale; dict: ShopDiction
   return (
     <section
       aria-labelledby="specialists-title"
-      className={cn("border-y border-line bg-surface-raised", sectionSpacing)}
+      className={cn("border-y border-line bg-surface", sectionSpacing)}
     >
       <Container className="flex flex-col gap-[clamp(32px,4vw,60px)]">
         <SectionHeading
           id="specialists-title"
           eyebrow={dict.home.specialistsEyebrow}
           title={dict.home.specialistsTitle}
+          lead={dict.specialists.lead}
           action={
             <Link
               href={shopPath(locale, { kind: "specialists" })}
@@ -260,10 +283,10 @@ async function Specialists({ locale, dict }: { locale: Locale; dict: ShopDiction
             </Link>
           }
         />
-        <ul className="m-0 grid list-none gap-6 p-0 sm:grid-cols-2 nav:grid-cols-3">
+        <ul className={homeCardGrid}>
           {specialists.slice(0, 3).map((specialist) => (
             <li key={specialist.id}>
-              <SpecialistCard specialist={specialist} locale={locale} dict={dict} />
+              <HomeSpecialistCard specialist={specialist} locale={locale} dict={dict} />
             </li>
           ))}
         </ul>
@@ -285,98 +308,95 @@ async function Clinic({ locale, dict }: { locale: Locale; dict: ShopDictionary }
     settle(getSettings(locale), null, "settings"),
     settle(getSpecialists(locale), [], "specialists"),
   ]);
-  if (!settings) return null;
   const clinics = specialistLocations(specialists);
+  if (!settings && clinics.length === 0) return null;
+  const pickupAddress = settings?.pickupAddress.trim();
+  const locations: VisitLocation[] = clinics.map((clinic) => {
+    const available = specialists.filter(
+      (specialist) =>
+        specialist.services.length > 0 &&
+        specialist.locations.some((location) => location.id === clinic.id),
+    );
+    const single = available.length === 1 ? available[0] : undefined;
+    return {
+      id: `clinic-${clinic.id}`,
+      name: clinic.name,
+      address: clinic.address,
+      directions: clinic.directions,
+      pin: toPin(clinic.latitude, clinic.longitude),
+      bookingHref: single
+        ? shopHref(locale, { kind: "booking" }, { specialist: single.id, location: clinic.id })
+        : available.length > 1
+          ? shopPath(locale, { kind: "specialists" })
+          : undefined,
+      bookingLabel: single ? dict.specialists.book : dict.home.specialistsLink,
+    };
+  });
+  if (pickupAddress) {
+    locations.unshift({
+      id: "pickup",
+      primary: true,
+      name: dict.home.addressLabel,
+      address: pickupAddress,
+      pin: serverEnv.publicPickupPin(),
+    });
+  }
   const origin = siteConfig.url;
-  const phones = phonesOf(settings, dict);
+  const phones = settings ? phonesOf(settings, dict) : [];
+  const { zoomIn, zoomOut } = accountCopy[locale].addresses.map;
   return (
-    <section
-      aria-labelledby="clinic-title"
-      className={cn(
-        "relative overflow-hidden border-y border-nav-line bg-banner text-banner-ink-soft",
-        sectionSpacing,
-      )}
-    >
-      <JsonLd
-        data={[
-          organizationLd({ origin, settings }),
-          clinicLd({ origin, settings, location: clinics[0], facts: clinicFacts() }),
-          websiteLd({
-            origin,
-            url: absoluteUrl(shopPath(locale, { kind: "home" })),
-            locale,
-            name: dict.meta.siteName,
-            searchUrlTemplate: `${absoluteUrl(shopPath(locale, { kind: "catalog" }))}?q={search_term_string}`,
-          }),
-        ]}
-      />
-      <Rings
-        viewBox={800}
-        rings={[
-          [180, 0.4],
-          [260, 0.24],
-          [340, 0.14],
-          [400, 0.07],
-        ]}
-        className="absolute top-1/2 -right-[260px] size-[900px] -translate-y-1/2"
-      />
-      <Container className="relative grid gap-12 nav:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
-        <div className="flex flex-col gap-6">
-          <Eyebrow onDark>{dict.home.clinicEyebrow}</Eyebrow>
-          <h2
+    <section aria-labelledby="clinic-title" className={cn("border-y border-line", sectionSpacing)}>
+      {settings ? (
+        <JsonLd
+          data={[
+            organizationLd({ origin, settings }),
+            clinicLd({ origin, settings, location: clinics[0], facts: clinicFacts() }),
+            websiteLd({
+              origin,
+              url: absoluteUrl(shopPath(locale, { kind: "home" })),
+              locale,
+              name: dict.meta.siteName,
+              searchUrlTemplate: `${absoluteUrl(shopPath(locale, { kind: "catalog" }))}?q={search_term_string}`,
+            }),
+          ]}
+        />
+      ) : null}
+      <Container>
+        <div className="flex flex-col gap-7 rounded-[24px] border border-line bg-image-well/50 p-[clamp(16px,4vw,42px)]">
+          <SectionHeading
             id="clinic-title"
-            className="m-0 font-serif text-headline font-semibold text-balance text-banner-ink"
-          >
-            {dict.home.clinicTitle}
-          </h2>
-          <p className="m-0 max-w-[520px] text-lead text-pretty">{dict.home.clinicLead}</p>
-          <div className="flex flex-wrap gap-3 pt-2">
-            <Link
-              href={shopPath(locale, { kind: "services" })}
-              className={buttonStyles({ size: "lg", lift: true })}
-            >
-              {dict.home.servicesLink}
-            </Link>
-          </div>
-        </div>
-        <dl className="m-0 grid content-start gap-8 sm:grid-cols-2">
-          {clinics.length > 0 ? (
-            <div className="flex flex-col gap-3 sm:col-span-2">
-              <dt className="text-overline text-banner-ink uppercase">
-                {dict.specialists.location}
-              </dt>
-              {clinics.map((clinic) => (
-                <dd key={clinic.id} className="m-0 flex flex-col leading-7">
-                  <strong className="text-banner-ink">{clinic.name}</strong>
-                  <span>{clinic.address}</span>
-                  {clinic.directions ? <span>{clinic.directions}</span> : null}
-                </dd>
-              ))}
-            </div>
+            eyebrow={dict.home.clinicEyebrow}
+            title={dict.home.clinicTitle}
+            lead={dict.home.clinicLead}
+            action={
+              <Link
+                href={shopPath(locale, { kind: "services" })}
+                className={homeActionStyles({ secondary: true })}
+              >
+                {dict.home.servicesLink}
+              </Link>
+            }
+          />
+          {locations.length ? (
+            <HomeLocations locations={locations} copy={{ ...dict.home.map, zoomIn, zoomOut }} />
           ) : null}
-          {settings.pickupAddress ? (
-            <div className="flex flex-col gap-2">
-              <dt className="text-overline text-banner-ink uppercase">{dict.home.addressLabel}</dt>
-              <dd className="m-0 text-[17px] leading-7">{settings.pickupAddress}</dd>
-            </div>
-          ) : null}
-          {phones.length > 0 ? (
-            <div className="flex flex-col gap-2">
-              <dt className="text-overline text-banner-ink uppercase">{dict.home.phonesLabel}</dt>
+          {phones.length ? (
+            <dl className="m-0 flex flex-wrap gap-x-8 gap-y-2 border-t border-line pt-4 text-body-sm">
+              <dt className="sr-only">{dict.home.phonesLabel}</dt>
               {phones.map((phone) => (
-                <dd key={phone.value} className="m-0 text-[17px] leading-7">
-                  <span className="text-nav-ink-muted">{phone.label}: </span>
+                <dd key={phone.value} className="m-0">
+                  <span className="text-ink-muted">{phone.label}: </span>
                   <a
                     href={`tel:${phone.value}`}
-                    className="font-semibold text-banner-ink-soft no-underline decoration-gold underline-offset-4 hover:underline"
+                    className="font-semibold text-ink underline decoration-gold underline-offset-4"
                   >
                     {formatPhone(phone.value)}
                   </a>
                 </dd>
               ))}
-            </div>
+            </dl>
           ) : null}
-        </dl>
+        </div>
       </Container>
     </section>
   );
@@ -395,7 +415,7 @@ export function ShopHome({ locale }: { locale: Locale }) {
       </Suspense>
       <section
         aria-labelledby="featured-title"
-        className={cn("border-t border-line", sectionSpacing)}
+        className={cn("border-t border-line bg-image-well/50", sectionSpacing)}
       >
         <Container className="flex flex-col gap-[clamp(32px,4vw,60px)]">
           <SectionHeading
@@ -415,7 +435,7 @@ export function ShopHome({ locale }: { locale: Locale }) {
               </Link>
             }
           />
-          <Suspense fallback={<ProductGridSkeleton count={8} />}>
+          <Suspense fallback={<HomeProductGridSkeleton count={featuredCount} />}>
             <Featured locale={locale} dict={dict} />
           </Suspense>
         </Container>

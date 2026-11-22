@@ -1,5 +1,7 @@
 import "server-only";
 
+import { toPin, type GeoPin } from "@/domain/geo-pin";
+
 export type DataSource = "mock" | "api";
 
 function read(name: string): string | undefined {
@@ -72,6 +74,11 @@ export const serverEnv = {
   /** Django origin without a trailing slash, e.g. `http://api:8000`. */
   apiUrl(): string {
     return required("GLOWDERMA_API_URL").replace(/\/+$/, "");
+  },
+  /** Coordinates explicitly published for the customer pickup address, in latitude,longitude order. */
+  publicPickupPin(): GeoPin | null {
+    const parts = read("GLOWDERMA_PUBLIC_PICKUP_PIN")?.split(",");
+    return parts?.length === 2 ? toPin(parts[0], parts[1]) : null;
   },
   /** Shared secret sent as `X-GD-Internal-Secret` (equals Django's INTERNAL_API_SECRET). */
   internalSecret(): string {

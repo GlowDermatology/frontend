@@ -21,6 +21,9 @@
   --gd-gold-ink: #9a7424;
   --gd-gold-soft: #f6ebd0;
   --gd-on-gold: #2a2418;
+  --gd-home-action: var(--gd-nav);
+  --gd-home-action-ink: var(--gd-surface-raised);
+  --gd-home-action-accent: var(--gd-gold-soft);
   --gd-surface: #fbf8f2;
   --gd-surface-raised: #ffffff;
   --gd-ink: #2a2418;
@@ -71,6 +74,9 @@
   --gd-gold-ink: #e8c77e;
   --gd-gold-soft: #2a2216;
   --gd-on-gold: #151107;
+  --gd-home-action: var(--gd-gold);
+  --gd-home-action-ink: var(--gd-on-gold);
+  --gd-home-action-accent: var(--gd-on-gold);
   --gd-surface: #14110d;
   --gd-surface-raised: #1e1a15;
   --gd-ink: #f3ece0;
@@ -109,25 +115,26 @@
 
 /* Customer documents share this palette with their portalled menus and dialogs. */
 html[data-customer-web][data-theme="dark"] {
-  --gd-surface: #101713;
-  --gd-surface-raised: #1a241e;
-  --gd-ink: #f5efe3;
-  --gd-ink-muted: #b3beb0;
-  --gd-line: #334039;
-  --gd-gold: #dfc183;
-  --gd-gold-ink: #e7cd97;
-  --gd-gold-soft: #2e2c21;
-  --gd-on-gold: #191c15;
-  --gd-nav: #0b110e;
-  --gd-nav-line: #394940;
+  --gd-surface: #19171a;
+  --gd-surface-raised: #252226;
+  --gd-ink: #f5ece3;
+  --gd-ink-muted: #c2b4aa;
+  --gd-line: #42383c;
+  --gd-gold: #dcb38e;
+  --gd-gold-ink: #ebc6a4;
+  --gd-gold-soft: #35292b;
+  --gd-on-gold: #23191a;
+  --gd-nav: #121013;
+  --gd-nav-line: #473a41;
   --gd-nav-ink-muted: var(--gd-ink-muted);
   --gd-banner: var(--gd-nav);
   --gd-banner-ink: var(--gd-gold);
   --gd-banner-ink-soft: var(--gd-ink);
-  --gd-image-well: #202b24;
-  --gd-skeleton: #29372f;
-  --gd-skeleton-sheen: #35453b;
-  --gd-scrollbar-thumb: #7a887c;
+  --gd-image-well: #30292c;
+  --gd-skeleton: #352e33;
+  --gd-skeleton-sheen: #483d44;
+  --gd-scrollbar-thumb: #96838a;
+  --gd-media-dim: brightness(0.95);
 }
 
 @theme inline {

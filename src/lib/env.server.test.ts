@@ -2,6 +2,23 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { parseOpsConsoleUrl, serverEnv } from "./env.server";
 
+describe("serverEnv.publicPickupPin", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("reads a valid latitude and longitude pair", () => {
+    vi.stubEnv("GLOWDERMA_PUBLIC_PICKUP_PIN", "41.30912, 69.24731");
+    expect(serverEnv.publicPickupPin()).toEqual({ latitude: 41.30912, longitude: 69.24731 });
+  });
+
+  it.each(["", "41.30912", "91,69.24731", "41.30912,69.24731,0"])(
+    "omits the pin for missing or invalid configuration (%s)",
+    (value) => {
+      vi.stubEnv("GLOWDERMA_PUBLIC_PICKUP_PIN", value);
+      expect(serverEnv.publicPickupPin()).toBeNull();
+    },
+  );
+});
+
 describe("parseOpsConsoleUrl (GLOWDERMA_OPS_CONSOLE_URL)", () => {
   it("keeps an absolute http(s) URL and makes it end with a slash", () => {
     expect(parseOpsConsoleUrl("https://ops.glowderma.uz/django-admin/")).toBe(

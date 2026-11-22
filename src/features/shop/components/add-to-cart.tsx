@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 
+import { homeActionAccent, homeActionStyles } from "@/components/brand/home-actions";
 import { Button, buttonStyles } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { cn } from "@/lib/cn";
 import { useIdempotencyKey } from "@/lib/actions/idempotency";
 import type { Locale } from "@/lib/i18n/locales";
 
@@ -23,6 +25,7 @@ interface AddToCartProps {
   /** This product page, for the sign-in page's `next`. */
   productPath: string;
   state: AddToCartState;
+  compact?: boolean;
   labels: { add: string; soldOut: string; salesOff: string };
 }
 
@@ -37,7 +40,14 @@ type Feedback =
  * session goes to sign in and comes back here; a success updates the
  * header's bag badge and offers the way to the cart.
  */
-export function AddToCart({ locale, productId, productPath, state, labels }: AddToCartProps) {
+export function AddToCart({
+  locale,
+  productId,
+  productPath,
+  state,
+  labels,
+  compact = false,
+}: AddToCartProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [feedback, setFeedback] = useState<Feedback>(null);
@@ -77,19 +87,24 @@ export function AddToCart({ locale, productId, productPath, state, labels }: Add
 
   // Back from sign-in with `?add={id}`: add the product the visitor asked for.
   useEffect(() => {
-    if (state !== "available") return;
+    if (compact || state !== "available") return;
     const url = new URL(window.location.href);
     if (url.searchParams.get("add") !== String(productId) || !hasSignedInHint()) return;
     url.searchParams.delete("add");
     window.history.replaceState(null, "", url.pathname + url.search + url.hash);
     const timer = window.setTimeout(() => onClickRef.current(), 0);
     return () => window.clearTimeout(timer);
-  }, [state, productId]);
+  }, [compact, state, productId]);
 
+  const compactButton = homeActionStyles({ compact: true, className: "w-full" });
   if (state !== "available") {
     return (
       <div className="flex flex-col gap-3">
-        <Button size="xl" disabled className="w-full sm:w-auto sm:min-w-[280px]">
+        <Button
+          size="xl"
+          disabled
+          className={compact ? compactButton : "w-full sm:w-auto sm:min-w-[280px]"}
+        >
           {labels.soldOut}
         </Button>
         {state === "sales_off" ? (
@@ -107,12 +122,16 @@ export function AddToCart({ locale, productId, productPath, state, labels }: Add
         onClick={onClick}
         disabled={pending}
         aria-busy={pending || undefined}
-        className="w-full gap-2.5 sm:w-auto sm:min-w-[280px]"
+        className={compact ? compactButton : "w-full gap-2.5 sm:w-auto sm:min-w-[280px]"}
       >
-        <Icon name="bag" size={20} />
+        <Icon
+          name="bag"
+          size={compact ? 17 : 20}
+          className={compact ? homeActionAccent : undefined}
+        />
         {labels.add}
       </Button>
-      <div role="status" className="min-h-5">
+      <div role="status" className={cn(compact && !feedback ? "sr-only" : "min-h-5")}>
         {feedback?.kind === "added" ? (
           <div className="flex animate-rise-in flex-col gap-2 rounded-md border border-line bg-surface-raised p-4 sm:max-w-[420px]">
             <p className="m-0 flex items-center gap-2 text-label text-ink">

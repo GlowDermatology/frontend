@@ -194,7 +194,8 @@ The customer website is the storefront above plus the signed-in pages, served by
 
 1. **Backend** (`feat/customer-web` or later), local settings, in its `.env`:
    - `INTERNAL_API_SECRET=<32+ characters>`: the frontend sends it as `X-GD-Internal-Secret`;
-   - `PUBLIC_MEDIA_BASE_URL=http://localhost:8000/media/`: its host goes into `GLOWDERMA_MEDIA_HOSTS`;
+   - `PUBLIC_MEDIA_BASE_URL=http://127.0.0.1:8333/glowderma-media/media/`: start local SeaweedFS and
+     allow its host and path in `GLOWDERMA_MEDIA_HOSTS`;
    - fake integrations: `OAUTH_MODE=fake`, `ESKIZ_FAKE_CODE=123456` and `EMAIL_MODE=fake`. Every SMS and e-mail code is then **`123456`** (sign-up, new device, reset, phone gate, e-mail attach);
    - sandbox payments: `FAKE_PAYMENTS_ENABLED=true` (the `dev/payments/{id}/simulate/` endpoint) and `PAYMENT_WEB_RETURN_URL=http://localhost:3000{locale_prefix}/buyurtmalar/{order_id}?paid=1`.
 
@@ -206,7 +207,7 @@ The customer website is the storefront above plus the signed-in pages, served by
    export GLOWDERMA_DATA_SOURCE=api GLOWDERMA_API_URL=http://127.0.0.1:8000 \
      GLOWDERMA_INTERNAL_SECRET=<INTERNAL_API_SECRET> \
      GLOWDERMA_ALLOWED_ORIGINS=localhost:3000 GLOWDERMA_COOKIE_SECURE=false \
-     GLOWDERMA_MEDIA_HOSTS=localhost:8000 GLOWDERMA_MEDIA_ALLOW_LOCAL=true \
+     GLOWDERMA_MEDIA_HOSTS=127.0.0.1:8333/glowderma-media/media GLOWDERMA_MEDIA_ALLOW_LOCAL=true \
      NEXT_PUBLIC_SITE_URL=http://localhost:3000 \
      GLOWDERMA_PAYMENT_SANDBOX=true GLOWDERMA_PAYMENT_SANDBOX_ALLOW=true
    npm run build && npm run start

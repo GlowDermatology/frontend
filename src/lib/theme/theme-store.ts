@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from "react";
 
 import {
+  CUSTOMER_DARK_COLOR,
   DARK_QUERY,
   THEME_COLORS,
   THEME_ROUTE,
@@ -91,9 +92,13 @@ export function applyTheme(
     env.document.head.appendChild(style);
   }
   if (changed) root.setAttribute("data-theme", theme);
+  const color =
+    theme === "dark" && root.getAttribute("data-customer-web") !== null
+      ? CUSTOMER_DARK_COLOR
+      : THEME_COLORS[theme];
   for (const meta of env.document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')) {
-    if (meta.getAttribute("content") !== THEME_COLORS[theme]) {
-      meta.setAttribute("content", THEME_COLORS[theme]);
+    if (meta.getAttribute("content") !== color) {
+      meta.setAttribute("content", color);
     }
   }
   if (style) {

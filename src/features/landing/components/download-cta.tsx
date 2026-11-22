@@ -5,12 +5,14 @@ import { SECTION_IDS, siteConfig } from "@/config/site";
 import { cn } from "@/lib/cn";
 
 import type { LandingDictionary } from "../content/uz";
+import { PhoneMockup } from "./phone-mockup";
 import { Eyebrow, SectionTitle, gutter } from "./primitives";
 
 /** Store URLs are not published yet; until then the buttons stay on this section. */
 const fallbackHref = `#${SECTION_IDS.download}`;
 
-export function DownloadCta({ dict }: { dict: LandingDictionary["download"] }) {
+export function DownloadCta({ content }: { content: LandingDictionary }) {
+  const dict = content.download;
   return (
     <section
       id={SECTION_IDS.download}
@@ -40,28 +42,31 @@ export function DownloadCta({ dict }: { dict: LandingDictionary["download"] }) {
           <p className="m-0 max-w-[460px] text-[17px] leading-7 text-banner-ink-soft">
             {dict.lead}
           </p>
+          <div className="relative flex w-full max-w-[340px] flex-col gap-3 justify-self-start">
+            <a
+              href={siteConfig.links.appStore ?? fallbackHref}
+              className={buttonStyles({ size: "xl", lift: true, className: "w-full gap-2.5" })}
+            >
+              <Icon name="download" size={20} />
+              {dict.appStore}
+            </a>
+            <a
+              href={siteConfig.links.googlePlay ?? fallbackHref}
+              className={buttonStyles({
+                variant: "outline",
+                size: "xl",
+                lift: true,
+                className:
+                  "w-full gap-2.5 border-banner-ink-soft/50 text-banner-ink-soft hover:bg-white/5",
+              })}
+            >
+              <Icon name="download" size={20} />
+              {dict.googlePlay}
+            </a>
+          </div>
         </div>
-        <div className="relative flex w-full max-w-[340px] flex-col gap-3 justify-self-start">
-          <a
-            href={siteConfig.links.appStore ?? fallbackHref}
-            className={buttonStyles({ size: "xl", lift: true, className: "w-full gap-2.5" })}
-          >
-            <Icon name="download" size={20} />
-            {dict.appStore}
-          </a>
-          <a
-            href={siteConfig.links.googlePlay ?? fallbackHref}
-            className={buttonStyles({
-              variant: "outline",
-              size: "xl",
-              lift: true,
-              className:
-                "w-full gap-2.5 border-banner-ink-soft/50 text-banner-ink-soft hover:bg-white/5",
-            })}
-          >
-            <Icon name="download" size={20} />
-            {dict.googlePlay}
-          </a>
+        <div className="flex min-w-0 justify-center">
+          <PhoneMockup dict={content.phone} label={content.hero.mockupLabel} />
         </div>
       </div>
     </section>

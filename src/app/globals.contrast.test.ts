@@ -29,6 +29,8 @@ function block(selector: string): Map<string, string> {
 const LIGHT = block(':root,\n[data-theme="light"]');
 const DARK = block('[data-theme="dark"]');
 
+const CUSTOMER_DARK = new Map([...DARK, ...block('html[data-customer-web][data-theme="dark"]')]);
+
 function color(tokens: Map<string, string>, name: string): string {
   let value = tokens.get(`--gd-${name}`);
   for (let depth = 0; value?.startsWith("var("); depth += 1) {
@@ -96,7 +98,8 @@ describe("globals.css theme tokens", () => {
     ["banner-ink-soft", "banner"],
     ...["danger", "danger-strong", "success", "warning"].map((bg) => ["on-fill", bg] as const),
   ])("dark: %s on %s passes AA (4.5:1)", (fg, bg) => {
-    expect(ratio(DARK, fg, bg)).toBeGreaterThanOrEqual(4.5);
+    for (const palette of [DARK, CUSTOMER_DARK])
+      expect(ratio(palette, fg, bg)).toBeGreaterThanOrEqual(4.5);
   });
 
   it.each([
@@ -105,7 +108,8 @@ describe("globals.css theme tokens", () => {
     ["line-strong", "surface-raised"],
     ["gold-ink", "surface"],
   ])("dark: %s on %s is a visible non-text colour (3:1)", (fg, bg) => {
-    expect(ratio(DARK, fg, bg)).toBeGreaterThanOrEqual(3);
+    for (const palette of [DARK, CUSTOMER_DARK])
+      expect(ratio(palette, fg, bg)).toBeGreaterThanOrEqual(3);
   });
 
   it("dark: the nav hairline is visible against the nav and the page", () => {

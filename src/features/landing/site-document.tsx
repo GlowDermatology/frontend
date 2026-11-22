@@ -16,6 +16,7 @@ export function SiteDocument({ locale, children }: { locale: Locale; children: R
     <html
       lang={locale}
       data-theme="light"
+      data-customer-web=""
       data-scroll-behavior="smooth"
       className={fontVariables}
       suppressHydrationWarning

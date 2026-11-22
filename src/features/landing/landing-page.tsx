@@ -32,7 +32,7 @@ export function LandingPage({ locale }: { locale: Locale }) {
         <QrSection dict={dict.qr} />
         <SpecialistsSection dict={dict.specialists} />
         <DeliverySection dict={dict.delivery} />
-        <DownloadCta dict={dict.download} />
+        <DownloadCta content={dict} />
       </main>
       <SiteFooter dict={dict} locale={locale} />
     </div>

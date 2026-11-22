@@ -3,7 +3,7 @@ import "../globals.css";
 import type { Metadata, Viewport } from "next";
 
 import { fontVariables } from "@/lib/fonts";
-import { THEME_SCRIPT, THEME_VIEWPORT } from "@/lib/theme/theme-cookie";
+import { THEME_SCRIPT, CUSTOMER_VIEWPORT } from "@/lib/theme/theme-cookie";
 import { ThemeSync } from "@/lib/theme/theme-sync";
 
 export const metadata: Metadata = {
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export const viewport: Viewport = THEME_VIEWPORT;
+export const viewport: Viewport = CUSTOMER_VIEWPORT;
 
 /**
  * Root layout of `/pay/*`: the payment return page of the mobile app. It sits
@@ -21,7 +21,13 @@ export const viewport: Viewport = THEME_VIEWPORT;
  */
 export default function PayRootLayout({ children }: LayoutProps<"/pay">) {
   return (
-    <html lang="uz" data-theme="light" className={fontVariables} suppressHydrationWarning>
+    <html
+      lang="uz"
+      data-theme="light"
+      data-customer-web=""
+      className={fontVariables}
+      suppressHydrationWarning
+    >
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>

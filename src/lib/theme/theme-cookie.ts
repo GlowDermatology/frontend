@@ -37,13 +37,19 @@ export const THEME_COLORS: Readonly<Record<ResolvedTheme, string>> = {
  * The `viewport` fields of every root layout: both colour schemes are supported, and the browser
  * chrome follows the device until `ThemeSync` sets the chosen theme's colour.
  */
-export const THEME_VIEWPORT: Required<Pick<Viewport, "colorScheme" | "themeColor">> = {
-  colorScheme: "light dark",
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: THEME_COLORS.light },
-    { media: DARK_QUERY, color: THEME_COLORS.dark },
-  ],
-};
+function viewport(dark: string): Required<Pick<Viewport, "colorScheme" | "themeColor">> {
+  return {
+    colorScheme: "light dark",
+    themeColor: [
+      { media: "(prefers-color-scheme: light)", color: THEME_COLORS.light },
+      { media: DARK_QUERY, color: dark },
+    ],
+  };
+}
+
+export const CUSTOMER_DARK_COLOR = "#101713";
+export const CUSTOMER_VIEWPORT = viewport(CUSTOMER_DARK_COLOR);
+export const THEME_VIEWPORT = viewport(THEME_COLORS.dark);
 
 /** A stored value as a choice: `light` / `dark`, anything else (absent, unknown) is `system`. */
 export function parseThemeChoice(value: string | null | undefined): ThemeChoice {

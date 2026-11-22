@@ -63,7 +63,7 @@ test.describe("first paint", () => {
       await expect(theme(page)).toHaveAttribute("data-theme", "dark");
       await expect(page.locator('meta[name="theme-color"]').first()).toHaveAttribute(
         "content",
-        "#14110d",
+        path === "/" ? "#101713" : "#14110d",
       );
     }
   });

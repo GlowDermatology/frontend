@@ -107,6 +107,29 @@
   color-scheme: dark;
 }
 
+/* Customer documents share this palette with their portalled menus and dialogs. */
+html[data-customer-web][data-theme="dark"] {
+  --gd-surface: #101713;
+  --gd-surface-raised: #1a241e;
+  --gd-ink: #f5efe3;
+  --gd-ink-muted: #b3beb0;
+  --gd-line: #334039;
+  --gd-gold: #dfc183;
+  --gd-gold-ink: #e7cd97;
+  --gd-gold-soft: #2e2c21;
+  --gd-on-gold: #191c15;
+  --gd-nav: #0b110e;
+  --gd-nav-line: #394940;
+  --gd-nav-ink-muted: var(--gd-ink-muted);
+  --gd-banner: var(--gd-nav);
+  --gd-banner-ink: var(--gd-gold);
+  --gd-banner-ink-soft: var(--gd-ink);
+  --gd-image-well: #202b24;
+  --gd-skeleton: #29372f;
+  --gd-skeleton-sheen: #35453b;
+  --gd-scrollbar-thumb: #7a887c;
+}
+
 @theme inline {
   /* Only design-system colours are available as utilities. */
   --color-*: initial;

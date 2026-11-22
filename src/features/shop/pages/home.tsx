@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
 
+import { CollectionHero } from "@/components/brand/collection-hero";
 import { Rings } from "@/components/brand/rings";
 import { buttonStyles } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
@@ -78,13 +79,11 @@ function bannerHref(banner: ShopBanner, locale: Locale): string | null {
 function BannerFrame({
   banner,
   locale,
-  priority,
   className,
   sizes,
 }: {
   banner: ShopBanner;
   locale: Locale;
-  priority: boolean;
   className?: string;
   sizes: string;
 }) {
@@ -94,10 +93,9 @@ function BannerFrame({
       {banner.image ? (
         <Image
           src={banner.image}
-          alt={banner.title}
+          alt=""
           fill
           sizes={sizes}
-          priority={priority}
           className="object-cover transition-transform duration-[1200ms] ease-soft group-hover:scale-[1.03]"
         />
       ) : null}
@@ -132,149 +130,61 @@ function BannerFrame({
   );
 }
 
-/**
- * The hero without a banner: up to three product photos over the brand's
- * rings, editorial-style (decorative — the products are listed below). With
- * no photo at all the plain rings panel stays.
- */
-const COLLAGE_SLOTS = [
-  "left-[6%] top-[9%] w-[54%] z-10",
-  "right-[6%] top-[4%] w-[36%] ring-1 ring-gold/50 ring-offset-4 ring-offset-banner",
-  "right-[10%] bottom-[7%] w-[40%] z-20 ring-1 ring-gold/50 ring-offset-4 ring-offset-banner",
-] as const;
-
-function HeroCollage({ images }: { images: ReadonlyArray<string> }) {
+function Hero({ locale, dict }: { locale: Locale; dict: ShopDictionary }) {
   return (
-    <div
-      aria-hidden="true"
-      className="relative aspect-[4/3] w-full overflow-hidden rounded-lg border border-nav-line bg-banner nav:aspect-[4/5]"
-    >
-      <Rings
-        viewBox={800}
-        rings={[
-          [150, 0.55],
-          [210, 0.38],
-          [270, 0.25],
-          [330, 0.15],
-          [392, 0.08],
-        ]}
-        className="absolute top-1/2 left-1/2 size-[140%] -translate-x-1/2 -translate-y-1/2"
-      />
-      {images.map((src, index) => (
-        <div
-          key={src}
-          className={cn(
-            "absolute aspect-product overflow-hidden rounded-lg bg-surface-raised shadow-lg",
-            images.length === 1
-              ? "top-1/2 left-1/2 w-[58%] -translate-x-1/2 -translate-y-1/2"
-              : COLLAGE_SLOTS[index],
-          )}
+    <CollectionHero>
+      <Eyebrow>{dict.home.heroEyebrow}</Eyebrow>
+      <h1
+        id="hero-title"
+        className="m-0 font-serif text-[clamp(42px,5vw,76px)] leading-[1.02] font-medium tracking-[-0.035em] text-balance text-ink"
+      >
+        {dict.home.heroTitleStart}{" "}
+        <em className="font-medium text-gold-ink italic">{dict.home.heroTitleEmphasis}</em>{" "}
+        {dict.home.heroTitleEnd}
+      </h1>
+      <p className="m-0 max-w-[520px] text-lead text-pretty text-ink-muted">{dict.home.heroLead}</p>
+      <div className="flex flex-wrap gap-3">
+        <Link
+          href={shopPath(locale, { kind: "catalog" })}
+          className={buttonStyles({ size: "lg", lift: true, className: "gap-2.5" })}
         >
-          <Image
-            src={src}
-            alt=""
-            fill
-            priority={index === 0}
-            sizes="(min-width: 72rem) 340px, 55vw"
-            className="object-cover"
-          />
-        </div>
-      ))}
-    </div>
+          {dict.home.heroCatalog}
+          <Icon name="arrow-right" size={20} />
+        </Link>
+        <Link
+          href={shopPath(locale, { kind: "specialists" })}
+          className={buttonStyles({ variant: "outline", size: "lg", lift: true })}
+        >
+          {dict.home.heroBook}
+        </Link>
+      </div>
+    </CollectionHero>
   );
 }
 
-async function Hero({ locale, dict }: { locale: Locale; dict: ShopDictionary }) {
-  const [banners, featured] = await Promise.all([
-    settle(getBanners(locale), [], "banners"),
-    settle(getFeaturedProducts(locale, 8), [], "featured products"),
-  ]);
-  const [lead, ...rest] = banners.filter((banner) => banner.image);
-  const collage = featured.filter((product) => product.image).slice(0, 3);
+async function Campaigns({ locale, dict }: { locale: Locale; dict: ShopDictionary }) {
+  const banners = (await settle(getBanners(locale), [], "banners")).filter(
+    (banner) => banner.image,
+  );
+  if (!banners.length) return null;
   return (
-    <section aria-labelledby="hero-title" className="relative">
-      <Container>
-        <div className="grid items-center gap-[clamp(32px,5vw,72px)] pt-[clamp(28px,5vw,72px)] pb-[clamp(48px,6vw,96px)] nav:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
-          <div className="flex animate-reveal flex-col gap-7">
-            <Eyebrow>{dict.home.heroEyebrow}</Eyebrow>
-            <h1
-              id="hero-title"
-              className="m-0 font-serif text-hero font-semibold text-balance text-ink"
-            >
-              {dict.home.heroTitleStart}{" "}
-              <em className="font-medium text-gold-ink italic">{dict.home.heroTitleEmphasis}</em>{" "}
-              {dict.home.heroTitleEnd}
-            </h1>
-            <p className="m-0 max-w-[520px] text-lead text-pretty text-ink-muted">
-              {dict.home.heroLead}
-            </p>
-            <div className="flex flex-wrap gap-3">
-              <Link
-                href={shopPath(locale, { kind: "catalog" })}
-                className={buttonStyles({ size: "lg", lift: true, className: "gap-2.5" })}
-              >
-                {dict.home.heroCatalog}
-                <Icon name="arrow-right" size={20} />
-              </Link>
-              <Link
-                href={shopPath(locale, { kind: "specialists" })}
-                className={buttonStyles({ variant: "outline", size: "lg", lift: true })}
-              >
-                {dict.home.heroBook}
-              </Link>
-            </div>
-          </div>
-          {lead ? (
+    <Container>
+      <ul
+        aria-label={dict.home.bannersLabel}
+        className="m-0 grid list-none gap-4 p-0 pb-[clamp(48px,6vw,96px)] sm:grid-cols-2 nav:grid-cols-3"
+      >
+        {banners.map((banner) => (
+          <li key={banner.id}>
             <BannerFrame
-              banner={lead}
+              banner={banner}
               locale={locale}
-              priority
-              sizes="(min-width: 72rem) 620px, 100vw"
-              className="aspect-[4/5] w-full sm:aspect-[4/3] nav:aspect-[4/5]"
+              sizes="(min-width: 72rem) 400px, (min-width: 37.5rem) 50vw, 100vw"
+              className="aspect-banner w-full"
             />
-          ) : collage.length > 0 ? (
-            <HeroCollage
-              images={collage.map((product) => (product.imageMedium ?? product.image) as string)}
-            />
-          ) : (
-            <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg border border-nav-line bg-banner nav:aspect-[4/5]">
-              <Rings
-                viewBox={800}
-                rings={[
-                  [150, 0.55],
-                  [210, 0.38],
-                  [270, 0.25],
-                  [330, 0.15],
-                  [392, 0.08],
-                ]}
-                className="absolute top-1/2 left-1/2 size-[140%] -translate-x-1/2 -translate-y-1/2"
-              />
-              <p className="relative m-0 px-8 text-center font-serif text-[clamp(30px,3.4vw,48px)] leading-[1.1] font-medium text-banner-ink italic">
-                Glow Derma
-              </p>
-            </div>
-          )}
-        </div>
-        {rest.length > 0 ? (
-          <ul
-            aria-label={dict.home.bannersLabel}
-            className="m-0 -mt-[clamp(16px,3vw,48px)] grid list-none gap-4 p-0 pb-[clamp(48px,6vw,96px)] sm:grid-cols-2 nav:grid-cols-3"
-          >
-            {rest.slice(0, 3).map((banner) => (
-              <li key={banner.id}>
-                <BannerFrame
-                  banner={banner}
-                  locale={locale}
-                  priority={false}
-                  sizes="(min-width: 72rem) 400px, (min-width: 37.5rem) 50vw, 100vw"
-                  className="aspect-banner w-full"
-                />
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </Container>
-    </section>
+          </li>
+        ))}
+      </ul>
+    </Container>
   );
 }
 
@@ -286,7 +196,7 @@ async function Categories({ locale, dict }: { locale: Locale; dict: ShopDictiona
       aria-labelledby="categories-title"
       className={cn("border-t border-line", sectionSpacing)}
     >
-      <Container className="flex flex-col gap-10">
+      <Container className="flex flex-col gap-[clamp(32px,4vw,60px)]">
         <SectionHeading
           id="categories-title"
           eyebrow={dict.home.categoriesEyebrow}
@@ -332,7 +242,7 @@ async function Specialists({ locale, dict }: { locale: Locale; dict: ShopDiction
       aria-labelledby="specialists-title"
       className={cn("border-y border-line bg-surface-raised", sectionSpacing)}
     >
-      <Container className="flex flex-col gap-10">
+      <Container className="flex flex-col gap-[clamp(32px,4vw,60px)]">
         <SectionHeading
           id="specialists-title"
           eyebrow={dict.home.specialistsEyebrow}
@@ -476,8 +386,9 @@ export function ShopHome({ locale }: { locale: Locale }) {
   const dict = getShopDictionary(locale);
   return (
     <>
-      <Suspense fallback={<div aria-hidden="true" className="min-h-[clamp(560px,60vw,760px)]" />}>
-        <Hero locale={locale} dict={dict} />
+      <Hero locale={locale} dict={dict} />
+      <Suspense fallback={null}>
+        <Campaigns locale={locale} dict={dict} />
       </Suspense>
       <Suspense fallback={null}>
         <Categories locale={locale} dict={dict} />
@@ -486,7 +397,7 @@ export function ShopHome({ locale }: { locale: Locale }) {
         aria-labelledby="featured-title"
         className={cn("border-t border-line", sectionSpacing)}
       >
-        <Container className="flex flex-col gap-10">
+        <Container className="flex flex-col gap-[clamp(32px,4vw,60px)]">
           <SectionHeading
             id="featured-title"
             eyebrow={dict.home.featuredEyebrow}

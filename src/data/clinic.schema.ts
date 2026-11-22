@@ -248,6 +248,12 @@ export const clinicSchemas = localized((locale) => {
     isActive: z.boolean(),
   });
 
+  /** A specialist's own service: the catalog texts plus its price and duration (both required). */
+  const specialistService = service.omit({ defaultDurationMin: true, defaultPrice: true }).extend({
+    price,
+    durationMin: duration,
+  });
+
   /* --- Clinics --- */
   const coordinate = (limit: number) =>
     z
@@ -291,7 +297,7 @@ export const clinicSchemas = localized((locale) => {
       }
     });
 
-  return { specialist, offers, week, override, block, service, location };
+  return { specialist, offers, week, override, block, service, specialistService, location };
 });
 
 type ClinicSchemas = LocalizedOf<typeof clinicSchemas>;
@@ -302,6 +308,7 @@ export type WorkingWeekValues = z.infer<ClinicSchemas["week"]>;
 export type OverrideFormValues = z.infer<ClinicSchemas["override"]>;
 export type BlockFormValues = z.infer<ClinicSchemas["block"]>;
 export type ServiceFormValues = z.infer<ClinicSchemas["service"]>;
+export type SpecialistServiceFormValues = z.infer<ClinicSchemas["specialistService"]>;
 export type LocationFormValues = z.infer<ClinicSchemas["location"]>;
 
 /** The Uzbek schemas under their earlier names (tests, older callers). */
@@ -336,5 +343,16 @@ export const EMPTY_SERVICE: ServiceFormValues = {
   category: "dermatology",
   defaultDurationMin: 30,
   defaultPrice: null,
+  isActive: true,
+};
+
+/** A new service of a specialist (the dialog leaves its price field empty until typed). */
+export const EMPTY_SPECIALIST_SERVICE: SpecialistServiceFormValues = {
+  name: { uz: "", ru: "", en: "" },
+  shortName: { uz: "", ru: "", en: "" },
+  description: { uz: "", ru: "", en: "" },
+  category: "dermatology",
+  price: 0,
+  durationMin: 30,
   isActive: true,
 };

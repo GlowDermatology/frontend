@@ -143,6 +143,28 @@ export interface ClinicService {
   updatedAt: string;
 }
 
+/**
+ * A service that belongs to one specialist (`ClinicService` of the per-specialist contract): its
+ * own names, price and duration. Bookings snapshot the price and duration, so an edit only
+ * affects new bookings. A service that was ever booked cannot be deleted, only deactivated.
+ */
+export interface SpecialistService {
+  id: string;
+  specialistId: string;
+  name: I18n;
+  shortName: I18n;
+  description: I18n;
+  category: ServiceCategory;
+  /** so‘m (0 = free); what a booking snapshots. */
+  price: number;
+  durationMin: number;
+  position: number;
+  /** Bookable (and listed on the website while the profile is published). */
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface HoursOverride {
   id: string;
   locationId: string | null;

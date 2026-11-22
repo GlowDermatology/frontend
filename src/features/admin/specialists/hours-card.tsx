@@ -10,7 +10,6 @@ import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { TimePicker } from "@/components/ui/time-picker";
 import { useToast } from "@/components/ui/toast";
-import { saveWorkingHours } from "@/data/clinic.actions";
 import { clinicSchemas } from "@/data/clinic.schema";
 import { WEEKDAYS, type ClinicLocation, type ClinicSpecialist } from "@/domain/clinic";
 import { clinicDataCopy } from "@/domain/copy/clinic";
@@ -22,6 +21,7 @@ import { useLocalized } from "@/lib/i18n/admin-hooks";
 import { clinicOptions } from "../clinics/options";
 import { runAction } from "../shared/action-client";
 import { useIdempotencyKey } from "../shared/idempotency";
+import type { ScheduleActions } from "./card-actions";
 import { specialistsCopy } from "./copy";
 import { errorItems, issuesToErrors } from "./form-kit";
 
@@ -92,10 +92,16 @@ export function HoursCard({
   specialist,
   clinics,
   onUpdated,
+  actions,
+  noClinicHint,
 }: {
   specialist: ClinicSpecialist;
   clinics: ReadonlyArray<ClinicLocation>;
   onUpdated: (specialist: ClinicSpecialist) => void;
+  /** The week write (`actions.saveWeek`): staff's `specialists/{id}/…` or the specialist's own. */
+  actions: Pick<ScheduleActions, "saveWeek">;
+  /** The empty state of a draft without a clinic (staff: assign one in the profile card). */
+  noClinicHint?: string;
 }) {
   const copy = useCopy(specialistsCopy);
   const t = copy.hours;
@@ -174,7 +180,7 @@ export function HoursCard({
     setErrors({});
     setFormError(null);
     const result = idempotency.settle(
-      await runAction((csrf) => saveWorkingHours(specialist.id, local.data, idempotency.key, csrf)),
+      await runAction((csrf) => actions.saveWeek(local.data, idempotency.key, csrf)),
     );
     inFlight.current = false;
     setBusy(false);
@@ -200,7 +206,7 @@ export function HoursCard({
         </CardTitle>
         <p className="m-0 flex items-start gap-2 rounded-md bg-warning-soft px-3.5 py-3 text-body-sm text-ink">
           <Icon name="info" size={18} className="mt-px shrink-0 text-gold-ink" />
-          {t.noClinic}
+          {noClinicHint ?? t.noClinic}
         </p>
       </Card>
     );

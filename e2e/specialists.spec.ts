@@ -153,8 +153,11 @@ test("a specialist works at two clinics and only the scheduled clinic offers boo
   await selectOption(profile, "Mutaxassislik", "Kosmetolog");
   expect(await selectValue(profile, "Mutaxassislik")).toBe("cosmetologist");
   await profile.getByLabel("Tajriba (yil)").fill("6");
-  await profile.getByRole("checkbox", { name: new RegExp(firstClinic) }).check();
-  await profile.getByRole("checkbox", { name: new RegExp(secondClinic) }).check();
+  for (const clinic of [firstClinic, secondClinic]) {
+    const assign = profile.getByRole("switch", { name: new RegExp(clinic) });
+    await assign.click();
+    await expect(assign).toBeChecked();
+  }
   await selectOption(profile, "Asosiy klinika", firstClinic);
   await profile.getByLabel("Qisqacha ma’lumot").fill("E2E: teri parvarishi bo‘yicha mutaxassis.");
   await profile.getByRole("button", { name: "Saqlash" }).click();

@@ -139,10 +139,15 @@ export function apiCreateOverride(
   });
 }
 
-export function apiDeleteOverride(token: string, specialistId: string, overrideId: string) {
+export function apiDeleteOverride(
+  token: string,
+  specialistId: string,
+  overrideId: string,
+  key: string,
+) {
   return apiFetch<undefined>(
     `${BASE}/specialists/${id(specialistId)}/overrides/${id(overrideId)}/`,
-    { method: "DELETE", token },
+    { method: "DELETE", token, idempotencyKey: key },
   );
 }
 
@@ -172,10 +177,11 @@ export function apiCreateBlock(
   });
 }
 
-export function apiDeleteBlock(token: string, specialistId: string, blockId: string) {
+export function apiDeleteBlock(token: string, specialistId: string, blockId: string, key: string) {
   return apiFetch<undefined>(`${BASE}/specialists/${id(specialistId)}/blocks/${id(blockId)}/`, {
     method: "DELETE",
     token,
+    idempotencyKey: key,
   });
 }
 

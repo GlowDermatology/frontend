@@ -333,14 +333,18 @@ export async function createBlock(
   return mock.createBlock(id, parsed.data);
 }
 
-/** `DELETE …/overrides/{id}/` or `…/blocks/{id}/` → 204 (no key: idempotent by nature). */
+/**
+ * `DELETE …/overrides/{id}/` or `…/blocks/{id}/` → 204. Idempotent by nature; the key is sent
+ * anyway, as on every schedule write (a replayed delete answers like the first one).
+ */
 export async function deleteScheduleEntry(
   id: string,
   kind: "override" | "block",
   entryId: string,
+  key: string,
   csrf: string,
 ): Promise<ActionResult<{ id: string }>> {
-  const start = await prologue(csrf, null);
+  const start = await prologue(csrf, key);
   if (!start.ok) return start;
   if (!anyId.safeParse(id).success || !anyId.safeParse(entryId).success) return start.notFound;
   if (kind !== "override" && kind !== "block") return start.notFound;
@@ -349,8 +353,8 @@ export async function deleteScheduleEntry(
     return apiMutation("deleteScheduleEntry", async () => {
       try {
         const token = sessionToken(start.guard.session);
-        if (kind === "override") await apiDeleteOverride(token, id, entryId);
-        else await apiDeleteBlock(token, id, entryId);
+        if (kind === "override") await apiDeleteOverride(token, id, entryId, key);
+        else await apiDeleteBlock(token, id, entryId, key);
         return { ok: true, data: { id: entryId } };
       } catch (error) {
         return toActionResult(error);

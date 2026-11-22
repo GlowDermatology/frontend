@@ -10,10 +10,8 @@ import { FormErrorSummary } from "@/components/ui/form-errors";
 import { Icon } from "@/components/ui/icon";
 import { useToast } from "@/components/ui/toast";
 import { specialistFormValues as toValues } from "@/data/api/mappers/clinic";
-import { setSpecialistPhoto, updateSpecialist } from "@/data/clinic.actions";
 import { clinicSchemas } from "@/data/clinic.schema";
 import { imageFileProblem, IMAGE_TYPES } from "@/data/products.schema";
-import type { ActionResult } from "@/data/types";
 import {
   specialistRecommendedToAsk,
   type ClinicLocation,
@@ -30,12 +28,14 @@ import { afterDialogsClose } from "../products/form-reveal";
 import { runAction } from "../shared/action-client";
 import { partitionFieldErrors } from "../shared/field-errors";
 import { useIdempotencyKey } from "../shared/idempotency";
+import type { PhotoAction, ProfileActions } from "./card-actions";
 import { specialistsCopy } from "./copy";
 import { errorItems, issuesToErrors } from "./form-kit";
 import {
   experienceValue,
   firstTextErrorLanguage,
   PROFILE_FIELDS,
+  type ClinicAccess,
   PROFILE_ORDER,
   profileFieldLabel,
   SpecialistProfileFields,
@@ -51,16 +51,22 @@ import {
  * `force`, after which the appointments stay as they are.
  * Invalid fields are listed and the first one revealed (also in another
  * language's tab); an active profile without qualifications, bio or photo
- * asks "save anyway?".
+ * asks "save anyway?". The writes come from `actions` (staff's `specialists/{id}/…` or the
+ * specialist's own `specialist/profile/…`); `clinicAccess` decides whether the clinics are edited
+ * here (staff) or only listed (the specialist).
  */
 export function ProfileCard({
   specialist,
   clinics,
   onUpdated,
+  actions,
+  clinicAccess,
 }: {
   specialist: ClinicSpecialist;
   clinics: ReadonlyArray<ClinicLocation>;
   onUpdated: (specialist: ClinicSpecialist) => void;
+  actions: ProfileActions;
+  clinicAccess: ClinicAccess;
 }) {
   const copy = useCopy(specialistsCopy);
   const t = copy.profile;
@@ -132,9 +138,7 @@ export function ProfileCard({
     setErrors({});
     setFormError(null);
     const result = idempotency.settle(
-      await runAction((csrf) =>
-        updateSpecialist(specialist.id, local.data, baseline, force, idempotency.key, csrf),
-      ),
+      await runAction((csrf) => actions.save(local.data, baseline, force, idempotency.key, csrf)),
     );
     inFlight.current = false;
     setBusy(false);
@@ -180,7 +184,7 @@ export function ProfileCard({
             reveal({ name });
           }}
         />
-        <PhotoField specialist={specialist} onUpdated={onUpdated} />
+        <PhotoField specialist={specialist} onUpdated={onUpdated} action={actions.photo} />
         <form noValidate onSubmit={onSubmit} className="flex flex-col gap-4">
           <SpecialistProfileFields
             values={values}
@@ -189,6 +193,7 @@ export function ProfileCard({
             onExperienceChange={setExperience}
             errors={errors}
             clinics={clinics}
+            clinicAccess={clinicAccess}
             publishBlocked={specialist.publishBlockers.length > 0 ? t.publishBlocked : null}
             activeHint={
               specialist.upcomingAppointments > 0
@@ -250,28 +255,20 @@ export function ProfileCard({
   );
 }
 
-type PhotoAction = (
-  form: FormData | null,
-  key: string,
-  csrf: string,
-) => Promise<ActionResult<ClinicSpecialist | null>>;
-
 /**
  * The photo: picked and uploaded at once (JPEG/PNG/WebP ≤ 5 MB), or removed after a confirmation.
- * `action` replaces the staff route (`specialists/{id}/photo/`), e.g. with the specialist's own
+ * `action` is the route: staff's `specialists/{id}/photo/` or the specialist's own
  * `specialist/profile/photo/`.
  */
 export function PhotoField({
   specialist,
   onUpdated,
-  action,
+  action: send,
 }: {
   specialist: ClinicSpecialist;
   onUpdated: (specialist: ClinicSpecialist) => void;
-  action?: PhotoAction;
+  action: PhotoAction;
 }) {
-  const send: PhotoAction =
-    action ?? ((form, key, csrf) => setSpecialistPhoto(specialist.id, form, key, csrf));
   const copy = useCopy(specialistsCopy);
   const t = copy.photo;
   const locale = useAdminLocale();

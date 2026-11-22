@@ -2,6 +2,7 @@
 
 import { useId } from "react";
 
+import { Badge } from "@/components/ui/badge";
 import { Field, TextArea, TextInput } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -98,6 +99,12 @@ export function firstTextErrorLanguage(
   );
 }
 
+/**
+ * Who sets the clinics: `edit` — staff assign them (a `Switch` per clinic) and pick the primary;
+ * `read` — the specialist sees the assigned clinics only (staff assign them).
+ */
+export type ClinicAccess = "edit" | "read";
+
 interface ProfileFieldsProps {
   values: SpecialistFormValues;
   onChange: (values: SpecialistFormValues) => void;
@@ -106,6 +113,7 @@ interface ProfileFieldsProps {
   onExperienceChange: (value: string) => void;
   errors: Record<string, string>;
   clinics: ReadonlyArray<ClinicLocation>;
+  clinicAccess: ClinicAccess;
   /** Hint under the publish switch. */
   activeHint: string;
   /**
@@ -123,7 +131,8 @@ interface ProfileFieldsProps {
 /**
  * The specialist's profile fields (contract §2.17 `ClinicSpecialist`): the
  * public name, category, experience, the customer slot grid, the clinics
- * (a draft may have none: checking the first one makes it the primary), the
+ * (a draft may have none: switching on the first one makes it the primary;
+ * `clinicAccess="read"` only lists them), the
  * publish flag, and the qualifications and bio per language. The owner
  * account is not edited here (it is managed on «Xodimlar»). The parent owns
  * submit and the shown language (so an error in another language's text can
@@ -136,6 +145,7 @@ export function SpecialistProfileFields({
   onExperienceChange,
   errors,
   clinics,
+  clinicAccess,
   activeHint,
   publishBlocked,
   savedSlug,
@@ -247,52 +257,101 @@ export function SpecialistProfileFields({
         />
       </div>
 
-      <fieldset
-        data-field="locationIds"
-        data-invalid={errors.locationIds ? "true" : undefined}
-        aria-describedby={errors.locationIds ? `${idBase}-clinics-error` : undefined}
-        className="m-0 flex flex-col gap-2 rounded-md border border-line p-3"
-      >
-        <legend className="px-1 text-label text-ink">{location.assigned}</legend>
-        {assignable.map((clinic) => (
-          <label
-            key={clinic.id}
-            className="flex items-start gap-2 rounded-md bg-surface p-2 text-body-sm"
+      {clinicAccess === "edit" ? (
+        <>
+          <fieldset
+            data-field="locationIds"
+            data-invalid={errors.locationIds ? "true" : undefined}
+            aria-describedby={errors.locationIds ? `${idBase}-clinics-error` : undefined}
+            className="m-0 flex flex-col gap-2 rounded-md border border-line p-3"
           >
-            <input
-              type="checkbox"
-              className="mt-0.5 size-4 accent-gold-ink"
-              checked={values.locationIds.includes(clinic.id)}
-              onChange={(event) => toggleClinic(clinic.id, event.target.checked)}
-              aria-invalid={errors.locationIds ? true : undefined}
-            />
-            <span className="flex flex-col">
-              <span className="font-semibold text-ink">
-                {clinicText(clinic.name, locale)}
-                {!clinic.isActive && ` · ${m.status.inactive}`}
-              </span>
-              <span className="text-ink-muted">{clinicText(clinic.address, locale)}</span>
-            </span>
-          </label>
-        ))}
-        {errors.locationIds && (
-          <p id={`${idBase}-clinics-error`} className="m-0 text-body-sm text-danger">
-            {errors.locationIds}
+            <legend className="px-1 text-label text-ink">{location.assigned}</legend>
+            {assignable.map((clinic) => {
+              const name = clinicText(clinic.name, locale);
+              return (
+                <div
+                  key={clinic.id}
+                  className="flex items-center justify-between gap-3 rounded-md bg-surface p-2 text-body-sm"
+                >
+                  <span className="flex min-w-0 flex-col">
+                    <span className="font-semibold text-ink">
+                      {name}
+                      {!clinic.isActive && ` · ${m.status.inactive}`}
+                    </span>
+                    <span className="text-ink-muted">{clinicText(clinic.address, locale)}</span>
+                  </span>
+                  <Switch
+                    checked={values.locationIds.includes(clinic.id)}
+                    onCheckedChange={(checked) => toggleClinic(clinic.id, checked)}
+                    aria-label={location.assignSwitch(name)}
+                    aria-invalid={errors.locationIds ? true : undefined}
+                  />
+                </div>
+              );
+            })}
+            {errors.locationIds && (
+              <p id={`${idBase}-clinics-error`} className="m-0 text-body-sm text-danger">
+                {errors.locationIds}
+              </p>
+            )}
+          </fieldset>
+          <Field label={location.primary} name="locationId" error={errors.locationId}>
+            {(control) => (
+              <Select
+                {...control}
+                value={values.locationId}
+                onValueChange={(id) => set("locationId", id)}
+                options={clinicOptions(assigned, locale)}
+                placeholder={location.placeholder}
+                disabledReason={assigned.length === 0 && location.placeholder}
+              />
+            )}
+          </Field>
+        </>
+      ) : (
+        <section
+          aria-labelledby={`${idBase}-clinics-title`}
+          className="flex flex-col gap-2 rounded-md border border-line p-3"
+        >
+          <h3 id={`${idBase}-clinics-title`} className="m-0 px-1 text-label text-ink">
+            {location.assigned}
+          </h3>
+          {assigned.length > 0 ? (
+            <ul className="m-0 flex list-none flex-col gap-2 p-0">
+              {[...assigned]
+                .sort(
+                  (a, b) => Number(b.id === values.locationId) - Number(a.id === values.locationId),
+                )
+                .map((clinic) => (
+                  <li
+                    key={clinic.id}
+                    className="flex items-start justify-between gap-3 rounded-md bg-surface p-2 text-body-sm"
+                  >
+                    <span className="flex min-w-0 flex-col">
+                      <span className="font-semibold text-ink">
+                        {clinicText(clinic.name, locale)}
+                        {!clinic.isActive && ` · ${m.status.inactive}`}
+                      </span>
+                      <span className="text-ink-muted">{clinicText(clinic.address, locale)}</span>
+                    </span>
+                    {clinic.id === values.locationId && (
+                      <Badge tone="neutral" dot={false}>
+                        {location.primaryBadge}
+                      </Badge>
+                    )}
+                  </li>
+                ))}
+            </ul>
+          ) : (
+            <p className="m-0 rounded-md bg-surface p-2 text-body-sm text-ink-muted">
+              {location.noneAssigned}
+            </p>
+          )}
+          <p className="m-0 px-1 text-caption font-normal text-ink-muted">
+            {location.readOnlyHint}
           </p>
-        )}
-      </fieldset>
-      <Field label={location.primary} name="locationId" error={errors.locationId}>
-        {(control) => (
-          <Select
-            {...control}
-            value={values.locationId}
-            onValueChange={(id) => set("locationId", id)}
-            options={clinicOptions(assigned, locale)}
-            placeholder={location.placeholder}
-            disabledReason={assigned.length === 0 && location.placeholder}
-          />
-        )}
-      </Field>
+        </section>
+      )}
       <div className="flex flex-col gap-2">
         <span className="text-label text-ink">{t.texts}</span>
         <LanguageTabs

@@ -14,7 +14,6 @@ import { Select } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { TimePicker } from "@/components/ui/time-picker";
 import { useToast } from "@/components/ui/toast";
-import { createBlock, createOverride, deleteScheduleEntry } from "@/data/clinic.actions";
 import { clinicSchemas } from "@/data/clinic.schema";
 import {
   BLOCK_LABEL_MAX,
@@ -34,10 +33,12 @@ import { useFormat, useLocalized } from "@/lib/i18n/admin-hooks";
 import { clinicOptions } from "../clinics/options";
 import { runAction } from "../shared/action-client";
 import { useIdempotencyKey } from "../shared/idempotency";
+import type { ScheduleActions, ScheduleEntryKind } from "./card-actions";
 import { specialistsCopy } from "./copy";
 import { errorItems, issuesToErrors } from "./form-kit";
 
-function FormError({ message }: { message: string | null }) {
+/** A form-level error line (the server's message that has no field). */
+export function FormError({ message }: { message: string | null }) {
   if (!message) return null;
   return (
     <p role="alert" className="m-0 flex items-start gap-1.5 text-body-sm font-semibold text-ink">
@@ -47,14 +48,18 @@ function FormError({ message }: { message: string | null }) {
   );
 }
 
-/** Delete with a confirmation (the entry is removed for good; it can be added again). */
-function useDeleteEntry<T extends { id: string }>(
-  specialistId: string,
-  kind: "override" | "block",
+/**
+ * Delete with a confirmation (the entry is removed for good; it can be added again) through
+ * `actions.deleteEntry`. An entry already gone (`not_found`) counts as removed.
+ */
+export function useDeleteEntry<T extends { id: string }>(
+  actions: Pick<ScheduleActions, "deleteEntry">,
+  kind: ScheduleEntryKind,
   onDeleted: (id: string) => void,
 ) {
   const copy = useCopy(specialistsCopy);
   const toast = useToast();
+  const idempotency = useIdempotencyKey();
   const [target, setTarget] = useState<T | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,8 +67,8 @@ function useDeleteEntry<T extends { id: string }>(
     if (!target || busy) return;
     setBusy(true);
     setError(null);
-    const result = await runAction((csrf) =>
-      deleteScheduleEntry(specialistId, kind, target.id, csrf),
+    const result = idempotency.settle(
+      await runAction((csrf) => actions.deleteEntry(kind, target.id, idempotency.key, csrf)),
     );
     setBusy(false);
     if (!result.ok && result.code !== "not_found") {
@@ -71,6 +76,8 @@ function useDeleteEntry<T extends { id: string }>(
       toast({ tone: "danger", title: copy.remove.failed, description: result.error });
       return;
     }
+    // The next removal is a new intent (`settle` renews only after a success).
+    if (!result.ok) idempotency.renew();
     onDeleted(target.id);
     setTarget(null);
     toast({
@@ -81,7 +88,8 @@ function useDeleteEntry<T extends { id: string }>(
   return { target, setTarget, busy, error, setError, confirm };
 }
 
-function DeleteDialog({
+/** The confirmation of `useDeleteEntry` (cancel, or remove for good). */
+export function DeleteDialog({
   open,
   busy,
   error,
@@ -131,13 +139,13 @@ const overrideDay = (fmt: AdminFormatter, date: string) => fmt.dateLong(`${date}
  * day off, from today up to a year ahead; they win over the weekly hours.
  */
 export function OverridesCard({
-  specialistId,
+  actions,
   clinics,
   defaultClinicId,
   overrides,
   today,
 }: {
-  specialistId: string;
+  actions: ScheduleActions;
   clinics: ReadonlyArray<ClinicLocation>;
   defaultClinicId: string;
   overrides: ReadonlyArray<HoursOverride>;
@@ -176,7 +184,7 @@ export function OverridesCard({
   const formRef = useRef<HTMLFormElement>(null);
   const reveal = useErrorReveal(formRef);
   const idempotency = useIdempotencyKey();
-  const remove = useDeleteEntry<HoursOverride>(specialistId, "override", (id) =>
+  const remove = useDeleteEntry<HoursOverride>(actions, "override", (id) =>
     setRows((current) => current.filter((row) => row.id !== id)),
   );
   const labels: Record<string, string> = {
@@ -209,7 +217,7 @@ export function OverridesCard({
     setErrors({});
     setFormError(null);
     const result = idempotency.settle(
-      await runAction((csrf) => createOverride(specialistId, local.data, idempotency.key, csrf)),
+      await runAction((csrf) => actions.createOverride(local.data, idempotency.key, csrf)),
     );
     inFlight.current = false;
     setBusy(false);
@@ -373,11 +381,11 @@ export function periodLabel(
  * the free slots. Appointments inside it are kept (they become conflicts).
  */
 export function BlocksCard({
-  specialistId,
+  actions,
   blocks,
   today,
 }: {
-  specialistId: string;
+  actions: ScheduleActions;
   blocks: ReadonlyArray<BlockedPeriod>;
   today: string;
 }) {
@@ -406,7 +414,7 @@ export function BlocksCard({
   const formRef = useRef<HTMLFormElement>(null);
   const reveal = useErrorReveal(formRef);
   const idempotency = useIdempotencyKey();
-  const remove = useDeleteEntry<BlockedPeriod>(specialistId, "block", (id) =>
+  const remove = useDeleteEntry<BlockedPeriod>(actions, "block", (id) =>
     setRows((current) => current.filter((row) => row.id !== id)),
   );
   const labels: Record<string, string> = {
@@ -434,7 +442,7 @@ export function BlocksCard({
     setErrors({});
     setFormError(null);
     const result = idempotency.settle(
-      await runAction((csrf) => createBlock(specialistId, local.data, idempotency.key, csrf)),
+      await runAction((csrf) => actions.createBlock(local.data, idempotency.key, csrf)),
     );
     inFlight.current = false;
     setBusy(false);

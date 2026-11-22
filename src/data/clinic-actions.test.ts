@@ -55,6 +55,7 @@ import type { ApiClinicSpecialist, ErrorEnvelope } from "./api/types";
 import {
   createBlock,
   createOverride,
+  deleteScheduleEntry,
   saveClinic,
   saveOfferedServices,
   saveWorkingHours,
@@ -391,6 +392,28 @@ describe("clinic actions in api mode", () => {
         body: { directions: { en: "Courtyard entrance" } },
       }),
     );
+  });
+
+  it("DELETEs an override or a block with the Idempotency-Key and refuses a bad key", async () => {
+    apiFetch.mockResolvedValue(respond(204, undefined));
+    expect(await deleteScheduleEntry("2", "override", "7", KEY, CSRF)).toEqual({
+      ok: true,
+      data: { id: "7" },
+    });
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/specialists/2/overrides/7/",
+      expect.objectContaining({ method: "DELETE", idempotencyKey: KEY }),
+    );
+    await deleteScheduleEntry("2", "block", "9", KEY, CSRF);
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/specialists/2/blocks/9/",
+      expect.objectContaining({ method: "DELETE", idempotencyKey: KEY }),
+    );
+    apiFetch.mockClear();
+    expect(await deleteScheduleEntry("2", "block", "9", "not-a-key", CSRF)).toMatchObject({
+      ok: false,
+    });
+    expect(apiFetch).not.toHaveBeenCalled();
   });
 
   it("PATCHes with force after the 409 and maps the conflict message", async () => {

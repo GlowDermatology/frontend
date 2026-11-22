@@ -12,7 +12,6 @@ type ModelKey =
   | "location"
   | "professional"
   | "service"
-  | "professional_service"
   | "working_hours"
   | "blocked_period"
   | "working_hours_override";
@@ -37,7 +36,6 @@ const uzModels: Record<ModelKey, string> = {
   location: "Filial",
   professional: "Mutaxassis",
   service: "Xizmat",
-  professional_service: "Mutaxassis xizmati",
   working_hours: "Ish vaqti",
   blocked_period: "Band davr",
   working_hours_override: "Ish vaqti istisnosi",
@@ -169,6 +167,7 @@ const uzActions = {
   "loyalty.balance_negative": "Cashback balansi manfiy",
   // Customers
   "customer.registered": "Mijoz ro‘yxatdan o‘tdi",
+  "customer.created_by_staff": "Qabul uchun mijoz yaratildi",
   "customer.deleted": "Mijoz hisobini o‘chirdi",
   "customer.login_succeeded": "Mijoz tizimga kirdi",
   "customer.login_failed": "Mijozning kirishi muvaffaqiyatsiz",
@@ -319,7 +318,6 @@ const ruModels: Record<ModelKey, string> = {
   location: "Клиника",
   professional: "Специалист",
   service: "Услуга",
-  professional_service: "Услуга специалиста",
   working_hours: "Рабочее время",
   blocked_period: "Блокировка",
   working_hours_override: "Исключение рабочего времени",
@@ -330,7 +328,6 @@ const RU_GENDER: Record<ModelKey, "m" | "f" | "n"> = {
   location: "f",
   professional: "m",
   service: "f",
-  professional_service: "f",
   working_hours: "n",
   blocked_period: "f",
   working_hours_override: "n",
@@ -346,7 +343,6 @@ const enModels: Record<ModelKey, string> = {
   location: "Clinic",
   professional: "Specialist",
   service: "Service",
-  professional_service: "Specialist service",
   working_hours: "Working hours",
   blocked_period: "Blocked period",
   working_hours_override: "Working hours exception",
@@ -470,6 +466,7 @@ export const auditCopy = {
       "loyalty.reconciliation_mismatch": "Расхождение в балансе кешбэка",
       "loyalty.balance_negative": "Отрицательный баланс кешбэка",
       "customer.registered": "Клиент зарегистрировался",
+      "customer.created_by_staff": "Клиент создан при записи",
       "customer.deleted": "Клиент удалил аккаунт",
       "customer.login_succeeded": "Клиент вошёл",
       "customer.login_failed": "Неудачный вход клиента",
@@ -709,6 +706,7 @@ export const auditCopy = {
       "loyalty.reconciliation_mismatch": "Cashback balance mismatch",
       "loyalty.balance_negative": "Negative cashback balance",
       "customer.registered": "Customer registered",
+      "customer.created_by_staff": "Customer created for a booking",
       "customer.deleted": "Customer deleted their account",
       "customer.login_succeeded": "Customer signed in",
       "customer.login_failed": "Customer sign-in failed",

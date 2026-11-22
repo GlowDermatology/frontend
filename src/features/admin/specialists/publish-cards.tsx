@@ -1,5 +1,6 @@
 "use client";
 
+import type { Route } from "next";
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
@@ -13,18 +14,23 @@ import { specialistsCopy } from "./copy";
 
 /**
  * The publish checklist (`publish_blockers`): what is missing before the profile can be published,
- * read-only. Staff publish from the profile card (its switch stays off while anything is listed);
- * the specialist's own page shows the same list without a way to publish.
+ * read-only. Staff and the specialist publish from the profile card (its switch stays off while
+ * anything is listed). `blockerHref` turns an entry into a link to the page that fixes it, and
+ * `blockerText` replaces an entry's words (the specialist asks staff for a clinic).
  */
 export function PublishChecklist({
   specialist,
   titleId = "publish-title",
   readyText,
+  blockerHref,
+  blockerText,
 }: {
   specialist: Pick<ClinicSpecialist, "isActive" | "publishBlockers">;
   titleId?: string;
-  /** Replaces «switch on Publish» where the reader cannot publish (the specialist's own page). */
+  /** Replaces «switch on Publish» where the reader cannot publish. */
   readyText?: string;
+  blockerHref?: Partial<Record<PublishBlocker, Route>>;
+  blockerText?: Partial<Record<PublishBlocker, string>>;
 }) {
   const t = useCopy(specialistsCopy).publish;
   const blockers = specialist.publishBlockers;
@@ -49,7 +55,16 @@ export function PublishChecklist({
                 className="flex items-start gap-2 rounded-md bg-surface px-3 py-2 text-body-sm text-ink"
               >
                 <Icon name="alert-circle" size={16} className="mt-0.5 shrink-0 text-warning" />
-                {t.blockers[blocker]}
+                {blockerHref?.[blocker] ? (
+                  <Link
+                    href={blockerHref[blocker]}
+                    className="font-semibold text-ink underline decoration-line-strong underline-offset-4 hover:decoration-gold"
+                  >
+                    {blockerText?.[blocker] ?? t.blockers[blocker]}
+                  </Link>
+                ) : (
+                  (blockerText?.[blocker] ?? t.blockers[blocker])
+                )}
               </li>
             ))}
           </ul>

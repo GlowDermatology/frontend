@@ -1,5 +1,5 @@
 import { optionalRead } from "@/data/api/optional-read";
-import { requireStaff } from "@/data/auth";
+import { requireAdmin } from "@/data/auth";
 import {
   defaultAppointmentDay,
   getAppointmentDay,
@@ -27,7 +27,7 @@ export async function AppointmentsContent({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  await requireStaff();
+  await requireAdmin();
   const [params, today, meta] = await Promise.all([
     searchParams,
     defaultAppointmentDay(),

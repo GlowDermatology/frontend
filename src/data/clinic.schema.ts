@@ -30,7 +30,7 @@ import { PHONE_PATTERN } from "@/lib/phone";
 import { slugFieldSchema } from "./products.schema";
 
 /**
- * Validation of the specialists, services, schedules and clinic forms
+ * Validation of the specialists, their own services, schedules and clinic forms
  * (contract §2.17), shared by the forms and the Server Actions, one set per
  * admin language (`clinicSchemas[locale]`, messages from `clinicDataCopy`
  * and the shared `validationCopy`). The server stays the authority
@@ -106,34 +106,6 @@ export const clinicSchemas = localized((locale) => {
           : values.locationIds.includes(values.locationId),
       { path: ["locationId"], message: m.chooseClinic },
     );
-
-  /* --- Offered services --- */
-  const offers = z.object({
-    services: z
-      .array(
-        z.object({
-          serviceId: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/, m.chooseService),
-          price: z
-            .number({ error: m.enterPrice })
-            .int(v.integer)
-            .min(0, m.priceMin)
-            .max(PRICE_MAX, m.priceTooLarge),
-          /** `null` = the service's default duration. */
-          durationMin: duration.nullable(),
-          isActive: z.boolean(),
-        }),
-      )
-      .max(50, m.atMost(50))
-      .superRefine((rows, ctx) => {
-        const seen = new Set<string>();
-        rows.forEach((row, index) => {
-          if (seen.has(row.serviceId)) {
-            ctx.addIssue({ code: "custom", path: [index, "serviceId"], message: m.serviceTwice });
-          }
-          seen.add(row.serviceId);
-        });
-      }),
-  });
 
   /* --- Weekly hours --- */
   const week = z.object({
@@ -228,8 +200,8 @@ export const clinicSchemas = localized((locale) => {
       }
     });
 
-  /* --- Services --- */
-  const service = z.object({
+  /* --- A specialist's own services --- */
+  const specialistService = z.object({
     name: z.object({
       uz: z
         .string()
@@ -243,15 +215,10 @@ export const clinicSchemas = localized((locale) => {
     shortName: i18n(SERVICE_SHORT_MAX),
     description: i18n(TEXT_MAX),
     category: z.enum(SERVICE_CATEGORIES, { error: m.chooseCategory }),
-    defaultDurationMin: duration,
-    defaultPrice: price.nullable(),
-    isActive: z.boolean(),
-  });
-
-  /** A specialist's own service: the catalog texts plus its price and duration (both required). */
-  const specialistService = service.omit({ defaultDurationMin: true, defaultPrice: true }).extend({
+    /** so‘m; 0 = free. What a booking snapshots. */
     price,
     durationMin: duration,
+    isActive: z.boolean(),
   });
 
   /* --- Clinics --- */
@@ -297,17 +264,15 @@ export const clinicSchemas = localized((locale) => {
       }
     });
 
-  return { specialist, offers, week, override, block, service, specialistService, location };
+  return { specialist, week, override, block, specialistService, location };
 });
 
 type ClinicSchemas = LocalizedOf<typeof clinicSchemas>;
 
 export type SpecialistFormValues = z.infer<ClinicSchemas["specialist"]>;
-export type OfferedServicesValues = z.infer<ClinicSchemas["offers"]>;
 export type WorkingWeekValues = z.infer<ClinicSchemas["week"]>;
 export type OverrideFormValues = z.infer<ClinicSchemas["override"]>;
 export type BlockFormValues = z.infer<ClinicSchemas["block"]>;
-export type ServiceFormValues = z.infer<ClinicSchemas["service"]>;
 export type SpecialistServiceFormValues = z.infer<ClinicSchemas["specialistService"]>;
 export type LocationFormValues = z.infer<ClinicSchemas["location"]>;
 
@@ -335,16 +300,6 @@ export function blockStart(values: BlockFormValues): string {
 export function blockEnd(values: BlockFormValues): string {
   return `${values.endDate}T${values.endTime}:00+05:00`;
 }
-
-export const EMPTY_SERVICE: ServiceFormValues = {
-  name: { uz: "", ru: "", en: "" },
-  shortName: { uz: "", ru: "", en: "" },
-  description: { uz: "", ru: "", en: "" },
-  category: "dermatology",
-  defaultDurationMin: 30,
-  defaultPrice: null,
-  isActive: true,
-};
 
 /** A new service of a specialist (the dialog leaves its price field empty until typed). */
 export const EMPTY_SPECIALIST_SERVICE: SpecialistServiceFormValues = {

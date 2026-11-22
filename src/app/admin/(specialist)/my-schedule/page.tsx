@@ -2,7 +2,7 @@ import { Suspense } from "react";
 
 import { PageSkeleton } from "@/features/admin/shared/skeleton";
 import { pageMetadata } from "@/features/admin/shell/page-metadata";
-import { WorkspacePlaceholder } from "@/features/admin/workspace/placeholder";
+import { MyScheduleContent } from "@/features/admin/workspace/my-schedule-content";
 
 export function generateMetadata() {
   return pageMetadata("my-schedule");
@@ -11,7 +11,7 @@ export function generateMetadata() {
 export default function MySchedulePage() {
   return (
     <Suspense fallback={<PageSkeleton />}>
-      <WorkspacePlaceholder section="my-schedule" />
+      <MyScheduleContent />
     </Suspense>
   );
 }

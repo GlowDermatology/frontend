@@ -6,7 +6,6 @@ import { z } from "zod";
 import type {
   BlockedPeriod,
   ClinicLocation,
-  ClinicService,
   ClinicSpecialist,
   HoursOverride,
 } from "@/domain/clinic";
@@ -24,14 +23,14 @@ import {
 import {
   apiCreateBlock,
   apiCreateOverride,
-  apiCreateService,
+  apiCreateSpecialistService,
   apiDeleteBlock,
   apiDeleteOverride,
   apiDeleteSpecialistPhoto,
-  apiPatchService,
+  apiDeleteSpecialistService,
   apiPatchSpecialist,
+  apiPatchSpecialistService,
   apiSaveClinic,
-  apiPutOfferedServices,
   apiPutSpecialistPhoto,
   apiPutWorkingHours,
 } from "./api/clinic";
@@ -39,11 +38,9 @@ import {
   blockBody,
   locationPatchBody,
   mapBlock,
-  mapClinicService,
   mapClinicSpecialist,
   mapLocation,
   mapOverride,
-  offeredServicesBody,
   overrideBody,
   serviceCreateBody,
   servicePatchBody,
@@ -55,10 +52,9 @@ import {
   clinicSchemas,
   type BlockFormValues,
   type LocationFormValues,
-  type OfferedServicesValues,
   type OverrideFormValues,
-  type ServiceFormValues,
   type SpecialistFormValues,
+  type SpecialistServiceFormValues,
   type WorkingWeekValues,
 } from "./clinic.schema";
 import * as mock from "./mock/clinic.actions";
@@ -68,12 +64,12 @@ import { dataSource } from "./source";
 import type { ActionResult } from "./types";
 
 /**
- * Specialists, services, schedules and the clinic (contract §2.17, gap
- * FND-1). Every write carries the form's idempotency key; a refused
+ * Specialists, their own services, schedules and the clinic (contract §2.17,
+ * gap FND-1). Every write carries the form's idempotency key; a refused
  * deactivation answers 409 `conflict` with the server's message, and the
  * form then offers «Baribir nofaol qilish» (`force`). The API's field
  * paths are camelised onto the forms' names (`slot_step_min` →
- * `slotStepMin`, `services.0.price`, `days.2.break_start` →
+ * `slotStepMin`, `duration_min` → `durationMin`, `days.2.break_start` →
  * `days.2.breakStart`), including clinic assignments and scheduled locations.
  */
 
@@ -211,37 +207,6 @@ export async function setSpecialistPhoto(
   return result.ok && !photo ? { ok: true, data: null } : result;
 }
 
-export async function saveOfferedServices(
-  id: string,
-  values: OfferedServicesValues,
-  key: string,
-  csrf: string,
-): Promise<ActionResult<ClinicSpecialist>> {
-  const start = await prologue(csrf, key);
-  if (!start.ok) return start;
-  if (!anyId.safeParse(id).success) return start.notFound;
-  const parsed = start.schemas.offers.safeParse(values);
-  if (!parsed.success) return fieldErrorsFrom(parsed.error, start.m.checkFields);
-  if ((await dataSource()) === "api") {
-    if (!apiId.safeParse(id).success) return start.notFound;
-    return apiMutation("saveOfferedServices", async () => {
-      try {
-        const { data } = await apiPutOfferedServices(
-          sessionToken(start.guard.session),
-          id,
-          offeredServicesBody(parsed.data),
-          key,
-        );
-        for (const tag of tagsForEntity("specialist", data.id)) updateTag(tag);
-        return { ok: true, data: mapClinicSpecialist(data) };
-      } catch (error) {
-        return toActionResult(error);
-      }
-    });
-  }
-  return mock.saveOfferedServices(id, parsed.data);
-}
-
 /** The whole week; `days` holds the working weekdays only (sorted by weekday when sent). */
 export async function saveWorkingHours(
   id: string,
@@ -364,38 +329,116 @@ export async function deleteScheduleEntry(
   return mock.deleteScheduleEntry(id, kind, entryId);
 }
 
-/** `POST services/` (`id` null) or `PATCH services/{id}/` with what differs from `baseline`. */
-export async function saveService(
-  id: string | null,
-  values: ServiceFormValues,
-  baseline: ServiceFormValues | null,
+/**
+ * One specialist's own service: `POST specialists/{id}/services/` (`serviceId` null) or
+ * `PATCH …/services/{serviceId}/` with what differs from `baseline`. Both answer the whole
+ * profile, so its publish checklist follows. A duplicate name is the `unique` error on `name.uz`.
+ */
+export async function saveSpecialistService(
+  id: string,
+  serviceId: string | null,
+  values: SpecialistServiceFormValues,
+  baseline: SpecialistServiceFormValues | null,
   key: string,
   csrf: string,
-): Promise<ActionResult<ClinicService>> {
+): Promise<ActionResult<ClinicSpecialist>> {
   const start = await prologue(csrf, key);
   if (!start.ok) return start;
-  if (id !== null && !anyId.safeParse(id).success) return start.notFound;
-  const parsed = start.schemas.service.safeParse(values);
+  if (!anyId.safeParse(id).success) return start.notFound;
+  if (serviceId !== null && !anyId.safeParse(serviceId).success) return start.notFound;
+  const parsed = start.schemas.specialistService.safeParse(values);
   if (!parsed.success) return fieldErrorsFrom(parsed.error, start.m.checkFields);
-  const base = baseline === null ? null : start.schemas.service.safeParse(baseline);
+  const base = baseline === null ? null : start.schemas.specialistService.safeParse(baseline);
   if (base && !base.success) return fieldErrorsFrom(base.error, start.m.checkFields);
   if ((await dataSource()) === "api") {
-    if (id !== null && !apiId.safeParse(id).success) return start.notFound;
-    return apiMutation("saveService", async () => {
+    if (!apiId.safeParse(id).success) return start.notFound;
+    if (serviceId !== null && !apiId.safeParse(serviceId).success) return start.notFound;
+    return apiMutation("saveSpecialistService", async () => {
       const token = sessionToken(start.guard.session);
       try {
         const { data } =
-          id === null || !base
-            ? await apiCreateService(token, serviceCreateBody(parsed.data), key)
-            : await apiPatchService(token, id, servicePatchBody(base.data, parsed.data), key);
-        for (const tag of tagsForEntity("service", data.id)) updateTag(tag);
-        return { ok: true, data: mapClinicService(data) };
+          serviceId === null || !base
+            ? await apiCreateSpecialistService(token, id, serviceCreateBody(parsed.data), key)
+            : await apiPatchSpecialistService(
+                token,
+                id,
+                serviceId,
+                servicePatchBody(base.data, parsed.data),
+                key,
+              );
+        for (const tag of tagsForEntity("specialist", data.id)) updateTag(tag);
+        return { ok: true, data: mapClinicSpecialist(data) };
       } catch (error) {
         return toActionResult(error);
       }
     });
   }
-  return mock.saveService(id, parsed.data);
+  return mock.saveSpecialistService(id, serviceId, parsed.data);
+}
+
+/** `PATCH specialists/{id}/services/{serviceId}/` with `is_active` only (the list's switch). */
+export async function setSpecialistServiceActive(
+  id: string,
+  serviceId: string,
+  isActive: boolean,
+  key: string,
+  csrf: string,
+): Promise<ActionResult<ClinicSpecialist>> {
+  const start = await prologue(csrf, key);
+  if (!start.ok) return start;
+  if (!anyId.safeParse(id).success || !anyId.safeParse(serviceId).success) return start.notFound;
+  if (typeof isActive !== "boolean") return start.notFound;
+  if ((await dataSource()) === "api") {
+    if (!apiId.safeParse(id).success || !apiId.safeParse(serviceId).success) {
+      return start.notFound;
+    }
+    return apiMutation("setSpecialistServiceActive", async () => {
+      try {
+        const { data } = await apiPatchSpecialistService(
+          sessionToken(start.guard.session),
+          id,
+          serviceId,
+          { is_active: isActive },
+          key,
+        );
+        for (const tag of tagsForEntity("specialist", data.id)) updateTag(tag);
+        return { ok: true, data: mapClinicSpecialist(data) };
+      } catch (error) {
+        return toActionResult(error);
+      }
+    });
+  }
+  return mock.setSpecialistServiceActive(id, serviceId, isActive);
+}
+
+/**
+ * `DELETE specialists/{id}/services/{serviceId}/` → 204 for a service never booked; one with
+ * appointments answers 409 `conflict` (deactivate it instead).
+ */
+export async function deleteSpecialistService(
+  id: string,
+  serviceId: string,
+  key: string,
+  csrf: string,
+): Promise<ActionResult<{ id: string }>> {
+  const start = await prologue(csrf, key);
+  if (!start.ok) return start;
+  if (!anyId.safeParse(id).success || !anyId.safeParse(serviceId).success) return start.notFound;
+  if ((await dataSource()) === "api") {
+    if (!apiId.safeParse(id).success || !apiId.safeParse(serviceId).success) {
+      return start.notFound;
+    }
+    return apiMutation("deleteSpecialistService", async () => {
+      try {
+        await apiDeleteSpecialistService(sessionToken(start.guard.session), id, serviceId, key);
+        for (const tag of tagsForEntity("specialist", Number(id))) updateTag(tag);
+        return { ok: true, data: { id: serviceId } };
+      } catch (error) {
+        return toActionResult(error);
+      }
+    });
+  }
+  return mock.deleteSpecialistService(id, serviceId);
 }
 
 export async function saveClinic(

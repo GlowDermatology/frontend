@@ -1,23 +1,21 @@
 import type {
   BlockedPeriod,
   ClinicLocation,
-  ClinicService,
   ClinicSpecialist,
   HoursOverride,
   I18n,
   PublishBlocker,
-  ServiceListQuery,
   SpecialistListQuery,
+  SpecialistService,
 } from "@/domain/clinic";
 import { PUBLISH_BLOCKERS } from "@/domain/clinic";
 
 import type {
   BlockFormValues,
   LocationFormValues,
-  OfferedServicesValues,
   OverrideFormValues,
-  ServiceFormValues,
   SpecialistFormValues,
+  SpecialistServiceFormValues,
   WorkingWeekValues,
 } from "../../clinic.schema";
 import { blockEnd, blockStart } from "../../clinic.schema";
@@ -26,13 +24,13 @@ import type {
   ApiBlockWrite,
   ApiClinicLocation,
   ApiClinicService,
+  ApiClinicServicePatch,
+  ApiClinicServiceWrite,
   ApiClinicSpecialist,
   ApiHoursOverride,
   ApiLocationPatch,
-  ApiOfferedServicesWrite,
+  ApiOwnProfilePatch,
   ApiOverrideWrite,
-  ApiServicePatch,
-  ApiServiceWrite,
   ApiSpecialistPatch,
   ApiWorkingWeekWrite,
 } from "../types";
@@ -83,16 +81,7 @@ export function mapClinicSpecialist(api: ApiClinicSpecialist): ClinicSpecialist 
     slug: api.slug ?? "",
     position: api.position,
     isActive: api.is_active,
-    services: api.services.map((offer) => ({
-      serviceId: idString(offer.service_id),
-      name: offer.name,
-      shortName: offer.short_name,
-      category: offer.category,
-      price: offer.price,
-      durationMin: offer.duration_min,
-      isActive: offer.is_active,
-      serviceIsActive: offer.service_is_active,
-    })),
+    services: api.services.map(mapSpecialistService),
     workingHours: api.working_hours
       .map((day) => ({
         weekday: day.weekday,
@@ -109,18 +98,19 @@ export function mapClinicSpecialist(api: ApiClinicSpecialist): ClinicSpecialist 
   };
 }
 
-export function mapClinicService(api: ApiClinicService): ClinicService {
+/** One of a specialist's own services (`ClinicSpecialist.services`). */
+export function mapSpecialistService(api: ApiClinicService): SpecialistService {
   return {
     id: idString(api.id),
+    specialistId: idString(api.specialist_id),
     name: i18n(api.name),
     shortName: i18n(api.short_name),
     description: i18n(api.description),
     category: api.category,
-    defaultDurationMin: api.default_duration_min,
-    defaultPrice: api.default_price ?? null,
+    price: api.price,
+    durationMin: api.duration_min,
     position: api.position,
     isActive: api.is_active,
-    specialistCount: api.specialist_count,
     createdAt: api.created_at,
     updatedAt: api.updated_at,
   };
@@ -183,17 +173,6 @@ export function specialistListParams(query: Partial<SpecialistListQuery>) {
   };
 }
 
-export function serviceListParams(query: Partial<ServiceListQuery>) {
-  return {
-    search: query.q,
-    is_active: statusParam(query.status),
-    category: query.category,
-    ordering: query.sort && query.sort !== "position" ? query.sort : undefined,
-    page: query.page,
-    page_size: query.pageSize,
-  };
-}
-
 /* --- Form values --- */
 
 export function specialistFormValues(specialist: ClinicSpecialist): SpecialistFormValues {
@@ -209,18 +188,6 @@ export function specialistFormValues(specialist: ClinicSpecialist): SpecialistFo
     locationIds: [...specialist.locationIds],
     isActive: specialist.isActive,
     slug: specialist.slug,
-  };
-}
-
-export function serviceFormValues(service: ClinicService): ServiceFormValues {
-  return {
-    name: { ...service.name },
-    shortName: { ...service.shortName },
-    description: { ...service.description },
-    category: service.category,
-    defaultDurationMin: service.defaultDurationMin,
-    defaultPrice: service.defaultPrice,
-    isActive: service.isActive,
   };
 }
 
@@ -285,17 +252,6 @@ export function specialistPatchBody(
   return body;
 }
 
-export function offeredServicesBody(values: OfferedServicesValues): ApiOfferedServicesWrite {
-  return {
-    services: values.services.map((row) => ({
-      service_id: Number(row.serviceId),
-      price: row.price,
-      duration_min: row.durationMin,
-      is_active: row.isActive,
-    })),
-  };
-}
-
 export function workingWeekBody(values: WorkingWeekValues): ApiWorkingWeekWrite {
   return {
     days: [...values.days]
@@ -330,13 +286,29 @@ export function blockBody(values: BlockFormValues): ApiBlockWrite {
   };
 }
 
-export function serviceCreateBody(values: ServiceFormValues): ApiServiceWrite {
-  const body: ApiServiceWrite = {
+/**
+ * `PATCH specialist/profile/` (the specialist's own profile): `specialistPatchBody` without the
+ * clinics, which only staff assign (the server ignores them anyway). May be empty.
+ */
+export function ownProfilePatchBody(
+  baseline: SpecialistFormValues,
+  values: SpecialistFormValues,
+  force = false,
+): ApiOwnProfilePatch {
+  const body = specialistPatchBody(baseline, values, force);
+  delete body.location_ids;
+  delete body.location_id;
+  return body;
+}
+
+/** `POST …/services/`: a new service of a specialist. */
+export function serviceCreateBody(values: SpecialistServiceFormValues): ApiClinicServiceWrite {
+  const body: ApiClinicServiceWrite = {
     name: { ...values.name },
     description: { ...values.description },
     category: values.category,
-    default_duration_min: values.defaultDurationMin,
-    default_price: values.defaultPrice,
+    price: values.price,
+    duration_min: values.durationMin,
     is_active: values.isActive,
   };
   // An empty short name is left to the server (the first 40 characters of name.uz).
@@ -351,11 +323,12 @@ export function serviceCreateBody(values: ServiceFormValues): ApiServiceWrite {
   return body;
 }
 
+/** `PATCH …/services/{id}/`: only what differs from `baseline` (texts leaf by leaf). */
 export function servicePatchBody(
-  baseline: ServiceFormValues,
-  values: ServiceFormValues,
-): ApiServicePatch {
-  const body: ApiServicePatch = {};
+  baseline: SpecialistServiceFormValues,
+  values: SpecialistServiceFormValues,
+): ApiClinicServicePatch {
+  const body: ApiClinicServicePatch = {};
   const name = changedLeaves(baseline.name, values.name);
   if (name) body.name = name;
   const shortName = changedLeaves(baseline.shortName, values.shortName);
@@ -363,10 +336,8 @@ export function servicePatchBody(
   const description = changedLeaves(baseline.description, values.description);
   if (description) body.description = description;
   if (values.category !== baseline.category) body.category = values.category;
-  if (values.defaultDurationMin !== baseline.defaultDurationMin) {
-    body.default_duration_min = values.defaultDurationMin;
-  }
-  if (values.defaultPrice !== baseline.defaultPrice) body.default_price = values.defaultPrice;
+  if (values.price !== baseline.price) body.price = values.price;
+  if (values.durationMin !== baseline.durationMin) body.duration_min = values.durationMin;
   if (values.isActive !== baseline.isActive) body.is_active = values.isActive;
   return body;
 }

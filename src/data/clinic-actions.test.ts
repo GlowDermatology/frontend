@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StaffSession, VerifyStaffOptions } from "./auth";
 
 /**
- * Specialists, services, schedules and the clinic (contract §2.17, gap
+ * Specialists, their own services, schedules and the clinic (contract §2.17, gap
  * FND-1): mappers against a recorded specialist, the demo's refusals, and
  * the api branch's requests (only changed fields, `force`, keys, remaps).
  */
@@ -56,12 +56,19 @@ import {
   createBlock,
   createOverride,
   deleteScheduleEntry,
+  deleteSpecialistService,
   saveClinic,
-  saveOfferedServices,
+  saveSpecialistService,
   saveWorkingHours,
+  setSpecialistServiceActive,
   updateSpecialist,
 } from "./clinic.actions";
-import { specialistFormSchema, workingWeekSchema } from "./clinic.schema";
+import {
+  EMPTY_SPECIALIST_SERVICE,
+  specialistFormSchema,
+  workingWeekSchema,
+  type SpecialistServiceFormValues,
+} from "./clinic.schema";
 
 const KEY = "6f1c2a0e-9b8d-4c37-8a1e-2f3b4c5d6e7f";
 const CSRF = "csrf-token";
@@ -86,7 +93,7 @@ afterEach(() => {
 });
 
 describe("clinic mappers", () => {
-  it("maps the recorded specialist with its offers and week", () => {
+  it("maps the recorded specialist with its own services and week", () => {
     expect(jasur).toMatchObject({
       id: "2",
       name: "Jasur Aliyev",
@@ -102,8 +109,18 @@ describe("clinic mappers", () => {
       },
       publishBlockers: [],
       services: [
-        { serviceId: "1", shortName: "Konsultatsiya", price: 120_000, durationMin: 30 },
-        { serviceId: "2", price: 90_000, durationMin: 20 },
+        {
+          id: "3",
+          specialistId: "2",
+          name: { uz: "Dermatolog konsultatsiyasi", ru: "", en: "" },
+          shortName: { uz: "Konsultatsiya", ru: "", en: "" },
+          category: "dermatology",
+          price: 120_000,
+          durationMin: 30,
+          position: 0,
+          isActive: true,
+        },
+        { id: "4", price: 90_000, durationMin: 20, position: 1 },
       ],
     });
     expect(jasur.workingHours[0]).toEqual({
@@ -328,10 +345,47 @@ describe("clinic actions in mock mode", () => {
     });
   });
 
-  it("refuses a duplicate offer before the round trip", async () => {
-    const row = { serviceId: "1", price: 100_000, durationMin: null, isActive: true };
-    expect(await saveOfferedServices("1", { services: [row, row] }, KEY, CSRF)).toMatchObject({
-      fieldErrors: { "services.1.serviceId": "Bu xizmat ro‘yxatda ikki marta berilgan." },
+  it("adds, toggles and refuses to delete a booked service; the checklist follows", async () => {
+    const values: SpecialistServiceFormValues = {
+      ...EMPTY_SPECIALIST_SERVICE,
+      name: { uz: "Lazer terapiya", ru: "", en: "" },
+      price: 200_000,
+      durationMin: 45,
+    };
+    const created = await saveSpecialistService("1", null, values, null, KEY, CSRF);
+    expect(created).toMatchObject({ ok: true });
+    if (!created.ok) return;
+    expect(created.data.services.at(-1)).toMatchObject({
+      specialistId: "1",
+      shortName: { uz: "Lazer terapiya" },
+      price: 200_000,
+      durationMin: 45,
+      position: 2,
+    });
+    // A name the specialist already has is refused on the field.
+    expect(
+      await saveSpecialistService(
+        "1",
+        null,
+        { ...values, name: { uz: "Qayta ko‘rik", ru: "", en: "" } },
+        null,
+        KEY,
+        CSRF,
+      ),
+    ).toMatchObject({ fieldErrors: { "name.uz": expect.any(String) } });
+    // One active service stays, so the checklist keeps no "service" blocker.
+    expect(await setSpecialistServiceActive("1", "1", false, KEY, CSRF)).toMatchObject({
+      ok: true,
+      data: { publishBlockers: [] },
+    });
+    // A seeded (booked) service cannot be deleted; a new one can.
+    expect(await deleteSpecialistService("1", "1", KEY, CSRF)).toMatchObject({ code: "conflict" });
+    expect(await deleteSpecialistService("1", "draft-" + KEY, KEY, CSRF)).toEqual({
+      ok: true,
+      data: { id: "draft-" + KEY },
+    });
+    expect(await deleteSpecialistService("1", "99", KEY, CSRF)).toMatchObject({
+      code: "not_found",
     });
   });
 });
@@ -444,7 +498,7 @@ describe("clinic actions in api mode", () => {
     );
   });
 
-  it("PUTs the week and the offers, and keeps the API's indexed field errors", async () => {
+  it("PUTs the week, writes the services and keeps the API's field errors", async () => {
     apiFetch.mockResolvedValueOnce(respond(200, specialistFixture));
     await saveWorkingHours(
       "2",
@@ -481,13 +535,59 @@ describe("clinic actions in api mode", () => {
         },
       }),
     );
+    const baseline: SpecialistServiceFormValues = {
+      name: { uz: "Qayta ko‘rik", ru: "", en: "" },
+      shortName: { uz: "Qayta ko‘rik", ru: "", en: "" },
+      description: { uz: "", ru: "", en: "" },
+      category: "dermatology",
+      price: 90_000,
+      durationMin: 20,
+      isActive: true,
+    };
+    apiFetch.mockResolvedValueOnce(respond(200, specialistFixture));
+    expect(
+      await saveSpecialistService(
+        "2",
+        "4",
+        { ...baseline, name: { ...baseline.name, ru: "Повторный осмотр" }, price: 95_000 },
+        baseline,
+        KEY,
+        CSRF,
+      ),
+    ).toMatchObject({ ok: true, data: { id: "2", services: [{ id: "3" }, { id: "4" }] } });
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/specialists/2/services/4/",
+      expect.objectContaining({
+        method: "PATCH",
+        idempotencyKey: KEY,
+        body: { name: { ru: "Повторный осмотр" }, price: 95_000 },
+      }),
+    );
+    expect(updateTag).toHaveBeenCalled();
+    apiFetch.mockResolvedValueOnce(respond(201, specialistFixture));
+    await saveSpecialistService("2", null, baseline, null, KEY, CSRF);
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/specialists/2/services/",
+      expect.objectContaining({
+        method: "POST",
+        body: {
+          name: baseline.name,
+          short_name: baseline.shortName,
+          description: baseline.description,
+          category: "dermatology",
+          price: 90_000,
+          duration_min: 20,
+          is_active: true,
+        },
+      }),
+    );
     apiFetch.mockRejectedValueOnce(
       new ApiError(400, {
         code: "validation_error",
         message: "Maydonlarni tekshiring.",
         errors: [
           {
-            field: "services.0.duration_min",
+            field: "duration_min",
             code: "invalid",
             message: "Davomiylik 5 daqiqaga karrali bo‘lsin.",
           },
@@ -495,16 +595,24 @@ describe("clinic actions in api mode", () => {
         request_id: "r",
       } as ErrorEnvelope),
     );
-    expect(
-      await saveOfferedServices(
-        "2",
-        { services: [{ serviceId: "1", price: 1, durationMin: 30, isActive: true }] },
-        KEY,
-        CSRF,
-      ),
-    ).toMatchObject({
-      fieldErrors: { "services.0.durationMin": "Davomiylik 5 daqiqaga karrali bo‘lsin." },
+    expect(await saveSpecialistService("2", null, baseline, null, KEY, CSRF)).toMatchObject({
+      fieldErrors: { durationMin: "Davomiylik 5 daqiqaga karrali bo‘lsin." },
     });
+    apiFetch.mockRejectedValueOnce(
+      new ApiError(409, {
+        code: "conflict",
+        message: "Bu xizmatga qabullar bor.",
+        errors: [],
+        request_id: "r",
+      } as ErrorEnvelope),
+    );
+    expect(await deleteSpecialistService("2", "4", KEY, CSRF)).toMatchObject({
+      code: "conflict",
+    });
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/specialists/2/services/4/",
+      expect.objectContaining({ method: "DELETE", idempotencyKey: KEY }),
+    );
     // A demo draft id never reaches the API.
     const calls = apiFetch.mock.calls.length;
     expect(await saveWorkingHours(`draft-${KEY}`, { days: [] }, KEY, CSRF)).toMatchObject({

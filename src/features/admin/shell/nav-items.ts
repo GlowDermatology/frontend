@@ -13,7 +13,6 @@ export type AdminSection =
   | "appointments"
   | "specialists"
   | "clinics"
-  | "services"
   | "customers"
   | "cashback"
   | "notifications"
@@ -69,7 +68,6 @@ export const NAV_ITEMS: ReadonlyArray<NavItem> = [
     href: "/admin/specialists",
     icon: "user",
   },
-  { section: "services", href: "/admin/services", icon: "sparkle" },
   { section: "clinics", href: "/admin/clinics", icon: "map-pin" },
   { section: "customers", href: "/admin/customers", icon: "users" },
   { section: "cashback", href: "/admin/cashback", icon: "percent" },

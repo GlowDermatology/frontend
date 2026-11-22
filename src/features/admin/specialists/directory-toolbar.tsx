@@ -8,10 +8,8 @@ import { Select } from "@/components/ui/select";
 import {
   DIRECTORY_ORDERINGS,
   DIRECTORY_PAGE_SIZES,
-  SERVICE_CATEGORIES,
   SPECIALIST_ROLES,
   type DirectoryOrdering,
-  type ServiceListQuery,
   type SpecialistListQuery,
 } from "@/domain/clinic";
 import { clinicDataCopy } from "@/domain/copy/clinic";
@@ -19,25 +17,21 @@ import { useCopy } from "@/lib/i18n/admin-context";
 
 import { useListNavigation } from "../shared/list-transition";
 import { specialistsCopy } from "./copy";
-import { hasDirectoryFilters, serviceListHref, specialistListHref } from "./query";
+import { hasDirectoryFilters, specialistListHref } from "./query";
 
-type Props =
-  | { kind: "specialists"; query: SpecialistListQuery }
-  | { kind: "services"; query: ServiceListQuery };
+interface Props {
+  query: SpecialistListQuery;
+}
 
-type Patch = Partial<SpecialistListQuery & ServiceListQuery>;
+type Patch = Partial<SpecialistListQuery>;
 
 function useHref(props: Props) {
-  return (patch: Patch) =>
-    props.kind === "specialists"
-      ? specialistListHref({ ...props.query, ...patch } as SpecialistListQuery)
-      : serviceListHref({ ...props.query, ...patch } as ServiceListQuery);
+  return (patch: Patch) => specialistListHref({ ...props.query, ...patch });
 }
 
 /**
- * Search (debounced), status, role or category and ordering of the
- * specialists and services lists (contract §2.17); every change is a URL
- * navigation inside the list transition.
+ * Search (debounced), publication, discipline and ordering of the specialists list (contract
+ * §2.17); every change is a URL navigation inside the list transition.
  */
 export function DirectoryToolbar(props: Props) {
   const { query } = props;
@@ -65,7 +59,7 @@ export function DirectoryToolbar(props: Props) {
     <div className="flex flex-wrap items-center gap-2.5 border-b border-line p-4">
       <SearchInput
         label={t.search}
-        placeholder={props.kind === "specialists" ? t.specialistPlaceholder : t.servicePlaceholder}
+        placeholder={t.specialistPlaceholder}
         value={search}
         maxLength={64}
         onChange={(event) => setSearch(event.target.value)}
@@ -80,52 +74,25 @@ export function DirectoryToolbar(props: Props) {
         options={[
           { value: "all", label: t.all },
           // A specialist profile's `is_active` is its publication (login is managed in Staff).
-          {
-            value: "active",
-            label: props.kind === "specialists" ? copy.list.published : m.status.active,
-          },
-          {
-            value: "inactive",
-            label: props.kind === "specialists" ? copy.list.draft : m.status.inactive,
-          },
+          { value: "active", label: copy.list.published },
+          { value: "inactive", label: copy.list.draft },
         ]}
       />
-      {props.kind === "specialists" ? (
-        <Select<string>
-          variant="filter"
-          aria-label={t.role}
-          prefix={`${t.role}:`}
-          value={props.query.role ?? "all"}
-          onValueChange={(value) =>
-            update({
-              role: value === "all" ? undefined : (value as SpecialistListQuery["role"]),
-            })
-          }
-          options={[
-            { value: "all", label: t.all },
-            ...SPECIALIST_ROLES.map((role) => ({ value: role, label: m.role[role] })),
-          ]}
-        />
-      ) : (
-        <Select<string>
-          variant="filter"
-          aria-label={t.category}
-          prefix={`${t.category}:`}
-          value={props.query.category ?? "all"}
-          onValueChange={(value) =>
-            update({
-              category: value === "all" ? undefined : (value as ServiceListQuery["category"]),
-            })
-          }
-          options={[
-            { value: "all", label: t.all },
-            ...SERVICE_CATEGORIES.map((category) => ({
-              value: category,
-              label: m.category[category],
-            })),
-          ]}
-        />
-      )}
+      <Select<string>
+        variant="filter"
+        aria-label={t.role}
+        prefix={`${t.role}:`}
+        value={query.role ?? "all"}
+        onValueChange={(value) =>
+          update({
+            role: value === "all" ? undefined : (value as SpecialistListQuery["role"]),
+          })
+        }
+        options={[
+          { value: "all", label: t.all },
+          ...SPECIALIST_ROLES.map((role) => ({ value: role, label: m.role[role] })),
+        ]}
+      />
       <Select<DirectoryOrdering>
         variant="filter"
         aria-label={t.sort}
@@ -145,7 +112,6 @@ export function DirectoryToolbar(props: Props) {
                 q: undefined,
                 status: undefined,
                 role: undefined,
-                category: undefined,
                 page: 1,
               }),
             );

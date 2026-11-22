@@ -2,10 +2,24 @@ import {
   createBlock,
   createOverride,
   deleteScheduleEntry,
+  deleteSpecialistService,
+  saveSpecialistService,
   saveWorkingHours,
   setSpecialistPhoto,
+  setSpecialistServiceActive,
   updateSpecialist,
 } from "@/data/clinic.actions";
+import {
+  createMyBlock,
+  createMyOverride,
+  deleteMyScheduleEntry,
+  deleteMyService,
+  saveMyService,
+  saveMyWorkingHours,
+  setMyProfilePhoto,
+  setMyServiceActive,
+  updateMyProfile,
+} from "@/data/specialist.actions";
 import type {
   BlockFormValues,
   OverrideFormValues,
@@ -115,3 +129,45 @@ export function staffProfileActions(specialistId: string): ProfileActions {
     photo: (form, key, csrf) => setSpecialistPhoto(specialistId, form, key, csrf),
   };
 }
+
+/** A profile answer narrowed to its services (the services card keeps only its list). */
+async function servicesOf(
+  pending: Promise<ActionResult<ClinicSpecialist>>,
+): Promise<ActionResult<SpecialistService[]>> {
+  const result = await pending;
+  return result.ok ? { ok: true, data: result.data.services } : result;
+}
+
+/** Staff on `/admin/specialists/[id]`: that specialist's own services. */
+export function staffServiceActions(specialistId: string): ServiceActions {
+  return {
+    save: (serviceId, values, baseline, key, csrf) =>
+      servicesOf(saveSpecialistService(specialistId, serviceId, values, baseline, key, csrf)),
+    setActive: (serviceId, isActive, key, csrf) =>
+      servicesOf(setSpecialistServiceActive(specialistId, serviceId, isActive, key, csrf)),
+    remove: (serviceId, key, csrf) => deleteSpecialistService(specialistId, serviceId, key, csrf),
+  };
+}
+
+/** The signed-in specialist's own schedule (`specialist/weekly-hours|overrides|blocks/`). */
+export const OWN_SCHEDULE_ACTIONS: ScheduleActions = {
+  saveWeek: saveMyWorkingHours,
+  createOverride: createMyOverride,
+  createBlock: createMyBlock,
+  deleteEntry: deleteMyScheduleEntry,
+};
+
+/** The signed-in specialist's own profile and photo (`specialist/profile/…`). */
+export const OWN_PROFILE_ACTIONS: ProfileActions = {
+  save: updateMyProfile,
+  photo: setMyProfilePhoto,
+};
+
+/** The signed-in specialist's own services (`specialist/services/…`). */
+export const OWN_SERVICE_ACTIONS: ServiceActions = {
+  save: (serviceId, values, baseline, key, csrf) =>
+    servicesOf(saveMyService(serviceId, values, baseline, key, csrf)),
+  setActive: (serviceId, isActive, key, csrf) =>
+    servicesOf(setMyServiceActive(serviceId, isActive, key, csrf)),
+  remove: deleteMyService,
+};

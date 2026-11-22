@@ -6,26 +6,22 @@ import type {
   ApiBlockWrite,
   ApiClinicLocation,
   ApiClinicLocations,
-  ApiClinicService,
+  ApiClinicServicePatch,
+  ApiClinicServiceWrite,
   ApiClinicSpecialist,
   ApiConflicts,
   ApiHoursOverride,
   ApiLocationPatch,
-  ApiOfferedServicesWrite,
-  ApiOwnProfilePatch,
   ApiOverrideWrite,
   ApiPaginatedBlocks,
   ApiPaginatedOverrides,
-  ApiPaginatedServices,
   ApiPaginatedSpecialists,
-  ApiServicePatch,
-  ApiServiceWrite,
   ApiSpecialistPatch,
   ApiWorkingWeekWrite,
 } from "./types";
 
 /**
- * Typed calls to the specialists, services, schedules and clinic endpoints
+ * Typed calls to the staff specialists, their services, schedules and clinic endpoints
  * (contract §2.17). Every write honours an optional `Idempotency-Key`, which
  * the Server Actions always send. Reads go through `cachedGet`; the lists a
  * dialog re-reads after a write use `apiFetch`.
@@ -85,15 +81,44 @@ export function apiDeleteSpecialistPhoto(token: string, specialistId: string) {
   });
 }
 
-export function apiPutOfferedServices(
+/* --- One specialist's own services (each answers the whole profile; delete answers 204) --- */
+
+export function apiCreateSpecialistService(
   token: string,
   specialistId: string,
-  body: ApiOfferedServicesWrite,
+  body: ApiClinicServiceWrite,
   key: string,
 ) {
   return apiFetch<ApiClinicSpecialist>(`${BASE}/specialists/${id(specialistId)}/services/`, {
-    method: "PUT",
+    method: "POST",
     body,
+    token,
+    idempotencyKey: key,
+  });
+}
+
+export function apiPatchSpecialistService(
+  token: string,
+  specialistId: string,
+  serviceId: string,
+  body: ApiClinicServicePatch,
+  key: string,
+) {
+  return apiFetch<ApiClinicSpecialist>(
+    `${BASE}/specialists/${id(specialistId)}/services/${id(serviceId)}/`,
+    { method: "PATCH", body, token, idempotencyKey: key },
+  );
+}
+
+/** 409 `conflict` once the service has appointments (deactivate it instead). */
+export function apiDeleteSpecialistService(
+  token: string,
+  specialistId: string,
+  serviceId: string,
+  key: string,
+) {
+  return apiFetch<undefined>(`${BASE}/specialists/${id(specialistId)}/services/${id(serviceId)}/`, {
+    method: "DELETE",
     token,
     idempotencyKey: key,
   });
@@ -191,66 +216,6 @@ export function apiSpecialistConflicts(token: string, specialistId: string) {
     undefined,
     token,
   );
-}
-
-/* --- The signed-in specialist's own profile (role specialist only; 403 for anyone else) --- */
-
-export function apiGetOwnProfile(token: string) {
-  return apiFetch<ApiClinicSpecialist>(`${BASE}/specialist/profile/`, { token });
-}
-
-/** The public name and the bio; only the languages sent change. */
-export function apiPatchOwnProfile(token: string, body: ApiOwnProfilePatch, key: string) {
-  return apiFetch<ApiClinicSpecialist>(`${BASE}/specialist/profile/`, {
-    method: "PATCH",
-    body,
-    token,
-    idempotencyKey: key,
-  });
-}
-
-/** Multipart, one part `file` (JPEG, PNG or WebP, ≤ 5 MiB). */
-export function apiPutOwnProfilePhoto(token: string, form: FormData, key: string) {
-  return apiFetch<ApiClinicSpecialist>(`${BASE}/specialist/profile/photo/`, {
-    method: "PUT",
-    formData: form,
-    token,
-    idempotencyKey: key,
-    timeoutMs: 30_000,
-  });
-}
-
-export function apiDeleteOwnProfilePhoto(token: string) {
-  return apiFetch<undefined>(`${BASE}/specialist/profile/photo/`, { method: "DELETE", token });
-}
-
-/* --- Services --- */
-
-export function apiListServices(token: string, params: Record<string, QueryValue>) {
-  return cachedGet<ApiPaginatedServices>(`${BASE}/services/`, params, token);
-}
-
-export function apiCreateService(token: string, body: ApiServiceWrite, key: string) {
-  return apiFetch<ApiClinicService>(`${BASE}/services/`, {
-    method: "POST",
-    body,
-    token,
-    idempotencyKey: key,
-  });
-}
-
-export function apiPatchService(
-  token: string,
-  serviceId: string,
-  body: ApiServicePatch,
-  key: string,
-) {
-  return apiFetch<ApiClinicService>(`${BASE}/services/${id(serviceId)}/`, {
-    method: "PATCH",
-    body,
-    token,
-    idempotencyKey: key,
-  });
 }
 
 /* --- Clinics --- */

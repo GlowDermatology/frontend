@@ -8,7 +8,6 @@ import type { DayAppointment } from "@/data/appointments";
 import type {
   BlockedPeriod,
   ClinicLocation,
-  ClinicService,
   ClinicSpecialist,
   HoursOverride,
 } from "@/domain/clinic";
@@ -16,20 +15,19 @@ import { clinicDataCopy } from "@/domain/copy/clinic";
 import { useCopy } from "@/lib/i18n/admin-context";
 import { useFormat } from "@/lib/i18n/admin-hooks";
 
-import { staffProfileActions, staffScheduleActions } from "./card-actions";
+import { staffProfileActions, staffScheduleActions, staffServiceActions } from "./card-actions";
 import { ConflictsCard } from "./conflicts-card";
 import { specialistsCopy } from "./copy";
 import { HoursCard } from "./hours-card";
-import { OffersCard } from "./offers-card";
 import { ProfileCard } from "./profile-card";
 import { OwnerCard, PublishChecklist } from "./publish-cards";
 import { BlocksCard, OverridesCard } from "./schedule-cards";
+import { ServicesCard } from "./services-card";
 
 interface SpecialistDetailViewProps {
   specialist: ClinicSpecialist;
   /** A manager: the owner card links to «Xodimlar» for account changes. */
   manageAccess?: boolean;
-  services: ReadonlyArray<ClinicService>;
   clinics: ReadonlyArray<ClinicLocation>;
   overrides: ReadonlyArray<HoursOverride>;
   blocks: ReadonlyArray<BlockedPeriod>;
@@ -41,7 +39,7 @@ interface SpecialistDetailViewProps {
 /**
  * One specialist (gap FND-1, contract §2.17): the profile and photo, the
  * publish checklist, the owner account (read-only), the
- * offered services with their prices and durations, the weekly hours, the
+ * specialist's own services with their prices and durations, the weekly hours, the
  * date overrides and blocked periods, and the booked appointments the
  * schedule no longer covers. Booked appointments never change when any of
  * this does; only new bookings follow it.
@@ -59,7 +57,8 @@ export function SpecialistDetailView(props: SpecialistDetailViewProps) {
   }
   const profileActions = useMemo(() => staffProfileActions(specialist.id), [specialist.id]);
   const scheduleActions = useMemo(() => staffScheduleActions(specialist.id), [specialist.id]);
-  const bookable = specialist.services.filter((s) => s.isActive && s.serviceIsActive).length;
+  const serviceActions = useMemo(() => staffServiceActions(specialist.id), [specialist.id]);
+  const bookable = specialist.services.filter((s) => s.isActive).length;
   const assigned = props.clinics.filter((clinic) => specialist.locationIds.includes(clinic.id));
 
   return (
@@ -100,7 +99,11 @@ export function SpecialistDetailView(props: SpecialistDetailViewProps) {
             actions={profileActions}
             clinicAccess="edit"
           />
-          <OffersCard specialist={specialist} services={props.services} onUpdated={setSpecialist} />
+          <ServicesCard
+            services={specialist.services}
+            actions={serviceActions}
+            onChange={(services) => setSpecialist((current) => ({ ...current, services }))}
+          />
         </div>
         <div className="flex min-w-0 flex-[2_1_380px] flex-col gap-4">
           <PublishChecklist specialist={specialist} />

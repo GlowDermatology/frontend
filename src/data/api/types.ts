@@ -218,9 +218,18 @@ export type ApiSpecialistPatch = Omit<
   Partial<Schemas["PatchedClinicSpecialistPatchRequest"]>,
   "qualifications" | "bio"
 > & { qualifications?: I18nPartial; bio?: I18nPartial };
-/** `PATCH specialist/profile/` (the specialist's own profile): the public name and the bio. */
-export type ApiOwnProfilePatch = { name?: string; bio?: I18nPartial };
-export type ApiOfferedServicesWrite = Schemas["OfferedServicesRequest"];
+/**
+ * `PATCH specialist/profile/` (the specialist's own profile): every profile field but the clinics
+ * and the site order, which stay with staff; texts merge leaf by leaf.
+ */
+export type ApiOwnProfilePatch = Omit<
+  Partial<Schemas["PatchedOwnProfileRequest"]>,
+  "qualifications" | "bio"
+> & { qualifications?: I18nPartial; bio?: I18nPartial };
+/** `GET|PATCH specialist/profile/`: the own profile plus the assigned clinics (primary first). */
+export type ApiSpecialistOwnProfile = Schemas["SpecialistOwnProfile"];
+/** `GET specialist/availability/`. */
+export type ApiSpecialistAvailability = Schemas["SpecialistAvailability"];
 export type ApiWorkingWeekWrite = Schemas["WorkingWeekRequest"];
 export type ApiHoursOverride = Schemas["HoursOverride"];
 export type ApiPaginatedOverrides = Schemas["PaginatedHoursOverrideList"];
@@ -228,10 +237,12 @@ export type ApiOverrideWrite = Schemas["HoursOverrideCreateRequest"];
 export type ApiBlockedPeriod = Schemas["BlockedPeriod"];
 export type ApiPaginatedBlocks = Schemas["PaginatedBlockedPeriodList"];
 export type ApiBlockWrite = Schemas["BlockedPeriodCreateRequest"];
+/** One specialist's own service (`ClinicSpecialist.services`). */
 export type ApiClinicService = Schemas["ClinicService"];
-export type ApiPaginatedServices = Schemas["PaginatedClinicServiceList"];
-export type ApiServiceWrite = Schemas["ClinicServiceWriteRequest"];
-export type ApiServicePatch = Omit<
+/** `POST specialists/{id}/services/` and `POST specialist/services/`. */
+export type ApiClinicServiceWrite = Schemas["ClinicServiceWriteRequest"];
+/** `PATCH …/services/{id}/`: changed fields only; the texts merge leaf by leaf. */
+export type ApiClinicServicePatch = Omit<
   Partial<Schemas["PatchedClinicServiceWriteRequest"]>,
   "name" | "short_name" | "description"
 > & { name?: I18nPartial; short_name?: I18nPartial; description?: I18nPartial };
@@ -242,6 +253,16 @@ export type ApiLocationPatch = Omit<
   "name" | "address" | "directions"
 > & { name?: I18nPartial; address?: I18nPartial; directions?: I18nPartial };
 export type ApiConflicts = { results: ApiAppointmentItem[] };
+
+/* --- The specialist's own appointments board (`specialist/appointments/…`) --- */
+
+/** The admin item without the customer's e-mail, plus `customer_note` and `allowed_actions`. */
+export type ApiSpecialistAppointmentItem = Schemas["SpecialistAppointmentItem"];
+export type ApiSpecialistAppointmentDay = Schemas["SpecialistAppointmentDay"];
+export type ApiSpecialistAppointmentRange = Schemas["SpecialistAppointmentRange"];
+export type ApiSpecialistAppointmentCreate = Schemas["SpecialistAppointmentCreateRequest"];
+export type ApiSpecialistReschedule = Schemas["SpecialistRescheduleRequest"];
+export type ApiSpecialistConflicts = Schemas["SpecialistConflicts"];
 
 /* --- Yandex Delivery: carrier view, exception queue, dispatch switch (plan §3.9, §3.10) --- */
 

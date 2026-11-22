@@ -34,19 +34,19 @@ import { LedgerTable } from "../customers/ledger";
 import { paymentsCopy } from "../payments/copy";
 import { dialogCopy, rowItems } from "../payments/payments-table";
 import { successToast } from "../payments/refund-dialog";
-import { serviceFieldLabel } from "../services/services-view";
-import { servicesCopy } from "../services/copy";
 import { specialistsCopy } from "./copy";
 import { errorItems, issuesToErrors, pageRangeText } from "./form-kit";
 import { placeDayErrors } from "./hours-card";
 import { locationFieldLabel } from "./location-card";
-import { offerErrorLabel, serviceName } from "./offers-card";
 import {
   firstTextErrorLanguage,
   profileFieldLabel,
   specialistRecommendedFields,
 } from "./profile-fields";
 import { periodLabel } from "./schedule-cards";
+import { serviceFieldLabel } from "./service-dialog";
+import { serviceText } from "./services-card";
+import { servicesCardCopy } from "./services-copy";
 
 /**
  * The specialists, services, customers, cashback and payments sweep (DESIGN §A, §G): the pure
@@ -71,20 +71,23 @@ describe("form kit", () => {
   });
 
   it("keeps the first message per path and orders the summary like the form", () => {
-    const result = clinicSchemas.en.offers.safeParse({
-      services: [
-        { serviceId: "", price: -1, durationMin: 43, isActive: true },
-        { serviceId: "1", price: 0, durationMin: null, isActive: true },
-      ],
+    const result = clinicSchemas.en.specialistService.safeParse({
+      name: { uz: "", ru: "", en: "" },
+      shortName: { uz: "", ru: "", en: "" },
+      description: { uz: "", ru: "", en: "" },
+      category: "dermatology",
+      price: -1,
+      durationMin: 43,
+      isActive: true,
     });
     expect(result.success).toBe(false);
     if (result.success) return;
     const errors = issuesToErrors(result.error);
     expect(errors).toMatchObject({
-      "services.0.serviceId": "Choose a service.",
-      "services.0.price": "The price cannot be below 0.",
-      "services.0.durationMin": "The duration must be a multiple of 5 minutes.",
+      price: "The price cannot be below 0.",
+      durationMin: "The duration must be a multiple of 5 minutes.",
     });
+    expect(errors["name.uz"]).toBeDefined();
     const items = errorItems(
       { b: "B", a: "A", z: "Z" },
       (name) => (name === "z" ? undefined : name.toUpperCase()),
@@ -252,16 +255,11 @@ describe("specialist forms", () => {
       "ru",
     );
     expect(firstTextErrorLanguage({ name: "x" })).toBeNull();
-    expect(offerErrorLabel("services.2.price", specialistsCopy.uz)).toBe("3-xizmat · Narx");
-    expect(offerErrorLabel("services.0.durationMin", specialistsCopy.en)).toBe(
-      "Service 1 · Duration",
-    );
-    expect(offerErrorLabel("services", specialistsCopy.en)).toBeUndefined();
     expect(locationFieldLabel("address.ru", specialistsCopy.en)).toBe("Address (Russian)");
-    expect(serviceFieldLabel("shortName.uz", servicesCopy.ru)).toBe(
-      "Короткое название (узбекский)",
+    expect(serviceFieldLabel("shortName.uz", servicesCardCopy.ru)).toBe(
+      "Краткое название (узбекский)",
     );
-    expect(serviceFieldLabel("defaultDurationMin", servicesCopy.en)).toBe("Duration");
+    expect(serviceFieldLabel("durationMin", servicesCardCopy.en)).toBe("Duration");
   });
 
   it("puts the week's indexed errors on the weekday rows", () => {
@@ -274,9 +272,9 @@ describe("specialist forms", () => {
   });
 
   it("shows a service in the admin language when it has a name there", () => {
-    const service = { name: { uz: "Ko‘rik", ru: "Осмотр", en: "" } };
-    expect(serviceName(service, "ru")).toBe("Осмотр");
-    expect(serviceName(service, "en")).toBe("Ko‘rik");
+    const name = { uz: "Ko‘rik", ru: "Осмотр", en: "" };
+    expect(serviceText(name, "ru")).toBe("Осмотр");
+    expect(serviceText(name, "en")).toBe("Ko‘rik");
   });
 
   it("prints a blocked period on one day or across days", () => {

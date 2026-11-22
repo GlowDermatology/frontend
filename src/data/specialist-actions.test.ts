@@ -6,7 +6,8 @@ import type { StaffSession, VerifyStaffOptions } from "./auth";
 /**
  * Specialist accounts and profiles in api mode: Staff → Add employee → Specialist
  * (`specialists/invite/`), the confirmed Staff ↔ Specialist change (`staff/{id}/specialist-role/`)
- * and the specialist's own profile (`specialist/profile/`), with the callers each one allows.
+ * and the specialist's own profile, schedule and services (`specialist/…`), with the callers each
+ * one allows.
  */
 
 const verifyStaff = vi.fn<(options?: VerifyStaffOptions) => Promise<StaffSession>>();
@@ -15,7 +16,11 @@ const refresh = vi.fn();
 const apiFetch = vi.fn();
 
 vi.mock("next/server", () => ({ connection: vi.fn(async () => undefined) }));
-vi.mock("next/cache", () => ({ refresh: () => refresh(), updateTag: vi.fn() }));
+const updateTag = vi.fn();
+vi.mock("next/cache", () => ({
+  refresh: () => refresh(),
+  updateTag: (tag: string) => updateTag(tag),
+}));
 vi.mock("next/headers", () => ({
   cookies: async () => ({ get: () => undefined }),
   headers: async () => new Headers(),
@@ -34,11 +39,19 @@ vi.mock("./api/client", () => ({
 
 import specialistFixture from "./api/__fixtures__/specialist-2.json";
 import { ApiError } from "./api/errors";
-import type { ErrorEnvelope } from "./api/types";
+import { mapClinicSpecialist, specialistFormValues } from "./api/mappers/clinic";
+import type { ApiClinicSpecialist, ErrorEnvelope } from "./api/types";
+import { EMPTY_SPECIALIST_SERVICE } from "./clinic.schema";
 import {
   changeSpecialistRole,
+  createMyBlock,
+  deleteMyScheduleEntry,
+  deleteMyService,
   inviteSpecialist,
+  saveMyService,
+  saveMyWorkingHours,
   setMyProfilePhoto,
+  setMyServiceActive,
   updateMyProfile,
 } from "./specialist.actions";
 
@@ -80,6 +93,7 @@ beforeEach(() => {
   getMe.mockReset();
   getMe.mockResolvedValue(manager);
   refresh.mockClear();
+  updateTag.mockClear();
   apiFetch.mockReset();
 });
 
@@ -208,26 +222,61 @@ describe("Staff ↔ Specialist", () => {
 
 describe("the specialist's own profile", () => {
   beforeEach(() => getMe.mockResolvedValue({ role: "specialist" } as Partial<Me>));
+  const own = { ...specialistFixture, clinics: [] };
+  const baseline = specialistFormValues(
+    mapClinicSpecialist(specialistFixture as unknown as ApiClinicSpecialist),
+  );
 
-  it("patches the public name and only the bio languages given", async () => {
-    apiFetch.mockResolvedValueOnce(
-      respond(200, { ...specialistFixture, name: "Dr. Jasur", is_active: false }),
-    );
-    expect(
-      await updateMyProfile({ name: " Dr. Jasur ", bio: { ru: "Врач-дерматолог" } }, KEY, CSRF),
-    ).toMatchObject({ ok: true, data: { id: "2", name: "Dr. Jasur", isActive: false } });
+  it("patches only what changed, never the clinics, and publishes with force", async () => {
+    apiFetch.mockResolvedValueOnce(respond(200, { ...own, name: "Dr. Jasur", is_active: false }));
+    const values = {
+      ...baseline,
+      name: " Dr. Jasur ",
+      bio: { ...baseline.bio, ru: "Врач-дерматолог" },
+      slotStepMin: 15 as const,
+      // A specialist cannot assign clinics: a changed list is never sent.
+      locationIds: ["1", "2"],
+      isActive: false,
+    };
+    expect(await updateMyProfile(values, baseline, true, KEY, CSRF)).toMatchObject({
+      ok: true,
+      data: { id: "2", name: "Dr. Jasur", isActive: false },
+    });
     expect(apiFetch).toHaveBeenLastCalledWith(
       "/api/v1/admin/specialist/profile/",
       expect.objectContaining({
         method: "PATCH",
         idempotencyKey: KEY,
-        body: { name: "Dr. Jasur", bio: { ru: "Врач-дерматолог" } },
+        body: {
+          name: "Dr. Jasur",
+          bio: { ru: "Врач-дерматолог" },
+          slot_step_min: 15,
+          is_active: false,
+          force: true,
+        },
       }),
     );
+    expect(updateTag).toHaveBeenCalled();
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("keeps the server's 409 on publishing an incomplete profile", async () => {
+    apiFetch.mockRejectedValueOnce(
+      new ApiError(409, {
+        code: "conflict",
+        message: "Profilni e’lon qilish uchun to‘ldiring: rasm.",
+        errors: [],
+        request_id: "r",
+      } as ErrorEnvelope),
+    );
+    const draft = { ...baseline, isActive: false };
+    expect(
+      await updateMyProfile({ ...draft, isActive: true }, draft, false, KEY, CSRF),
+    ).toMatchObject({ ok: false, code: "conflict" });
   });
 
   it("uploads and removes the own photo, and refuses any other account", async () => {
-    apiFetch.mockResolvedValueOnce(respond(200, specialistFixture));
+    apiFetch.mockResolvedValueOnce(respond(200, own));
     const form = new FormData();
     form.set("photo", new File([new Uint8Array([1, 2, 3])], "me.png", { type: "image/png" }));
     expect(await setMyProfilePhoto(form, KEY, CSRF)).toMatchObject({ ok: true });
@@ -242,13 +291,119 @@ describe("the specialist's own profile", () => {
     expect(await setMyProfilePhoto(null, KEY, CSRF)).toEqual({ ok: true, data: null });
     expect(apiFetch).toHaveBeenLastCalledWith(
       "/api/v1/admin/specialist/profile/photo/",
-      expect.objectContaining({ method: "DELETE" }),
+      expect.objectContaining({ method: "DELETE", idempotencyKey: KEY }),
     );
     const calls = apiFetch.mock.calls.length;
     getMe.mockResolvedValueOnce(manager);
-    expect(await updateMyProfile({ name: "Dr. Jasur" }, KEY, CSRF)).toMatchObject({
+    expect(await updateMyProfile(baseline, baseline, false, KEY, CSRF)).toMatchObject({
       code: "permission_denied",
     });
+    // Mock mode is always an administrator: no specialist write there either.
+    verifyStaff.mockResolvedValueOnce({ ok: true, mode: "mock" });
+    expect(await deleteMyService("3", KEY, CSRF)).toMatchObject({ code: "permission_denied" });
+    // A bad key never reaches the API.
+    expect(await saveMyWorkingHours({ days: [] }, "nope", CSRF)).toMatchObject({ ok: false });
+    expect(apiFetch).toHaveBeenCalledTimes(calls);
+  });
+});
+
+describe("the specialist's own schedule and services", () => {
+  beforeEach(() => getMe.mockResolvedValue({ role: "specialist" } as Partial<Me>));
+  const own = { ...specialistFixture, clinics: [] };
+
+  it("writes the week, a block and deletes an entry with the key", async () => {
+    apiFetch.mockResolvedValueOnce(respond(200, own));
+    expect(await saveMyWorkingHours({ days: [] }, KEY, CSRF)).toMatchObject({
+      ok: true,
+      data: { id: "2" },
+    });
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/specialist/weekly-hours/",
+      expect.objectContaining({ method: "PUT", idempotencyKey: KEY, body: { days: [] } }),
+    );
+    apiFetch.mockRejectedValueOnce(
+      new ApiError(400, {
+        code: "validation_error",
+        message: "Maydonlarni tekshiring.",
+        errors: [{ field: "start", code: "invalid", message: "Kesishadi." }],
+        request_id: "r",
+      } as ErrorEnvelope),
+    );
+    const block = {
+      startDate: "2026-12-01",
+      startTime: "10:00",
+      endDate: "2026-12-01",
+      endTime: "11:00",
+      kind: "busy" as const,
+      label: "",
+    };
+    expect(await createMyBlock(block, KEY, CSRF)).toMatchObject({
+      fieldErrors: { startTime: "Kesishadi." },
+    });
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/specialist/blocks/",
+      expect.objectContaining({
+        method: "POST",
+        body: {
+          start: "2026-12-01T10:00:00+05:00",
+          end: "2026-12-01T11:00:00+05:00",
+          kind: "busy",
+          label: null,
+        },
+      }),
+    );
+    apiFetch.mockResolvedValueOnce(respond(204, undefined));
+    expect(await deleteMyScheduleEntry("override", "7", KEY, CSRF)).toEqual({
+      ok: true,
+      data: { id: "7" },
+    });
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/specialist/overrides/7/",
+      expect.objectContaining({ method: "DELETE", idempotencyKey: KEY }),
+    );
+  });
+
+  it("creates, toggles and deletes an own service", async () => {
+    apiFetch.mockResolvedValueOnce(respond(201, own));
+    const values = {
+      ...EMPTY_SPECIALIST_SERVICE,
+      name: { uz: "Lazer terapiya", ru: "", en: "" },
+      price: 200_000,
+      durationMin: 45,
+    };
+    expect(await saveMyService(null, values, null, KEY, CSRF)).toMatchObject({
+      ok: true,
+      data: { services: [{ id: "3" }, { id: "4" }] },
+    });
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/specialist/services/",
+      expect.objectContaining({
+        method: "POST",
+        idempotencyKey: KEY,
+        body: expect.objectContaining({ price: 200_000, duration_min: 45 }),
+      }),
+    );
+    apiFetch.mockResolvedValueOnce(respond(200, own));
+    await setMyServiceActive("4", false, KEY, CSRF);
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/specialist/services/4/",
+      expect.objectContaining({ method: "PATCH", body: { is_active: false } }),
+    );
+    apiFetch.mockRejectedValueOnce(
+      new ApiError(409, {
+        code: "conflict",
+        message: "Bu xizmatga qabullar bor.",
+        errors: [],
+        request_id: "r",
+      } as ErrorEnvelope),
+    );
+    expect(await deleteMyService("4", KEY, CSRF)).toMatchObject({ code: "conflict" });
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/specialist/services/4/",
+      expect.objectContaining({ method: "DELETE", idempotencyKey: KEY }),
+    );
+    const calls = apiFetch.mock.calls.length;
+    expect(await deleteMyService("draft-1", KEY, CSRF)).toMatchObject({ code: "not_found" });
     expect(apiFetch).toHaveBeenCalledTimes(calls);
   });
 });

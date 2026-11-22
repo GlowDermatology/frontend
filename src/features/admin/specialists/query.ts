@@ -3,10 +3,8 @@ import type { Route } from "next";
 import {
   DIRECTORY_ORDERINGS,
   DIRECTORY_PAGE_SIZES,
-  SERVICE_CATEGORIES,
   SPECIALIST_ROLES,
   type DirectoryPageSize,
-  type ServiceListQuery,
   type SpecialistListQuery,
 } from "@/domain/clinic";
 
@@ -20,8 +18,8 @@ import {
 } from "../shared/url-state";
 
 /**
- * URL state of `/admin/specialists` and `/admin/services` (contract §2.17):
- * `q`, `status` (`active` | `inactive`), `role` / `category`, `sort`
+ * URL state of `/admin/specialists` (contract §2.17):
+ * `q`, `status` (`active` | `inactive`), `role`, `sort`
  * (DirectoryOrdering, default `position`), `page`, `size` (20, 50). The
  * mappers rename them for the API.
  */
@@ -44,18 +42,13 @@ export function parseSpecialistQuery(params: SearchParams): SpecialistListQuery 
   return { ...common(params), role: oneOf(firstParam(params, "role"), SPECIALIST_ROLES) };
 }
 
-export function parseServiceQuery(params: SearchParams): ServiceListQuery {
-  return { ...common(params), category: oneOf(firstParam(params, "category"), SERVICE_CATEGORIES) };
-}
-
-type Query = Partial<SpecialistListQuery & ServiceListQuery>;
+type Query = Partial<SpecialistListQuery>;
 
 function href(base: string, query: Query): Route {
   return `${base}${toQueryString({
     q: query.q,
     status: query.status,
     role: query.role,
-    category: query.category,
     sort: query.sort && query.sort !== "position" ? query.sort : undefined,
     size: query.pageSize && query.pageSize !== 20 ? query.pageSize : undefined,
     page: query.page && query.page > 1 ? query.page : undefined,
@@ -66,9 +59,7 @@ export const specialistListHref = (
   query: Partial<SpecialistListQuery>,
   base = "/admin/specialists",
 ) => href(base, query);
-export const serviceListHref = (query: Partial<ServiceListQuery>, base = "/admin/services") =>
-  href(base, query);
 
 export function hasDirectoryFilters(query: Query): boolean {
-  return Boolean(query.q || query.status || query.role || query.category);
+  return Boolean(query.q || query.status || query.role);
 }

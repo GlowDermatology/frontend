@@ -5,10 +5,8 @@ import { cache } from "react";
 import type {
   BlockedPeriod,
   ClinicLocation,
-  ClinicService,
   ClinicSpecialist,
   HoursOverride,
-  ServiceListQuery,
   SpecialistListQuery,
 } from "@/domain/clinic";
 
@@ -17,7 +15,6 @@ import {
   apiGetSpecialist,
   apiListBlocks,
   apiListOverrides,
-  apiListServices,
   apiListSpecialists,
   apiSpecialistConflicts,
 } from "./api/clinic";
@@ -26,22 +23,19 @@ import { isApiError } from "./api/errors";
 import { mapDayAppointment } from "./api/mappers/appointments";
 import {
   mapBlock,
-  mapClinicService,
   mapClinicSpecialist,
   mapLocation,
   mapOverride,
-  serviceListParams,
   specialistListParams,
 } from "./api/mappers/clinic";
 import { mapPage } from "./api/mappers/page";
-import { collectAllPages } from "./api/pages";
 import { requireApiToken } from "./auth";
 import * as mock from "./mock/clinic";
 import { dataSource } from "./source";
 import { paginate, type Page } from "./types";
 
 /**
- * Specialists, services, schedules and the clinic read seam (contract
+ * Specialists (with their own services), schedules and the clinic read seam (contract
  * §2.17, gap FND-1). Dispatches on `dataSource()`: the demo reads
  * `./mock/clinic.ts`; the api branch reads the admin endpoints.
  */
@@ -71,28 +65,6 @@ export const getSpecialist = cache(async (id: string): Promise<ClinicSpecialist 
   }
   return mock.MOCK_SPECIALISTS.find((s) => s.id === id) ?? null;
 });
-
-export async function listServices(query: ServiceListQuery): Promise<Page<ClinicService>> {
-  if ((await dataSource()) === "api") {
-    const token = await requireApiToken();
-    const { data } = await apiListServices(token, serviceListParams(query));
-    return mapPage(data, mapClinicService);
-  }
-  return mock.listServices(query);
-}
-
-/** Every service (active or not), by position: the offer editor's choices. */
-export async function listAllServices(): Promise<ClinicService[]> {
-  if ((await dataSource()) === "api") {
-    const token = await requireApiToken();
-    const rows = await collectAllPages(
-      async (page) => (await apiListServices(token, { page, page_size: 50 })).data,
-      { pageSize: 50, path: "services/" },
-    );
-    return rows.map(mapClinicService);
-  }
-  return [...mock.MOCK_SERVICES];
-}
 
 export const listClinics = cache(async (): Promise<ClinicLocation[]> => {
   if ((await dataSource()) === "api") {

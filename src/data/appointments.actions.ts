@@ -61,14 +61,6 @@ import type { ActionFailure, ActionResult } from "./types";
 
 export type AppointmentAction = "confirm" | "reject" | "attend";
 
-/*
- * Fields the backend added after the generated schema this checkout carries (B1): `name` on a
- * create (the walk-in customer of an unknown phone) and `service_id` on a move to another
- * specialist (every service belongs to one specialist). Drop these once `gen:api` has them.
- */
-type CreateBody = ApiAppointmentCreate & { name?: string };
-type RescheduleBody = ApiAppointmentReschedule & { service_id?: number };
-
 const idSchema = z.string().trim().min(1).max(64);
 const notFound = (m: AppointmentDataCopy): ActionFailure => ({
   ok: false,
@@ -145,7 +137,7 @@ export async function createAppointment(
     if (serviceId === null) {
       return { ok: false, error: m.serviceNotFound, fieldErrors: { serviceId: m.serviceNotFound } };
     }
-    const body: CreateBody = {
+    const body: ApiAppointmentCreate = {
       specialist_id: specialistId,
       service_id: serviceId,
       location_id: locationId,
@@ -201,7 +193,7 @@ export async function rescheduleAppointment(
     const locationId = apiId(input.locationId);
     if (locationId === null)
       return { ok: false, error: m.chooseClinic, fieldErrors: { locationId: m.chooseClinic } };
-    const body: RescheduleBody = {
+    const body: ApiAppointmentReschedule = {
       start: tashkentStart(input.date, input.time),
       location_id: locationId,
     };

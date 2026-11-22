@@ -3,8 +3,8 @@
  * GENERATED FILE — do not edit by hand. Regenerate with `npm run gen:api`.
  *
  * Source: openapi/schema.yaml of the backend repository
- * Commit: d018a1c23eb587a4e202d99d1b47f7110dfc84d8
- * Generated: 2026-11-22T08:54:19.539Z (openapi-typescript)
+ * Commit: 6cd78a1c1a60b572bb60e9adf865290aa49cb69f
+ * Generated: 2026-11-22T15:11:14.578Z (openapi-typescript)
  */
 
 export interface paths {
@@ -68,7 +68,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Move an open (requested|confirmed) appointment; the status is kept. Same slot rules as the creation. A new specialist re-snapshots duration and price from that specialist's service link. */
+        /** @description Move an open (requested|confirmed) appointment; the status is kept. Same slot rules as the creation. Moving to another specialist needs `service_id`, one of that specialist's active services; a changed service re-snapshots duration and price. */
         post: operations["admin_appointments_reschedule"];
         delete?: never;
         options?: never;
@@ -1706,67 +1706,124 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/services/": {
+    "/api/v1/admin/specialist/appointments/": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /**
-         * @description ``?export=csv|xlsx`` of an admin list (contract 1.8).
-         *
-         *     ``export_name`` (the file name stem and the sheet title) and ``export_headers`` are Uzbek source texts:
-         *     they are rendered with ``core.uzsource.tr`` in the request's ``Accept-Language``
-         *     (``core.api.language.admin_language``), and ``get_export_rows`` runs with that language active, so the
-         *     values it takes from ``core.labels.text`` (and ``yes_no``, ``active_label``, ``refund_state_label``)
-         *     follow it. Data (names, ids, amounts, dates) is never translated; the ``export.downloaded`` audit row is
-         *     written in Uzbek outside that scope.
-         */
-        get: operations["admin_services_list"];
+        /** @description The caller's schedule and own appointments of `date` (default today, Tashkent). */
+        get: operations["specialist_appointments_day"];
         put?: never;
-        /**
-         * @description ``?export=csv|xlsx`` of an admin list (contract 1.8).
-         *
-         *     ``export_name`` (the file name stem and the sheet title) and ``export_headers`` are Uzbek source texts:
-         *     they are rendered with ``core.uzsource.tr`` in the request's ``Accept-Language``
-         *     (``core.api.language.admin_language``), and ``get_export_rows`` runs with that language active, so the
-         *     values it takes from ``core.labels.text`` (and ``yes_no``, ``active_label``, ``refund_state_label``)
-         *     follow it. Data (names, ids, amounts, dates) is never translated; the ``export.downloaded`` audit row is
-         *     written in Uzbek outside that scope.
-         */
-        post: operations["admin_services_create"];
+        /** @description Book a visit in the caller's own calendar (a phone call or a walk-in), created directly as confirmed: one of the caller's active services at one of their active clinics, with the staff slot rules (5-minute grid, future, inside the hours of that day and clinic, outside blocked periods, no overlap: a concurrent booking of the slot answers 409 conflict). A phone no customer holds creates the customer from `phone` and `name`. The profile must be published (409 conflict otherwise). Recorded like a staff booking (`requested_via=admin`) with the specialist as the actor. */
+        post: operations["specialist_appointments_create"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/services/{id}/": {
+    "/api/v1/admin/specialist/appointments/{id}/{action}/": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /**
-         * @description ``?export=csv|xlsx`` of an admin list (contract 1.8).
-         *
-         *     ``export_name`` (the file name stem and the sheet title) and ``export_headers`` are Uzbek source texts:
-         *     they are rendered with ``core.uzsource.tr`` in the request's ``Accept-Language``
-         *     (``core.api.language.admin_language``), and ``get_export_rows`` runs with that language active, so the
-         *     values it takes from ``core.labels.text`` (and ``yes_no``, ``active_label``, ``refund_state_label``)
-         *     follow it. Data (names, ids, amounts, dates) is never translated; the ``export.downloaded`` audit row is
-         *     written in Uzbek outside that scope.
-         */
-        get: operations["admin_services_retrieve"];
+        get?: never;
+        put?: never;
+        /** @description confirm / reject (a requested visit, before its start) or attend (a confirmed visit, from its start on); otherwise 409 invalid_transition. */
+        post: operations["specialist_appointments_action"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/specialist/appointments/{id}/cancel/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Cancel an own open appointment before its start; the customer is notified. */
+        post: operations["specialist_appointments_cancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/specialist/appointments/{id}/reschedule/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Move an own open appointment before its start (same slot rules as staff). Moving it to another clinic needs `customer_agreed`. */
+        post: operations["specialist_appointments_reschedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/specialist/appointments/meta/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The admin booking-dialog meta for the caller only: their active services and active clinics. `specialists` is empty while the profile is unpublished. */
+        get: operations["specialist_appointments_meta"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        /** @description Every field optional; texts merge leaf by leaf. There is no delete: `is_active: false` retires a service (it leaves the customer catalogue at once; its appointments are kept). */
-        patch: operations["admin_services_partial_update"];
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/specialist/appointments/pending-summary/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The admin pending summary over the caller's own requested appointments. */
+        get: operations["specialist_appointments_pending_summary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/specialist/appointments/range/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The caller's week and month boards in the admin range shape: `detail=counts` (default) up to 42 days, `detail=full` up to 7 days. The caller's profile is always listed, even as a draft. */
+        get: operations["specialist_appointments_range"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/admin/specialist/availability/": {
@@ -1817,70 +1874,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/specialist/bookings/{id}/{action}/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["specialist_booking_action"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/specialist/bookings/{id}/cancel/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["specialist_booking_cancel"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/specialist/bookings/{id}/reschedule/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["specialist_booking_reschedule"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/specialist/calendar/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["specialist_calendar"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/admin/specialist/conflicts/": {
         parameters: {
             query?: never;
@@ -1888,6 +1881,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** @description The caller's open future appointments their current schedule no longer covers, by start; reschedule or cancel them through specialist/appointments/{id}/reschedule|cancel/. */
         get: operations["specialist_conflicts"];
         put?: never;
         post?: never;
@@ -1942,6 +1936,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
+        /** @description Every field optional; texts merge leaf by leaf; `location_id`, `location_ids` and `position` are ignored. `is_active: true` with `publish_blockers` left answers 409 `conflict` naming them; `is_active: false` with requested/confirmed appointments ahead answers 409 unless `force: true` (the appointments are kept either way). */
         patch: operations["specialist_profile_update"];
         trace?: never;
     };
@@ -1962,6 +1957,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/specialist/services/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description A new own service with the price and duration a booking snapshots; appended after the others. A name already used answers 400 `unique`; at most 50 services. */
+        post: operations["specialist_services_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/specialist/services/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** @description Delete an own service that was never booked. One with appointments (any status) answers 409 `conflict`: deactivate it instead (`is_active: false`). */
+        delete: operations["specialist_services_destroy"];
+        options?: never;
+        head?: never;
+        /** @description Every field optional; texts merge leaf by leaf. `is_active: false` stops offering the service at once; booked appointments keep their price and duration. Another specialist's service is 404. */
+        patch: operations["specialist_services_partial_update"];
+        trace?: never;
+    };
     "/api/v1/admin/specialist/weekly-hours/": {
         parameters: {
             query?: never;
@@ -1970,6 +2000,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
+        /** @description The whole week at the assigned clinics: a weekday left out is not a working day. Appointments already booked outside the new hours are kept (see `specialist/conflicts/`). */
         put: operations["specialist_weekly_hours_update"];
         post?: never;
         delete?: never;
@@ -2141,13 +2172,31 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** @description The exact set of offered services with the price and duration a booking snapshots; a service left out stops being offered. Existing appointments keep their snapshots. */
-        put: operations["admin_specialists_services_update"];
-        post?: never;
+        put?: never;
+        /** @description A new service of this specialist with the price and duration a booking snapshots; appended after its others. A name the specialist already uses answers 400 `unique`; at most 50 services. */
+        post: operations["admin_specialists_services_create"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/specialists/{id}/services/{service_id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** @description Delete a service that was never booked. One with appointments (any status) answers 409 `conflict`: deactivate it instead (`is_active: false`). */
+        delete: operations["admin_specialists_services_destroy"];
+        options?: never;
+        head?: never;
+        /** @description Every field optional; texts merge leaf by leaf. `is_active: false` stops offering the service at once; booked appointments keep their price and duration. Another specialist's service is 404. */
+        patch: operations["admin_specialists_services_partial_update"];
         trace?: never;
     };
     "/api/v1/admin/specialists/{id}/working-hours/": {
@@ -3609,6 +3658,15 @@ export interface components {
         };
         AdminLoginResult: components["schemas"]["LoginResponse"] | components["schemas"]["MfaChallenge"];
         /**
+         * @description * `confirm` - confirm
+         *     * `reject` - reject
+         *     * `attend` - attend
+         *     * `reschedule` - reschedule
+         *     * `cancel` - cancel
+         * @enum {string}
+         */
+        AllowedActionsEnum: "confirm" | "reject" | "attend" | "reschedule" | "cancel";
+        /**
          * @description * `customer` - customer
          *     * `admin` - admin
          * @enum {string}
@@ -3624,12 +3682,16 @@ export interface components {
             name: string;
         };
         /**
-         * @description ``POST appointments/`` (T10): ``specialist_id``, ``service_id``, ``customer_id`` | ``phone`` (E.164 of
-         *     an active customer), ``start`` (aware, 5-minute grid, inside working hours), ``note`` (≤ 300).
+         * @description ``POST appointments/`` (T10): ``specialist_id``, ``service_id`` (one of that specialist's active
+         *     services), ``customer_id`` | ``phone``, ``start`` (aware, 5-minute grid, inside working hours), ``note``
+         *     (≤ 300). A ``phone`` no customer holds books a walk-in: ``name`` is then required and the customer is
+         *     created with the booking (no password, no consent: they sign in later with an SMS code to that phone).
          */
         AppointmentCreateRequest: {
             customer_id?: number;
             location_id: number;
+            /** @description The new customer's name, required when no customer has the phone (a walk-in). */
+            name?: string;
             note?: string;
             /** @description An Uzbek mobile number; separators and a missing +998 are accepted and the value is normalised to E.164 (+998XXXXXXXXX). */
             phone?: string;
@@ -3672,9 +3734,14 @@ export interface components {
             /** Format: date */
             to: string;
         };
-        /** @description ``POST appointments/{id}/reschedule/``: ``start`` (same slot rules), optional ``specialist_id``. */
+        /**
+         * @description ``POST appointments/{id}/reschedule/``: ``start`` (same slot rules), optional ``specialist_id`` and
+         *     ``service_id`` (required with another specialist: every service belongs to one specialist).
+         */
         AppointmentRescheduleRequest: {
             location_id: number;
+            /** @description One of the target specialist's active services; required when moving to another specialist, omitted = keep the booked service (and its duration and price). */
+            service_id?: number;
             specialist_id?: number;
             /** Format: date-time */
             start: string;
@@ -4313,37 +4380,47 @@ export interface components {
             results: components["schemas"]["ClinicLocation"][];
         };
         /**
-         * @description The admin ``ClinicService``; instances come from ``selectors.service_queryset()``
-         *     (``specialist_count`` = active specialists offering it through an active link).
+         * @description The admin ``ClinicService``: one service of one specialist, with the price and duration a booking
+         *     snapshots (``is_active: false`` = not offered to customers or in the booking dialogs).
          */
         ClinicService: {
             category: components["schemas"]["ServiceCategoryEnum"];
             /** Format: date-time */
             created_at: string;
-            default_duration_min: number;
-            default_price: number | null;
             readonly description: components["schemas"]["I18nText2000"];
+            duration_min: number;
             id: number;
             is_active: boolean;
             readonly name: components["schemas"]["I18nText120"];
             position: number;
+            price: number;
             readonly short_name: components["schemas"]["I18nText40"];
-            specialist_count: number;
+            specialist_id: number;
             /** Format: date-time */
             updated_at: string;
         };
-        /** @description Body of ``POST services/`` and (``partial``) ``PATCH services/{id}/`` (texts merge leaf by leaf). */
+        /**
+         * @description Body of ``POST …/services/`` and (``partial``) ``PATCH …/services/{id}/`` of one specialist (texts
+         *     merge leaf by leaf). ``category`` defaults from the specialist's role on create.
+         */
         ClinicServiceWriteRequest: {
-            category: components["schemas"]["ServiceCategoryEnum"];
-            /** @description Minutes, a multiple of 5 (5 … 480). */
-            default_duration_min: number;
-            /** @description Suggested price when offering it; null = none. */
-            default_price?: number | null;
+            /**
+             * @description Defaults from the specialist's role on create.
+             *
+             *     * `dermatology` - dermatology
+             *     * `cosmetology` - cosmetology
+             */
+            category?: components["schemas"]["ServiceCategoryEnum"];
             description?: components["schemas"]["ServiceDescriptionRequest"];
+            /** @description Minutes, a multiple of 5 (5 … 480). */
+            duration_min: number;
             /** @default true */
             is_active: boolean;
             name: components["schemas"]["ServiceNameRequest"];
+            /** @description Order within the specialist's services; appended last on create. */
             position?: number;
+            /** @description So'm, 0 … 100 000 000; snapshotted by every booking. */
+            price: number;
             short_name?: components["schemas"]["ServiceShortNameRequest"];
         };
         /**
@@ -4388,7 +4465,8 @@ export interface components {
              *     * `cosmetologist` - cosmetologist
              */
             role: components["schemas"]["SpecialistRoleEnum"] | components["schemas"]["BlankEnum"];
-            services: components["schemas"]["OfferedService"][];
+            /** @description Every own service, inactive ones included, by position. */
+            services: components["schemas"]["ClinicService"][];
             slot_step_min: number;
             /** @description The website URL segment (B-W1): unique, editable. */
             slug: string;
@@ -5983,33 +6061,6 @@ export interface components {
             /** Format: uri */
             redirect_uri: string;
         };
-        /**
-         * @description One service the specialist offers: the price and duration a booking snapshots (``is_active`` = the
-         *     link; ``service_is_active`` = the service itself; bookable only when both are true).
-         */
-        OfferedService: {
-            category: components["schemas"]["ServiceCategoryEnum"];
-            duration_min: number;
-            is_active: boolean;
-            name: string;
-            price: number;
-            service_id: number;
-            service_is_active: boolean;
-            short_name: string;
-        };
-        OfferedServiceInputRequest: {
-            /** @description Minutes, a multiple of 5; omitted or null = the service's default duration. */
-            duration_min?: number | null;
-            /** @default true */
-            is_active: boolean;
-            /** @description So'm, 0 … 100 000 000. */
-            price: number;
-            service_id: number;
-        };
-        /** @description Body of ``PUT specialists/{id}/services/``: the exact set (``[]`` = offers nothing). */
-        OfferedServicesRequest: {
-            services: components["schemas"]["OfferedServiceInputRequest"][];
-        };
         OnlineOrders: {
             /** @description Every order of any status: what `orders/?customer={id}` lists (the card's orders link). */
             all_count: number;
@@ -6251,13 +6302,6 @@ export interface components {
             page_size: number;
             results: components["schemas"]["Category"][];
         };
-        PaginatedClinicServiceList: {
-            count: number;
-            page: number;
-            page_count: number;
-            page_size: number;
-            results: components["schemas"]["ClinicService"][];
-        };
         PaginatedClinicSpecialistList: {
             count: number;
             page: number;
@@ -6478,18 +6522,28 @@ export interface components {
             /** @description An Uzbek mobile number; separators and a missing +998 are accepted and the value is normalised to E.164 (+998XXXXXXXXX). */
             phone?: string | null;
         };
-        /** @description Body of ``POST services/`` and (``partial``) ``PATCH services/{id}/`` (texts merge leaf by leaf). */
+        /**
+         * @description Body of ``POST …/services/`` and (``partial``) ``PATCH …/services/{id}/`` of one specialist (texts
+         *     merge leaf by leaf). ``category`` defaults from the specialist's role on create.
+         */
         PatchedClinicServiceWriteRequest: {
+            /**
+             * @description Defaults from the specialist's role on create.
+             *
+             *     * `dermatology` - dermatology
+             *     * `cosmetology` - cosmetology
+             */
             category?: components["schemas"]["ServiceCategoryEnum"];
-            /** @description Minutes, a multiple of 5 (5 … 480). */
-            default_duration_min?: number;
-            /** @description Suggested price when offering it; null = none. */
-            default_price?: number | null;
             description?: components["schemas"]["ServiceDescriptionRequest"];
+            /** @description Minutes, a multiple of 5 (5 … 480). */
+            duration_min?: number;
             /** @default true */
             is_active: boolean;
             name?: components["schemas"]["ServiceNameRequest"];
+            /** @description Order within the specialist's services; appended last on create. */
             position?: number;
+            /** @description So'm, 0 … 100 000 000; snapshotted by every booking. */
+            price?: number;
             short_name?: components["schemas"]["ServiceShortNameRequest"];
         };
         /**
@@ -6552,12 +6606,28 @@ export interface components {
             title?: string;
         };
         /**
-         * @description ``PATCH specialist/profile/``: the public name and the bio (languages merge one by one). Clinics,
-         *     services, discipline and publication stay with staff.
+         * @description ``PATCH specialist/profile/`` (validated ``partial``): the staff profile fields without the clinics
+         *     and the site order, which stay with staff (sent anyway, they are ignored). Texts merge leaf by leaf;
+         *     ``is_active`` publishes or unpublishes under the staff rules (``force`` confirms an unpublish despite
+         *     upcoming visits).
          */
         PatchedOwnProfileRequest: {
-            bio?: components["schemas"]["PatchedSpecialistTextRequest"];
+            bio?: components["schemas"]["SpecialistTextRequest"];
+            experience_years?: number | null;
+            /**
+             * @description With is_active=false: deactivate even with requested/confirmed appointments ahead.
+             * @default false
+             */
+            force: boolean;
+            /** @description Published: listed on the website and bookable. Publishing needs a complete profile. */
+            is_active?: boolean;
             name?: string;
+            qualifications?: components["schemas"]["SpecialistTextRequest"];
+            role?: components["schemas"]["SpecialistRoleEnum"];
+            /** @description The customer slot grid in minutes: 10, 15, 20, 30 (default) or 60. */
+            slot_step_min?: number;
+            /** @description Optional on create (derived from the name). */
+            slug?: string;
         };
         /**
          * @description ``PATCH products/{id}/``: every field optional and ``texts`` merged leaf by leaf (contract §2.3).
@@ -6582,18 +6652,6 @@ export interface components {
         PatchedSegmentWriteRequest: {
             name?: string;
             rules?: components["schemas"]["SegmentRulesRequest"];
-        };
-        /**
-         * @description ``qualifications`` / ``bio``: ``{uz, ru, en}``, each ≤ 2000, every language optional (missing on
-         *     create → ``""``; a PATCH changes only the languages sent).
-         */
-        PatchedSpecialistTextRequest: {
-            /** @default  */
-            en: string;
-            /** @default  */
-            ru: string;
-            /** @default  */
-            uz: string;
         };
         /**
          * @description ``PATCH staff/{id}/`` body: ``full_name``, ``is_manager`` and/or ``email`` (the login address: the
@@ -7199,11 +7257,6 @@ export interface components {
         RevokedSessions: {
             revoked: number;
         };
-        ScheduleClinic: {
-            address: string;
-            id: number;
-            name: string;
-        };
         /** @description ``GET specialists/{id}/conflicts/``: open future appointments the schedule no longer covers. */
         ScheduleConflicts: {
             results: components["schemas"]["AppointmentItem"][];
@@ -7362,13 +7415,16 @@ export interface components {
             category: components["schemas"]["ServiceCategoryEnum"];
             readonly category_label: string;
             readonly description: string;
-            /** @description Default duration. */
+            /** @description Duration in minutes. */
             duration_min: number;
             id: number;
             readonly name: string;
+            /** @description The specialist's price (equal to `price_to`). */
             price_from: number;
+            /** @description The specialist's price (equal to `price_from`). */
             price_to: number;
             readonly short_name: string;
+            /** @description The one specialist who offers this service. */
             specialist_ids: number[];
         };
         /**
@@ -7533,31 +7589,83 @@ export interface components {
             is_active: boolean;
             role: components["schemas"]["StaffRoleEnum"];
         };
-        SpecialistAvailability: {
-            blocks: components["schemas"]["BlockedPeriod"][];
-            clinics: components["schemas"]["ScheduleClinic"][];
-            overrides: components["schemas"]["HoursOverride"][];
-            working_hours: components["schemas"]["WorkingDay"][];
+        /**
+         * @description ``POST specialist/appointments/``: a booking in the caller's own calendar. No ``customer_id`` (a
+         *     specialist cannot address customers by id) and no note (the staff note is never shown to a specialist).
+         *     A ``phone`` no customer holds books a walk-in: ``name`` is then required and the customer is created with
+         *     the booking (no password, no consent: they sign in later with an SMS code to that phone).
+         */
+        SpecialistAppointmentCreateRequest: {
+            /** @description One of the caller's active assigned clinics. */
+            location_id: number;
+            /** @description The new customer's name, required when no customer has the phone (a walk-in). */
+            name?: string;
+            /** @description An Uzbek mobile number; separators and a missing +998 are accepted and the value is normalised to E.164 (+998XXXXXXXXX). */
+            phone: string;
+            /** @description One of the caller's own active services. */
+            service_id: number;
+            /** Format: date-time */
+            start: string;
         };
-        SpecialistBooking: {
-            customer_name: string;
+        /** @description ``GET specialist/appointments/?date=``: the admin day shape with ``specialists`` = the caller. */
+        SpecialistAppointmentDay: {
+            appointments: components["schemas"]["SpecialistAppointmentItem"][];
+            /** Format: date */
+            date: string;
+            specialists: components["schemas"]["SpecialistDay"][];
+        };
+        /**
+         * @description ``SpecialistAppointmentItem``: the admin day item with ``customer`` reduced to ``{id, name, phone}``,
+         *     plus ``customer_note`` and ``allowed_actions``.
+         */
+        SpecialistAppointmentItem: {
+            /** @description What the specialist may do now: confirm / reject / reschedule / cancel before the start (as the status allows), attend from the start on. */
+            readonly allowed_actions: components["schemas"]["AllowedActionsEnum"][];
+            customer: components["schemas"]["SpecialistCustomerRef"];
             customer_note: string;
-            customer_phone: string | null;
+            duration_min: number;
             /** Format: date-time */
             end: string;
             id: number;
-            location: components["schemas"]["ScheduleClinic"];
-            service: string;
+            location: components["schemas"]["AppointmentClinic"];
+            price: number;
+            /** Format: date-time */
+            requested_at: string;
+            requested_via: components["schemas"]["RequestedViaEnum"];
+            service_id: number;
+            service_name: string;
+            service_short_name: string;
+            specialist_id: number;
             /** Format: date-time */
             start: string;
             status: components["schemas"]["AppointmentStatusEnum"];
         };
-        SpecialistCalendar: {
-            appointments: components["schemas"]["SpecialistBooking"][];
-            schedules: components["schemas"]["RangeSchedule"][];
+        /** @description ``GET specialist/appointments/range/``: the admin range shape of the caller's own board. */
+        SpecialistAppointmentRange: {
+            appointments: components["schemas"]["SpecialistAppointmentItem"][] | null;
+            days: components["schemas"]["RangeDay"][];
+            /** Format: date */
+            from: string;
+            schedules: components["schemas"]["RangeSchedule"][] | null;
+            specialists: components["schemas"]["RangeSpecialist"][];
+            /** Format: date */
+            to: string;
+        };
+        SpecialistAvailability: {
+            blocks: components["schemas"]["BlockedPeriod"][];
+            /** @description Assigned clinics, primary first, inactive ones included (`is_active`). */
+            clinics: components["schemas"]["ClinicLocation"][];
+            overrides: components["schemas"]["HoursOverride"][];
+            working_hours: components["schemas"]["WorkingDay"][];
         };
         SpecialistConflicts: {
-            results: components["schemas"]["SpecialistBooking"][];
+            results: components["schemas"]["SpecialistAppointmentItem"][];
+        };
+        /** @description ``CustomerRef`` without the e-mail: a specialist sees who comes and how to call them. */
+        SpecialistCustomerRef: {
+            id: number;
+            name: string;
+            phone: string | null;
         };
         SpecialistDay: {
             blocks: components["schemas"]["DayBlock"][];
@@ -7583,6 +7691,58 @@ export interface components {
         };
         SpecialistList: {
             results: components["schemas"]["Specialist"][];
+        };
+        /**
+         * @description ``SpecialistOwnProfile``: the ``ClinicSpecialist`` of the signed-in specialist plus the clinics staff
+         *     assigned (read-only for the specialist).
+         */
+        SpecialistOwnProfile: {
+            /** @description The account that owns the profile. */
+            account: components["schemas"]["SpecialistAccount"];
+            readonly bio: components["schemas"]["I18nText2000"];
+            /** @description Assigned clinics, primary first, inactive ones included (`is_active`). */
+            readonly clinics: components["schemas"]["ClinicLocation"][];
+            /** Format: date-time */
+            created_at: string;
+            experience_years: number | null;
+            id: number;
+            is_active: boolean;
+            /** @description `null` while a draft has no clinic. */
+            location_id: number | null;
+            readonly location_ids: number[];
+            name: string;
+            /**
+             * Format: uri
+             * @description 1000 px WebP variant.
+             */
+            readonly photo_medium_url: string | null;
+            /**
+             * Format: uri
+             * @description 400 px WebP variant.
+             */
+            readonly photo_thumbnail_url: string | null;
+            /** Format: uri */
+            readonly photo_url: string | null;
+            position: number;
+            /** @description What keeps the profile from being published (`[]` = ready): account, name, discipline, bio, photo, clinic, service, availability. */
+            readonly publish_blockers: components["schemas"]["PublishBlockersEnum"][];
+            readonly qualifications: components["schemas"]["I18nText2000"];
+            /**
+             * @description `""` while a draft has none.
+             *
+             *     * `dermatologist` - dermatologist
+             *     * `cosmetologist` - cosmetologist
+             */
+            role: components["schemas"]["SpecialistRoleEnum"] | components["schemas"]["BlankEnum"];
+            /** @description Every own service, inactive ones included, by position. */
+            services: components["schemas"]["ClinicService"][];
+            slot_step_min: number;
+            /** @description The website URL segment (B-W1): unique, editable. */
+            slug: string;
+            readonly upcoming_appointments: number;
+            /** Format: date-time */
+            updated_at: string;
+            working_hours: components["schemas"]["WorkingDay"][];
         };
         SpecialistPhotoUploadRequest: {
             /** Format: binary */
@@ -16848,28 +17008,10 @@ export interface operations {
             };
         };
     };
-    admin_services_list: {
+    specialist_appointments_day: {
         parameters: {
             query?: {
-                /**
-                 * @description * `dermatology` - dermatology
-                 *     * `cosmetology` - cosmetology
-                 */
-                category?: "dermatology" | "cosmetology";
-                /** @description Download the filtered list as a file instead of the JSON page. */
-                export?: "csv" | "xlsx";
-                is_active?: boolean;
-                /**
-                 * @description * `position` - position
-                 *     * `name` - name
-                 *     * `-name` - -name
-                 *     * `created_at` - created_at
-                 *     * `-created_at` - -created_at
-                 */
-                ordering?: "position" | "name" | "-name" | "created_at" | "-created_at";
-                page?: number;
-                page_size?: 20 | 50;
-                search?: string;
+                date?: string;
             };
             header?: never;
             path?: never;
@@ -16882,7 +17024,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PaginatedClinicServiceList"];
+                    "application/json": components["schemas"]["SpecialistAppointmentDay"];
                 };
             };
             400: {
@@ -16943,16 +17085,19 @@ export interface operations {
             };
         };
     };
-    admin_services_create: {
+    specialist_appointments_create: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
+                "Idempotency-Key": string;
+            };
             path?: never;
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ClinicServiceWriteRequest"];
+                "application/json": components["schemas"]["SpecialistAppointmentCreateRequest"];
             };
         };
         responses: {
@@ -16961,7 +17106,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ClinicService"];
+                    "application/json": components["schemas"]["SpecialistAppointmentItem"];
                 };
             };
             400: {
@@ -17022,11 +17167,15 @@ export interface operations {
             };
         };
     };
-    admin_services_retrieve: {
+    specialist_appointments_action: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
+                "Idempotency-Key": string;
+            };
             path: {
+                action: "attend" | "confirm" | "reject";
                 id: number;
             };
             cookie?: never;
@@ -17038,7 +17187,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ClinicService"];
+                    "application/json": components["schemas"]["SpecialistAppointmentItem"];
                 };
             };
             400: {
@@ -17099,10 +17248,13 @@ export interface operations {
             };
         };
     };
-    admin_services_partial_update: {
+    specialist_appointments_cancel: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
+                "Idempotency-Key": string;
+            };
             path: {
                 id: number;
             };
@@ -17110,7 +17262,7 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["PatchedClinicServiceWriteRequest"];
+                "application/json": components["schemas"]["AppointmentCancelRequest"];
             };
         };
         responses: {
@@ -17119,7 +17271,324 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ClinicService"];
+                    "application/json": components["schemas"]["SpecialistAppointmentItem"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    specialist_appointments_reschedule: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpecialistRescheduleRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecialistAppointmentItem"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    specialist_appointments_meta: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppointmentsMeta"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    specialist_appointments_pending_summary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingSummary"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    specialist_appointments_range: {
+        parameters: {
+            query: {
+                /**
+                 * @description * `counts` - counts
+                 *     * `full` - full
+                 */
+                detail?: "counts" | "full";
+                from: string;
+                to: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecialistAppointmentRange"];
                 };
             };
             400: {
@@ -17274,12 +17743,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description No response body */
-            204: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["BlockedPeriod"];
+                };
             };
             400: {
                 headers: {
@@ -17357,12 +17827,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description No response body */
-            204: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["BlockedPeriod"];
+                };
             };
             400: {
                 headers: {
@@ -17442,330 +17913,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    specialist_booking_action: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
-                "Idempotency-Key": string;
-            };
-            path: {
-                action: string;
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    specialist_booking_cancel: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
-                "Idempotency-Key": string;
-            };
-            path: {
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["AppointmentCancelRequest"];
-            };
-        };
-        responses: {
-            /** @description No response body */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    specialist_booking_reschedule: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
-                "Idempotency-Key": string;
-            };
-            path: {
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SpecialistRescheduleRequest"];
-            };
-        };
-        responses: {
-            /** @description No response body */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    specialist_calendar: {
-        parameters: {
-            query: {
-                from: string;
-                to: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SpecialistCalendar"];
-                };
             };
             400: {
                 headers: {
@@ -17916,12 +18063,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description No response body */
-            204: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["HoursOverride"];
+                };
             };
             400: {
                 headers: {
@@ -17999,12 +18147,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description No response body */
-            204: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["HoursOverride"];
+                };
             };
             400: {
                 headers: {
@@ -18157,7 +18306,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ClinicSpecialist"];
+                    "application/json": components["schemas"]["SpecialistOwnProfile"];
                 };
             };
             400: {
@@ -18239,7 +18388,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ClinicSpecialist"];
+                    "application/json": components["schemas"]["SpecialistOwnProfile"];
                 };
             };
             400: {
@@ -18318,7 +18467,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ClinicSpecialist"];
+                    "application/json": components["schemas"]["SpecialistOwnProfile"];
                 };
             };
             400: {
@@ -18453,6 +18602,251 @@ export interface operations {
             };
         };
     };
+    specialist_services_create: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClinicServiceWriteRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecialistOwnProfile"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    specialist_services_destroy: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    specialist_services_partial_update: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Client-generated UUID; replays return the stored response with `Idempotent-Replayed: true`. */
+                "Idempotency-Key": string;
+            };
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedClinicServiceWriteRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecialistOwnProfile"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     specialist_weekly_hours_update: {
         parameters: {
             query?: never;
@@ -18469,12 +18863,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description No response body */
-            204: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["SpecialistOwnProfile"];
+                };
             };
             400: {
                 headers: {
@@ -19501,7 +19896,7 @@ export interface operations {
             };
         };
     };
-    admin_specialists_services_update: {
+    admin_specialists_services_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -19512,7 +19907,166 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["OfferedServicesRequest"];
+                "application/json": components["schemas"]["ClinicServiceWriteRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinicSpecialist"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_specialists_services_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+                service_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_specialists_services_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+                service_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedClinicServiceWriteRequest"];
             };
         };
         responses: {

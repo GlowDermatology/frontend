@@ -1,13 +1,11 @@
 import type {
   BlockedPeriod,
   ClinicLocation,
-  ClinicService,
   ClinicSpecialist,
   DirectoryOrdering,
   HoursOverride,
-  OfferedService,
-  ServiceListQuery,
   SpecialistListQuery,
+  SpecialistService,
   WorkingDay,
 } from "@/domain/clinic";
 import { searchKey } from "@/lib/search";
@@ -17,7 +15,7 @@ import { paginate, type Page } from "../types";
 
 /**
  * The demo clinic (contract §2.17), as `seed_demo` creates it: one
- * location, five services, three specialists working Monday to Saturday
+ * location, three specialists with their own services, working Monday to Saturday
  * 09:00–18:00 (Jasur with a 13:00–14:00 break), plus one date override and
  * one blocked period so those lists have something to show.
  */
@@ -53,49 +51,30 @@ export const MOCK_CLINICS: ReadonlyArray<ClinicLocation> = [
   },
 ];
 
+/** One of a specialist's own services; `position` follows the order given. */
 const service = (
   id: string,
+  specialistId: string,
+  position: number,
   uz: string,
   short: string,
-  category: ClinicService["category"],
-  duration: number,
-  specialistCount: number,
-): ClinicService => ({
+  category: SpecialistService["category"],
+  durationMin: number,
+  price: number,
+): SpecialistService => ({
   id,
+  specialistId,
   name: { uz, ru: "", en: "" },
   shortName: { uz: short, ru: "", en: "" },
   description: { ...empty },
   category,
-  defaultDurationMin: duration,
-  defaultPrice: null,
-  position: Number(id) - 1,
+  price,
+  durationMin,
+  position,
   isActive: true,
-  specialistCount,
   createdAt: SEEDED,
   updatedAt: SEEDED,
 });
-
-export const MOCK_SERVICES: ReadonlyArray<ClinicService> = [
-  service("1", "Dermatolog konsultatsiyasi", "Konsultatsiya", "dermatology", 30, 2),
-  service("2", "Qayta ko‘rik", "Qayta ko‘rik", "dermatology", 20, 2),
-  service("3", "Yuzni chuqur tozalash", "Yuzni chuqur tozalash", "cosmetology", 75, 1),
-  service("4", "Kimyoviy pilling", "Kimyoviy pilling", "cosmetology", 60, 1),
-  service("5", "Namlantiruvchi parvarish", "Namlantiruvchi parvarish", "cosmetology", 60, 1),
-];
-
-export function offerOf(serviceId: string, price: number, durationMin?: number): OfferedService {
-  const found = MOCK_SERVICES.find((s) => s.id === serviceId)!;
-  return {
-    serviceId,
-    name: found.name.uz,
-    shortName: found.shortName.uz,
-    category: found.category,
-    price,
-    durationMin: durationMin ?? found.defaultDurationMin,
-    isActive: true,
-    serviceIsActive: found.isActive,
-  };
-}
 
 const week = (withBreak: boolean): WorkingDay[] =>
   [0, 1, 2, 3, 4, 5].map((weekday) => ({
@@ -111,7 +90,7 @@ const specialist = (
   id: string,
   name: string,
   role: ClinicSpecialist["role"],
-  services: OfferedService[],
+  services: SpecialistService[],
   withBreak: boolean,
   upcoming: number,
 ): ClinicSpecialist => ({
@@ -148,7 +127,19 @@ export const MOCK_SPECIALISTS: ReadonlyArray<ClinicSpecialist> = [
     "1",
     "Nodira Rahimova",
     "dermatologist",
-    [offerOf("1", 150_000), offerOf("2", 100_000)],
+    [
+      service(
+        "1",
+        "1",
+        0,
+        "Dermatolog konsultatsiyasi",
+        "Konsultatsiya",
+        "dermatology",
+        30,
+        150_000,
+      ),
+      service("2", "1", 1, "Qayta ko‘rik", "Qayta ko‘rik", "dermatology", 20, 100_000),
+    ],
     false,
     7,
   ),
@@ -156,7 +147,19 @@ export const MOCK_SPECIALISTS: ReadonlyArray<ClinicSpecialist> = [
     "2",
     "Jasur Aliyev",
     "dermatologist",
-    [offerOf("1", 120_000), offerOf("2", 90_000)],
+    [
+      service(
+        "3",
+        "2",
+        0,
+        "Dermatolog konsultatsiyasi",
+        "Konsultatsiya",
+        "dermatology",
+        30,
+        120_000,
+      ),
+      service("4", "2", 1, "Qayta ko‘rik", "Qayta ko‘rik", "dermatology", 20, 90_000),
+    ],
     true,
     10,
   ),
@@ -164,7 +167,29 @@ export const MOCK_SPECIALISTS: ReadonlyArray<ClinicSpecialist> = [
     "3",
     "Dilnoza Yusupova",
     "cosmetologist",
-    [offerOf("3", 320_000), offerOf("4", 380_000), offerOf("5", 260_000)],
+    [
+      service(
+        "5",
+        "3",
+        0,
+        "Yuzni chuqur tozalash",
+        "Yuzni chuqur tozalash",
+        "cosmetology",
+        75,
+        320_000,
+      ),
+      service("6", "3", 1, "Kimyoviy pilling", "Kimyoviy pilling", "cosmetology", 60, 380_000),
+      service(
+        "7",
+        "3",
+        2,
+        "Namlantiruvchi parvarish",
+        "Namlantiruvchi parvarish",
+        "cosmetology",
+        60,
+        260_000,
+      ),
+    ],
     false,
     9,
   ),
@@ -233,25 +258,4 @@ export function filterSpecialists(query: Omit<SpecialistListQuery, "page" | "pag
 
 export function listSpecialists(query: SpecialistListQuery): Page<ClinicSpecialist> {
   return paginate(filterSpecialists(query), query.page, query.pageSize);
-}
-
-export function filterServices(query: Omit<ServiceListQuery, "page" | "pageSize">) {
-  const term = query.q ? searchKey(query.q) : "";
-  return order(
-    MOCK_SERVICES.filter(
-      (s) =>
-        (!term ||
-          [s.name.uz, s.name.ru, s.name.en, s.shortName.uz, s.shortName.ru, s.shortName.en].some(
-            (text) => searchKey(text).includes(term),
-          )) &&
-        (!query.status || s.isActive === (query.status === "active")) &&
-        (!query.category || s.category === query.category),
-    ),
-    query.sort,
-    (s) => s.name.uz,
-  );
-}
-
-export function listServices(query: ServiceListQuery): Page<ClinicService> {
-  return paginate(filterServices(query), query.page, query.pageSize);
 }

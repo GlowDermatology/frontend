@@ -1,13 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  parseServiceQuery,
-  parseSpecialistQuery,
-  serviceListHref,
-  specialistListHref,
-} from "./query";
+import { parseSpecialistQuery, specialistListHref } from "./query";
 
-describe("specialists and services URL state (contract §2.17)", () => {
+describe("specialists URL state (contract §2.17)", () => {
   it("keeps the known filters, sorts and sizes only", () => {
     expect(
       parseSpecialistQuery({
@@ -26,10 +21,10 @@ describe("specialists and services URL state (contract §2.17)", () => {
       page: 2,
       pageSize: 50,
     });
-    expect(parseServiceQuery({ category: "x", sort: "price", size: "100" })).toEqual({
+    expect(parseSpecialistQuery({ role: "x", sort: "price", size: "100" })).toEqual({
       q: undefined,
       status: undefined,
-      category: undefined,
+      role: undefined,
       sort: "position",
       page: 1,
       pageSize: 20,
@@ -41,7 +36,7 @@ describe("specialists and services URL state (contract §2.17)", () => {
       "/admin/specialists",
     );
     expect(
-      serviceListHref({ category: "cosmetology", sort: "name" }, "/admin/services/export"),
-    ).toBe("/admin/services/export?category=cosmetology&sort=name");
+      specialistListHref({ role: "cosmetologist", sort: "name" }, "/admin/specialists/export"),
+    ).toBe("/admin/specialists/export?role=cosmetologist&sort=name");
   });
 });

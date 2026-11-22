@@ -66,10 +66,6 @@ export function SpecialistsView({ page, query, clinics }: SpecialistsViewProps) 
               )}
               label={copy.export}
             />
-            <Link href="/admin/services" className={buttonStyles({ variant: "secondary" })}>
-              <Icon name="sparkle" size={18} />
-              {t.services}
-            </Link>
             <Link href="/admin/clinics" className={buttonStyles({ variant: "secondary" })}>
               <Icon name="map-pin" size={18} />
               {copy.location.listTitle}
@@ -92,7 +88,7 @@ export function SpecialistsView({ page, query, clinics }: SpecialistsViewProps) 
           aria-label={t.listLabel}
           className="overflow-hidden rounded-lg bg-surface-raised shadow-sm"
         >
-          <DirectoryToolbar kind="specialists" query={query} />
+          <DirectoryToolbar query={query} />
           {rows.length > 0 ? (
             <ScrollRegion label={t.tableLabel}>
               <table className="data-table min-w-[960px] transition-opacity duration-150 group-data-[pending]:opacity-60">
@@ -111,7 +107,7 @@ export function SpecialistsView({ page, query, clinics }: SpecialistsViewProps) 
                 </thead>
                 <tbody>
                   {rows.map((row) => {
-                    const offers = row.services.filter((s) => s.isActive && s.serviceIsActive);
+                    const offers = row.services.filter((s) => s.isActive);
                     return (
                       <tr key={row.id}>
                         <td>
@@ -155,7 +151,7 @@ export function SpecialistsView({ page, query, clinics }: SpecialistsViewProps) 
                         <td>
                           {offers.length > 0 ? (
                             <span className="line-clamp-2 max-w-[320px]">
-                              {offers.map((s) => s.shortName).join(", ")}
+                              {offers.map((s) => clinicText(s.shortName, locale)).join(", ")}
                             </span>
                           ) : (
                             <span className="text-ink-muted">{t.noServices}</span>
@@ -208,7 +204,7 @@ export function SpecialistsView({ page, query, clinics }: SpecialistsViewProps) 
               pageCount={page.pageCount}
               hrefFor={(p): Route => specialistListHref({ ...query, page: p })}
             />
-            <DirectoryPageSizeMenu kind="specialists" query={query} />
+            <DirectoryPageSizeMenu query={query} />
           </div>
         </section>
       </ListTransition>

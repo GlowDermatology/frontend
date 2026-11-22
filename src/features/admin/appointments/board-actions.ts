@@ -12,6 +12,13 @@ import type {
   CreateAppointmentValues,
   RescheduleAppointmentValues,
 } from "@/data/appointments.schema";
+import {
+  cancelMyAppointment,
+  createMyAppointment,
+  loadMyAppointmentDay,
+  rescheduleMyAppointment,
+  updateMyAppointment,
+} from "@/data/specialist-board.actions";
 import type { ActionResult } from "@/data/types";
 
 /**
@@ -63,4 +70,13 @@ export const STAFF_BOARD_ACTIONS: BoardActions = {
   create: createAppointment,
   reschedule: rescheduleAppointment,
   loadDay: loadAppointmentDay,
+};
+
+/** The signed-in specialist on `/admin/my-appointments` (`specialist/appointments/…`). */
+export const SPECIALIST_BOARD_ACTIONS: BoardActions = {
+  update: updateMyAppointment,
+  cancel: cancelMyAppointment,
+  create: createMyAppointment,
+  reschedule: rescheduleMyAppointment,
+  loadDay: loadMyAppointmentDay,
 };

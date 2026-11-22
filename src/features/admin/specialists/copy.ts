@@ -2,9 +2,9 @@ import { pluralEn, pluralRu } from "@/lib/format";
 import type { CopySet } from "@/lib/i18n/copy";
 
 /**
- * Texts of /admin/specialists and a specialist's page (uz / ru / en): the directory toolbar
- * (shared with /admin/services), the list, the profile and photo, the publish checklist, the
- * owner account, the offered services, the weekly hours, the date overrides and blocked periods, the clinics page, the
+ * Texts of /admin/specialists and a specialist's page (uz / ru / en): the directory toolbar,
+ * the list, the profile and photo, the publish checklist, the
+ * owner account, the weekly hours, the date overrides and blocked periods, the clinics page, the
  * conflicts card and the mock export headers. Role, category, weekday and block names and the
  * form messages live in `src/domain/copy/clinic.ts`. Numbers and amounts arrive formatted.
  */
@@ -13,11 +13,9 @@ const uz = {
   directory: {
     search: "Nomi bo‘yicha qidirish",
     specialistPlaceholder: "Mutaxassis ismi",
-    servicePlaceholder: "Xizmat nomi",
     all: "Hammasi",
     status: "Holat",
     role: "Mutaxassislik",
-    category: "Kategoriya",
     sort: "Saralash",
     clear: "Filtrlarni tozalash",
     rows: "Sahifadagi qatorlar",
@@ -37,7 +35,6 @@ const uz = {
     title: "Mutaxassislar",
     count: (_n: number, shown: string) => `${shown} ta mutaxassis`,
     found: (_n: number, shown: string) => `${shown} ta mutaxassis topildi`,
-    services: "Xizmatlar",
     listLabel: "Mutaxassislar ro‘yxati",
     tableLabel: "Mutaxassislar jadvali",
     caption: "Mutaxassislar",
@@ -138,27 +135,6 @@ const uz = {
     removeText:
       "Rasm ilovadan ham yo‘qoladi. Bu amalni qaytarib bo‘lmaydi: kerak bo‘lsa, rasmni qayta yuklang.",
     removing: "Olib tashlanmoqda…",
-  },
-
-  offers: {
-    title: "Xizmatlar va narxlar",
-    text: "Ro‘yxatdan olib tashlangan xizmat endi taklif qilinmaydi. Mavjud qabullarning narxi va davomiyligi o‘zgarmaydi.",
-    empty: "Hali xizmat yo‘q. «Xizmat qo‘shish» bilan qo‘shing.",
-    service: "Xizmat",
-    price: "Narx",
-    currency: "so‘m",
-    duration: "Davomiylik",
-    minutes: "daq.",
-    durationHint: (shown: string) => `Bo‘sh qolsa: ${shown}`,
-    inactive: "nofaol",
-    offerActive: (service: string) => `${service} — taklif faol`,
-    remove: (service: string) => `${service} — ro‘yxatdan olib tashlash`,
-    serviceInactive: "Xizmat nofaol: faollashtirilgach yozilish mumkin bo‘ladi.",
-    add: "Xizmat qo‘shish",
-    allAdded: "Barcha xizmatlar ro‘yxatda. Yangisini «Xizmatlar» sahifasida yarating.",
-    noServices: "Hali xizmat yo‘q — avval «Xizmatlar» sahifasida xizmat yarating.",
-    row: (n: number) => `${n}-xizmat`,
-    saved: "Xizmatlar saqlandi",
   },
 
   hours: {
@@ -299,11 +275,9 @@ export const specialistsCopy = {
     directory: {
       search: "Поиск по названию",
       specialistPlaceholder: "Имя специалиста",
-      servicePlaceholder: "Название услуги",
       all: "Все",
       status: "Статус",
       role: "Специализация",
-      category: "Категория",
       sort: "Сортировка",
       clear: "Сбросить фильтры",
       rows: "Строк на странице",
@@ -325,7 +299,6 @@ export const specialistsCopy = {
         `${shown} ${ru(n, ["специалист", "специалиста", "специалистов"])}`,
       found: (n: number, shown: string) =>
         `${ru(n, ["Найден", "Найдено", "Найдено"])} ${shown} ${ru(n, ["специалист", "специалиста", "специалистов"])}`,
-      services: "Услуги",
       listLabel: "Список специалистов",
       tableLabel: "Таблица специалистов",
       caption: "Специалисты",
@@ -428,27 +401,6 @@ export const specialistsCopy = {
       removeText:
         "Фото пропадёт и из приложения. Отменить это нельзя: при необходимости загрузите фото снова.",
       removing: "Удаляем…",
-    },
-
-    offers: {
-      title: "Услуги и цены",
-      text: "Услуга, удалённая из списка, больше не предлагается. Цена и длительность уже записанных приёмов не меняются.",
-      empty: "Услуг пока нет. Добавьте их кнопкой «Добавить услугу».",
-      service: "Услуга",
-      price: "Цена",
-      currency: "сум",
-      duration: "Длительность",
-      minutes: "мин",
-      durationHint: (shown: string) => `Если пусто: ${shown}`,
-      inactive: "неактивна",
-      offerActive: (service: string) => `${service} — предложение активно`,
-      remove: (service: string) => `${service} — удалить из списка`,
-      serviceInactive: "Услуга неактивна: записаться можно будет после её активации.",
-      add: "Добавить услугу",
-      allAdded: "Все услуги уже в списке. Создайте новую на странице «Услуги».",
-      noServices: "Услуг пока нет — сначала создайте услугу на странице «Услуги».",
-      row: (n: number) => `Услуга ${n}`,
-      saved: "Услуги сохранены",
     },
 
     hours: {
@@ -582,11 +534,9 @@ export const specialistsCopy = {
     directory: {
       search: "Search by name",
       specialistPlaceholder: "Specialist name",
-      servicePlaceholder: "Service name",
       all: "All",
       status: "Status",
       role: "Specialty",
-      category: "Category",
       sort: "Sort",
       clear: "Clear filters",
       rows: "Rows per page",
@@ -607,7 +557,6 @@ export const specialistsCopy = {
       count: (n: number, shown: string) => `${shown} ${pluralEn(n, ["specialist", "specialists"])}`,
       found: (n: number, shown: string) =>
         `${shown} ${pluralEn(n, ["specialist", "specialists"])} found`,
-      services: "Services",
       listLabel: "Specialist list",
       tableLabel: "Specialists table",
       caption: "Specialists",
@@ -708,27 +657,6 @@ export const specialistsCopy = {
       removeText:
         "The photo disappears from the app as well. This cannot be undone: upload the photo again if needed.",
       removing: "Removing…",
-    },
-
-    offers: {
-      title: "Services and prices",
-      text: "A service removed from the list is no longer offered. The price and duration of booked appointments do not change.",
-      empty: "No services yet. Add them with “Add service”.",
-      service: "Service",
-      price: "Price",
-      currency: "UZS",
-      duration: "Duration",
-      minutes: "min",
-      durationHint: (shown: string) => `If empty: ${shown}`,
-      inactive: "inactive",
-      offerActive: (service: string) => `${service} — offer active`,
-      remove: (service: string) => `${service} — remove from the list`,
-      serviceInactive: "The service is inactive: it can be booked once it is activated.",
-      add: "Add service",
-      allAdded: "Every service is already listed. Create a new one on the “Services” page.",
-      noServices: "No services yet — first create one on the “Services” page.",
-      row: (n: number) => `Service ${n}`,
-      saved: "Services saved",
     },
 
     hours: {

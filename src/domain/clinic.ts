@@ -26,7 +26,7 @@ export const SERVICE_CATEGORIES = ["dermatology", "cosmetology"] as const;
 export type ServiceCategory = (typeof SERVICE_CATEGORIES)[number];
 export const SERVICE_CATEGORY_LABEL: Record<ServiceCategory, string> = clinicDataCopy.uz.category;
 
-/** `ordering` of `specialists/` and `services/` (DirectoryOrdering). */
+/** `ordering` of `specialists/` (DirectoryOrdering). */
 export const DIRECTORY_ORDERINGS = [
   "position",
   "name",
@@ -45,20 +45,6 @@ export type SlotStep = (typeof SLOT_STEPS)[number];
 export const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6] as const;
 export const WEEKDAY_LABEL: ReadonlyArray<string> = clinicDataCopy.uz.weekday;
 export const WEEKDAY_SHORT: ReadonlyArray<string> = clinicDataCopy.uz.weekdayShort;
-
-export interface OfferedService {
-  serviceId: string;
-  name: string;
-  shortName: string;
-  category: ServiceCategory;
-  /** so‘m; what a booking snapshots. */
-  price: number;
-  durationMin: number;
-  /** The offer (a paused offer keeps its price). */
-  isActive: boolean;
-  /** The service itself; bookable only when both are true. */
-  serviceIsActive: boolean;
-}
 
 export interface WorkingDay {
   weekday: number;
@@ -117,7 +103,8 @@ export interface ClinicSpecialist {
   position: number;
   /** Published: listed on the website and bookable. */
   isActive: boolean;
-  services: OfferedService[];
+  /** Every own service, inactive ones included, by position. */
+  services: SpecialistService[];
   workingHours: WorkingDay[];
   /** `requested` / `confirmed` appointments starting now or later. */
   upcomingAppointments: number;
@@ -127,24 +114,8 @@ export interface ClinicSpecialist {
   updatedAt: string;
 }
 
-export interface ClinicService {
-  id: string;
-  name: I18n;
-  shortName: I18n;
-  description: I18n;
-  category: ServiceCategory;
-  defaultDurationMin: number;
-  defaultPrice: number | null;
-  position: number;
-  isActive: boolean;
-  /** Active specialists offering it through an active offer. */
-  specialistCount: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
 /**
- * A service that belongs to one specialist (`ClinicService` of the per-specialist contract): its
+ * A service that belongs to one specialist (the API's `ClinicService`): its
  * own names, price and duration. Bookings snapshot the price and duration, so an edit only
  * affects new bookings. A service that was ever booked cannot be deleted, only deactivated.
  */
@@ -210,15 +181,6 @@ export interface SpecialistListQuery {
   q?: string;
   status?: "active" | "inactive";
   role?: SpecialistRole;
-  sort: DirectoryOrdering;
-  page: number;
-  pageSize: DirectoryPageSize;
-}
-
-export interface ServiceListQuery {
-  q?: string;
-  status?: "active" | "inactive";
-  category?: ServiceCategory;
   sort: DirectoryOrdering;
   page: number;
   pageSize: DirectoryPageSize;

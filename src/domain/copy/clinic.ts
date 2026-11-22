@@ -59,6 +59,7 @@ const uz = {
   notFound: "Topilmadi.",
   specialistNotFound: "Mutaxassis topilmadi.",
   serviceNotFound: "Xizmat topilmadi.",
+  serviceBooked: "Bu xizmatga qabullar bor: uni o‘chirib bo‘lmaydi, nofaol qiling.",
   checkPhoto: "Rasmni tekshiring.",
   slugTaken: "Bu manzil (slug) boshqa mutaxassisda bor.",
   deactivationConflict: (count: number) =>
@@ -124,6 +125,7 @@ export const clinicDataCopy = {
     notFound: "Не найдено.",
     specialistNotFound: "Специалист не найден.",
     serviceNotFound: "Услуга не найдена.",
+    serviceBooked: "На эту услугу есть записи: её нельзя удалить, отключите её.",
     checkPhoto: "Проверьте фото.",
     slugTaken: "Этот адрес (slug) уже занят другим специалистом.",
     deactivationConflict: (count: number) =>
@@ -184,6 +186,7 @@ export const clinicDataCopy = {
     notFound: "Not found.",
     specialistNotFound: "Specialist not found.",
     serviceNotFound: "Service not found.",
+    serviceBooked: "This service has appointments: it cannot be deleted, deactivate it instead.",
     checkPhoto: "Check the photo.",
     slugTaken: "Another specialist already uses this address (slug).",
     deactivationConflict: (count: number) =>

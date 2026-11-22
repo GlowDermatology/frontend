@@ -1,10 +1,9 @@
 import { notFound } from "next/navigation";
 
 import { optionalRead } from "@/data/api/optional-read";
-import { getMe, requireStaff } from "@/data/auth";
+import { getMe, requireAdmin } from "@/data/auth";
 import {
   getSpecialist,
-  listAllServices,
   listClinics,
   listBlocks,
   listConflicts,
@@ -17,8 +16,8 @@ import { SpecialistDetailView } from "./specialist-detail-view";
 
 /**
  * Data boundary of `/admin/specialists/[specialistId]` (gap FND-1, contract
- * §2.17): the profile with its offers and weekly hours, every service for
- * the offer editor, the date overrides and blocked periods ahead, and the
+ * §2.17): the profile with its own services and weekly hours, the date
+ * overrides and blocked periods ahead, and the
  * open appointments the schedule no longer covers.
  */
 export async function SpecialistDetailContent({
@@ -26,13 +25,12 @@ export async function SpecialistDetailContent({
 }: {
   params: Promise<{ specialistId: string }>;
 }) {
-  await requireStaff();
+  await requireAdmin();
   const me = await getMe();
   const { specialistId } = await params;
   const specialist = await getSpecialist(specialistId);
   if (!specialist) notFound();
-  const [services, clinics, overrides, blocks, conflicts, now] = await Promise.all([
-    listAllServices(),
+  const [clinics, overrides, blocks, conflicts, now] = await Promise.all([
     listClinics(),
     listOverrides(specialist.id),
     listBlocks(specialist.id),
@@ -43,7 +41,6 @@ export async function SpecialistDetailContent({
     <SpecialistDetailView
       specialist={specialist}
       manageAccess={Boolean(me?.is_manager || me?.is_superuser)}
-      services={services}
       clinics={clinics}
       overrides={overrides.items}
       blocks={blocks.items}

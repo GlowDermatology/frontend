@@ -9,12 +9,10 @@ import { describe, expect, it } from "vitest";
  * Button-driven disclosures — never the browser's native date/time inputs, checkboxes,
  * `window.confirm` prompts or `<details>` sections, which look and behave differently on every
  * device and skip the kit's validation, tooltips and translations.
- *
- * `features/admin/my-schedule` is not scanned: the old specialist page is deleted when the
- * workspace pages replace it.
  */
 
 const SCAN_ROOTS = [
+  "src/app/admin/(specialist)",
   "src/features/admin/workspace",
   "src/features/admin/appointments",
   "src/features/admin/specialists",
@@ -37,7 +35,7 @@ function sources(root: string): string[] {
   try {
     entries = readdirSync(absolute);
   } catch {
-    return []; // A root that does not exist yet (the workspace pages come later).
+    return []; // A root that does not exist (a renamed area fails the count check below).
   }
   return entries.flatMap((entry) => {
     const full = path.join(absolute, entry);

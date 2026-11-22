@@ -183,7 +183,6 @@ describe("audit labels", () => {
       "working_hours_override.created",
       "working_hours_override.updated",
       "working_hours_override.deleted",
-      "professional_service.deleted",
       "segment.member_removed",
       "export.downloaded",
       // M3

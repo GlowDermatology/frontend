@@ -2,7 +2,7 @@ import { parseExportFormat } from "@/data/api/mappers/export";
 import { specialistListParams } from "@/data/api/mappers/clinic";
 import { exportRoute } from "@/data/export";
 import { filterSpecialists } from "@/data/mock/clinic";
-import { workingDaysShort } from "@/domain/clinic";
+import { clinicText, workingDaysShort } from "@/domain/clinic";
 import { clinicDataCopy } from "@/domain/copy/clinic";
 import { specialistsCopy } from "@/features/admin/specialists/copy";
 import { parseSpecialistQuery } from "@/features/admin/specialists/query";
@@ -31,7 +31,7 @@ export async function GET(request: Request) {
         s.experienceYears ?? "",
         s.services
           .filter((o) => o.isActive)
-          .map((o) => o.shortName)
+          .map((o) => clinicText(o.shortName, locale))
           .join(", "),
         workingDaysShort(s.workingHours, locale),
         s.upcomingAppointments,

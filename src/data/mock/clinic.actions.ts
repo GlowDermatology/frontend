@@ -1,9 +1,9 @@
 import {
   type BlockedPeriod,
   type ClinicLocation,
-  type ClinicService,
   type ClinicSpecialist,
   type HoursOverride,
+  type SpecialistService,
 } from "@/domain/clinic";
 import { addDays, toLocalIsoDate } from "@/lib/format";
 import { SPECIALIST_SLUG_MAX, slugifyName } from "@/domain/seo";
@@ -14,21 +14,14 @@ import { blockEnd, blockStart } from "../clinic.schema";
 import type {
   BlockFormValues,
   LocationFormValues,
-  OfferedServicesValues,
   OverrideFormValues,
-  ServiceFormValues,
   SpecialistFormValues,
+  SpecialistServiceFormValues,
   WorkingWeekValues,
 } from "../clinic.schema";
 import { referenceNow } from "../config";
 import type { ActionResult } from "../types";
-import {
-  MOCK_BLOCKS,
-  MOCK_CLINICS,
-  MOCK_OVERRIDES,
-  MOCK_SERVICES,
-  MOCK_SPECIALISTS,
-} from "./clinic";
+import { MOCK_BLOCKS, MOCK_CLINICS, MOCK_OVERRIDES, MOCK_SPECIALISTS } from "./clinic";
 import { delay } from "./delay";
 
 /**
@@ -110,41 +103,6 @@ export async function setSpecialistPhoto(
   const before = byId(id);
   if (!before) return specialistMissing();
   return { ok: true, data: { ...before, photoUrl: photo ? "" : null, updatedAt: now() } };
-}
-
-export async function saveOfferedServices(
-  id: string,
-  values: OfferedServicesValues,
-): Promise<ActionResult<ClinicSpecialist>> {
-  await delay(400);
-  const before = byId(id);
-  if (!before) return specialistMissing();
-  const m = await messages();
-  const errors: Record<string, string> = {};
-  const services = values.services.flatMap((row, index) => {
-    const service = MOCK_SERVICES.find((s) => s.id === row.serviceId);
-    if (!service) {
-      errors[`services.${index}.serviceId`] = m.serviceNotFound;
-      return [];
-    }
-    return [
-      {
-        serviceId: service.id,
-        name: service.name.uz,
-        shortName: service.shortName.uz,
-        category: service.category,
-        price: row.price,
-        durationMin: row.durationMin ?? service.defaultDurationMin,
-        isActive: row.isActive,
-        serviceIsActive: service.isActive,
-      },
-    ];
-  });
-  if (Object.keys(errors).length > 0) return fields(errors);
-  const position = (serviceId: string) =>
-    MOCK_SERVICES.find((s) => s.id === serviceId)?.position ?? 0;
-  services.sort((a, b) => position(a.serviceId) - position(b.serviceId));
-  return { ok: true, data: { ...before, services, updatedAt: now() } };
 }
 
 export async function saveWorkingHours(
@@ -236,9 +194,26 @@ export async function deleteScheduleEntry(
   return { ok: true, data: { id: entryId } };
 }
 
-function serviceFrom(before: ClinicService | null, values: ServiceFormValues): ClinicService {
+/** The specialist with `services` as their list; the "service" blocker follows the active ones. */
+function withServices(before: ClinicSpecialist, services: SpecialistService[]): ClinicSpecialist {
+  const bookable = services.some((service) => service.isActive);
+  const blockers = before.publishBlockers.filter((blocker) => blocker !== "service");
+  return {
+    ...before,
+    services,
+    publishBlockers: bookable ? blockers : [...blockers, "service"],
+    updatedAt: now(),
+  };
+}
+
+function serviceFrom(
+  specialist: ClinicSpecialist,
+  before: SpecialistService | null,
+  values: SpecialistServiceFormValues,
+): SpecialistService {
   return {
     id: before?.id ?? `draft-${crypto.randomUUID()}`,
+    specialistId: specialist.id,
     name: { ...values.name },
     shortName: {
       ...values.shortName,
@@ -246,25 +221,71 @@ function serviceFrom(before: ClinicService | null, values: ServiceFormValues): C
     },
     description: { ...values.description },
     category: values.category,
-    defaultDurationMin: values.defaultDurationMin,
-    defaultPrice: values.defaultPrice,
-    position: before?.position ?? MOCK_SERVICES.length,
+    price: values.price,
+    durationMin: values.durationMin,
+    position: before?.position ?? specialist.services.length,
     isActive: values.isActive,
-    specialistCount: values.isActive ? (before?.specialistCount ?? 0) : 0,
     createdAt: before?.createdAt ?? now(),
     updatedAt: now(),
   };
 }
 
-export async function saveService(
-  id: string | null,
-  values: ServiceFormValues,
-): Promise<ActionResult<ClinicService>> {
+const serviceMissing = async () => ({
+  ok: false as const,
+  error: (await messages()).serviceNotFound,
+  code: "not_found",
+});
+
+/** A new service (`serviceId` null) or an edit of one of the specialist's own services. */
+export async function saveSpecialistService(
+  id: string,
+  serviceId: string | null,
+  values: SpecialistServiceFormValues,
+): Promise<ActionResult<ClinicSpecialist>> {
   await delay(400);
-  if (id === null) return { ok: true, data: serviceFrom(null, values) };
-  const before = MOCK_SERVICES.find((s) => s.id === id) ?? null;
-  if (!before) return { ok: false, error: (await messages()).serviceNotFound, code: "not_found" };
-  return { ok: true, data: serviceFrom(before, values) };
+  const specialist = byId(id);
+  if (!specialist) return specialistMissing();
+  const before =
+    serviceId === null ? null : (specialist.services.find((s) => s.id === serviceId) ?? null);
+  if (serviceId !== null && !before) return serviceMissing();
+  const name = values.name.uz.trim().toLocaleLowerCase("uz");
+  const duplicate = specialist.services.some(
+    (s) => s.id !== serviceId && s.name.uz.trim().toLocaleLowerCase("uz") === name,
+  );
+  if (duplicate) return fields({ "name.uz": (await messages()).serviceTwice });
+  const saved = serviceFrom(specialist, before, values);
+  const services = before
+    ? specialist.services.map((s) => (s.id === before.id ? saved : s))
+    : [...specialist.services, saved];
+  return { ok: true, data: withServices(specialist, services) };
+}
+
+export async function setSpecialistServiceActive(
+  id: string,
+  serviceId: string,
+  isActive: boolean,
+): Promise<ActionResult<ClinicSpecialist>> {
+  await delay(250);
+  const specialist = byId(id);
+  if (!specialist) return specialistMissing();
+  if (!specialist.services.some((s) => s.id === serviceId)) return serviceMissing();
+  const services = specialist.services.map((s) =>
+    s.id === serviceId ? { ...s, isActive, updatedAt: now() } : s,
+  );
+  return { ok: true, data: withServices(specialist, services) };
+}
+
+/** The demo's seeded services have appointments (409, deactivate instead); a new one goes. */
+export async function deleteSpecialistService(
+  id: string,
+  serviceId: string,
+): Promise<ActionResult<{ id: string }>> {
+  await delay(250);
+  const specialist = byId(id);
+  if (!specialist) return specialistMissing();
+  if (serviceId.startsWith("draft-")) return { ok: true, data: { id: serviceId } };
+  if (!specialist.services.some((s) => s.id === serviceId)) return serviceMissing();
+  return { ok: false, error: (await messages()).serviceBooked, code: "conflict" };
 }
 
 export async function saveClinic(

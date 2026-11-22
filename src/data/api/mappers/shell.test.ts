@@ -177,8 +177,9 @@ describe("appointments", () => {
       ["Jasur Aliyev", "Dermatolog", 2],
       ["Dilnoza Yusupova", "Kosmetolog", 3],
     ]);
+    // Every service belongs to one specialist: Jasur's consultation is his own row.
     expect(meta.specialists[1]?.services[0]).toEqual({
-      id: "1",
+      id: "3",
       name: "Dermatolog konsultatsiyasi",
       shortName: "Konsultatsiya",
       durationMin: 30,

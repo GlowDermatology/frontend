@@ -1,4 +1,4 @@
-import { requireStaff } from "@/data/auth";
+import { requireAdmin } from "@/data/auth";
 import { listClinics, listSpecialists } from "@/data/clinic";
 
 import type { SearchParams } from "../shared/url-state";
@@ -10,7 +10,7 @@ export async function SpecialistsContent({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  await requireStaff();
+  await requireAdmin();
   const query = parseSpecialistQuery(await searchParams);
   const [page, clinics] = await Promise.all([listSpecialists(query), listClinics()]);
   return <SpecialistsView page={page} query={query} clinics={clinics} />;

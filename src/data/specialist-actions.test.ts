@@ -70,7 +70,7 @@ const manager = {
   role: "admin" as const,
   is_manager: true,
   is_superuser: false,
-  capabilities: { specialist_provisioning: true },
+  capabilities: { staff_email_invite: false },
 } as unknown as Partial<Me>;
 
 beforeEach(() => {
@@ -129,7 +129,7 @@ describe("inviting a Specialist", () => {
     );
   });
 
-  it("maps a duplicate email onto the field and refuses without the manager role or capability", async () => {
+  it("maps a duplicate email onto the field and refuses without the manager role", async () => {
     apiFetch.mockRejectedValueOnce(
       new ApiError(400, {
         code: "validation_error",
@@ -144,10 +144,6 @@ describe("inviting a Specialist", () => {
     });
     const calls = apiFetch.mock.calls.length;
     getMe.mockResolvedValueOnce({ ...manager, is_manager: false });
-    expect(await inviteSpecialist(values, KEY, CSRF)).toMatchObject({
-      code: "permission_denied",
-    });
-    getMe.mockResolvedValueOnce({ ...manager, capabilities: {} } as unknown as Partial<Me>);
     expect(await inviteSpecialist(values, KEY, CSRF)).toMatchObject({
       code: "permission_denied",
     });

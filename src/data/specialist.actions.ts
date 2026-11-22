@@ -111,8 +111,7 @@ export async function updateMySchedule(
 }
 
 /**
- * Staff → Add employee → Specialist (`POST specialists/invite/`, manager only, and only where
- * `capabilities.specialist_provisioning` is on): the Specialist account and its draft profile are
+ * Staff → Add employee → Specialist (`POST specialists/invite/`, manager only): the Specialist account and its draft profile are
  * created together, and the answer is shown in the usual credentials dialog. A duplicate email is
  * the `unique` field error on `email`; nothing is created then. Resending the invitation uses the
  * account's own `send-password-link/` / `reset-password/` routes.
@@ -125,11 +124,7 @@ export async function inviteSpecialist(
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
   const me = await getMe();
-  if (
-    guard.session.mode !== "api" ||
-    !(me?.is_manager || me?.is_superuser) ||
-    me.capabilities.specialist_provisioning !== true
-  )
+  if (guard.session.mode !== "api" || !(me?.is_manager || me?.is_superuser))
     return permissionDenied();
   if (!idempotencyKeySchema.safeParse(key).success) {
     return { ok: false, error: await invalidFormMessage() };

@@ -3,8 +3,8 @@
  * GENERATED FILE — do not edit by hand. Regenerate with `npm run gen:api`.
  *
  * Source: openapi/schema.yaml of the backend repository
- * Commit: af74c185d6e9b4add9d7d1268329babbc5705d71
- * Generated: 2026-11-21T21:37:39.756Z (openapi-typescript)
+ * Commit: d018a1c23eb587a4e202d99d1b47f7110dfc84d8
+ * Generated: 2026-11-22T08:54:19.539Z (openapi-typescript)
  */
 
 export interface paths {
@@ -4091,7 +4091,6 @@ export interface components {
             reason?: string | null;
         };
         Capabilities: {
-            specialist_provisioning?: boolean;
             /** @description Password links can be e-mailed (`delivery` `email_link` / `both`, `staff/{id}/send-password-link/`, `auth/password-link/`); `false` when the admin panel URL is not configured or e-mail is not live under the production settings: the UI shows the option disabled. */
             staff_email_invite: boolean;
         };

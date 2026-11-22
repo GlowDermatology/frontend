@@ -51,8 +51,6 @@ interface StaffViewProps {
   selfId: string;
   /** `capabilities.staff_email_invite`: the e-mailed link options work. */
   emailInvite: boolean;
-  /** `capabilities.specialist_provisioning`: Specialists can be invited and accounts changed to one. */
-  specialistProvisioning?: boolean;
   /** "Now" of the data source (the demo's fixed instant in mock mode), for the link badges. */
   nowMs: number;
   eyebrow: string;
@@ -388,7 +386,6 @@ export function StaffView(props: StaffViewProps) {
         onOpenChange={setInviteOpen}
         idempotency={inviteKey}
         emailInvite={emailInvite}
-        specialistProvisioning={props.specialistProvisioning}
         onInvited={(data) => {
           if (query.status === "active" && query.page === 1) {
             setRows((current) =>
@@ -406,7 +403,6 @@ export function StaffView(props: StaffViewProps) {
           key={`edit-${editInstance}`}
           row={editing}
           selfId={selfId}
-          specialistProvisioning={props.specialistProvisioning}
           idempotency={editKey}
           onClose={() => setEditing(null)}
           onSaved={(row) => {

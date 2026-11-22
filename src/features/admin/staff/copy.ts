@@ -37,7 +37,6 @@ const uz = {
       manager: "Boshqaruv paneli va xodim hisoblarini boshqaradi.",
       specialist: "Faqat «Mening jadvalim»ga kiradi: o‘z jadvali, profili va hisobi.",
     },
-    specialistDisabled: "Bu muhitda mutaxassislarni taklif qilish o‘chirilgan.",
     specialistInvite:
       "Hisob bilan birga qoralama mutaxassis profili yaratiladi. Uni Mutaxassislar bo‘limida to‘ldirib, e’lon qilasiz.",
     specialistFixed:
@@ -56,7 +55,6 @@ const uz = {
       inactive: "Avval hisobni qayta faollashtiring.",
       superuser: "Superadmin hisobining rolini o‘zgartirib bo‘lmaydi.",
       opsConsole: "Avval operatsiyalar konsoliga kirish huquqini olib tashlang.",
-      disabled: "Bu muhitda mutaxassis hisoblari o‘chirilgan.",
     },
     confirmTitle: {
       specialist: "Hisobni mutaxassisga o‘tkazasizmi?",
@@ -273,7 +271,6 @@ export const staffCopy = {
         manager: "Доступ к панели и управлению аккаунтами сотрудников.",
         specialist: "Только «Моё расписание»: своё расписание, профиль и аккаунт.",
       },
-      specialistDisabled: "Приглашения специалистов отключены в этой среде.",
       specialistInvite:
         "Вместе с аккаунтом создаётся черновик профиля специалиста. Заполните и опубликуйте его в разделе «Специалисты».",
       specialistFixed:
@@ -292,7 +289,6 @@ export const staffCopy = {
         inactive: "Сначала активируйте аккаунт снова.",
         superuser: "Роль суперадминистратора изменить нельзя.",
         opsConsole: "Сначала отзовите доступ к операционной консоли.",
-        disabled: "Аккаунты специалистов отключены в этой среде.",
       },
       confirmTitle: {
         specialist: "Перевести аккаунт в специалисты?",
@@ -499,7 +495,6 @@ export const staffCopy = {
         manager: "Can use the admin panel and manage staff accounts.",
         specialist: "Only My Schedule: their own schedule, profile and account.",
       },
-      specialistDisabled: "Specialist invitations are disabled in this environment.",
       specialistInvite:
         "A draft specialist profile is created with the account. Complete and publish it in Specialists.",
       specialistFixed:
@@ -518,7 +513,6 @@ export const staffCopy = {
         inactive: "Reactivate the account first.",
         superuser: "The role of a superuser account cannot be changed.",
         opsConsole: "Revoke operations console access first.",
-        disabled: "Specialist accounts are disabled in this environment.",
       },
       confirmTitle: {
         specialist: "Change this account to Specialist?",

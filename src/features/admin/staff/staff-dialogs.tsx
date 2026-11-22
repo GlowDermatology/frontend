@@ -90,7 +90,7 @@ function DialogActions({
 /**
  * «Yangi xodim»: email, full name, the role (Staff, Manager or Specialist) and the «Kirish usuli».
  * A Specialist goes through `specialists/invite/`, which creates the account and its draft
- * profile together (offered only with `capabilities.specialist_provisioning`).
+ * profile together.
  */
 export function InviteDialog({
   open,
@@ -98,14 +98,12 @@ export function InviteDialog({
   idempotency,
   emailInvite,
   onInvited,
-  specialistProvisioning,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   idempotency: Idempotency;
   emailInvite: boolean;
   onInvited: (data: StaffCredentials) => void;
-  specialistProvisioning?: boolean;
 }) {
   const t = useCopy(staffCopy);
   const schema = useLocalized(staffSchemas).invite;
@@ -225,9 +223,6 @@ export function InviteDialog({
         <AccountRoleField
           role={role}
           disabledReason={busy && t.common.busy}
-          restrictions={{
-            specialist: specialistProvisioning ? undefined : t.roleField.specialistDisabled,
-          }}
           hint={role === "specialist" ? t.roleField.specialistInvite : undefined}
           onChange={setRole}
         />
@@ -261,7 +256,6 @@ export function InviteDialog({
 export function EditDialog({
   row,
   selfId,
-  specialistProvisioning,
   idempotency,
   onClose,
   onSaved,
@@ -269,7 +263,6 @@ export function EditDialog({
 }: {
   row: StaffAccountRow;
   selfId: string;
-  specialistProvisioning?: boolean;
   idempotency: Idempotency;
   onClose: () => void;
   onSaved: (row: StaffAccountRow) => void;
@@ -295,12 +288,7 @@ export function EditDialog({
 
   const block = specialistRoleBlock(row, selfId);
   const target = currentRole === "specialist" ? "staff" : "specialist";
-  // Becoming a Specialist needs the capability; going back to Staff always works.
-  const roleChangeReason = block
-    ? t.specialistRole.blocked[block]
-    : target === "specialist" && !specialistProvisioning
-      ? t.specialistRole.blocked.disabled
-      : null;
+  const roleChangeReason = block ? t.specialistRole.blocked[block] : null;
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();

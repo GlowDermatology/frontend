@@ -9,14 +9,44 @@ import type { Route } from "next";
 /** Typed as a `Route`: every value `safeNext` returns is a validated in-panel path. */
 export const DEFAULT_NEXT: Route = "/admin";
 
-export const SPECIALIST_HOME: Route = "/admin/my-schedule";
+/** The two staff workspaces: the admin panel and a specialist's own pages (same shell, own nav). */
+export type Workspace = "admin" | "specialist";
 
+/** Where a specialist lands after sign-in and whenever they reach an admin-only page. */
+export const SPECIALIST_HOME: Route = "/admin/my-appointments";
+
+/** Every page a specialist may open; `/admin/settings` is shared with the admin workspace. */
+export const SPECIALIST_PATHS: ReadonlyArray<Route> = [
+  SPECIALIST_HOME,
+  "/admin/my-schedule",
+  "/admin/my-profile",
+  "/admin/my-services",
+  "/admin/settings",
+];
+
+const SHARED_PATHS: ReadonlyArray<string> = ["/admin/settings"];
+
+/**
+ * Where a signed-in staff member goes after sign-in, given the validated `next`: a specialist
+ * keeps `next` only when it is one of their pages (else `SPECIALIST_HOME`); anyone else keeps it
+ * unless it is a specialist-only page (then `/admin`). The query string is kept with the path.
+ */
 export function staffDestination(role: string | undefined, next: Route): Route {
-  const path = next.split("?")[0];
-  if (role === "specialist") {
-    return path === SPECIALIST_HOME || path === "/admin/settings" ? next : SPECIALIST_HOME;
-  }
-  return path === SPECIALIST_HOME ? DEFAULT_NEXT : next;
+  const path = next.split("?")[0] ?? "";
+  const specialistPage = SPECIALIST_PATHS.includes(path as Route);
+  if (role === "specialist") return specialistPage ? next : SPECIALIST_HOME;
+  return specialistPage && !SHARED_PATHS.includes(path) ? DEFAULT_NEXT : next;
+}
+
+/**
+ * The home to send the caller to when a workspace's shell is rendered for the wrong role, or
+ * `null` to stay: a specialist in the admin workspace goes to `SPECIALIST_HOME`, any other known
+ * role in the specialist workspace goes to `/admin`. An unknown role (no session, `auth/me/`
+ * failed) stays: the page's own data boundary redirects to sign-in. Pure, unit-tested.
+ */
+export function workspaceRedirect(workspace: Workspace, role: string | undefined): Route | null {
+  if (workspace === "admin") return role === "specialist" ? SPECIALIST_HOME : null;
+  return role !== undefined && role !== "specialist" ? DEFAULT_NEXT : null;
 }
 
 const MAX_LENGTH = 2048;

@@ -19,7 +19,7 @@ const within = (locale: Locale, node: ReactNode) =>
   renderToStaticMarkup(createElement(LocaleProvider, { locale }, node));
 
 /** The profile menu's rows in an open menu rendered in place (no portal). */
-const items = (locale: Locale) =>
+const items = (locale: Locale, notifications?: boolean) =>
   within(
     locale,
     createElement(
@@ -29,7 +29,7 @@ const items = (locale: Locale) =>
       createElement(
         Content,
         { className: menuContentClass },
-        createElement(UserMenuItems, { onLanguage: vi.fn(), onSignOut: vi.fn() }),
+        createElement(UserMenuItems, { notifications, onLanguage: vi.fn(), onSignOut: vi.fn() }),
       ),
     ),
   );
@@ -76,6 +76,12 @@ describe("UserMenuItems", () => {
     expect(html).toMatch(/data-menu-sub=""/);
     expect(html).toContain('data-theme-segments=""');
     expect(html.match(/role="menuitemradio"/g)).toHaveLength(3);
+  });
+
+  it("drops the notifications row in the specialist workspace", () => {
+    const html = items("uz", false);
+    expect(html).not.toContain('href="/admin/notifications"');
+    expect(html).toContain('href="/admin/settings"');
   });
 
   it("speaks the admin language", () => {

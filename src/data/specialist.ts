@@ -1,5 +1,7 @@
 import "server-only";
 
+import { cache } from "react";
+
 import type { ClinicSpecialist } from "@/domain/clinic";
 
 import { apiGetOwnProfile } from "./api/clinic";
@@ -25,3 +27,18 @@ export async function getMySchedule(token: string, from: string, to: string) {
 export async function getMyProfile(token: string): Promise<ClinicSpecialist> {
   return mapClinicSpecialist((await apiGetOwnProfile(token)).data);
 }
+
+/** The signed-in specialist's own visits waiting for confirmation (the sidebar badge). */
+export interface MyPendingAppointments {
+  count: number;
+  /** ISO start of the earliest pending visit, `null` when none. */
+  nextAt: string | null;
+}
+
+/**
+ * The sidebar badge of the specialist workspace, cached per request. The current specialist API
+ * has no own pending summary, so this answers `null` (no badge), the same as a failed read.
+ */
+export const getMyPendingAppointments = cache((): Promise<MyPendingAppointments | null> =>
+  Promise.resolve(null),
+);

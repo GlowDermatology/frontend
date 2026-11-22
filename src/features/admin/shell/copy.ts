@@ -1,11 +1,11 @@
 import { pluralEn, pluralRu } from "@/lib/format";
 import type { CopySet } from "@/lib/i18n/copy";
 
-import type { AdminSection } from "./nav-items";
+import type { AdminSection, SpecialistSection } from "./nav-items";
 
 /**
  * Strings of the admin shell (sidebar, header, drawer, error and not-found views) and the page
- * titles of `src/app/admin/(panel)/**`. Uzbek is the source language; the brand words
+ * titles of `src/app/admin/(panel)/**` and `src/app/admin/(specialist)/**`. Uzbek is the source language; the brand words
  * "Glow Derma" and "Admin" are not translated.
  */
 const nav: Record<AdminSection, string> = {
@@ -28,13 +28,26 @@ const nav: Record<AdminSection, string> = {
   settings: "Sozlamalar",
 };
 
+/** The specialist workspace's sidebar (`SPECIALIST_NAV_ITEMS`). */
+const specialistNav: Record<SpecialistSection, string> = {
+  "my-appointments": "Qabullar",
+  "my-schedule": "Ish jadvali",
+  "my-profile": "Profil",
+  "my-services": "Xizmatlar",
+  settings: "Sozlamalar",
+};
+
 const uz = {
   skipToContent: "Asosiy kontentga o‘tish",
   sections: "Admin bo‘limlari",
+  specialistSections: "Mutaxassis bo‘limlari",
+  /** The overline beside the brand in the specialist workspace (instead of "Admin"). */
+  specialistBadge: "Mutaxassis",
   openMenu: "Menyuni ochish",
   closeMenu: "Menyuni yopish",
   loading: "Yuklanmoqda…",
   nav,
+  specialistNav,
   navCount: {
     orders: (count: number) => ` — ${count} ta jarayonda`,
     appointments: (count: number) => ` — ${count} ta tasdiq kutmoqda`,
@@ -91,6 +104,7 @@ const uz = {
   },
   titles: {
     ...nav,
+    ...specialistNav,
     newProduct: "Yangi mahsulot",
     product: "Mahsulot",
     order: (id: number) => `Buyurtma №${id}`,
@@ -106,6 +120,7 @@ const uz = {
       title: "Sahifa topilmadi",
       description: "Bu manzil admin panelda mavjud emas yoki yozuv o‘chirilgan.",
       back: "Dashboardga qaytish",
+      backSpecialist: "Qabullarga qaytish",
     },
     order: {
       title: "Buyurtma topilmadi",
@@ -170,6 +185,22 @@ const navEn: Record<AdminSection, string> = {
   settings: "Settings",
 };
 
+const specialistNavRu: Record<SpecialistSection, string> = {
+  "my-appointments": "Приёмы",
+  "my-schedule": "Расписание",
+  "my-profile": "Профиль",
+  "my-services": "Услуги",
+  settings: "Настройки",
+};
+
+const specialistNavEn: Record<SpecialistSection, string> = {
+  "my-appointments": "Appointments",
+  "my-schedule": "Schedule",
+  "my-profile": "Profile",
+  "my-services": "Services",
+  settings: "Settings",
+};
+
 const urgentRu = (urgent: number) =>
   urgent > 0 ? `, ${urgent} ${pluralRu(urgent, ["срочная", "срочные", "срочных"])}` : "";
 const urgentEn = (urgent: number) => (urgent > 0 ? `, ${urgent} urgent` : "");
@@ -179,10 +210,13 @@ export const shellCopy = {
   ru: {
     skipToContent: "Перейти к основному содержимому",
     sections: "Разделы админки",
+    specialistSections: "Разделы специалиста",
+    specialistBadge: "Специалист",
     openMenu: "Открыть меню",
     closeMenu: "Закрыть меню",
     loading: "Загрузка…",
     nav: navRu,
+    specialistNav: specialistNavRu,
     navCount: {
       orders: (count: number) => ` — ${count} в обработке`,
       appointments: (count: number) => ` — ${count} ждут подтверждения`,
@@ -238,6 +272,7 @@ export const shellCopy = {
     },
     titles: {
       ...navRu,
+      ...specialistNavRu,
       newProduct: "Новый товар",
       product: "Товар",
       order: (id: number) => `Заказ №${id}`,
@@ -253,6 +288,7 @@ export const shellCopy = {
         title: "Страница не найдена",
         description: "Такого адреса нет в админке, или запись удалена.",
         back: "Вернуться на дашборд",
+        backSpecialist: "Вернуться к приёмам",
       },
       order: {
         title: "Заказ не найден",
@@ -279,10 +315,13 @@ export const shellCopy = {
   en: {
     skipToContent: "Skip to main content",
     sections: "Admin sections",
+    specialistSections: "Specialist sections",
+    specialistBadge: "Specialist",
     openMenu: "Open menu",
     closeMenu: "Close menu",
     loading: "Loading…",
     nav: navEn,
+    specialistNav: specialistNavEn,
     navCount: {
       orders: (count: number) => ` — ${count} in progress`,
       appointments: (count: number) => ` — ${count} awaiting confirmation`,
@@ -335,6 +374,7 @@ export const shellCopy = {
     },
     titles: {
       ...navEn,
+      ...specialistNavEn,
       newProduct: "New product",
       product: "Product",
       order: (id: number) => `Order No. ${id}`,
@@ -350,6 +390,7 @@ export const shellCopy = {
         title: "Page not found",
         description: "This address does not exist in the admin panel, or the record was deleted.",
         back: "Back to the dashboard",
+        backSpecialist: "Back to appointments",
       },
       order: {
         title: "Order not found",

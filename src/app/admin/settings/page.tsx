@@ -1,7 +1,6 @@
 import { Suspense } from "react";
 
 import { getMe, requireStaff } from "@/data/auth";
-import { MyScheduleFrame } from "@/features/admin/my-schedule/frame";
 import { SettingsContent } from "@/features/admin/settings/settings-content";
 import { PageSkeleton } from "@/features/admin/shared/skeleton";
 import { LocalizedShell } from "@/features/admin/shell/localized-shell";
@@ -11,14 +10,17 @@ export function generateMetadata() {
   return pageMetadata("settings");
 }
 
+/**
+ * Account settings, shared by both workspaces: the page sits outside the `(panel)` and
+ * `(specialist)` groups and picks the caller's shell itself.
+ */
 async function AccountSettings({ searchParams }: PageProps<"/admin/settings">) {
   await requireStaff();
-  const specialist = (await getMe())?.role === "specialist";
-  const Shell = specialist ? MyScheduleFrame : LocalizedShell;
+  const workspace = (await getMe())?.role === "specialist" ? "specialist" : "admin";
   return (
-    <Shell>
-      <SettingsContent searchParams={searchParams} specialist={specialist} />
-    </Shell>
+    <LocalizedShell workspace={workspace}>
+      <SettingsContent searchParams={searchParams} workspace={workspace} />
+    </LocalizedShell>
   );
 }
 

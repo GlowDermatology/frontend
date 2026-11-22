@@ -8,7 +8,7 @@ import type { Locale } from "@/lib/i18n/locales";
 
 import { shellCopy } from "./copy";
 import { alertToast, planToasts } from "./issue-alerts";
-import { NAV_ITEMS, sectionFromSegments } from "./nav-items";
+import { NAV_ITEMS, SPECIALIST_NAV_ITEMS, sectionFromSegments } from "./nav-items";
 import { ShellSkeleton } from "./shell-skeleton";
 
 vi.mock("next/navigation", () => ({
@@ -33,9 +33,24 @@ describe("sectionFromSegments", () => {
     expect(sectionFromSegments(["orders/1/foo"])).toBeUndefined();
   });
 
+  it("maps the specialist workspace's segments to its own sections only", () => {
+    expect(sectionFromSegments([], "specialist")).toBeUndefined();
+    expect(sectionFromSegments(["my-appointments"], "specialist")).toBe("my-appointments");
+    expect(sectionFromSegments(["(specialist)", "my-schedule"], "specialist")).toBe("my-schedule");
+    expect(sectionFromSegments(["settings"], "specialist")).toBe("settings");
+    expect(sectionFromSegments(["orders"], "specialist")).toBeUndefined();
+    expect(sectionFromSegments(["my-profile"])).toBeUndefined();
+  });
+
   it("has a label for every nav item in every language", () => {
     for (const locale of ["uz", "ru", "en"] as const) {
       for (const item of NAV_ITEMS) expect(shellCopy[locale].nav[item.section]).toBeTruthy();
+      for (const item of SPECIALIST_NAV_ITEMS) {
+        expect(shellCopy[locale].specialistNav[item.section]).toBeTruthy();
+        expect(shellCopy[locale].titles[item.section]).toBe(
+          shellCopy[locale].specialistNav[item.section],
+        );
+      }
     }
   });
 });
@@ -103,6 +118,18 @@ describe("static pieces", () => {
       .replace(/\s+/g, " ")
       .trim();
     expect(text).toBe("Glow Derma Admin");
+  });
+
+  it("mirrors the specialist shell in its skeleton: five rows, no words besides the brand", () => {
+    const html = renderToStaticMarkup(createElement(ShellSkeleton, { workspace: "specialist" }));
+    expect(html).toContain('aria-busy="true"');
+    expect(
+      html
+        .replace(/<[^>]+>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim(),
+    ).toBe("Glow Derma");
+    expect(html.match(/flex h-10 items-center/g)).toHaveLength(SPECIALIST_NAV_ITEMS.length);
   });
 
   it("draws each flag as a decorative inline SVG", () => {

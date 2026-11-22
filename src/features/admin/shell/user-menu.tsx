@@ -39,6 +39,8 @@ interface UserMenuProps {
   csrf: string;
   notificationActivity?: string | null;
   staffId?: string;
+  /** The «Bildirishnomalar» row; the specialist workspace has no notifications page. */
+  notifications?: boolean;
 }
 
 /** The header avatar opens staff identity and personal controls. */
@@ -49,6 +51,7 @@ export function UserMenu({
   csrf,
   notificationActivity,
   staffId,
+  notifications = true,
 }: UserMenuProps) {
   const copy = useCopy(shellCopy);
   const t = copy.user;
@@ -61,7 +64,7 @@ export function UserMenu({
   const [saving, setSaving] = useState(false);
   const pathname = usePathname();
   const viewingNotifications = pathname === "/admin/notifications";
-  const storageKey = staffId ? `gd-admin-notification-activity:${staffId}` : null;
+  const storageKey = notifications && staffId ? `gd-admin-notification-activity:${staffId}` : null;
   const [seenActivity, setSeenActivity] = useState<string>();
   useEffect(() => {
     if (!storageKey || !notificationActivity) return;
@@ -144,6 +147,7 @@ export function UserMenu({
             </DropdownMenu.Label>
             <DropdownMenu.Separator className={menuSeparatorClass} />
             <UserMenuItems
+              notifications={notifications}
               unread={unread}
               onLanguage={(next) => void chooseLanguage(next)}
               onSignOut={signOut}
@@ -160,14 +164,17 @@ export function UserMenu({
 }
 
 /**
- * The profile menu's rows (inside its `DropdownMenu.Content`), in the admin language: «Sozlamalar»,
+ * The profile menu's rows (inside its `DropdownMenu.Content`), in the admin language:
+ * «Bildirishnomalar» (admin workspace only), «Sozlamalar»,
  * «Til · [flag] O‘zbekcha ›» (radio rows, a check on the current language), «Mavzu», «Chiqish».
  */
 export function UserMenuItems({
+  notifications = true,
   unread = false,
   onLanguage,
   onSignOut,
 }: {
+  notifications?: boolean;
   unread?: boolean;
   onLanguage: (locale: Locale) => void;
   onSignOut: () => void;
@@ -179,17 +186,19 @@ export function UserMenuItems({
   const locale = useAdminLocale();
   return (
     <>
-      <DropdownMenu.Item asChild className={menuItemClass}>
-        <Link href="/admin/notifications" prefetch={false}>
-          <Icon name="bell" size={18} className="text-ink-muted" />
-          {copy.notifications}
-          {unread ? (
-            <span className="ml-auto size-2 rounded-full bg-danger-strong">
-              <span className="sr-only">{t.unreadNotifications}</span>
-            </span>
-          ) : null}
-        </Link>
-      </DropdownMenu.Item>
+      {notifications ? (
+        <DropdownMenu.Item asChild className={menuItemClass}>
+          <Link href="/admin/notifications" prefetch={false}>
+            <Icon name="bell" size={18} className="text-ink-muted" />
+            {copy.notifications}
+            {unread ? (
+              <span className="ml-auto size-2 rounded-full bg-danger-strong">
+                <span className="sr-only">{t.unreadNotifications}</span>
+              </span>
+            ) : null}
+          </Link>
+        </DropdownMenu.Item>
+      ) : null}
       <DropdownMenu.Item asChild className={menuItemClass}>
         <Link href="/admin/settings">
           <Icon name="sliders" size={18} className="text-ink-muted" />

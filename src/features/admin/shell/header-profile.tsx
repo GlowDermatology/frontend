@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 
 import { getMe } from "@/data/auth";
 import { cookieNames } from "@/data/auth/cookie-names";
+import type { Workspace } from "@/data/auth/next-param";
 import { getNotificationActivity } from "@/data/notifications";
 import { serverEnv } from "@/lib/env.server";
 import { copyFor } from "@/lib/i18n/admin-locale";
@@ -16,13 +17,15 @@ import { UserMenu } from "./user-menu";
  * Signed-in staff member (`GET auth/me/`) as the profile menu's trigger (`UserMenu`: settings,
  * language, theme, sign-out). Without JavaScript the menu cannot open, so the plain logout form
  * (`LogoutButton`) is kept beside it in `<noscript>`. Async and rendered inside `<Suspense>` so
- * the shell stays prerendered.
+ * the shell stays prerendered. The specialist workspace has no notifications page, so it neither
+ * reads the notification activity nor shows the menu's notifications row.
  */
-export async function HeaderProfile() {
+export async function HeaderProfile({ workspace }: { workspace: Workspace }) {
+  const notifications = workspace === "admin";
   const [me, copy, activity] = await Promise.all([
     getMe(),
     copyFor(shellCopy),
-    getNotificationActivity(),
+    notifications ? getNotificationActivity() : null,
   ]);
   const t = copy.user;
   const csrf = (await cookies()).get(cookieNames(serverEnv.cookieSecure()).csrf)?.value ?? "";
@@ -37,6 +40,7 @@ export async function HeaderProfile() {
         csrf={csrf}
         notificationActivity={activity}
         staffId={me ? String(me.id) : undefined}
+        notifications={notifications}
       />
       <noscript>
         <LogoutButton csrf={csrf} label={t.logout} />

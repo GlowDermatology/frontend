@@ -1,5 +1,6 @@
 import { Suspense, type ReactNode } from "react";
 
+import type { Workspace } from "@/data/auth/next-param";
 import { copyFor } from "@/lib/i18n/admin-locale";
 
 import { ContentErrorBoundary } from "./content-error";
@@ -12,14 +13,24 @@ import { SidebarContent } from "./sidebar";
 import { HeaderProfile, HeaderProfileFallback } from "./header-profile";
 
 /**
- * Sidebar + top bar + page content, rendered once by `src/app/admin/(panel)/layout.tsx` (inside
- * `LocalizedShell`, behind the layout's `<Suspense>`), so it persists across navigations. The
- * active nav item is derived on the client from the URL (`NavLink`). The page content sits inside
- * `ContentErrorBoundary`, so a failing board shows an error card with retry while the navigation
- * stays usable.
+ * Sidebar + top bar + page content, rendered once by the workspace layout (`(panel)/layout.tsx`
+ * or `(specialist)/layout.tsx`, inside `LocalizedShell`, behind the layout's `<Suspense>`), so it
+ * persists across navigations. The active nav item is derived on the client from the URL
+ * (`NavLink`). The page content sits inside `ContentErrorBoundary`, so a failing board shows an
+ * error card with retry while the navigation stays usable.
+ *
+ * The specialist workspace keeps the frame and drops what belongs to the admin panel: the global
+ * search, the demo badge and the delivery issues alert (so its 30 s poll never mounts).
  */
-export async function AdminShell({ children }: { children: ReactNode }) {
+export async function AdminShell({
+  workspace,
+  children,
+}: {
+  workspace: Workspace;
+  children: ReactNode;
+}) {
   const t = await copyFor(shellCopy);
+  const admin = workspace === "admin";
   return (
     <div className="flex min-h-dvh bg-surface text-ink">
       <a
@@ -29,24 +40,28 @@ export async function AdminShell({ children }: { children: ReactNode }) {
         {t.skipToContent}
       </a>
       <aside className="sticky top-0 hidden h-dvh w-[248px] shrink-0 overflow-y-auto border-r border-line bg-surface-raised lg:block">
-        <SidebarContent />
+        <SidebarContent workspace={workspace} />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex flex-wrap items-center gap-3 border-b border-line bg-surface px-4 py-3.5 sm:px-6">
-          <MobileNav>
-            <SidebarContent />
+          <MobileNav label={admin ? t.sections : t.specialistSections}>
+            <SidebarContent workspace={workspace} />
           </MobileNav>
-          <GlobalSearch />
+          {admin && <GlobalSearch />}
           <span className="flex-1" />
-          <Suspense fallback={null}>
-            <DemoBadge />
-          </Suspense>
-          <Suspense fallback={<IssuesAlertFallback />}>
-            <IssuesAlert />
-          </Suspense>
+          {admin && (
+            <>
+              <Suspense fallback={null}>
+                <DemoBadge />
+              </Suspense>
+              <Suspense fallback={<IssuesAlertFallback />}>
+                <IssuesAlert />
+              </Suspense>
+            </>
+          )}
           <Suspense fallback={<HeaderProfileFallback />}>
-            <HeaderProfile />
+            <HeaderProfile workspace={workspace} />
           </Suspense>
         </header>
 

@@ -1,6 +1,14 @@
+import type { Route } from "next";
 import { describe, expect, it } from "vitest";
 
-import { safeNext } from "./next-param";
+import {
+  DEFAULT_NEXT,
+  SPECIALIST_HOME,
+  SPECIALIST_PATHS,
+  safeNext,
+  staffDestination,
+  workspaceRedirect,
+} from "./next-param";
 
 describe("safeNext", () => {
   it("accepts relative admin paths with queries", () => {
@@ -75,5 +83,55 @@ describe("safeNext and the Location header", () => {
 
   it("keeps an encoded login route out (no loop)", () => {
     expect(safeNext("/admin/auth/€")).toBe("/admin");
+  });
+});
+
+describe("staffDestination", () => {
+  it("keeps a specialist on their own pages and sends them home from anywhere else", () => {
+    expect(SPECIALIST_HOME).toBe("/admin/my-appointments");
+    for (const path of SPECIALIST_PATHS) expect(staffDestination("specialist", path)).toBe(path);
+    expect(staffDestination("specialist", "/admin/my-appointments?view=week")).toBe(
+      "/admin/my-appointments?view=week",
+    );
+    expect(staffDestination("specialist", "/admin/settings?oauth=x")).toBe(
+      "/admin/settings?oauth=x",
+    );
+    // The removed `/admin/my-schedule/profile` is no route any more, but an old bookmark's `next`.
+    const elsewhere = [
+      "/admin",
+      "/admin/orders",
+      "/admin/appointments",
+      "/admin/my-schedule/profile" as Route,
+    ] satisfies Route[];
+    for (const path of elsewhere) {
+      expect(staffDestination("specialist", path)).toBe(SPECIALIST_HOME);
+    }
+  });
+
+  it("keeps everyone else out of the specialist pages, except the shared settings", () => {
+    for (const role of ["admin", "manager", undefined]) {
+      expect(staffDestination(role, "/admin/orders?page=2")).toBe("/admin/orders?page=2");
+      expect(staffDestination(role, "/admin/settings")).toBe("/admin/settings");
+      for (const path of SPECIALIST_PATHS.filter((p) => p !== "/admin/settings")) {
+        expect(staffDestination(role, path)).toBe(DEFAULT_NEXT);
+      }
+      expect(staffDestination(role, "/admin/my-profile?x=1")).toBe(DEFAULT_NEXT);
+    }
+  });
+});
+
+describe("workspaceRedirect", () => {
+  it("sends a specialist out of the admin workspace", () => {
+    expect(workspaceRedirect("admin", "specialist")).toBe(SPECIALIST_HOME);
+    expect(workspaceRedirect("admin", "admin")).toBeNull();
+    expect(workspaceRedirect("admin", undefined)).toBeNull();
+  });
+
+  it("sends every other known role out of the specialist workspace", () => {
+    expect(workspaceRedirect("specialist", "specialist")).toBeNull();
+    expect(workspaceRedirect("specialist", "admin")).toBe(DEFAULT_NEXT);
+    expect(workspaceRedirect("specialist", "manager")).toBe(DEFAULT_NEXT);
+    // No session or a failed `auth/me/`: the page's own data boundary redirects to sign-in.
+    expect(workspaceRedirect("specialist", undefined)).toBeNull();
   });
 });

@@ -1,5 +1,6 @@
 import { themeCopy } from "@/components/brand/copy";
 import { requireStaff } from "@/data/auth";
+import type { Workspace } from "@/data/auth/next-param";
 import { OAUTH_PROVIDER_LABEL } from "@/data/auth/oauth";
 import { oauthConfig, requestNotice } from "@/data/auth/oauth-env";
 import { getMfaStatus } from "@/data/mfa";
@@ -26,10 +27,11 @@ import { ThemeCard } from "./theme-card";
  */
 export async function SettingsContent({
   searchParams,
-  specialist = false,
+  workspace,
 }: {
   searchParams: PageProps<"/admin/settings">["searchParams"];
-  specialist?: boolean;
+  /** The specialist workspace has no store settings card (the ops console is staff-only). */
+  workspace: Workspace;
 }) {
   await requireStaff();
   const [account, mfa, query, t, themeLabels] = await Promise.all([
@@ -60,7 +62,9 @@ export async function SettingsContent({
           <MfaCard status={mfa} account={account?.email ?? null} />
           <LanguageCard />
           <ThemeCard t={t.theme} labels={themeLabels} />
-          {!specialist && <OpsConsoleCard consoleUrl={serverEnv.opsConsoleUrl()} t={t.store} />}
+          {workspace === "admin" && (
+            <OpsConsoleCard consoleUrl={serverEnv.opsConsoleUrl()} t={t.store} />
+          )}
         </div>
       </div>
     </>

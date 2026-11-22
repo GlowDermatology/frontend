@@ -12,7 +12,7 @@ import { ShellSkeleton } from "@/features/admin/shell/shell-skeleton";
 export default function PanelLayout({ children }: LayoutProps<"/admin">) {
   return (
     <Suspense fallback={<ShellSkeleton />}>
-      <LocalizedShell>{children}</LocalizedShell>
+      <LocalizedShell workspace="admin">{children}</LocalizedShell>
     </Suspense>
   );
 }

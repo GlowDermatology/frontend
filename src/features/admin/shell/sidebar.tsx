@@ -4,14 +4,16 @@ import { CountPill } from "@/components/ui/badge";
 import { DisabledReasonButton } from "@/components/ui/disabled-reason";
 import { Icon } from "@/components/ui/icon";
 import { getMe } from "@/data/auth";
+import type { Workspace } from "@/data/auth/next-param";
 import { getNavCounts } from "@/data/shell";
+import { getMyPendingAppointments } from "@/data/specialist";
 import { copyFor } from "@/lib/i18n/admin-locale";
 
 import { BillzStatus, BillzStatusFallback } from "./billz-status";
 import { shellCopy } from "./copy";
 import { IssuesNavPill } from "./issues-badge";
 import { NavLink } from "./nav-link";
-import { NAV_ITEMS, type NavItem } from "./nav-items";
+import { NAV_ITEMS, SPECIALIST_NAV_ITEMS, type NavItem } from "./nav-items";
 
 /**
  * Count of work waiting for the admin (`nav-counts/`, one call per request);
@@ -38,6 +40,19 @@ async function NavCount({ kind }: { kind: NonNullable<NavItem["badge"]> }) {
   );
 }
 
+/** The specialist's own visits awaiting confirmation, on their Appointments row. */
+async function SpecialistPendingCount() {
+  const pending = await getMyPendingAppointments();
+  if (!pending || pending.count === 0) return null;
+  const t = await copyFor(shellCopy);
+  return (
+    <>
+      <CountPill>{pending.count}</CountPill>
+      <span className="sr-only">{t.navCount.appointments(pending.count)}</span>
+    </>
+  );
+}
+
 /**
  * A manager-only item (Xodimlar, contract §2.16): streamed after `auth/me/`
  * answers, rendered only when the caller may manage staff.
@@ -50,11 +65,43 @@ async function ManagerOnly({ children }: { children: ReactNode }) {
 
 /**
  * The sidebar (desktop aside and mobile drawer). The active item is a client concern
- * (`NavLink`, from the URL segments below the panel layout), so this tree is the same on every
- * page and the shell is rendered once by `(panel)/layout.tsx`.
+ * (`NavLink`, from the URL segments below the workspace layout), so this tree is the same on every
+ * page and the shell is rendered once by `(panel)/layout.tsx` or `(specialist)/layout.tsx`. The
+ * specialist workspace lists only its own pages: no AI teaser, manager-only items or Billz status.
  */
-export async function SidebarContent() {
+export async function SidebarContent({ workspace }: { workspace: Workspace }) {
   const t = await copyFor(shellCopy);
+  if (workspace === "specialist") {
+    return (
+      <div className="flex h-full flex-col gap-5 px-3 py-5">
+        <div className="flex items-baseline gap-2.5 px-3 pt-1">
+          <span className="font-serif text-title text-ink">Glow Derma</span>
+          <span className="text-overline text-ink-muted uppercase">{t.specialistBadge}</span>
+        </div>
+        <nav aria-label={t.specialistSections}>
+          <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
+            {SPECIALIST_NAV_ITEMS.map((item) => (
+              <li key={item.section}>
+                <NavLink section={item.section} href={item.href} workspace="specialist">
+                  <Icon
+                    name={item.icon}
+                    size={20}
+                    className="shrink-0 text-ink-muted group-aria-[current=page]:text-gold-ink"
+                  />
+                  <span className="flex-1">{t.specialistNav[item.section]}</span>
+                  {item.badge && (
+                    <Suspense fallback={null}>
+                      <SpecialistPendingCount />
+                    </Suspense>
+                  )}
+                </NavLink>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      </div>
+    );
+  }
   return (
     <div className="flex h-full flex-col gap-5 px-3 py-5">
       <div className="flex items-baseline gap-2.5 px-3 pt-1">

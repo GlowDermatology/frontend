@@ -14,9 +14,10 @@ import { shellCopy } from "./copy";
  * menu above the page on small screens; a drawer keeps the content first.
  * Menus opened in the drawer (the profile menu and its «Til» submenu, tooltips) portal into the
  * drawer's own `div[data-layer-host]`, so they stay inside the dialog (focus scope, accessible
- * tree) instead of `<main>`, which the open dialog hides.
+ * tree) instead of `<main>`, which the open dialog hides. `label` names the drawer (the
+ * workspace's «… bo‘limlari»).
  */
-export function MobileNav({ children }: { children: ReactNode }) {
+export function MobileNav({ label, children }: { label: string; children: ReactNode }) {
   const t = useCopy(shellCopy);
   const [open, setOpen] = useState(false);
   const [host, setHost] = useState<HTMLDivElement | null>(null);
@@ -41,7 +42,7 @@ export function MobileNav({ children }: { children: ReactNode }) {
           onClick={onClick}
           className="fixed inset-y-0 left-0 z-50 w-[min(300px,calc(100%-48px))] overflow-y-auto bg-surface-raised shadow-lg focus-visible:outline-none data-[state=closed]:animate-drawer-out data-[state=open]:animate-drawer-in lg:hidden"
         >
-          <Dialog.Title className="sr-only">{t.sections}</Dialog.Title>
+          <Dialog.Title className="sr-only">{label}</Dialog.Title>
           <Dialog.Close
             aria-label={t.closeMenu}
             className="absolute top-4 right-3 flex size-11 items-center justify-center rounded-md text-ink-muted hover:bg-gold-soft hover:text-ink"

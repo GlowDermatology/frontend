@@ -1,6 +1,7 @@
 import type { Route } from "next";
 
 import type { IconName } from "@/components/ui/icon";
+import { SPECIALIST_HOME, type Workspace } from "@/data/auth/next-param";
 
 export type AdminSection =
   | "dashboard"
@@ -20,6 +21,10 @@ export type AdminSection =
   | "audit-log"
   | "staff"
   | "settings";
+
+/** The sections of the specialist workspace (`/admin/my-*` plus the shared settings). */
+export type SpecialistSection =
+  "my-appointments" | "my-schedule" | "my-profile" | "my-services" | "settings";
 
 /**
  * One sidebar entry. Its label is `shellCopy[locale].nav[section]` (`./copy.ts`); the item itself
@@ -83,17 +88,43 @@ export const NAV_ITEMS: ReadonlyArray<NavItem> = [
   { section: "settings", href: "/admin/settings", icon: "sliders" },
 ];
 
-const SECTIONS = new Set<string>(NAV_ITEMS.map((item) => item.section));
+/**
+ * The specialist workspace's sidebar (DESIGN: same shell, reduced nav). Labels are
+ * `shellCopy[locale].specialistNav[section]`; the Appointments row carries the own pending count.
+ */
+export interface SpecialistNavItem {
+  section: SpecialistSection;
+  href: Route;
+  icon: IconName;
+  badge?: "pending";
+}
+
+export const SPECIALIST_NAV_ITEMS: ReadonlyArray<SpecialistNavItem> = [
+  { section: "my-appointments", href: SPECIALIST_HOME, icon: "calendar", badge: "pending" },
+  { section: "my-schedule", href: "/admin/my-schedule", icon: "clock" },
+  { section: "my-profile", href: "/admin/my-profile", icon: "user" },
+  { section: "my-services", href: "/admin/my-services", icon: "sparkle" },
+  { section: "settings", href: "/admin/settings", icon: "sliders" },
+];
+
+const SECTIONS: Record<Workspace, ReadonlySet<string>> = {
+  admin: new Set<string>(NAV_ITEMS.map((item) => item.section)),
+  specialist: new Set<string>(SPECIALIST_NAV_ITEMS.map((item) => item.section)),
+};
 
 /**
- * The highlighted sidebar section for the segments below `(panel)/layout.tsx`
- * (`useSelectedLayoutSegments()`): `[]` → Dashboard, `["orders", "10240"]` → Buyurtmalar,
- * `["customers", "groups"]` → Mijozlar. Route groups (`(…)`) and Next's internal page markers are
- * skipped; anything else — a catch-all match such as `"foo/bar"`, a removed section — highlights
- * nothing. Pure, unit-tested.
+ * The highlighted sidebar section for the segments below the shell's layout
+ * (`useSelectedLayoutSegments()`): `[]` → Dashboard (admin only), `["orders", "10240"]` →
+ * Buyurtmalar, `["customers", "groups"]` → Mijozlar, `["my-schedule"]` → Ish jadvali (specialist).
+ * Route groups (`(…)`) and Next's internal page markers are skipped; anything else — a catch-all
+ * match such as `"foo/bar"`, a removed section, another workspace's section — highlights nothing.
+ * Pure, unit-tested.
  */
-export function sectionFromSegments(segments: ReadonlyArray<string>): AdminSection | undefined {
+export function sectionFromSegments(
+  segments: ReadonlyArray<string>,
+  workspace: Workspace = "admin",
+): AdminSection | SpecialistSection | undefined {
   const first = segments.find((segment) => !segment.startsWith("(") && !segment.startsWith("__"));
-  if (first === undefined) return "dashboard";
-  return SECTIONS.has(first) ? (first as AdminSection) : undefined;
+  if (first === undefined) return workspace === "admin" ? "dashboard" : undefined;
+  return SECTIONS[workspace].has(first) ? (first as AdminSection | SpecialistSection) : undefined;
 }

@@ -26,6 +26,25 @@ export function staffCredentials(): { email: string; password: string } | null {
 /** Where the global setup stores the ordinary staff account's session. */
 export const STAFF_STORAGE_STATE = "e2e/.auth/staff.json";
 
+/**
+ * Credentials of the Specialist account whose workspace (`/admin/my-*`) the workspace spec
+ * drives (`e2e/backend-shell.ts` `ensureSpecialistAccount` creates it, with a draft profile at
+ * an e2e clinic, when `E2E_BACKEND_DIR` is set). Test values only: `E2E_SPECIALIST_PASSWORD` is
+ * a password the suite sets for this e2e account, never a real one. `null` when it is unset:
+ * the workspace spec is then skipped.
+ */
+export function specialistCredentials(): { email: string; password: string } | null {
+  const password = process.env.E2E_SPECIALIST_PASSWORD;
+  if (!password) return null;
+  return {
+    email: process.env.E2E_SPECIALIST_EMAIL ?? "e2e-specialist@glowderma.uz",
+    password,
+  };
+}
+
+/** Where the global setup stores the Specialist account's session. */
+export const SPECIALIST_STORAGE_STATE = "e2e/.auth/specialist.json";
+
 /** Origin of the frontend under test. */
 export const BASE_URL = process.env.E2E_BASE_URL ?? "http://localhost:3000";
 

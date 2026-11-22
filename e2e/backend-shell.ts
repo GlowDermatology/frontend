@@ -185,6 +185,92 @@ export function ensureStaffAccount(email: string, password: string): void {
   }
 }
 
+/* --- Specialist workspace spec (test-only) --- */
+
+/** The clinic `ensureSpecialistAccount` assigns (never matched by `deleteClinicRows("e2e klinika")`). */
+export const SPECIALIST_CLINIC = "e2e ishxona klinikasi";
+
+/**
+ * The Specialist account of the workspace spec, reset to a known start: created or updated to
+ * `password`, active, role `specialist` (never a superuser, manager or console user, which the
+ * backend's role constraint forbids anyway), no forced password change; its own profile is an
+ * unpublished draft at the `clinic` (created when missing) with no discipline, bio, photo or
+ * experience, no weekly hours, overrides or blocked periods. Services a previous run left are
+ * deleted, or deactivated when they were booked (a booked service is never deleted; their
+ * appointments stay, `AppointmentEvent` being append-only). Returns the profile id.
+ */
+export function ensureSpecialistAccount(
+  email: string,
+  password: string,
+  clinic: string = SPECIALIST_CLINIC,
+): number {
+  if (!email.startsWith("e2e")) throw new Error("only e2e accounts are created");
+  if (!clinic.startsWith("e2e")) throw new Error("only e2e clinics are assigned");
+  const code = [
+    "import json",
+    "from glowderma.accounts.models import StaffUser",
+    "from glowderma.professionals.models import BlockedPeriod, Location, Professional, Service, WorkingHours, WorkingHoursOverride",
+    `email = json.loads(${JSON.stringify(JSON.stringify(email))})`,
+    `password = json.loads(${JSON.stringify(JSON.stringify(password))})`,
+    `clinic_name = json.loads(${JSON.stringify(JSON.stringify(clinic))})`,
+    "user, _ = StaffUser.objects.get_or_create(email=email, defaults={'full_name': 'E2E Mutaxassis'})",
+    "user.full_name = user.full_name or 'E2E Mutaxassis'",
+    "user.role = 'specialist'",
+    "user.is_active = True",
+    "user.is_superuser = False",
+    "user.is_manager = False",
+    "user.is_staff = False",
+    "user.must_change_password = False",
+    "user.set_password(password)",
+    "user.save()",
+    "clinic, _ = Location.objects.get_or_create(name_uz=clinic_name, defaults={'address_uz': 'Toshkent, Mirobod, Afrosiyob ko‘chasi, 7 (e2e)'})",
+    "Location.objects.filter(pk=clinic.pk).update(is_active=True)",
+    "profile = Professional.objects.filter(staff_user=user).first()",
+    "if profile is None:",
+    "    profile = Professional(staff_user=user, name=user.full_name, is_active=False)",
+    "profile.is_active = False",
+    "profile.location = clinic",
+    "profile.role = ''",
+    "profile.bio_uz = profile.bio_ru = profile.bio_en = ''",
+    "profile.experience_years = None",
+    "profile.photo = ''",
+    "profile.save()",
+    "profile.additional_locations.clear()",
+    "WorkingHours.objects.filter(professional=profile).delete()",
+    "WorkingHoursOverride.objects.filter(professional=profile).delete()",
+    "BlockedPeriod.objects.filter(professional=profile).delete()",
+    "services = Service.objects.filter(professional=profile)",
+    "services.filter(appointments__isnull=False).update(is_active=False)",
+    "services.filter(appointments__isnull=True).delete()",
+    "print(json.dumps({'id': profile.pk, 'role': user.role, 'location': profile.location_id}))",
+  ].join("\n");
+  const answer = shellJson<{ id: number; role: string; location: number | null }>(code);
+  if (!answer.id || answer.role !== "specialist" || !answer.location) {
+    throw new Error(`the backend did not prepare the specialist: ${JSON.stringify(answer)}`);
+  }
+  return answer.id;
+}
+
+/**
+ * Two customer phones for the specialist's bookings: `known`, an active customer's (+998), and
+ * `fresh`, a valid +998 number no customer has, so the booking dialog asks for the walk-in's
+ * name. A walk-in customer it creates stays (customers are never deleted, decision A1).
+ */
+export function customerPhones(): { known: string; fresh: string } {
+  const code = [
+    "import json, random",
+    "from glowderma.accounts.models import Customer",
+    "known = Customer.objects.filter(status='active', phone__startswith='+998').order_by('pk').values_list('phone', flat=True).first()",
+    "fresh = None",
+    "while fresh is None or Customer.objects.filter(phone=fresh).exists():",
+    "    fresh = '+99890' + ''.join(random.choice('0123456789') for _ in range(7))",
+    "print(json.dumps({'known': known, 'fresh': fresh}))",
+  ].join("\n");
+  const answer = shellJson<{ known: string | null; fresh: string }>(code);
+  if (!answer.known) throw new Error("the backend has no active customer with a phone");
+  return { known: answer.known, fresh: answer.fresh };
+}
+
 /**
  * Gives the customer with `phone` an active pushable device (a fake FCM
  * token the fake provider accepts), so a superuser can register it as a
@@ -306,9 +392,10 @@ function shellJson<T>(code: string, env: Record<string, string> = {}): T {
 }
 
 /**
- * Removes the specialists and services a spec created (names starting with
- * `prefix`, never a seeded one): the admin API never deletes them (§2.17),
- * and the spec books no appointment, so nothing protects them.
+ * Removes the specialists, their services and the clinics a spec created (names starting with
+ * `prefix`, never a seeded one): the admin API never deletes specialists or clinics (§2.17), and
+ * the spec books no appointment, so nothing protects them. Every service belongs to one
+ * specialist, so the services of those specialists go first (then any other `prefix` service).
  */
 export function deleteClinicRows(prefix: string): {
   specialists: number;
@@ -318,10 +405,11 @@ export function deleteClinicRows(prefix: string): {
   if (!prefix.startsWith("e2e")) throw new Error("only e2e clinic rows are deleted");
   const code = [
     "import json",
+    "from django.db.models import Q",
     "from glowderma.professionals.models import Location, Professional, Service",
     `prefix = json.loads(${JSON.stringify(JSON.stringify(prefix))})`,
+    "s = Service.objects.filter(Q(professional__name__startswith=prefix) | Q(name_uz__startswith=prefix)).delete()[0]",
     "p = Professional.objects.filter(name__startswith=prefix).delete()[0]",
-    "s = Service.objects.filter(name_uz__startswith=prefix).delete()[0]",
     "c = Location.objects.filter(name_uz__startswith=prefix).delete()[0]",
     "print(json.dumps({'specialists': p, 'services': s, 'clinics': c}))",
   ].join("\n");

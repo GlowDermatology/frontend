@@ -72,3 +72,20 @@ test("the sidebar reaches «Muammolar» (its badge does not change the link's na
   await expect(page).toHaveURL(/\/admin\/delivery-issues/);
   await expect(heading(page)).toHaveText("Muammolar");
 });
+
+/**
+ * The shared services catalogue is gone (every service belongs to one specialist and is edited on
+ * the specialist's page): no «Xizmatlar» section in the admin sidebar, and its old address is a
+ * not-found page inside the panel.
+ */
+test("the admin sidebar has no services catalogue and its old address is not found", async ({
+  page,
+}) => {
+  await page.goto("/admin");
+  const sections = page.getByRole("navigation", { name: shellCopy.uz.sections }).first();
+  await expect(sections.getByRole("link", { name: "Mutaxassislar" })).toBeVisible();
+  await expect(sections.getByRole("link", { name: "Xizmatlar", exact: true })).toHaveCount(0);
+  expect(NAV_ITEMS.some((item) => item.href.startsWith("/admin/services"))).toBe(false);
+  const response = await page.goto("/admin/services");
+  expect(response?.status()).toBe(404);
+});

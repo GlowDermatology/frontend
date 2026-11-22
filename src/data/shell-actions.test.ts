@@ -140,8 +140,20 @@ describe("appointment dialogs in mock mode", () => {
     expect(refresh).not.toHaveBeenCalled();
   });
 
+  it("creates the customer of an unknown phone from the walk-in's name", async () => {
+    const result = await createAppointment(
+      { ...booking, phone: "+998900000001", name: " Laylo Saidova " },
+      KEY,
+      CSRF,
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      data: { customer: { name: "Laylo Saidova", phone: "+998900000001" }, status: "confirmed" },
+    });
+  });
+
   it("answers the backend's field codes: taken slot, outside hours, past, grid, phone, service", async () => {
-    const field = async (patch: Partial<typeof booking>) =>
+    const field = async (patch: Partial<typeof booking & { name: string }>) =>
       (await createAppointment({ ...booking, ...patch }, KEY, CSRF)) as { fieldErrors?: object };
     // Kamola's requested visit holds 09:00–09:30 with Nodira.
     expect((await field({ time: "09:00" })).fieldErrors).toEqual({ time: "Bu vaqt band." });
@@ -156,8 +168,12 @@ describe("appointment dialogs in mock mode", () => {
     expect((await field({ time: "09:32" })).fieldErrors).toEqual({
       time: "Vaqt 5 daqiqalik qadamda bo‘lsin.",
     });
+    // An unknown phone without a name: the dialog then asks for the walk-in's name.
     expect((await field({ phone: "+998900000001" })).fieldErrors).toEqual({
-      phone: "Bu raqam bilan mijoz topilmadi.",
+      name: "Bu raqam bilan mijoz topilmadi: yangi mijozning ismini kiriting.",
+    });
+    expect((await field({ phone: "+998900000001", name: "A" })).fieldErrors).toEqual({
+      name: "Ismni kiriting (2–150 belgi).",
     });
     expect((await field({ phone: "+99890" })).fieldErrors).toEqual({
       phone: "Telefon raqamini to‘g‘ri kiriting.",
@@ -307,6 +323,13 @@ describe("appointment actions in api mode", () => {
         },
       }),
     );
+    // A walk-in: the name goes along only when given.
+    apiFetch.mockResolvedValueOnce(respond(201, { ...item, id: 78, status: "confirmed" }));
+    await createAppointment({ ...booking, specialistId: "1", name: " Laylo " }, KEY, CSRF);
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/appointments/",
+      expect.objectContaining({ body: expect.objectContaining({ name: "Laylo" }) }),
+    );
 
     apiFetch.mockRejectedValueOnce(apiError(400, slotErrorFixture));
     expect(await createAppointment({ ...booking, specialistId: "1" }, KEY, CSRF)).toMatchObject({
@@ -350,6 +373,25 @@ describe("appointment actions in api mode", () => {
         body: { start: "2026-10-27T10:00:00+05:00", specialist_id: 2, location_id: 2 },
       }),
     );
+    // Another specialist's own service (every service belongs to one specialist).
+    await rescheduleAppointment(
+      "1",
+      { specialistId: "2", serviceId: "9", locationId: "2", date: "2026-10-27", time: "10:00" },
+      "1",
+      KEY,
+      CSRF,
+    );
+    expect(apiFetch).toHaveBeenLastCalledWith(
+      "/api/v1/admin/appointments/1/reschedule/",
+      expect.objectContaining({
+        body: {
+          start: "2026-10-27T10:00:00+05:00",
+          specialist_id: 2,
+          service_id: 9,
+          location_id: 2,
+        },
+      }),
+    );
     await cancelAppointment("1", { reason: "" }, KEY, CSRF);
     expect(apiFetch).toHaveBeenLastCalledWith(
       "/api/v1/admin/appointments/1/cancel/",
@@ -360,7 +402,7 @@ describe("appointment actions in api mode", () => {
       "/api/v1/admin/appointments/1/cancel/",
       expect.objectContaining({ body: { reason: "Kasal" } }),
     );
-    expect(refresh).toHaveBeenCalledTimes(4);
+    expect(refresh).toHaveBeenCalledTimes(5);
   });
 });
 

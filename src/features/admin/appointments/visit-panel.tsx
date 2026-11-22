@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { Route } from "next";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -12,29 +12,32 @@ import { AlertDialog, AlertDialogCancel } from "@/components/ui/dialog";
 import { Field, TextArea } from "@/components/ui/field";
 import { Icon } from "@/components/ui/icon";
 import { useToast } from "@/components/ui/toast";
-import {
-  cancelAppointment,
-  updateAppointment,
-  type AppointmentAction,
-} from "@/data/appointments.actions";
+import type { AppointmentAction } from "@/data/appointments.actions";
 import type { DayAppointment } from "@/data/appointments";
-import { CANCEL_REASON_MAX, appointmentActions, canChangeAppointment } from "@/domain/appointment";
+import type { Workspace } from "@/data/auth/next-param";
+import { CANCEL_REASON_MAX, visitActions, type VisitAction } from "@/domain/appointment";
 import { useCopy } from "@/lib/i18n/admin-context";
 import { useFormat } from "@/lib/i18n/admin-hooks";
 
 import { runAction } from "../shared/action-client";
 import { useIdempotencyKey } from "../shared/idempotency";
+import type { BoardActions } from "./board-actions";
 import { appointmentsCopy } from "./copy";
 import { customerName, viaText } from "./labels";
 import { STATUS_LOOK } from "./status";
 
 interface VisitPanelProps {
+  /** A specialist sees no customer link, no specialist row and the server's allowed actions. */
+  workspace: Workspace;
+  actions: BoardActions;
   selected: DayAppointment | null;
   /** The selected visit's specialist, as the board knows them. */
   specialistName: string | null;
   /** A status change or a cancellation the server accepted. */
   onChanged: (appointment: DayAppointment) => void;
   onReschedule: (appointment: DayAppointment) => void;
+  /** Server render time (ISO): the clock the specialist's actions start from. */
+  now: string;
 }
 
 const alertBody = "m-0 text-[14px] leading-5 text-ink";
@@ -43,9 +46,18 @@ const alertBody = "m-0 text-[14px] leading-5 text-ink";
  * The selected visit (DESIGN §B, «visit-panel»): who, what, when and the price snapshot, plus
  * the actions its status allows — confirm / reschedule / reject a request, mark a confirmed visit
  * attended or move it, cancel either — each final step behind a confirmation dialog. Shared by
- * the day and week boards.
+ * the day and week boards of both workspaces; on the specialist's own board the actions are the
+ * server's `allowedActions`, re-narrowed by the clock while the page stays open.
  */
-export function VisitPanel({ selected, specialistName, onChanged, onReschedule }: VisitPanelProps) {
+export function VisitPanel({
+  workspace,
+  actions: board,
+  selected,
+  specialistName,
+  onChanged,
+  onReschedule,
+  now,
+}: VisitPanelProps) {
   const copy = useCopy(appointmentsCopy);
   const t = copy.panel;
   const fmt = useFormat();
@@ -61,6 +73,13 @@ export function VisitPanel({ selected, specialistName, onChanged, onReschedule }
   const idempotency = useIdempotencyKey();
   // The cancel dialog's key survives re-opens until a success (contract §1.7).
   const cancelKey = useIdempotencyKey();
+  // The specialist's actions depend on whether the visit has started: keep the clock moving.
+  const [clock, setClock] = useState(() => Date.parse(now));
+  useEffect(() => {
+    if (workspace !== "specialist") return;
+    const timer = window.setInterval(() => setClock(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, [workspace]);
 
   const focusVisit = (id: string) =>
     requestAnimationFrame(() =>
@@ -72,7 +91,7 @@ export function VisitPanel({ selected, specialistName, onChanged, onReschedule }
     const { id } = selected;
     startTransition(async () => {
       const result = idempotency.settle(
-        await runAction((csrf) => updateAppointment(id, action, idempotency.key, csrf)),
+        await runAction((csrf) => board.update(id, action, idempotency.key, csrf)),
       );
       setRejectOpen(false);
       setAttendOpen(false);
@@ -100,9 +119,7 @@ export function VisitPanel({ selected, specialistName, onChanged, onReschedule }
     startTransition(async () => {
       setCancelError(null);
       const result = cancelKey.settle(
-        await runAction((csrf) =>
-          cancelAppointment(id, { reason: cancelReason }, cancelKey.key, csrf),
-        ),
+        await runAction((csrf) => board.cancel(id, { reason: cancelReason }, cancelKey.key, csrf)),
       );
       if (!result.ok) {
         setCancelError(result.fieldErrors?.reason ?? result.error);
@@ -120,7 +137,10 @@ export function VisitPanel({ selected, specialistName, onChanged, onReschedule }
     });
   };
 
-  const actions = selected ? appointmentActions(selected.status) : [];
+  const allowed: ReadonlySet<VisitAction> = selected
+    ? visitActions(selected, workspace, clock)
+    : new Set();
+  const specialistMode = workspace === "specialist";
   const name = selected ? customerName(copy, selected.customer.name) : "";
 
   return (
@@ -142,12 +162,16 @@ export function VisitPanel({ selected, specialistName, onChanged, onReschedule }
             <div className="flex items-center gap-3">
               <Avatar name={name} size={44} className="text-[14px]" />
               <span className="flex min-w-0 flex-col">
-                <Link
-                  href={`/admin/customers/${selected.customer.id}` as Route}
-                  className="truncate text-[15px] leading-5 font-bold text-ink no-underline hover:underline hover:decoration-gold hover:underline-offset-4"
-                >
-                  {name}
-                </Link>
+                {specialistMode ? (
+                  <span className="truncate text-[15px] leading-5 font-bold text-ink">{name}</span>
+                ) : (
+                  <Link
+                    href={`/admin/customers/${selected.customer.id}` as Route}
+                    className="truncate text-[15px] leading-5 font-bold text-ink no-underline hover:underline hover:decoration-gold hover:underline-offset-4"
+                  >
+                    {name}
+                  </Link>
+                )}
                 <span className="text-body-sm text-ink-muted tabular-nums">
                   {fmt.phone(selected.customer.phone)}
                 </span>
@@ -158,9 +182,11 @@ export function VisitPanel({ selected, specialistName, onChanged, onReschedule }
               <DetailRow label={t.service} className="leading-5">
                 {selected.service} · {fmt.duration(selected.durationMin)}
               </DetailRow>
-              <DetailRow label={t.specialist} className="leading-5">
-                {specialistName ?? "—"}
-              </DetailRow>
+              {!specialistMode && (
+                <DetailRow label={t.specialist} className="leading-5">
+                  {specialistName ?? "—"}
+                </DetailRow>
+              )}
               <DetailRow label={t.clinic} className="leading-5">
                 <span className="flex flex-col gap-1">
                   <span>{selected.location.name}</span>
@@ -185,35 +211,60 @@ export function VisitPanel({ selected, specialistName, onChanged, onReschedule }
                   {fmt.dateTimeShort(selected.requestedAt)} · {viaText(copy, selected.requestedVia)}
                 </span>
               </DetailRow>
+              {selected.customerNote && (
+                <DetailRow label={t.customerNote} className="leading-5">
+                  <span className="font-normal break-words whitespace-pre-line">
+                    {selected.customerNote}
+                  </span>
+                </DetailRow>
+              )}
             </dl>
-            {actions.includes("confirm") && (
-              <div className="mt-1 flex flex-col gap-2">
-                <Button onClick={() => run("confirm")} busy={pending}>
-                  <Icon name="check" size={18} />
-                  {t.confirm}
-                </Button>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button variant="outline" busy={pending} onClick={() => onReschedule(selected)}>
-                    {t.reschedule}
-                  </Button>
-                  <Button variant="danger" busy={pending} onClick={() => setRejectOpen(true)}>
-                    {t.reject}
-                  </Button>
+            {selected.status === "requested" &&
+              (allowed.has("confirm") || allowed.has("reschedule") || allowed.has("reject")) && (
+                <div className="mt-1 flex flex-col gap-2">
+                  {allowed.has("confirm") && (
+                    <Button onClick={() => run("confirm")} busy={pending}>
+                      <Icon name="check" size={18} />
+                      {t.confirm}
+                    </Button>
+                  )}
+                  <div className="grid grid-cols-2 gap-2">
+                    {allowed.has("reschedule") && (
+                      <Button
+                        variant="outline"
+                        busy={pending}
+                        onClick={() => onReschedule(selected)}
+                      >
+                        {t.reschedule}
+                      </Button>
+                    )}
+                    {allowed.has("reject") && (
+                      <Button variant="danger" busy={pending} onClick={() => setRejectOpen(true)}>
+                        {t.reject}
+                      </Button>
+                    )}
+                  </div>
+                  {allowed.has("confirm") && (
+                    <p className="m-0 text-caption font-normal text-ink-muted">{t.confirmHint}</p>
+                  )}
                 </div>
-                <p className="m-0 text-caption font-normal text-ink-muted">{t.confirmHint}</p>
-              </div>
-            )}
-            {actions.includes("attend") && (
-              <div className="mt-1 grid grid-cols-2 gap-2">
-                <Button variant="outline" busy={pending} onClick={() => setAttendOpen(true)}>
-                  {t.attend}
-                </Button>
-                <Button variant="outline" busy={pending} onClick={() => onReschedule(selected)}>
-                  {t.move}
-                </Button>
-              </div>
-            )}
-            {canChangeAppointment(selected.status) && (
+              )}
+            {selected.status === "confirmed" &&
+              (allowed.has("attend") || allowed.has("reschedule")) && (
+                <div className="mt-1 grid grid-cols-2 gap-2">
+                  {allowed.has("attend") && (
+                    <Button variant="outline" busy={pending} onClick={() => setAttendOpen(true)}>
+                      {t.attend}
+                    </Button>
+                  )}
+                  {allowed.has("reschedule") && (
+                    <Button variant="outline" busy={pending} onClick={() => onReschedule(selected)}>
+                      {t.move}
+                    </Button>
+                  )}
+                </div>
+              )}
+            {allowed.has("cancel") && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -292,6 +343,7 @@ export function VisitPanel({ selected, specialistName, onChanged, onReschedule }
         <Field
           label={t.reason}
           error={cancelError ?? undefined}
+          hint={workspace === "specialist" ? t.reasonHint : undefined}
           aside={
             <span className="text-caption text-ink-muted tabular-nums">
               {cancelReason.length} / {CANCEL_REASON_MAX}

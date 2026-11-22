@@ -11,6 +11,7 @@ import type {
   DayAppointment,
   PendingAppointments,
 } from "@/data/appointments";
+import type { Workspace } from "@/data/auth/next-param";
 import type { BookingMeta } from "@/domain/appointment";
 import { cn } from "@/lib/cn";
 import { toLocalIsoDate } from "@/lib/format";
@@ -18,7 +19,8 @@ import { useCopy } from "@/lib/i18n/admin-context";
 import { useFormat } from "@/lib/i18n/admin-hooks";
 
 import { useIdempotencyKey } from "../shared/idempotency";
-import { BoardHeader, type BoardSpecialist } from "./board-header";
+import type { BoardActions } from "./board-actions";
+import { BoardHeader, addBlockerOf, type BoardSpecialist } from "./board-header";
 import { BookingDialog } from "./booking-dialog";
 import { appointmentsCopy } from "./copy";
 import { DayGrid } from "./day-grid";
@@ -39,6 +41,10 @@ export type BoardData =
   | { view: "month"; days: ReadonlyArray<AppointmentRangeDay> };
 
 interface AppointmentsViewProps {
+  /** Staff's board of every specialist, or a specialist's own. */
+  workspace: Workspace;
+  /** The board's writes for that workspace (Server Actions only: they cross from the page). */
+  actions: BoardActions;
   board: BoardState;
   /** The default day (today in api mode, the design day in mock mode). */
   today: string;
@@ -71,6 +77,8 @@ function visitsOf(data: BoardData): DayAppointment[] {
  * server answer (the refresh after an api-mode action) replaces it.
  */
 export function AppointmentsView({
+  workspace,
+  actions,
   board,
   today,
   data,
@@ -168,7 +176,12 @@ export function AppointmentsView({
       description: `${customerName(copy, appointment.customer.name)} · ${fmt.weekdayShortDateTime(appointment.start)}`,
       ...(visible
         ? {}
-        : { action: { label: copy.toast.showDay, href: dayHref(date, today, board.specialist) } }),
+        : {
+            action: {
+              label: copy.toast.showDay,
+              href: dayHref(date, today, board.specialist, workspace),
+            },
+          }),
     });
   };
 
@@ -198,6 +211,7 @@ export function AppointmentsView({
   return (
     <>
       <BoardHeader
+        workspace={workspace}
         board={shownBoard}
         today={today}
         pendingCount={pendingCount}
@@ -205,7 +219,7 @@ export function AppointmentsView({
           pendingCount > 0 && pendingSummary.count === pendingCount ? pendingSummary.nextAt : null
         }
         specialists={specialists}
-        canAdd={meta.specialists.length > 0}
+        addBlocker={addBlockerOf(workspace, meta)}
         onAdd={() => openBooking({ kind: "create" })}
         navigating={navigating}
         navigate={navigate}
@@ -238,6 +252,7 @@ export function AppointmentsView({
             now={now}
             today={today}
             specialist={board.specialist}
+            workspace={workspace}
           />
         )}
         {data.view === "month" && (
@@ -246,14 +261,18 @@ export function AppointmentsView({
             days={data.days}
             today={today}
             specialist={board.specialist}
+            workspace={workspace}
           />
         )}
         {data.view !== "month" && (
           <VisitPanel
+            workspace={workspace}
+            actions={actions}
             selected={selected}
             specialistName={selected ? specialistName(selected.specialistId) : null}
             onChanged={replace}
             onReschedule={(appointment) => openBooking({ kind: "reschedule", appointment })}
+            now={now}
           />
         )}
       </div>
@@ -261,6 +280,8 @@ export function AppointmentsView({
       {booking && (
         <BookingDialog
           key={bookingInstance}
+          workspace={workspace}
+          actions={actions}
           open
           onOpenChange={(open) => {
             if (!open) setBooking(null);

@@ -9,7 +9,9 @@ import type { AppointmentsCopy } from "./copy";
  * names) stays as it is.
  */
 
+/** The discipline in the admin language; a draft profile without one (`""`) shows nothing. */
 export function roleText(t: AppointmentsCopy, role: Specialist["role"]): string {
+  if (!role) return "";
   return t.role[role] ?? role;
 }
 

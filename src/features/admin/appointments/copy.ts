@@ -28,6 +28,12 @@ const uz = {
     addDisabled:
       "Faol mutaxassis yo‘q. Avval «Mutaxassislar» sahifasida mutaxassis qo‘shing yoki faollashtiring.",
     specialistsLink: "Mutaxassislar sahifasi",
+    addDisabledProfile:
+      "Profilingiz hali e’lon qilinmagan. Qabul yozish uchun avval «Profil» sahifasida uni e’lon qiling.",
+    profileLink: "Profil sahifasi",
+    addDisabledServices:
+      "Faol xizmatingiz yo‘q. Avval «Xizmatlar» sahifasida xizmat qo‘shing yoki faollashtiring.",
+    servicesLink: "Xizmatlar sahifasi",
     loading: "Jadval yuklanmoqda…",
   },
 
@@ -120,6 +126,8 @@ const uz = {
     cancelBody: (name: string, when: string) =>
       `${name}ning ${when} dagi qabuli bekor qilinadi, vaqt bo‘shaydi va mijozga xabar yuboriladi.`,
     reason: "Sabab (ixtiyoriy)",
+    reasonHint: "Sababni faqat administratorlar ko‘radi.",
+    customerNote: "Mijoz izohi",
   },
 
   toast: {
@@ -144,7 +152,15 @@ const uz = {
     clinic: "Klinika",
     noClinic: "Bu kunga klinika belgilanmagan.",
     phone: "Mijoz telefoni",
-    phoneHint: "Ilovada ro‘yxatdan o‘tgan mijoz raqami.",
+    phoneHint: "Mijozning telefon raqami. Bu raqam bilan mijoz bo‘lmasa, ismini so‘raymiz.",
+    name: "Yangi mijoz ismi",
+    nameHint:
+      "Mijoz qabul bilan birga yaratiladi. Keyin u shu raqamga keladigan SMS kod bilan ilovaga kiradi.",
+    targetService: "Yangi mutaxassisdagi xizmat",
+    agreed: "Mijoz yangi klinikaga rozi bo‘ldi",
+    agreedHint: (clinic: string) =>
+      `Bu kuni siz «${clinic}» klinikasida ishlaysiz: qabul o‘sha yerga ko‘chadi.`,
+    agreedRequired: "Ko‘chirishdan oldin mijoz yangi klinikaga rozi bo‘lganini belgilang.",
     date: "Sana",
     time: "Vaqt",
     note: "Izoh (ixtiyoriy)",
@@ -196,6 +212,12 @@ export const appointmentsCopy = {
       addDisabled:
         "Нет активных специалистов. Сначала добавьте или активируйте специалиста на странице «Специалисты».",
       specialistsLink: "Страница специалистов",
+      addDisabledProfile:
+        "Ваш профиль ещё не опубликован. Чтобы записывать приёмы, сначала опубликуйте его на странице «Профиль».",
+      profileLink: "Страница профиля",
+      addDisabledServices:
+        "У вас нет активных услуг. Сначала добавьте или включите услугу на странице «Услуги».",
+      servicesLink: "Страница услуг",
       loading: "Загружаем расписание…",
     },
 
@@ -289,6 +311,8 @@ export const appointmentsCopy = {
       cancelBody: (name: string, when: string) =>
         `Приём клиента ${name} (${when}) будет отменён, время освободится, клиент получит уведомление.`,
       reason: "Причина (необязательно)",
+      reasonHint: "Причину видят только администраторы.",
+      customerNote: "Комментарий клиента",
     },
 
     toast: {
@@ -314,7 +338,15 @@ export const appointmentsCopy = {
       clinic: "Клиника",
       noClinic: "На этот день клиника не назначена.",
       phone: "Телефон клиента",
-      phoneHint: "Номер клиента, зарегистрированного в приложении.",
+      phoneHint: "Номер телефона клиента. Если клиента с таким номером нет, мы попросим имя.",
+      name: "Имя нового клиента",
+      nameHint:
+        "Клиент будет создан вместе с приёмом. Потом он войдёт в приложение по SMS-коду на этот номер.",
+      targetService: "Услуга у нового специалиста",
+      agreed: "Клиент согласен на другую клинику",
+      agreedHint: (clinic: string) =>
+        `В этот день вы работаете в клинике «${clinic}»: приём переедет туда.`,
+      agreedRequired: "Перед переносом отметьте, что клиент согласен на другую клинику.",
       date: "Дата",
       time: "Время",
       note: "Комментарий (необязательно)",
@@ -363,6 +395,12 @@ export const appointmentsCopy = {
       addDisabled:
         "There is no active specialist. Add or activate a specialist on the Specialists page first.",
       specialistsLink: "Specialists page",
+      addDisabledProfile:
+        "Your profile is not published yet. Publish it on the Profile page first to book appointments.",
+      profileLink: "Profile page",
+      addDisabledServices:
+        "You have no active service. Add or activate a service on the Services page first.",
+      servicesLink: "Services page",
       loading: "Loading the schedule…",
     },
 
@@ -456,6 +494,8 @@ export const appointmentsCopy = {
       cancelBody: (name: string, when: string) =>
         `${name}'s appointment on ${when} will be cancelled, the time freed and the customer notified.`,
       reason: "Reason (optional)",
+      reasonHint: "Only administrators see the reason.",
+      customerNote: "Customer note",
     },
 
     toast: {
@@ -481,7 +521,15 @@ export const appointmentsCopy = {
       clinic: "Clinic",
       noClinic: "No clinic is scheduled for this day.",
       phone: "Customer phone",
-      phoneHint: "The number of a customer registered in the app.",
+      phoneHint: "The customer's phone number. If no customer has it, we ask for a name.",
+      name: "New customer's name",
+      nameHint:
+        "The customer is created with the appointment. They later sign in to the app with an SMS code sent to this number.",
+      targetService: "Service with the new specialist",
+      agreed: "The customer agreed to the other clinic",
+      agreedHint: (clinic: string) =>
+        `You work at ${clinic} that day: the appointment moves there.`,
+      agreedRequired: "Before rescheduling, confirm that the customer agreed to the other clinic.",
       date: "Date",
       time: "Time",
       note: "Note (optional)",

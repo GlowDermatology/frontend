@@ -1,7 +1,14 @@
 import { z } from "zod";
 
 import { appointmentDataCopy } from "@/domain/copy/appointments";
-import { CANCEL_REASON_MAX, NOTE_MAX, SLOT_STEP_MIN, minutesOfDay } from "@/domain/appointment";
+import {
+  CANCEL_REASON_MAX,
+  CUSTOMER_NAME_MAX,
+  CUSTOMER_NAME_MIN,
+  NOTE_MAX,
+  SLOT_STEP_MIN,
+  minutesOfDay,
+} from "@/domain/appointment";
 import { localized, type LocalizedOf } from "@/lib/i18n/localized";
 import { PHONE_PATTERN } from "@/lib/phone";
 
@@ -31,14 +38,33 @@ export const appointmentSchemas = localized(appointmentDataCopy, (m) => {
     .refine((value) => minutesOfDay(value) % SLOT_STEP_MIN === 0, {
       error: m.timeStep(SLOT_STEP_MIN),
     });
+  const nameMessage = m.customerName(CUSTOMER_NAME_MIN, CUSTOMER_NAME_MAX);
+  // A walk-in's name: required by the dialog once the server says no customer has the phone.
+  const walkInName = z
+    .string()
+    .trim()
+    .min(CUSTOMER_NAME_MIN, nameMessage)
+    .max(CUSTOMER_NAME_MAX, nameMessage);
   return {
     date,
     time,
+    walkInName,
     create: z.object({
       specialistId: id(m.chooseSpecialist),
       locationId: id(m.chooseClinic),
       serviceId: id(m.chooseService),
       phone: z.string().trim().regex(PHONE_PATTERN, m.phone),
+      // Sent only when given: the backend uses it to create the customer of an unknown phone.
+      name: z
+        .string()
+        .trim()
+        .refine(
+          (value) =>
+            value === "" ||
+            (value.length >= CUSTOMER_NAME_MIN && value.length <= CUSTOMER_NAME_MAX),
+          { error: nameMessage },
+        )
+        .optional(),
       date,
       time,
       note: z.string().trim().max(NOTE_MAX, m.maxChars(NOTE_MAX)),
@@ -46,8 +72,12 @@ export const appointmentSchemas = localized(appointmentDataCopy, (m) => {
     reschedule: z.object({
       specialistId: id(m.chooseSpecialist),
       locationId: id(m.chooseClinic),
+      /** The target specialist's service, required by the backend with another specialist. */
+      serviceId: id(m.chooseService).optional(),
       date,
       time,
+      /** The specialist's own board: the customer agreed to the new clinic of a move. */
+      customerAgreed: z.boolean().optional(),
     }),
     cancel: z.object({
       reason: z.string().trim().max(CANCEL_REASON_MAX, m.maxChars(CANCEL_REASON_MAX)),

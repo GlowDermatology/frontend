@@ -1,5 +1,7 @@
 import type { Route } from "next";
 
+import type { Workspace } from "@/data/auth/next-param";
+
 import {
   addDays,
   addMonths,
@@ -14,8 +16,16 @@ import { firstParam, isoDateParam, oneOf, type SearchParams } from "../shared/ur
 /**
  * The appointments board's URL state (DESIGN §B): `?view=day|week|month&date=YYYY-MM-DD&
  * specialist=<id>`. The default (day view of the default day, every specialist) keeps the bare
- * URL, so it stays shareable and bookmarkable; every other state is spelled out.
+ * URL, so it stays shareable and bookmarkable; every other state is spelled out. Staff use the
+ * board at `/admin/appointments`, a specialist their own at `/admin/my-appointments` (no
+ * specialist filter there).
  */
+
+/** Where each workspace's board lives. */
+export const BOARD_BASE: Record<Workspace, Route> = {
+  admin: "/admin/appointments",
+  specialist: "/admin/my-appointments",
+};
 
 export const BOARD_VIEWS = ["day", "week", "month"] as const;
 export type BoardView = (typeof BOARD_VIEWS)[number];
@@ -48,18 +58,24 @@ export function parseBoard(params: SearchParams, today: string): BoardState {
 }
 
 /** The board URL of a state; `today` decides whether the date may be left out. */
-export function boardHref(state: BoardState, today: string): Route {
+export function boardHref(state: BoardState, today: string, workspace: Workspace = "admin"): Route {
   const params = new URLSearchParams();
   if (state.view !== "day") params.set("view", state.view);
   if (state.date !== today) params.set("date", state.date);
-  if (state.specialist) params.set("specialist", state.specialist);
+  if (state.specialist && workspace === "admin") params.set("specialist", state.specialist);
   const query = params.toString();
-  return (query ? `/admin/appointments?${query}` : "/admin/appointments") as Route;
+  const base = BOARD_BASE[workspace];
+  return (query ? `${base}?${query}` : base) as Route;
 }
 
 /** The day view of one day (the month cells' and the week headers' target). */
-export function dayHref(day: string, today: string, specialist = ""): Route {
-  return boardHref({ view: "day", date: day, specialist }, today);
+export function dayHref(
+  day: string,
+  today: string,
+  specialist = "",
+  workspace: Workspace = "admin",
+): Route {
+  return boardHref({ view: "day", date: day, specialist }, today, workspace);
 }
 
 /** The anchor one step back (`-1`) or forward (`1`): a day, a week or a month. */

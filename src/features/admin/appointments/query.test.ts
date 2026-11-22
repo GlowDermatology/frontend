@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  BOARD_BASE,
   boardHref,
   boardRange,
   dayHref,
@@ -61,6 +62,20 @@ describe("parseBoard / boardHref", () => {
     );
     expect(dayHref("2026-10-27", TODAY, "s-1")).toBe(
       "/admin/appointments?date=2026-10-27&specialist=s-1",
+    );
+  });
+});
+
+describe("workspace boards", () => {
+  it("keeps the specialist's own board at its base, without a specialist filter", () => {
+    const board = { view: "week" as const, date: "2026-11-03", specialist: "s-2" };
+    expect(BOARD_BASE.specialist).toBe("/admin/my-appointments");
+    expect(boardHref(board, TODAY, "specialist")).toBe(
+      "/admin/my-appointments?view=week&date=2026-11-03",
+    );
+    expect(dayHref(TODAY, TODAY, "", "specialist")).toBe("/admin/my-appointments");
+    expect(dayHref("2026-10-27", TODAY, "s-1", "specialist")).toBe(
+      "/admin/my-appointments?date=2026-10-27",
     );
   });
 });

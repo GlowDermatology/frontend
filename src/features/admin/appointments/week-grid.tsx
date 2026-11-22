@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { ScrollRegion } from "@/components/ui/scroll-region";
 import type { AppointmentDay, AppointmentRangeDay, DayAppointment } from "@/data/appointments";
+import type { Workspace } from "@/data/auth/next-param";
 import { minutesOfDay } from "@/domain/appointment";
 import { cn } from "@/lib/cn";
 import { weekdayOf } from "@/lib/datetime";
@@ -49,6 +50,8 @@ interface WeekGridProps {
   today: string;
   /** The specialist filter, kept on the links to a day. */
   specialist: string;
+  /** Whose board the day links open. */
+  workspace: Workspace;
 }
 
 /** Weekday name of a day in the admin language (the formatter's arrays are Sunday-first). */
@@ -71,6 +74,7 @@ export function WeekGrid({
   now,
   today,
   specialist,
+  workspace,
 }: WeekGridProps) {
   const copy = useCopy(appointmentsCopy);
   const t = copy.week;
@@ -108,7 +112,7 @@ export function WeekGrid({
               return (
                 <Link
                   key={day.date}
-                  href={dayHref(day.date, today, specialist)}
+                  href={dayHref(day.date, today, specialist, workspace)}
                   aria-label={t.openDay(label)}
                   aria-current={isToday ? "date" : undefined}
                   className="group flex flex-col items-center gap-0.5 border-l border-line px-2 py-2.5 text-ink no-underline hover:bg-gold-soft/60 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-gold-ink motion-safe:transition-colors"
@@ -273,7 +277,7 @@ export function WeekGrid({
                   {overflow.map((chip) => (
                     <li key={`more-${chip.cluster}`}>
                       <Link
-                        href={dayHref(day.date, today, specialist)}
+                        href={dayHref(day.date, today, specialist, workspace)}
                         aria-label={t.more(chip.ids.length, dayLabel)}
                         className="shadow-xs absolute flex items-start justify-center rounded-sm border border-line-strong bg-surface-raised pt-1 text-[11px] leading-[14px] font-bold text-ink no-underline hover:bg-gold-soft focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold-ink"
                         style={{

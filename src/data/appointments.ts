@@ -6,6 +6,7 @@ import type {
   AppointmentStatus,
   BookingMeta,
   Specialist,
+  VisitAction,
 } from "@/domain/appointment";
 import { diffDays, isIsoDate } from "@/lib/datetime";
 import { toLocalIsoDate } from "@/lib/format";
@@ -35,8 +36,16 @@ import { dataSource } from "./source";
  * and `appointments/meta/` and maps them with `./api/mappers/appointments.ts`.
  */
 
-/** A visit on the day board: the domain appointment plus the service's short name. */
-export type DayAppointment = Appointment & { serviceShort: string; location: AppointmentClinic };
+/**
+ * A visit on the day board: the domain appointment plus the service's short name. The
+ * specialist's own board also carries the customer's note and the actions the server allows.
+ */
+export type DayAppointment = Appointment & {
+  serviceShort: string;
+  location: AppointmentClinic;
+  customerNote?: string;
+  allowedActions?: ReadonlyArray<VisitAction>;
+};
 
 export interface AppointmentDay {
   date: string;

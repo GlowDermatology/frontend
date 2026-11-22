@@ -29,7 +29,7 @@ import {
   mapDayAppointment,
 } from "./api/mappers/appointments";
 import { toActionResult } from "./api/mappers/errors";
-import type { ApiAppointmentReschedule } from "./api/types";
+import type { ApiAppointmentCreate, ApiAppointmentReschedule } from "./api/types";
 import type { AppointmentDay, DayAppointment } from "./appointments";
 import {
   appointmentSchemas,
@@ -60,6 +60,14 @@ import type { ActionFailure, ActionResult } from "./types";
  */
 
 export type AppointmentAction = "confirm" | "reject" | "attend";
+
+/*
+ * Fields the backend added after the generated schema this checkout carries (B1): `name` on a
+ * create (the walk-in customer of an unknown phone) and `service_id` on a move to another
+ * specialist (every service belongs to one specialist). Drop these once `gen:api` has them.
+ */
+type CreateBody = ApiAppointmentCreate & { name?: string };
+type RescheduleBody = ApiAppointmentReschedule & { service_id?: number };
 
 const idSchema = z.string().trim().min(1).max(64);
 const notFound = (m: AppointmentDataCopy): ActionFailure => ({
@@ -137,18 +145,20 @@ export async function createAppointment(
     if (serviceId === null) {
       return { ok: false, error: m.serviceNotFound, fieldErrors: { serviceId: m.serviceNotFound } };
     }
+    const body: CreateBody = {
+      specialist_id: specialistId,
+      service_id: serviceId,
+      location_id: locationId,
+      phone: input.phone,
+      start: tashkentStart(input.date, input.time),
+      note: input.note,
+      ...(input.name ? { name: input.name } : {}),
+    };
     return apiMutation("createAppointment", async () => {
       try {
         const { data } = await apiCreateAppointment(
           sessionToken(guard.session),
-          {
-            specialist_id: specialistId,
-            service_id: serviceId,
-            location_id: locationId,
-            phone: input.phone,
-            start: tashkentStart(input.date, input.time),
-            note: input.note,
-          },
+          body,
           parsedKey.data,
         );
         return { ok: true, data: mapDayAppointment(data) };
@@ -162,8 +172,9 @@ export async function createAppointment(
 
 /**
  * `baselineSpecialistId` is the specialist the dialog opened with: the
- * request carries `specialist_id` only when the admin picked another one
- * (that re-snapshots duration and price on the backend).
+ * request carries `specialist_id` only when the admin picked another one,
+ * together with `service_id`, the new specialist's service (that re-snapshots
+ * duration and price on the backend).
  */
 export async function rescheduleAppointment(
   id: string,
@@ -190,7 +201,7 @@ export async function rescheduleAppointment(
     const locationId = apiId(input.locationId);
     if (locationId === null)
       return { ok: false, error: m.chooseClinic, fieldErrors: { locationId: m.chooseClinic } };
-    const body: ApiAppointmentReschedule = {
+    const body: RescheduleBody = {
       start: tashkentStart(input.date, input.time),
       location_id: locationId,
     };
@@ -198,7 +209,23 @@ export async function rescheduleAppointment(
       const specialistId = apiId(input.specialistId);
       if (specialistId === null) return specialistNotFound(m);
       body.specialist_id = specialistId;
+      if (input.serviceId !== undefined) {
+        const serviceId = apiId(input.serviceId);
+        if (serviceId === null) {
+          return {
+            ok: false,
+            error: m.serviceNotFound,
+            fieldErrors: { serviceId: m.serviceNotFound },
+          };
+        }
+        body.service_id = serviceId;
+      }
     }
+    // With a picked service its errors belong on the service field, else on the specialist.
+    const remap =
+      body.service_id === undefined
+        ? RESCHEDULE_FIELD_REMAP
+        : { ...RESCHEDULE_FIELD_REMAP, service_id: "serviceId" };
     return apiMutation("rescheduleAppointment", async () => {
       try {
         const { data } = await apiRescheduleAppointment(
@@ -209,7 +236,7 @@ export async function rescheduleAppointment(
         );
         return { ok: true, data: mapDayAppointment(data) };
       } catch (error) {
-        return bookingFailure(error, RESCHEDULE_FIELD_REMAP);
+        return bookingFailure(error, remap);
       }
     });
   }

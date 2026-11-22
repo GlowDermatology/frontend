@@ -13,14 +13,12 @@ import { FormErrorSummary } from "@/components/ui/form-errors";
 import { FormPhoneInput, FormSelect } from "@/components/ui/form-controls";
 import { Icon } from "@/components/ui/icon";
 import type { SelectOption } from "@/components/ui/select";
-import {
-  createAppointment,
-  loadAppointmentDay,
-  rescheduleAppointment,
-} from "@/data/appointments.actions";
+import { Switch } from "@/components/ui/switch";
 import type { AppointmentDay, DayAppointment } from "@/data/appointments";
 import { appointmentSchemas } from "@/data/appointments.schema";
+import type { Workspace } from "@/data/auth/next-param";
 import {
+  CUSTOMER_NAME_MAX,
   NOTE_MAX,
   slotOptions,
   specialistSchedule,
@@ -28,6 +26,7 @@ import {
   type BookingMeta,
   type SlotOption,
 } from "@/domain/appointment";
+import { cn } from "@/lib/cn";
 import { toLocalIsoDate } from "@/lib/format";
 import { useRhfReveal } from "@/lib/forms/rhf";
 import { useCopy } from "@/lib/i18n/admin-context";
@@ -37,13 +36,17 @@ import { normalizePhone } from "@/lib/phone";
 import { runAction } from "../shared/action-client";
 import { partitionFieldErrors } from "../shared/field-errors";
 import type { IdempotencyKey } from "../shared/idempotency";
+import type { BoardActions } from "./board-actions";
 import { appointmentsCopy, type AppointmentsCopy } from "./copy";
 import { customerName, roleText } from "./labels";
 
 /**
- * Admin booking dialogs (contract §2.9 T10): «Qabul qo‘shish» creates a confirmed visit for a
- * customer found by phone; «Vaqtni o‘zgartirish» / «Ko‘chirish» moves a visit to a new start and
- * optionally to another specialist who offers the same service. The time list is the 5-minute
+ * Booking dialogs (contract §2.9 T10): «Qabul qo‘shish» creates a confirmed visit for a customer
+ * found by phone — or, when the server says nobody has that phone, for a new customer created
+ * with the name the dialog then asks for; «Vaqtni o‘zgartirish» / «Ko‘chirish» moves a visit to
+ * a new start and, for staff, optionally to another specialist and one of their services. On a
+ * specialist's own board there is no specialist choice and no staff note, and a move to the
+ * other clinic they work at that day needs the customer's agreement. The time list is the 5-minute
  * grid inside the chosen specialist's working hours of the chosen day (from the board's day, or
  * that day's schedule fetched when another date is picked); starts that collide with a break or
  * a held visit are marked taken but stay selectable, because the backend is the authority and
@@ -55,6 +58,9 @@ import { customerName, roleText } from "./labels";
 type Mode = { kind: "create" } | { kind: "reschedule"; appointment: DayAppointment };
 
 interface BookingDialogProps {
+  /** A specialist books and moves only their own visits. */
+  workspace: Workspace;
+  actions: BoardActions;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   mode: Mode;
@@ -76,21 +82,44 @@ interface FormValues {
   specialistId: string;
   serviceId: string;
   phone: string;
+  /** A walk-in's name, asked for once the server reports the phone unknown. */
+  name: string;
   locationId?: string;
   date: string;
   time: string;
   note: string;
+  /** A specialist's move to another clinic: the customer agreed. */
+  customerAgreed: boolean;
 }
 
-const FIELDS: ReadonlyArray<keyof FormValues> = [
-  "specialistId",
-  "serviceId",
-  "phone",
-  "date",
-  "locationId",
-  "time",
-  "note",
-];
+/** The fields a dialog renders, so a server error on any other one becomes the form message. */
+export function renderedFields(
+  workspace: Workspace,
+  kind: Mode["kind"],
+  options: { changedSpecialist: boolean; clinicMove: boolean },
+): Array<keyof FormValues> {
+  const staff = workspace === "admin";
+  if (kind === "reschedule") {
+    return [
+      ...(staff ? (["specialistId"] as const) : []),
+      ...(staff && options.changedSpecialist ? (["serviceId"] as const) : []),
+      "date",
+      "locationId",
+      "time",
+      ...(!staff && options.clinicMove ? (["customerAgreed"] as const) : []),
+    ];
+  }
+  return [
+    ...(staff ? (["specialistId"] as const) : []),
+    "serviceId",
+    "phone",
+    "name",
+    "date",
+    "locationId",
+    "time",
+    ...(staff ? (["note"] as const) : []),
+  ];
+}
 
 type ScheduleState = "loading" | "pickDate" | "failed" | "dayOff" | "full" | null;
 
@@ -126,6 +155,8 @@ export function timeOptions(
 }
 
 export function BookingDialog({
+  workspace,
+  actions,
   open,
   onOpenChange,
   mode,
@@ -145,6 +176,7 @@ export function BookingDialog({
   const schemas = useLocalized(appointmentSchemas);
   const today = toLocalIsoDate(now);
   const editing = mode.kind === "reschedule" ? mode.appointment : null;
+  const staff = workspace === "admin";
   const firstSpecialist =
     meta.specialists.find((s) => s.id === defaultSpecialistId) ?? meta.specialists[0];
   const defaults: FormValues = editing
@@ -152,18 +184,24 @@ export function BookingDialog({
         specialistId: editing.specialistId,
         serviceId: editing.serviceId,
         phone: editing.customer.phone,
+        name: "",
         date: toLocalIsoDate(editing.start),
         time: fmt.time(editing.start),
         note: "",
+        customerAgreed: false,
       }
     : {
         specialistId: firstSpecialist?.id ?? "",
         serviceId: firstSpecialist?.services[0]?.id ?? "",
         phone: "",
+        name: "",
         date: anchor < today ? today : anchor,
         time: "",
         note: "",
+        customerAgreed: false,
       };
+  // The server said no customer has the phone: the name field shows and becomes required.
+  const [walkIn, setWalkIn] = useState(false);
   const resolver = useMemo(
     () =>
       zodResolver(
@@ -171,11 +209,16 @@ export function BookingDialog({
           ? schemas.reschedule.omit({ locationId: true }).extend({
               serviceId: z.string(),
               phone: z.string(),
+              name: z.string(),
               note: z.string(),
+              customerAgreed: z.boolean(),
             })
-          : schemas.create.omit({ locationId: true }),
+          : schemas.create.omit({ locationId: true }).extend({
+              name: walkIn ? schemas.walkInName : z.string(),
+              customerAgreed: z.boolean(),
+            }),
       ),
-    [editing, schemas],
+    [editing, schemas, walkIn],
   );
   const [formError, setFormError] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -184,6 +227,7 @@ export function BookingDialog({
     register,
     handleSubmit,
     setError,
+    clearErrors,
     setValue,
     getValues,
     formState: { errors, isSubmitting },
@@ -194,10 +238,12 @@ export function BookingDialog({
       specialistId: t.specialist,
       serviceId: t.service,
       phone: t.phone,
+      name: t.name,
       locationId: t.clinic,
       date: t.date,
       time: t.time,
       note: t.note,
+      customerAgreed: t.agreed,
     },
     errors,
   });
@@ -217,24 +263,25 @@ export function BookingDialog({
   useEffect(() => {
     if (!open || held || requested.current.has(date) || !dateValid) return;
     requested.current.add(date);
-    void runAction((csrf) => loadAppointmentDay(date, csrf)).then((result) =>
+    void runAction((csrf) => actions.loadDay(date, csrf)).then((result) =>
       setDays((current) => ({ ...current, [date]: result.ok ? result.data : "failed" })),
     );
-  }, [open, date, held, dateValid]);
+  }, [open, date, held, dateValid, actions]);
 
-  // Specialists who can take this visit: everyone for a new booking, those offering the visit's
-  // service for a move.
+  // Specialists who can take this visit: every bookable one (a move to another specialist picks
+  // one of their services, since every service belongs to one specialist), plus the visit's own.
   const specialists = editing
-    ? meta.specialists.filter((s) => s.services.some((v) => v.id === editing.serviceId))
+    ? meta.specialists.filter((s) => s.id === editing.specialistId || s.services.length > 0)
     : meta.specialists;
   const specialist = meta.specialists.find((s) => s.id === specialistId);
   const services = specialist?.services ?? [];
-  const service = services.find((s) => s.id === (editing ? editing.serviceId : serviceId));
+  const changedSpecialist = editing !== null && specialistId !== editing.specialistId;
+  const service = services.find(
+    (s) => s.id === (editing && !changedSpecialist ? editing.serviceId : serviceId),
+  );
   // A move keeps the snapshot unless the specialist changes (re-snapshot).
   const durationMin =
-    editing && specialistId === editing.specialistId
-      ? editing.durationMin
-      : (service?.durationMin ?? 0);
+    editing && !changedSpecialist ? editing.durationMin : (service?.durationMin ?? 0);
 
   const schedule =
     loaded && typeof loaded === "object" ? specialistSchedule(loaded, specialistId) : null;
@@ -256,35 +303,54 @@ export function BookingDialog({
     slots.length,
   );
 
-  // Keep the chosen service valid for the chosen specialist.
+  // A specialist's move to the other clinic they work at that day (the backend asks for the
+  // customer's agreement).
+  const clinicMove =
+    !staff && editing !== null && !!location && location.id !== editing.location.id;
+
+  // Keep the chosen service valid for the chosen specialist: a move back to the visit's own
+  // specialist keeps its service; another specialist offers the same-named service or their first.
   useEffect(() => {
-    if (editing || !specialist) return;
-    if (!specialist.services.some((s) => s.id === getValues("serviceId"))) {
-      setValue("serviceId", specialist.services[0]?.id ?? "");
+    if (!specialist) return;
+    if (editing && specialist.id === editing.specialistId) {
+      if (getValues("serviceId") !== editing.serviceId) setValue("serviceId", editing.serviceId);
+      return;
     }
+    if (specialist.services.some((s) => s.id === getValues("serviceId"))) return;
+    const sameName = editing && specialist.services.find((s) => s.name === editing.service);
+    setValue("serviceId", (sameName || specialist.services[0])?.id ?? "");
   }, [editing, specialist, getValues, setValue]);
 
   const onSubmit = (event: FormEvent<HTMLFormElement>) =>
     handleSubmit(async (values) => {
       if (inFlight.current || !location) return;
+      if (clinicMove && !values.customerAgreed) {
+        const error = { type: "required", message: t.agreedRequired };
+        setError("customerAgreed", error);
+        errorsUi.onInvalid({ customerAgreed: error });
+        return;
+      }
       inFlight.current = true;
       setFormError(null);
+      const name = values.name.trim();
       const result = idempotency.settle(
         await runAction((csrf) =>
           editing
-            ? rescheduleAppointment(
+            ? actions.reschedule(
                 editing.id,
                 {
                   specialistId: values.specialistId,
                   locationId: location.id,
                   date: values.date,
                   time: values.time,
+                  ...(changedSpecialist ? { serviceId: values.serviceId } : {}),
+                  ...(staff ? {} : { customerAgreed: values.customerAgreed }),
                 },
                 editing.specialistId,
                 idempotency.key,
                 csrf,
               )
-            : createAppointment(
+            : actions.create(
                 {
                   specialistId: values.specialistId,
                   locationId: location.id,
@@ -292,7 +358,9 @@ export function BookingDialog({
                   phone: normalizePhone(values.phone),
                   date: values.date,
                   time: values.time,
-                  note: values.note,
+                  // The staff note is not offered on a specialist's board (they cannot read it).
+                  note: staff ? values.note : "",
+                  ...(name ? { name } : {}),
                 },
                 idempotency.key,
                 csrf,
@@ -301,17 +369,19 @@ export function BookingDialog({
       );
       inFlight.current = false;
       if (!result.ok) {
-        // A move renders no service, phone or note field: anything aimed at a field the dialog
-        // does not show becomes the form-level message.
+        // Anything aimed at a field the dialog does not show (a move's phone or note, the
+        // specialist on a specialist's own board) becomes the form-level message.
         const { fieldErrors, formError: message } = partitionFieldErrors(
           result,
-          editing ? ["specialistId", "date", "locationId", "time"] : [...FIELDS],
+          renderedFields(workspace, mode.kind, { changedSpecialist, clinicMove }),
         );
         const serverErrors: FieldErrors<FormValues> = {};
         for (const [path, text] of Object.entries(fieldErrors)) {
           setError(path as Path<FormValues>, { type: "server", message: text });
           serverErrors[path as keyof FormValues] = { type: "server", message: text };
         }
+        // An unknown phone: show the name field, which the reveal then focuses.
+        if (fieldErrors.name) setWalkIn(true);
         setFormError(message);
         if (Object.keys(serverErrors).length > 0) errorsUi.onInvalid(serverErrors);
         return;
@@ -324,7 +394,7 @@ export function BookingDialog({
   const specialistOptions: SelectOption[] = specialists.map((s) => ({
     value: s.id,
     label: s.name,
-    description: roleText(copy, s.role),
+    ...(s.role ? { description: roleText(copy, s.role) } : {}),
   }));
   const serviceOptions: SelectOption[] = services.map((s) => ({
     value: s.id,
@@ -359,19 +429,33 @@ export function BookingDialog({
     >
       <form ref={formRef} noValidate onSubmit={onSubmit} className="flex flex-col gap-4">
         <FormErrorSummary errors={errorsUi.summary} onSelect={errorsUi.select} />
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field name="specialistId" label={t.specialist} error={errors.specialistId?.message}>
-            {(c) => (
-              <FormSelect
-                {...c}
-                control={control}
-                name="specialistId"
-                options={specialistOptions}
-                placeholder={t.specialist}
-              />
-            )}
-          </Field>
-          {editing ? (
+        <div className={cn("grid gap-4", staff && "sm:grid-cols-2")}>
+          {staff && (
+            <Field name="specialistId" label={t.specialist} error={errors.specialistId?.message}>
+              {(c) => (
+                <FormSelect
+                  {...c}
+                  control={control}
+                  name="specialistId"
+                  options={specialistOptions}
+                  placeholder={t.specialist}
+                />
+              )}
+            </Field>
+          )}
+          {changedSpecialist ? (
+            <Field name="serviceId" label={t.targetService} error={errors.serviceId?.message}>
+              {(c) => (
+                <FormSelect
+                  {...c}
+                  control={control}
+                  name="serviceId"
+                  options={serviceOptions}
+                  placeholder={t.service}
+                />
+              )}
+            </Field>
+          ) : editing ? (
             <div className="flex flex-col gap-2">
               <span className="text-label text-ink">{t.service}</span>
               <span className="flex min-h-11 items-center rounded-md bg-surface px-3.5 text-body-sm text-ink">
@@ -396,6 +480,19 @@ export function BookingDialog({
         {!editing && (
           <Field name="phone" label={t.phone} error={errors.phone?.message} hint={t.phoneHint}>
             {(c) => <FormPhoneInput {...c} control={control} name="phone" />}
+          </Field>
+        )}
+
+        {!editing && walkIn && (
+          <Field name="name" label={t.name} error={errors.name?.message} hint={t.nameHint}>
+            {(c) => (
+              <TextInput
+                {...c}
+                {...register("name")}
+                autoComplete="off"
+                maxLength={CUSTOMER_NAME_MAX}
+              />
+            )}
           </Field>
         )}
 
@@ -452,13 +549,50 @@ export function BookingDialog({
           )}
         </Field>
 
-        {!editing && (
+        {!editing && staff && (
           <Field name="note" label={t.note} error={errors.note?.message} hint={t.noteHint}>
             {(c) => <TextArea {...c} {...register("note")} rows={2} maxLength={NOTE_MAX} />}
           </Field>
         )}
 
-        {editing && specialistId !== editing.specialistId && service && (
+        {clinicMove && location && (
+          <div
+            className="flex items-center justify-between gap-3 rounded-md bg-surface px-3.5 py-3"
+            data-field="customerAgreed"
+            data-invalid={errors.customerAgreed ? "true" : undefined}
+          >
+            <span className="flex flex-col gap-0.5">
+              <span className="text-label text-ink">{t.agreed}</span>
+              <span className="text-caption font-normal text-ink-muted">
+                {t.agreedHint(location.name)}
+              </span>
+              {errors.customerAgreed && (
+                <span role="alert" className="text-body-sm font-semibold text-danger">
+                  {errors.customerAgreed.message}
+                </span>
+              )}
+            </span>
+            <Controller
+              control={control}
+              name="customerAgreed"
+              render={({ field }) => (
+                <Switch
+                  ref={field.ref}
+                  name={field.name}
+                  checked={field.value}
+                  onBlur={field.onBlur}
+                  onCheckedChange={(checked) => {
+                    field.onChange(checked);
+                    if (checked) clearErrors("customerAgreed");
+                  }}
+                  aria-label={t.agreed}
+                />
+              )}
+            />
+          </div>
+        )}
+
+        {changedSpecialist && service && (
           <p className="m-0 flex items-start gap-1.5 text-body-sm text-ink-muted">
             <Icon name="info" size={16} className="mt-px shrink-0" />
             {t.respecialist(fmt.duration(service.durationMin), fmt.som(service.price))}

@@ -8,7 +8,8 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { Icon } from "@/components/ui/icon";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Select, type SelectOption } from "@/components/ui/select";
-import type { Specialist } from "@/domain/appointment";
+import type { Workspace } from "@/data/auth/next-param";
+import type { BookingMeta, Specialist } from "@/domain/appointment";
 import { cn } from "@/lib/cn";
 import { addDays, isIsoDate, startOfWeek } from "@/lib/datetime";
 import type { AdminFormatter } from "@/lib/format";
@@ -36,7 +37,28 @@ export interface BoardSpecialist {
   isActive?: boolean;
 }
 
+/**
+ * Why «Qabul qo‘shish» is off, and which page fixes it: staff have no bookable specialist; a
+ * specialist's profile is unpublished (`appointments/meta/` lists nobody) or has no active
+ * service.
+ */
+export type AddBlocker = "specialists" | "profile" | "services";
+
+export function addBlockerOf(workspace: Workspace, meta: BookingMeta): AddBlocker | null {
+  if (workspace === "admin") return meta.specialists.length > 0 ? null : "specialists";
+  if (meta.specialists.length === 0) return "profile";
+  return meta.specialists.some((s) => s.services.length > 0) ? null : "services";
+}
+
+const ADD_FIX: Record<AddBlocker, Route> = {
+  specialists: "/admin/specialists",
+  profile: "/admin/my-profile",
+  services: "/admin/my-services",
+};
+
 interface BoardHeaderProps {
+  /** Staff see every specialist and a filter; a specialist only their own board. */
+  workspace: Workspace;
   board: BoardState;
   /** The default day (today in api mode, the design day in mock mode). */
   today: string;
@@ -44,8 +66,8 @@ interface BoardHeaderProps {
   pendingCount: number;
   pendingNextAt: string | null;
   specialists: ReadonlyArray<BoardSpecialist>;
-  /** At least one active specialist can be booked (`appointments/meta/`). */
-  canAdd: boolean;
+  /** Why nothing can be booked (`addBlockerOf`), or `null`. */
+  addBlocker: AddBlocker | null;
   onAdd: () => void;
   /** A board navigation is in flight (the switch, the filter, the date jump). */
   navigating: boolean;
@@ -69,16 +91,18 @@ const squareLink =
 /**
  * The board's header (DESIGN §B): the pending-requests line and the title, then one toolbar with
  * the period (previous / next, «Bugun», a date jump), the day / week / month switch, the
- * specialist filter and «Qabul qo‘shish» (explained and pointed at the specialists page when
- * nobody can be booked). Every control is a URL change, so the board stays shareable.
+ * specialist filter (staff only) and «Qabul qo‘shish» (explained and pointed at the page that
+ * fixes it when nothing can be booked). Every control is a URL change, so the board stays
+ * shareable.
  */
 export function BoardHeader({
+  workspace,
   board,
   today,
   pendingCount,
   pendingNextAt,
   specialists,
-  canAdd,
+  addBlocker,
   onAdd,
   navigating,
   navigate,
@@ -86,7 +110,7 @@ export function BoardHeader({
   const copy = useCopy(appointmentsCopy);
   const t = copy.header;
   const fmt = useFormat();
-  const href = (patch: Partial<BoardState>) => boardHref({ ...board, ...patch }, today);
+  const href = (patch: Partial<BoardState>) => boardHref({ ...board, ...patch }, today, workspace);
   const go = (patch: Partial<BoardState>) => navigate(href(patch), { ...board, ...patch });
   const atToday = showsToday(board.view, board.date, today);
   const period = periodLabel(fmt, board.view, board.date);
@@ -96,12 +120,20 @@ export function BoardHeader({
     ...specialists.map((specialist) => ({
       value: specialist.id,
       label: specialist.name,
-      description:
-        specialist.isActive === false
-          ? `${roleText(copy, specialist.role)} · ${copy.inactive}`
-          : roleText(copy, specialist.role),
+      description: [
+        roleText(copy, specialist.role),
+        specialist.isActive === false ? copy.inactive : "",
+      ]
+        .filter(Boolean)
+        .join(" · "),
     })),
   ];
+  const addFix =
+    addBlocker === "profile"
+      ? { reason: t.addDisabledProfile, link: t.profileLink }
+      : addBlocker === "services"
+        ? { reason: t.addDisabledServices, link: t.servicesLink }
+        : { reason: t.addDisabled, link: t.specialistsLink };
 
   return (
     <header className="flex flex-col gap-5">
@@ -113,15 +145,15 @@ export function BoardHeader({
           </h1>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1.5">
-          {!canAdd && (
+          {addBlocker && (
             <Link
-              href={"/admin/specialists" as Route}
+              href={ADD_FIX[addBlocker]}
               className="text-body-sm font-semibold text-gold-ink underline decoration-gold/60 underline-offset-4 hover:decoration-gold"
             >
-              {t.specialistsLink}
+              {addFix.link}
             </Link>
           )}
-          <Button onClick={onAdd} disabledReason={!canAdd && t.addDisabled}>
+          <Button onClick={onAdd} disabledReason={addBlocker !== null && addFix.reason}>
             <Icon name="plus" size={18} />
             {t.add}
           </Button>
@@ -191,16 +223,18 @@ export function BoardHeader({
             }}
             options={BOARD_VIEWS.map((view) => ({ value: view, label: t.views[view] }))}
           />
-          <Select
-            variant="filter"
-            aria-label={t.specialist}
-            value={board.specialist}
-            options={specialistOptions}
-            className="min-w-[200px]"
-            onValueChange={(value) => {
-              if (value !== board.specialist) go({ specialist: value });
-            }}
-          />
+          {workspace === "admin" && (
+            <Select
+              variant="filter"
+              aria-label={t.specialist}
+              value={board.specialist}
+              options={specialistOptions}
+              className="min-w-[200px]"
+              onValueChange={(value) => {
+                if (value !== board.specialist) go({ specialist: value });
+              }}
+            />
+          )}
         </div>
       </div>
       <span aria-live="polite" className="sr-only">

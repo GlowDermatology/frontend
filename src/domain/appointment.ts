@@ -9,7 +9,8 @@ export interface AppointmentClinic {
 export interface Specialist {
   id: string;
   name: string;
-  role: "Dermatolog" | "Kosmetolog";
+  /** `""` while a draft profile has no discipline yet (shown as nothing). */
+  role: "Dermatolog" | "Kosmetolog" | "";
   location?: AppointmentClinic | null;
   /** Working hours for the shown day as "HH:MM" (Tashkent time). */
   workingHours: { start: string; end: string };
@@ -67,6 +68,38 @@ export function canChangeAppointment(status: AppointmentStatus): boolean {
   return status === "requested" || status === "confirmed";
 }
 
+/** Every action the visit panel offers (the specialist API lists them as `allowed_actions`). */
+export const VISIT_ACTIONS = ["confirm", "reject", "attend", "reschedule", "cancel"] as const;
+export type VisitAction = (typeof VISIT_ACTIONS)[number];
+
+export function isVisitAction(value: string): value is VisitAction {
+  return (VISIT_ACTIONS as ReadonlyArray<string>).includes(value);
+}
+
+/**
+ * What the visit panel offers for a visit. Staff: the status rules above. A specialist: the
+ * server's `allowedActions` (the status rules when absent), narrowed by the clock like the
+ * backend narrows them — before the start everything but «attend», from the start only
+ * «attend» — so a board left open does not offer an action the server would refuse.
+ */
+export function visitActions(
+  visit: Pick<Appointment, "status" | "start"> & { allowedActions?: ReadonlyArray<VisitAction> },
+  workspace: "admin" | "specialist",
+  nowMs: number,
+): ReadonlySet<VisitAction> {
+  const byStatus: VisitAction[] = [
+    ...appointmentActions(visit.status),
+    ...(canChangeAppointment(visit.status) ? (["reschedule", "cancel"] as const) : []),
+  ];
+  if (workspace === "admin") return new Set(byStatus);
+  const started = nowMs >= Date.parse(visit.start);
+  return new Set(
+    (visit.allowedActions ?? byStatus).filter((action) =>
+      started ? action === "attend" : action !== "attend",
+    ),
+  );
+}
+
 /** Statuses that hold the specialist's time (the overlap check of §2.9). */
 export function holdsSlot(status: AppointmentStatus): boolean {
   return status === "requested" || status === "confirmed";
@@ -106,6 +139,9 @@ export interface SpecialistSchedule {
 }
 
 export const NOTE_MAX = 300;
+/** A walk-in customer's name created with the booking (backend: 2–150 characters). */
+export const CUSTOMER_NAME_MIN = 2;
+export const CUSTOMER_NAME_MAX = 150;
 export const CANCEL_REASON_MAX = 300;
 export const SLOT_STEP_MIN = 5;
 

@@ -1,4 +1,9 @@
-import type { AppointmentClinic, BookingMeta, Specialist } from "@/domain/appointment";
+import {
+  isVisitAction,
+  type AppointmentClinic,
+  type BookingMeta,
+  type Specialist,
+} from "@/domain/appointment";
 import { toLocalIsoDate } from "@/lib/format";
 
 import type {
@@ -18,6 +23,22 @@ import type {
 } from "../types";
 import { toActionResult, type ActionFailure, type FieldRemap } from "./errors";
 import { idString, customerContact } from "./common";
+
+/**
+ * The item shapes this mapper accepts: the admin `AppointmentItem`, and the specialist's own
+ * board's, whose customer has no e-mail and which adds `customer_note` and `allowed_actions`.
+ */
+export type AppointmentItemLike = Omit<ApiAppointmentItem, "customer"> & {
+  customer: { id: number; name: string; phone: string | null; email?: string | null };
+  customer_note?: string;
+  allowed_actions?: ReadonlyArray<string>;
+};
+export type DayScheduleLike = Omit<ApiDaySchedule, "appointments"> & {
+  appointments: ReadonlyArray<AppointmentItemLike>;
+};
+export type AppointmentRangeLike = Omit<ApiAppointmentRange, "appointments"> & {
+  appointments: ReadonlyArray<AppointmentItemLike> | null;
+};
 
 /**
  * Appointments (contract §2.9) → the FE domain types, display rules of §5.6:
@@ -46,7 +67,9 @@ export const FALLBACK_BLOCK_LABEL = {
   dayOff: "Ish kuni emas",
 } as const;
 
+/** The API discipline → the domain label; a draft without one (`""`) stays `""`. */
 export function roleLabel(role: string): Specialist["role"] {
+  if (role === "") return "";
   return role === "cosmetologist" ? ROLE_LABEL.cosmetologist : ROLE_LABEL.dermatologist;
 }
 
@@ -84,7 +107,7 @@ export function mapSpecialistDay(api: ApiSpecialistDay): Specialist {
   };
 }
 
-export function mapDayAppointment(api: ApiAppointmentItem): DayAppointment {
+export function mapDayAppointment(api: AppointmentItemLike): DayAppointment {
   return {
     id: idString(api.id),
     specialistId: idString(api.specialist_id),
@@ -104,10 +127,12 @@ export function mapDayAppointment(api: ApiAppointmentItem): DayAppointment {
     status: api.status,
     requestedAt: api.requested_at,
     requestedVia: VIA_LABEL[api.requested_via] ?? VIA_LABEL.app,
+    ...(api.customer_note ? { customerNote: api.customer_note } : {}),
+    ...(api.allowed_actions ? { allowedActions: api.allowed_actions.filter(isVisitAction) } : {}),
   };
 }
 
-export function mapAppointmentDay(api: ApiDaySchedule): AppointmentDay {
+export function mapAppointmentDay(api: DayScheduleLike): AppointmentDay {
   return {
     date: api.date,
     specialists: api.specialists.map(mapSpecialistDay),
@@ -122,7 +147,7 @@ export function mapAppointmentDay(api: ApiDaySchedule): AppointmentDay {
  * it); a specialist without a schedule entry for a date is drawn as not
  * working that day.
  */
-export function mapAppointmentRange(api: ApiAppointmentRange): AppointmentRange {
+export function mapAppointmentRange(api: AppointmentRangeLike): AppointmentRange {
   const schedules =
     api.schedules === null
       ? null
@@ -207,18 +232,22 @@ export const BOOKING_FIELD_REMAP: FieldRemap = {
   service_id: "serviceId",
   customer_id: "phone",
   phone: "phone",
+  name: "name",
   note: "note",
   reason: "reason",
 };
 
 /**
- * A move shows no service field (the service stays): `service_id`
- * `does_not_exist` ("Mutaxassis bu xizmatni ko‘rsatmaydi.") means the picked
- * specialist does not offer it, so it lands on the specialist.
+ * A move keeps its service unless the specialist changes: `service_id`
+ * `does_not_exist` ("Mutaxassis bu xizmatni ko‘rsatmaydi.") then means the
+ * picked specialist does not offer it, so it lands on the specialist (the
+ * action points it at the service field when one was picked). A specialist's
+ * clinic move needs `customer_agreed`, the dialog's `customerAgreed` switch.
  */
 export const RESCHEDULE_FIELD_REMAP: FieldRemap = {
   ...BOOKING_FIELD_REMAP,
   service_id: "specialistId",
+  customer_agreed: "customerAgreed",
 };
 
 /**

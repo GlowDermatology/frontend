@@ -8,16 +8,18 @@ vi.mock("next/navigation", () => ({
 }));
 
 import type { AppointmentRangeDay, DayAppointment } from "@/data/appointments";
-import { SPECIALISTS } from "@/data/mock/appointments";
+import { mapDayAppointment, roleLabel } from "@/data/api/mappers/appointments";
+import { BOOKING_META, SPECIALISTS } from "@/data/mock/appointments";
+import { visitActions } from "@/domain/appointment";
 import { getAppointmentRange } from "@/data/mock/appointments.queries";
 import { createFormatter } from "@/lib/format";
 import { AdminLocaleProvider } from "@/lib/i18n/admin-context";
 import type { Locale } from "@/lib/i18n/locales";
 
-import { BoardHeader, periodLabel } from "./board-header";
-import { scheduleState, timeOptions } from "./booking-dialog";
+import { BoardHeader, addBlockerOf, periodLabel } from "./board-header";
+import { renderedFields, scheduleState, timeOptions } from "./booking-dialog";
 import { appointmentsCopy } from "./copy";
-import { blockText } from "./labels";
+import { blockText, roleText } from "./labels";
 import { monthCells } from "./layout";
 import { MonthGrid, monthCellLabel } from "./month-grid";
 import { WeekGrid, weekdayName } from "./week-grid";
@@ -40,8 +42,9 @@ const headerProps = {
   today: TODAY,
   pendingCount: 3,
   pendingNextAt: "2026-10-26T09:00:00+05:00",
+  workspace: "admin" as const,
   specialists: SPECIALISTS.map((s) => ({ id: s.id, name: s.name, role: s.role })),
-  canAdd: true,
+  addBlocker: null,
   onAdd: () => undefined,
   navigating: false,
   navigate: () => undefined,
@@ -61,10 +64,42 @@ describe("BoardHeader", () => {
   });
 
   it("explains the add button and links the specialists page when nobody can be booked", () => {
-    const html = render(createElement(BoardHeader, { ...headerProps, canAdd: false }));
+    const html = render(
+      createElement(BoardHeader, { ...headerProps, addBlocker: "specialists" as const }),
+    );
     expect(html).toContain(uz.header.addDisabled);
     expect(html).toContain('href="/admin/specialists"');
     expect(html).toMatch(/aria-disabled="true"[^>]*>(?:(?!<\/button>).)*Qabul qo‘shish/);
+  });
+
+  it("drops the specialist filter on a specialist's own board and links the page that fixes «add»", () => {
+    const own = { ...headerProps, workspace: "specialist" as const, specialists: [] };
+    const html = render(
+      createElement(BoardHeader, { ...own, board: { ...own.board, specialist: "s-2" } }),
+    );
+    expect(html).not.toContain(uz.header.allSpecialists);
+    expect(html).toContain('href="/admin/my-appointments?view=week&amp;date=2026-10-21"');
+    expect(html).not.toContain("specialist=s-2");
+    const profile = render(createElement(BoardHeader, { ...own, addBlocker: "profile" as const }));
+    expect(profile).toContain(uz.header.addDisabledProfile);
+    expect(profile).toContain('href="/admin/my-profile"');
+    const services = render(
+      createElement(BoardHeader, { ...own, addBlocker: "services" as const }),
+    );
+    expect(services).toContain('href="/admin/my-services"');
+  });
+
+  it("says why nothing can be booked per workspace", () => {
+    const none = { ...BOOKING_META, specialists: [] };
+    const idle = {
+      ...BOOKING_META,
+      specialists: [{ ...BOOKING_META.specialists[0]!, services: [] }],
+    };
+    expect(addBlockerOf("admin", BOOKING_META)).toBeNull();
+    expect(addBlockerOf("admin", none)).toBe("specialists");
+    expect(addBlockerOf("specialist", none)).toBe("profile");
+    expect(addBlockerOf("specialist", idle)).toBe("services");
+    expect(addBlockerOf("specialist", BOOKING_META)).toBeNull();
   });
 
   it("names the period per view and language", () => {
@@ -93,6 +128,7 @@ const weekProps = {
   now: "2026-10-26T11:00:00+05:00",
   today: TODAY,
   specialist: "",
+  workspace: "admin" as const,
 };
 
 describe("WeekGrid", () => {
@@ -162,7 +198,13 @@ describe("MonthGrid", () => {
   it("renders the six-week page with a link and a full spoken summary per day", async () => {
     const range = await getAppointmentRange({ from: "2026-09-28", to: "2026-11-08" });
     const html = render(
-      createElement(MonthGrid, { date: TODAY, days: range.days, today: TODAY, specialist: "s-1" }),
+      createElement(MonthGrid, {
+        date: TODAY,
+        days: range.days,
+        today: TODAY,
+        specialist: "s-1",
+        workspace: "admin",
+      }),
     );
     expect(html.match(/data-date="/g)).toHaveLength(42);
     expect(html).toContain('href="/admin/appointments?date=2026-10-27&amp;specialist=s-1"');
@@ -188,6 +230,41 @@ describe("MonthGrid", () => {
 });
 
 describe("booking dialog helpers", () => {
+  it("keeps server errors on the fields each dialog renders", () => {
+    const plain = { changedSpecialist: false, clinicMove: false };
+    expect(renderedFields("admin", "create", plain)).toEqual([
+      "specialistId",
+      "serviceId",
+      "phone",
+      "name",
+      "date",
+      "locationId",
+      "time",
+      "note",
+    ]);
+    expect(renderedFields("specialist", "create", plain)).toEqual([
+      "serviceId",
+      "phone",
+      "name",
+      "date",
+      "locationId",
+      "time",
+    ]);
+    expect(renderedFields("admin", "reschedule", { ...plain, changedSpecialist: true })).toEqual([
+      "specialistId",
+      "serviceId",
+      "date",
+      "locationId",
+      "time",
+    ]);
+    expect(renderedFields("specialist", "reschedule", { ...plain, clinicMove: true })).toEqual([
+      "date",
+      "locationId",
+      "time",
+      "customerAgreed",
+    ]);
+  });
+
   it("says why no time can be chosen", () => {
     expect(scheduleState(undefined, false, null, 0)).toBe("pickDate");
     expect(scheduleState(undefined, true, null, 0)).toBe("loading");
@@ -231,5 +308,64 @@ describe("booking dialog helpers", () => {
         label: "Kongress",
       }),
     ).toBe("Kongress");
+  });
+});
+
+describe("visit actions per workspace", () => {
+  const start = "2026-10-26T11:00:00+05:00";
+  const before = Date.parse("2026-10-26T10:00:00+05:00");
+  const after = Date.parse("2026-10-26T11:30:00+05:00");
+
+  it("gives staff the status rules regardless of the clock", () => {
+    expect([...visitActions({ status: "requested", start }, "admin", after)]).toEqual([
+      "confirm",
+      "reject",
+      "reschedule",
+      "cancel",
+    ]);
+    expect([...visitActions({ status: "attended", start }, "admin", before)]).toEqual([]);
+  });
+
+  it("narrows a specialist's allowed actions by the start time", () => {
+    const visit = {
+      status: "confirmed" as const,
+      start,
+      allowedActions: ["attend", "reschedule", "cancel"] as const,
+    };
+    expect([...visitActions(visit, "specialist", before)]).toEqual(["reschedule", "cancel"]);
+    expect([...visitActions(visit, "specialist", after)]).toEqual(["attend"]);
+    expect([...visitActions({ ...visit, allowedActions: [] }, "specialist", before)]).toEqual([]);
+  });
+});
+
+describe("specialist board items", () => {
+  it("maps an item without e-mail, with the customer note and the allowed actions", () => {
+    const visit = mapDayAppointment({
+      id: 5,
+      specialist_id: 2,
+      location: { id: 1, name: "Glow Derma", address: "Toshkent" },
+      customer: { id: 9, name: "Laylo", phone: null },
+      service_id: 3,
+      service_name: "Konsultatsiya",
+      service_short_name: "",
+      duration_min: 30,
+      start: "2026-10-26T11:00:00+05:00",
+      end: "2026-10-26T11:30:00+05:00",
+      price: 100_000,
+      status: "requested",
+      requested_at: "2026-10-20T10:00:00+05:00",
+      requested_via: "app",
+      customer_note: "Allergiyam bor",
+      allowed_actions: ["confirm", "reject", "teleport"],
+    } as never);
+    expect(visit.customer.phone).toBe("—");
+    expect(visit.customerNote).toBe("Allergiyam bor");
+    expect(visit.allowedActions).toEqual(["confirm", "reject"]);
+  });
+
+  it("shows nothing for a draft profile's missing discipline", () => {
+    expect(roleLabel("")).toBe("");
+    expect(roleText(uz, "")).toBe("");
+    expect(roleText(uz, "Kosmetolog")).toBe(uz.role.Kosmetolog);
   });
 });

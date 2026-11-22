@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import type { AppointmentRangeDay } from "@/data/appointments";
+import type { Workspace } from "@/data/auth/next-param";
 import { cn } from "@/lib/cn";
 import type { AdminFormatter } from "@/lib/format";
 import { useCopy } from "@/lib/i18n/admin-context";
@@ -22,6 +23,8 @@ interface MonthGridProps {
   today: string;
   /** The specialist filter, kept on the links to a day. */
   specialist: string;
+  /** Whose board the day links open. */
+  workspace: Workspace;
 }
 
 /** The full spoken name of a month cell: the date, its visits by status, day off, today. */
@@ -46,7 +49,7 @@ export function monthCellLabel(t: AppointmentsCopy, fmt: AdminFormatter, cell: M
  * day's board carrying a full spoken summary; it shows the day number (today ringed), one pill per
  * status with visits, and a hatch on days nobody works. Days of the neighbouring months are muted.
  */
-export function MonthGrid({ date, days, today, specialist }: MonthGridProps) {
+export function MonthGrid({ date, days, today, specialist, workspace }: MonthGridProps) {
   const copy = useCopy(appointmentsCopy);
   const t = copy.month;
   const fmt = useFormat();
@@ -101,6 +104,7 @@ export function MonthGrid({ date, days, today, specialist }: MonthGridProps) {
                     fmt={fmt}
                     today={today}
                     specialist={specialist}
+                    workspace={workspace}
                   />
                 </td>
               ))}
@@ -118,19 +122,21 @@ function MonthDay({
   fmt,
   today,
   specialist,
+  workspace,
 }: {
   cell: MonthCell;
   copy: AppointmentsCopy;
   fmt: AdminFormatter;
   today: string;
   specialist: string;
+  workspace: Workspace;
 }) {
   const data = cell.data;
   const off = data !== null && !data.working;
   const pills = data ? statusPills(data.counts) : [];
   return (
     <Link
-      href={dayHref(cell.iso, today, specialist)}
+      href={dayHref(cell.iso, today, specialist, workspace)}
       aria-label={monthCellLabel(copy, fmt, cell)}
       aria-current={cell.isToday ? "date" : undefined}
       data-date={cell.iso}

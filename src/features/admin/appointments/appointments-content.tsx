@@ -13,6 +13,7 @@ import { SPECIALIST_ROLE_LABEL } from "@/domain/clinic";
 
 import type { SearchParams } from "../shared/url-state";
 import { AppointmentsView, type BoardData } from "./appointments-view";
+import { STAFF_BOARD_ACTIONS } from "./board-actions";
 import type { BoardSpecialist } from "./board-header";
 import { boardRange, parseBoard, type BoardState } from "./query";
 
@@ -66,6 +67,8 @@ export async function AppointmentsContent({
   return (
     <AppointmentsView
       key={`${board.view}:${board.date}:${board.specialist}`}
+      workspace="admin"
+      actions={STAFF_BOARD_ACTIONS}
       board={board}
       today={today}
       data={data}

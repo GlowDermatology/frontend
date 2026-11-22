@@ -113,8 +113,12 @@ export async function createAppointment(
   if (!specialist) return fieldError(m, "specialistId", m.specialistNotFound);
   const service = specialist.services.find((s) => s.id === values.serviceId);
   if (!service) return fieldError(m, "serviceId", m.serviceNotOffered);
-  const customer = CUSTOMERS.find((c) => c.phone === values.phone);
-  if (!customer) return fieldError(m, "phone", m.customerNotFound);
+  // An unknown phone is a walk-in: the backend creates the customer when a name is given.
+  const known = CUSTOMERS.find((c) => c.phone === values.phone);
+  if (!known && !values.name) return fieldError(m, "name", m.walkInName);
+  const customer = known
+    ? { id: known.id, name: known.name, phone: known.phone }
+    : { id: `c-new-${crypto.randomUUID()}`, name: values.name ?? "", phone: values.phone };
   const day = await getAppointmentDay(values.date);
   const failure = await startFailure(m, specialist.id, day, values.time, service.durationMin);
   if (failure) return failure;
@@ -128,7 +132,7 @@ export async function createAppointment(
       id: `a-new-${crypto.randomUUID()}`,
       specialistId: specialist.id,
       location,
-      customer: { id: customer.id, name: customer.name, phone: customer.phone },
+      customer,
       serviceId: service.id,
       service: service.name,
       serviceShort: service.shortName,
@@ -154,9 +158,14 @@ export async function rescheduleAppointment(
   if (!canChangeAppointment(appointment.status)) return invalidTransition(m);
   const specialist = BOOKING_META.specialists.find((s) => s.id === values.specialistId);
   if (!specialist) return fieldError(m, "specialistId", m.specialistNotFound);
-  // Changing the specialist re-snapshots duration and price from that link.
-  const service = specialist.services.find((s) => s.id === appointment.serviceId);
-  if (!service) return fieldError(m, "specialistId", m.serviceNotOffered);
+  // Changing the specialist re-snapshots duration and price from the picked service (or, without
+  // one, the same service of the new specialist).
+  const service = specialist.services.find(
+    (s) => s.id === (values.serviceId ?? appointment.serviceId),
+  );
+  if (!service) {
+    return fieldError(m, values.serviceId ? "serviceId" : "specialistId", m.serviceNotOffered);
+  }
   const day = await getAppointmentDay(values.date);
   const failure = await startFailure(m, specialist.id, day, values.time, service.durationMin, id);
   if (failure) return failure;
@@ -171,6 +180,9 @@ export async function rescheduleAppointment(
       ...appointment,
       specialistId: specialist.id,
       location,
+      ...(changedSpecialist
+        ? { serviceId: service.id, service: service.name, serviceShort: service.shortName }
+        : {}),
       durationMin: changedSpecialist ? service.durationMin : appointment.durationMin,
       price: changedSpecialist ? service.price : appointment.price,
       start,

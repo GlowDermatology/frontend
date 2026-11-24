@@ -83,6 +83,10 @@ const nextConfig: NextConfig = {
     catalog: { stale: 60, revalidate: 300, expire: 86_400 },
     // Specialists, services, settings and legal texts.
     content: { stale: 300, revalidate: 3_600, expire: 604_800 },
+    // The live home (`home/`, free slots, clinics open now): the API caches them 60 s.
+    live: { stale: 30, revalidate: 60, expire: 3_600 },
+    // The discover feed's cursor pages: the API caches them 30 s.
+    feed: { stale: 30, revalidate: 30, expire: 3_600 },
   },
   htmlLimitedBots: HTML_LIMITED_BOTS,
   // The OG image routes read the vendored Cormorant WOFF files at runtime.

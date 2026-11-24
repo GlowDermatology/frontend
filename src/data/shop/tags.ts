@@ -18,6 +18,12 @@ export const shopTags = {
   specialist: (id: number | string) => `shop:specialist:${id}`,
   services: "shop:services",
   settings: "shop:settings",
+  /** The live home summary (`home/`: stats, spotlight, rails, cashback policy). */
+  home: "shop:home",
+  /** Next free slots per specialist (`specialists/availability/`). */
+  availability: "shop:availability",
+  /** Clinics with today's hours (`clinics/`). */
+  clinics: "shop:clinics",
 } as const;
 
 export type ShopEntity = "product" | "category" | "banner" | "specialist" | "service" | "settings";
@@ -32,7 +38,7 @@ const ENTITIES: ReadonlyArray<ShopEntity> = [
 ];
 
 const TAG =
-  /^shop:(?:products|categories|banners|specialists|services|settings|product:\d{1,12}|specialist:\d{1,12})$/;
+  /^shop:(?:products|categories|banners|specialists|services|settings|home|availability|clinics|product:\d{1,12}|specialist:\d{1,12})$/;
 
 export function isShopTag(value: unknown): value is string {
   return typeof value === "string" && TAG.test(value);

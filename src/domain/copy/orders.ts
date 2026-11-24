@@ -44,11 +44,13 @@ const uz = {
   manualRefundLine: {
     payme: "Payme kabinetida qaytarish kerak",
     click: "Mijozga qo‘lda to‘lang, so‘ng «Qaytarildi» deb belgilang",
+    uzum: "Mijozga qo‘lda to‘lang, so‘ng «Qaytarildi» deb belgilang",
   },
   manualRefundNote: {
     payme: "Payme kabinetida qo‘lda qaytariladi",
     no_paydoc: "Click to‘lov raqami yo‘q · qo‘lda to‘lanadi",
     fake_mode: "Click sinov rejimida · qo‘lda to‘lanadi",
+    uzum_fake: "Uzum sinov rejimida · qo‘lda to‘lanadi",
   },
   shipmentStage: {
     awaiting_dispatch: "Kuryer chaqirilishini kutmoqda",
@@ -137,11 +139,13 @@ export const orderLabelsCopy = {
     manualRefundLine: {
       payme: "Верните деньги в кабинете Payme",
       click: "Выплатите клиенту вручную, затем отметьте возврат как «Возвращено»",
+      uzum: "Выплатите клиенту вручную, затем отметьте возврат как «Возвращено»",
     },
     manualRefundNote: {
       payme: "Возврат вручную в кабинете Payme",
       no_paydoc: "Нет номера платежа Click · выплата вручную",
       fake_mode: "Click в тестовом режиме · выплата вручную",
+      uzum_fake: "Uzum в тестовом режиме · выплата вручную",
     },
     shipmentStage: {
       awaiting_dispatch: "Ожидает вызова курьера",
@@ -221,11 +225,13 @@ export const orderLabelsCopy = {
     manualRefundLine: {
       payme: "Refund it in the Payme merchant cabinet",
       click: "Pay the customer by hand, then mark the refund “Refunded”",
+      uzum: "Pay the customer by hand, then mark the refund “Refunded”",
     },
     manualRefundNote: {
       payme: "Refunded by hand in the Payme cabinet",
       no_paydoc: "No Click payment ID · paid out by hand",
       fake_mode: "Click is in test mode · paid out by hand",
+      uzum_fake: "Uzum is in test mode · paid out by hand",
     },
     shipmentStage: {
       awaiting_dispatch: "Waiting for a courier call",

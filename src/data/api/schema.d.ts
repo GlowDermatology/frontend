@@ -3,8 +3,8 @@
  * GENERATED FILE — do not edit by hand. Regenerate with `npm run gen:api`.
  *
  * Source: openapi/schema.yaml of the backend repository
- * Commit: 6cd78a1c1a60b572bb60e9adf865290aa49cb69f
- * Generated: 2026-11-22T15:11:14.578Z (openapi-typescript)
+ * Commit: f7768e23d3b61f4a7ac57d81e04e8a4a9f4a386e
+ * Generated: 2026-11-24T17:41:41.727Z (openapi-typescript)
  */
 
 export interface paths {
@@ -3571,6 +3571,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/webhooks/uzum/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Uzum Checkout payment callback (an unsigned hint): `?token=` is our shared secret; answers 200 for a verified token and re-reads the payment's status asynchronously. */
+        post: operations["webhook_uzum_checkout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/webhooks/yandex-delivery/": {
         parameters: {
             query?: never;
@@ -5386,7 +5403,7 @@ export interface components {
             providers?: {
                 [key: string]: components["schemas"]["ProviderReadiness"];
             };
-            /** @description With `integrations`: the live providers configured against a sandbox (BTS test host, Payme sandbox checkout / `PAYME_TEST_MODE`, Eskiz test sender); empty in a real deployment. */
+            /** @description With `integrations`: the live providers configured against a sandbox (BTS test host, Payme sandbox checkout / `PAYME_TEST_MODE`); empty in a real deployment. */
             sandbox?: string[];
             status: components["schemas"]["HealthStatusEnum"];
             version?: string;
@@ -5745,9 +5762,10 @@ export interface components {
          * @description * `payme` - payme
          *     * `no_paydoc` - no_paydoc
          *     * `fake_mode` - fake_mode
+         *     * `uzum_fake` - uzum_fake
          * @enum {string}
          */
-        ManualReasonEnum: "payme" | "no_paydoc" | "fake_mode";
+        ManualReasonEnum: "payme" | "no_paydoc" | "fake_mode" | "uzum_fake";
         Me: {
             /**
              * @description How the current session's sign-in was proven: `password` (email + password) or the social provider (`google`, `facebook`); `null` for a session opened before the method was recorded. Only a `password` session may link a social identity (`auth/oauth/{provider}/link/`).
@@ -6681,9 +6699,10 @@ export interface components {
         /**
          * @description * `click` - click
          *     * `payme` - payme
+         *     * `uzum` - uzum
          * @enum {string}
          */
-        PaymentProviderEnum: "click" | "payme";
+        PaymentProviderEnum: "click" | "payme" | "uzum";
         /**
          * @description * `pending` - pending
          *     * `paid` - paid
@@ -7017,11 +7036,12 @@ export interface components {
             billz: components["schemas"]["IntegrationModeEnum"];
             bts: components["schemas"]["IntegrationModeEnum"];
             click: components["schemas"]["IntegrationModeEnum"];
+            devsms: components["schemas"]["IntegrationModeEnum"];
             email: components["schemas"]["IntegrationModeEnum"];
-            eskiz: components["schemas"]["IntegrationModeEnum"];
             fcm: components["schemas"]["IntegrationModeEnum"];
             oauth: components["schemas"]["IntegrationModeEnum"];
             payme: components["schemas"]["IntegrationModeEnum"];
+            uzum: components["schemas"]["IntegrationModeEnum"];
             vault: components["schemas"]["IntegrationModeEnum"];
             yandex: components["schemas"]["IntegrationModeEnum"];
         };
@@ -7179,11 +7199,12 @@ export interface components {
             completed_at: string | null;
             id: number;
             /**
-             * @description Why the refund is (or was) `manual_required`: `payme` (a Payme cabinet refund), `no_paydoc` (a Click payment without Click's payment id), `fake_mode` (Click fake under the production settings); `null` for a refund that was never manual.
+             * @description Why the refund is (or was) `manual_required`: `payme` (a Payme cabinet refund), `no_paydoc` (a Click payment without Click's payment id), `fake_mode` (Click fake under the production settings), `uzum_fake` (Uzum fake under the production settings); `null` for a refund that was never manual.
              *
              *     * `payme` - payme
              *     * `no_paydoc` - no_paydoc
              *     * `fake_mode` - fake_mode
+             *     * `uzum_fake` - uzum_fake
              */
             manual_reason: (components["schemas"]["ManualReasonEnum"] | components["schemas"]["NullEnum"]) | null;
             provider: components["schemas"]["PaymentProviderEnum"];
@@ -15280,8 +15301,9 @@ export interface operations {
                 /**
                  * @description * `click` - click
                  *     * `payme` - payme
+                 *     * `uzum` - uzum
                  */
-                provider?: "click" | "payme";
+                provider?: "click" | "payme" | "uzum";
                 /**
                  * @description * `requested` - requested
                  *     * `submitting` - submitting
@@ -27675,6 +27697,49 @@ export interface operations {
         };
         responses: {
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    webhook_uzum_checkout: {
+        parameters: {
+            query: {
+                token: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -1,6 +1,6 @@
 import type { Route } from "next";
 
-import { REFUND_STATES, type PaymentProvider, type PaymentStatus } from "@/domain/order";
+import { PAYMENT_PROVIDERS, REFUND_STATES, type PaymentStatus } from "@/domain/order";
 import {
   PAYMENT_PAGE_SIZES,
   type PaymentListQuery,
@@ -20,7 +20,6 @@ import {
 } from "../shared/url-state";
 
 const STATUSES: ReadonlyArray<PaymentStatus> = ["pending", "paid", "failed", "refunded"];
-const PROVIDERS: ReadonlyArray<PaymentProvider> = ["click", "payme"];
 const REFUND_FILTERS: ReadonlyArray<RefundFilter> = [...REFUND_STATES, "needs_action"];
 const PERIODS: ReadonlyArray<PaymentPeriod> = ["today", "week", "month", "all"];
 const SORTS: ReadonlyArray<PaymentSort> = ["date_desc", "date_asc"];
@@ -42,7 +41,7 @@ export function parsePaymentQuery(params: SearchParams): PaymentListQuery {
   return {
     q: parseSearchParam(firstParam(params, "q")),
     status: oneOf(firstParam(params, "status"), STATUSES),
-    provider: oneOf(firstParam(params, "provider"), PROVIDERS),
+    provider: oneOf(firstParam(params, "provider"), PAYMENT_PROVIDERS),
     refund: oneOf(firstParam(params, "refund"), REFUND_FILTERS),
     period: oneOf(firstParam(params, "period"), PERIODS) ?? DEFAULT_PAYMENT_PERIOD,
     dateFrom,

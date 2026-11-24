@@ -381,6 +381,14 @@ describe("mapSpecialist / mapService / mapSettings", () => {
     });
     expect(withYandex.deliveryProviders).toEqual(["yandex"]);
     expect(withYandex.fulfilmentMethods).toEqual(["pickup"]);
+    expect(mapped.paymentProviders).toEqual(["click", "payme"]);
+    // Uzum is kept in the backend's order; a provider this build does not know is dropped.
+    expect(
+      mapSettings({
+        ...settings,
+        payment_providers: ["click", "paynet" as never, "payme", "uzum", "uzum"],
+      }).paymentProviders,
+    ).toEqual(["click", "payme", "uzum"]);
   });
 });
 

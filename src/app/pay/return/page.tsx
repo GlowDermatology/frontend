@@ -9,7 +9,7 @@ import { OpenApp } from "./open-app";
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 /**
- * `/pay/return?order_id=N` — where Click and Payme send a customer who paid in
+ * `/pay/return?order_id=N` — where Click, Payme and Uzum send a customer who paid in
  * the Glow Derma mobile app (backend `PAYMENT_RETURN_URL`). With the app
  * installed and the `.well-known` files configured, iOS and Android open the
  * app directly and this page is never shown; otherwise it hands over to the

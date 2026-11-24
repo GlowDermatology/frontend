@@ -7,6 +7,7 @@
  * datetimes are ISO strings.
  */
 
+import type { PaymentProvider } from "./order";
 import type { ShopLocation } from "./shop";
 import type {
   DeliveryMethod,
@@ -102,7 +103,7 @@ export interface ShopCart {
 }
 
 export type Fulfilment = "delivery" | "pickup";
-export type PaymentProvider = "click" | "payme";
+export type { PaymentProvider };
 
 export interface ShopRegion {
   code: string;

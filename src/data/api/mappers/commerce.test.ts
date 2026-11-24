@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { manualRefundNote, refundStateLine } from "@/domain/order";
+import { manualRefundNote, refundStateLine, type PaymentProvider } from "@/domain/order";
 
 import customFixture from "../__fixtures__/dashboard-custom.json";
 import weekFixture from "../__fixtures__/dashboard-week.json";
@@ -228,6 +228,9 @@ describe("manual refunds by reason and provider (§4, §5.1, M2)", () => {
         requested(3, { provider: "payme", manual: true }),
         requested(2, { provider: "click", manual: false, manual_reason: null }),
         requested(1, { provider: "click", manual: true, manual_reason: "later_reason" }),
+        requested(0, { provider: "uzum", manual: true, manual_reason: "uzum_fake" }),
+        requested(-1, { provider: "uzum", manual: false, manual_reason: null }),
+        requested(-2, { provider: "uzum", manual: true }),
       ],
       "delivery",
     );
@@ -238,11 +241,15 @@ describe("manual refunds by reason and provider (§4, §5.1, M2)", () => {
       "Payme · 120 000 so‘m · Payme kabinetida qo‘lda qaytariladi",
       "Click · 120 000 so‘m",
       "Click · 120 000 so‘m · qo‘lda qaytariladi",
+      "Uzum · 120 000 so‘m · Uzum sinov rejimida · qo‘lda to‘lanadi",
+      "Uzum · 120 000 so‘m",
+      // A reason-less manual Uzum row is not a Payme cabinet refund.
+      "Uzum · 120 000 so‘m · qo‘lda qaytariladi",
     ]);
   });
 
   it("gives the order's refunds the reason of their request, also when it is folded", () => {
-    const refund = (id: number, provider: "click" | "payme", state: string) => ({
+    const refund = (id: number, provider: PaymentProvider, state: string) => ({
       id,
       state,
       provider,

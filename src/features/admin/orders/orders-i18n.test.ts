@@ -74,7 +74,7 @@ describe("order history in the admin language", () => {
       event(2, "refund_requested", {
         refund_id: 1,
         amount: 120_000,
-        provider: "click",
+        provider: "payme",
         manual: true,
       }),
       event(1, "payment_failed", { provider: "payme" }),
@@ -93,12 +93,24 @@ describe("order history in the admin language", () => {
     expect(ru[0]!.note).toBe("Администратор · статус изменён вручную · клиенту отправлен push");
     // `manual` without `manual_reason` is an M1 row: a Payme cabinet refund (§4).
     expect(ru[1]!.note.replace(/\u00a0/g, " ")).toBe(
-      "Click · 120 000 сум · Возврат вручную в кабинете Payme",
+      "Payme · 120 000 сум · Возврат вручную в кабинете Payme",
     );
     const en = foldOrderHistory(history, "delivery", null, "en");
     expect(en[1]!.note.replace(/\u00a0/g, " ")).toBe(
-      "Click · 120,000 UZS · Refunded by hand in the Payme cabinet",
+      "Payme · 120,000 UZS · Refunded by hand in the Payme cabinet",
     );
+    // A Click or Uzum refund without a reason is never read as a Payme cabinet refund.
+    for (const provider of ["click", "uzum"]) {
+      const [row] = foldOrderHistory(
+        [event(1, "refund_requested", { refund_id: 1, amount: 120_000, provider, manual: true })],
+        "delivery",
+        null,
+        "en",
+      );
+      expect(row!.note.replace(/\u00a0/g, " ")).toBe(
+        `${provider === "click" ? "Click" : "Uzum"} · 120,000 UZS · refunded by hand`,
+      );
+    }
     expect(en[2]).toMatchObject({ title: "Payment failed", note: "Payme · payment declined" });
     for (const row of en) expect(`${row.title} ${row.note}`).not.toMatch(UZBEK);
   });

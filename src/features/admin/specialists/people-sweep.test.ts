@@ -469,4 +469,31 @@ describe("payments board", () => {
     // The Uzbek default keeps the earlier texts.
     expect(successToast(op).title).toBe("Qaytarish yakunlandi");
   });
+
+  it("treats a failed Uzum refund like Click's retry, never like a Payme cabinet refund", () => {
+    const fmt = createFormatter("en");
+    const failed = refund({ provider: "uzum" });
+    const row = { ...payment([failed]), provider: "uzum" as const };
+    // Retry only: closing a failed refund asks Click, which knows nothing of Uzum's payments.
+    const items = rowItems(row, () => {}, false, new Set([9]), paymentsCopy.en, fmt, "en");
+    expect(items.map((item) => item.label)).toEqual(["Send again"]);
+    const retry = dialogCopy({ kind: "retry", payment: row, refund: failed }, paymentsCopy.en, fmt);
+    expect(retry.body).toContain("sent to Uzum");
+    const manual = refund({
+      provider: "uzum",
+      state: "manual_required",
+      manualReason: "uzum_fake",
+    });
+    const settled = dialogCopy(
+      {
+        kind: "resolve",
+        state: "succeeded",
+        payment: { ...row, refunds: [manual] },
+        refund: manual,
+      },
+      paymentsCopy.en,
+      fmt,
+    );
+    expect(settled.body).not.toContain("cabinet");
+  });
 });

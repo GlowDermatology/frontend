@@ -60,7 +60,7 @@ import { DeliveryOptions } from "./delivery-options";
 
 /**
  * Checkout (contract §2.6–§2.7, Yandex Delivery plan §4): pickup or delivery
- * to a saved address (with "add an address"), Click or Payme, cashback, a
+ * to a saved address (with "add an address"), Click, Payme or Uzum, cashback, a
  * note. Every change asks `delivery/calculate/` (`with_options`) for every
  * delivery option — Yandex Standard / Express and BTS with the server's fee
  * and ETA window, the unavailable ones with their reason — and for the fee,
@@ -142,8 +142,6 @@ function OptionCard({
     </label>
   );
 }
-
-const PROVIDER_NAME: Record<PaymentProvider, string> = { click: "Click", payme: "Payme" };
 
 export function CheckoutView({
   locale,
@@ -635,7 +633,8 @@ export function CheckoutView({
                 value={value}
                 checked={provider === value}
                 onChange={() => setProvider(value)}
-                title={PROVIDER_NAME[value]}
+                title={copy.order.provider[value]}
+                hint={value === "uzum" ? t.uzumHint : undefined}
                 icon={<Icon name="card" size={22} className="text-gold-ink" />}
               />
             ))}

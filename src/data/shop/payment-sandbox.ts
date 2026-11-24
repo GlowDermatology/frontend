@@ -2,7 +2,7 @@ import "server-only";
 
 /**
  * Local payment sandbox (`GLOWDERMA_PAYMENT_SANDBOX=true`): instead of
- * sending the browser to Click or Payme, "To‘lash" opens the order page with
+ * sending the browser to Click, Payme or Uzum, "To‘lash" opens the order page with
  * a test panel that runs the backend's dev simulate endpoint (contract
  * §2.15, mounted only on local/test backends with `FAKE_PAYMENTS_ENABLED`).
  *
@@ -25,7 +25,7 @@ export function paymentSandboxEnabled(): boolean {
   if (allowed && process.env.NODE_ENV === "production" && !warned) {
     warned = true;
     console.warn(
-      "[shop] payment sandbox is ON on a production server (GLOWDERMA_PAYMENT_SANDBOX_ALLOW=true): customers never reach Click/Payme",
+      "[shop] payment sandbox is ON on a production server (GLOWDERMA_PAYMENT_SANDBOX_ALLOW=true): customers never reach Click/Payme/Uzum",
     );
   }
   return allowed;

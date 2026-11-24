@@ -2,7 +2,7 @@ import type { ShopOrderSummary } from "@/domain/shop-account";
 
 /**
  * Where the payment return page stands (contract §2.7.2: poll the order
- * every 2 s for up to 60 s after returning from Click or Payme). Pure;
+ * every 2 s for up to 60 s after returning from Click, Payme or Uzum). Pure;
  * unit-tested.
  *
  * - `paid` — the order left `awaiting_payment` for a paid state, or its

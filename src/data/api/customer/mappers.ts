@@ -1,3 +1,4 @@
+import { isPaymentProvider } from "@/domain/order";
 import type {
   ContentLanguage,
   ShopBanner,
@@ -316,9 +317,8 @@ export function mapSettings(api: ApiPublicSettings): ShopSettings {
         ),
       ),
     ],
-    paymentProviders: (api.payment_providers ?? []).filter(
-      (provider): provider is "click" | "payme" => provider === "click" || provider === "payme",
-    ),
+    // Providers this build does not know yet are dropped (the backend lists them in its order).
+    paymentProviders: [...new Set((api.payment_providers ?? []).filter(isPaymentProvider))],
     storeUrls: {
       ios: httpsOrNull(api.store_urls?.ios),
       android: httpsOrNull(api.store_urls?.android),

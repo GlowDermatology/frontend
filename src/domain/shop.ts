@@ -5,6 +5,8 @@
  * integer so‘m; datetimes are ISO strings.
  */
 
+import type { PaymentProvider } from "./order";
+
 export interface ShopCategoryRef {
   slug: string;
   name: string;
@@ -178,7 +180,7 @@ export interface ShopSettings {
   fulfilmentMethods: ReadonlyArray<"delivery" | "pickup">;
   /** Home-delivery carriers that can take an order now, in preference order (`settings/public` `delivery`). */
   deliveryProviders: ReadonlyArray<"yandex" | "bts">;
-  paymentProviders: ReadonlyArray<"click" | "payme">;
+  paymentProviders: ReadonlyArray<PaymentProvider>;
   storeUrls: { ios: string | null; android: string | null };
 }
 

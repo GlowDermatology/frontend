@@ -326,7 +326,7 @@ export function mapOrder(api: ApiOrderDetail, mediaHosts: ReadonlyArray<string>)
 
 /**
  * The provider page to send the browser to. Only an absolute https URL is
- * followed (contract §2.7.2: Click/Payme pages); anything else is refused so
+ * followed (contract §2.7.2: Click/Payme/Uzum pages); anything else is refused so
  * a malformed answer can never become an open redirect.
  */
 export function mapPayLink(api: ApiPayLink): ShopPayLink | null {

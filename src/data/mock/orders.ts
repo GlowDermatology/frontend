@@ -3,6 +3,7 @@ import { orderHistoryCopy, orderLabelsCopy } from "@/domain/copy/orders";
 import {
   itemsSubtotal,
   orderActions,
+  PAYMENT_PROVIDER_NAME,
   promoSubtotal,
   type CancellationReason,
   type FulfilmentMethod,
@@ -453,8 +454,8 @@ function totalOf(seed: OrderSeed): number {
  * id — contract §2.2, M2) keep their payment `paid` until the refund
  * succeeds; one older expired reservation was paid late (a Click capture
  * after the expiry, customer contract §2.13.0) and is refunded by hand while
- * Click is in test mode. Together they carry the three `manual_reason`s
- * (§4: `payme`, `no_paydoc`, `fake_mode`).
+ * Click is in test mode. Together they carry three `manual_reason`s
+ * (§4: `payme`, `no_paydoc`, `fake_mode`); `withUzumPayments` adds `uzum_fake`.
  */
 interface OpenRefund {
   state: RefundState;
@@ -498,6 +499,36 @@ function withOpenRefunds(seeds: OrderSeed[]): OrderSeed[] {
   return seeds;
 }
 
+/**
+ * The Uzum (Uzum Bank Checkout) demo rows: fixed generated orders switch to
+ * Uzum after the draw — the random provider pick and every other seed stay as
+ * they were. One is paid and being packed, one awaits payment, one was
+ * delivered, one was refunded through Uzum's API, one refund Uzum refused
+ * (`failed`, e.g. `uzum_3021`: retried, never closed like Click's) and one is
+ * paid out by hand while Uzum is in test mode (`uzum_fake`).
+ */
+const UZUM_ORDERS: ReadonlyArray<[orderId: number, refund: OpenRefund | null]> = [
+  [10238, null],
+  [10234, null],
+  [10219, null],
+  [10031, null],
+  [10097, { state: "failed" }],
+  [10072, { state: "manual_required", reason: "uzum_fake" }],
+];
+
+function withUzumPayments(seeds: OrderSeed[]): OrderSeed[] {
+  for (const [orderId, refund] of UZUM_ORDERS) {
+    const seed = seeds.find((s) => s.id === orderId);
+    if (!seed || OPEN_REFUNDS.has(orderId)) continue;
+    seed.provider = "uzum";
+    if (refund) {
+      OPEN_REFUNDS.set(orderId, refund);
+      seed.payment = "paid";
+    }
+  }
+  return seeds;
+}
+
 /** Whether the order's payment was captured after its reservation expired (always refunded). */
 export function isLateCapture(seed: Pick<OrderSeed, "id">): boolean {
   return OPEN_REFUNDS.get(seed.id)?.lateCapture === true;
@@ -536,7 +567,7 @@ function withYandexDeliveries(seeds: OrderSeed[]): OrderSeed[] {
 }
 
 export const ORDER_SEEDS: ReadonlyArray<OrderSeed> = withYandexDeliveries(
-  withOpenRefunds(generateSeeds()),
+  withUzumPayments(withOpenRefunds(generateSeeds())),
 );
 
 /** Every demo delivery issue, open and resolved (`delivery/issues/`). */
@@ -595,12 +626,14 @@ export function refundsOf(seed: OrderSeed): Refund[] {
   ];
 }
 
+const TXN_PREFIX: Record<PaymentProvider, string> = { click: "CLK", payme: "PME", uzum: "UZM" };
+
 /** Provider transaction id of a paid order (№10248 keeps the contract's value). */
 export function transactionIdOf(seed: OrderSeed): string | undefined {
   const paid = seed.payment === "paid" || seed.payment === "refunded";
   if (!paid) return undefined;
   if (seed.id === 10248) return "CLK-7741920385";
-  return `${seed.provider === "click" ? "CLK" : "PME"}-${String(7_741_000_000 + seed.id * 37).slice(0, 10)}`;
+  return `${TXN_PREFIX[seed.provider]}-${String(7_741_000_000 + seed.id * 37).slice(0, 10)}`;
 }
 
 /**
@@ -630,7 +663,7 @@ export const ORDER_SUMMARIES: ReadonlyArray<OrderSummary> = ORDER_SEEDS.map((see
   delivery: deliveryOfSeed(seed),
 }));
 
-const PROVIDER_NAME: Record<PaymentProvider, string> = { click: "Click", payme: "Payme" };
+const PROVIDER_NAME: Record<PaymentProvider, string> = PAYMENT_PROVIDER_NAME;
 
 const plusMinutes = (iso: string, minutes: number) =>
   `${new Date(new Date(iso).getTime() + minutes * 60_000).toISOString().slice(0, 19)}Z`;

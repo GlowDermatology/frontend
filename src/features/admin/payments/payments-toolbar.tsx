@@ -6,7 +6,12 @@ import { SearchInput } from "@/components/ui/field";
 import { Icon } from "@/components/ui/icon";
 import { Select } from "@/components/ui/select";
 import { orderLabelsCopy } from "@/domain/copy/orders";
-import { REFUND_STATES, type PaymentProvider, type PaymentStatus } from "@/domain/order";
+import {
+  PAYMENT_PROVIDERS,
+  REFUND_STATES,
+  type PaymentProvider,
+  type PaymentStatus,
+} from "@/domain/order";
 import {
   PAYMENT_PAGE_SIZES,
   type PaymentListQuery,
@@ -83,8 +88,7 @@ export function PaymentsToolbar({ query }: { query: PaymentListQuery }) {
         onValueChange={(value) => update({ provider: value === "all" ? undefined : value })}
         options={[
           { value: "all", label: t.all },
-          { value: "click", label: PROVIDER_LABEL.click },
-          { value: "payme", label: PROVIDER_LABEL.payme },
+          ...PAYMENT_PROVIDERS.map((value) => ({ value, label: PROVIDER_LABEL[value] })),
         ]}
       />
       <Select<RefundFilter | All>

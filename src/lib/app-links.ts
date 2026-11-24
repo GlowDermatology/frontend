@@ -1,7 +1,7 @@
 /**
  * The native app's links (Glow Derma iOS/Android app, `mobile` repository).
  *
- * Click and Payme send a customer who paid in the app back to
+ * Click, Payme and Uzum send a customer who paid in the app back to
  * `https://<SITE_DOMAIN>/pay/return?order_id=N` (backend `PAYMENT_RETURN_URL`).
  * The two `.well-known` documents below let iOS (universal links) and Android
  * (App Links) open the app for that path instead of the browser. Their values

@@ -60,6 +60,7 @@ const ALLOWED_TEXT = new Set([
   "Apple",
   "Click",
   "Payme",
+  "Uzum",
   "BTS",
   "Yandex",
   "SEO",

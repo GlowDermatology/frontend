@@ -1,6 +1,12 @@
 import { Badge, type Tone } from "@/components/ui/badge";
 import type { OrderLabels } from "@/domain/copy/orders";
-import type { OrderStatus, PaymentProvider, PaymentStatus, RefundState } from "@/domain/order";
+import {
+  PAYMENT_PROVIDER_NAME,
+  type OrderStatus,
+  type PaymentProvider,
+  type PaymentStatus,
+  type RefundState,
+} from "@/domain/order";
 
 /**
  * The shared tones of the order, payment and refund states. The words live in
@@ -23,7 +29,7 @@ export const PAYMENT_STATUS_META: Record<PaymentStatus, { tone: Tone }> = {
 };
 
 /** Provider names are brands: the same in every language. */
-export const PROVIDER_LABEL: Record<PaymentProvider, string> = { click: "Click", payme: "Payme" };
+export const PROVIDER_LABEL: Record<PaymentProvider, string> = PAYMENT_PROVIDER_NAME;
 
 /** Refund states (contract §5.1 labels): settled green, waiting amber, needing a person red. */
 export const REFUND_TONE: Record<RefundState, Tone> = {

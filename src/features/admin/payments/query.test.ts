@@ -37,6 +37,9 @@ describe("parsePaymentQuery / paymentListHref", () => {
     expect(parsePaymentQuery(params(paymentListHref(query)))).toEqual(query);
     expect(hasActivePaymentFilters(query)).toBe(true);
     expect(parsePaymentQuery({ refund: "manual_required" }).refund).toBe("manual_required");
+    for (const provider of ["click", "payme", "uzum"] as const) {
+      expect(parsePaymentQuery({ provider }).provider).toBe(provider);
+    }
   });
 
   it("drops malformed values and swaps an inverted range", () => {

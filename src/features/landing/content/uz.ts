@@ -168,8 +168,8 @@ export const uz = {
         body: "Buyurtma tayyor bo‘lgach xabar beramiz. Manzil: [Do‘kon manzili].",
       },
       {
-        title: "Click yoki Payme",
-        body: "To‘lov o‘sha ilovalarning o‘zida. Karta ma’lumotlari Glow Derma’da kiritilmaydi va saqlanmaydi.",
+        title: "Click, Payme yoki Uzum",
+        body: "To‘lov to‘lov tizimining o‘z ilovasi yoki sahifasida. Karta ma’lumotlari Glow Derma’da kiritilmaydi va saqlanmaydi.",
       },
     ],
     tracker: {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { maskPhone, normalizePhone } from "./phone";
+import { maskPhone, maskTypedPhone, normalizePhone } from "./phone";
 
 /** Feeds the mask one key at a time, the way an input's onChange sees it. */
 function typeKeys(keys: string, start = ""): string[] {
@@ -86,5 +86,33 @@ describe("maskPhone", () => {
 
   it("keeps a typed number intact through normalizePhone", () => {
     expect(normalizePhone(typeKeys("901234567").at(-1)!)).toBe("+998901234567");
+  });
+});
+
+/** Feeds the shop phone field one key at a time (its onChange keeps a country code being typed). */
+function typeIntoField(keys: string): string {
+  let value = "";
+  for (const key of keys) value = maskTypedPhone(value + key, value);
+  return value;
+}
+
+describe("typing the country code", () => {
+  it("keeps +998 typed key by key and never turns it into national digits", () => {
+    expect(typeIntoField("+998901234567")).toBe("+998 90 123 45 67");
+    expect(typeIntoField("+998 90 123 45 67")).toBe("+998 90 123 45 67");
+  });
+
+  it("reads 998 typed without the plus as the country code once past nine digits", () => {
+    expect(typeIntoField("998901234567")).toBe("+998 90 123 45 67");
+    expect(maskPhone("+998 99 890 12 345")).toBe("+998 90 123 45");
+  });
+
+  it("keeps a national number starting with 99 8 intact", () => {
+    expect(typeIntoField("998123456")).toBe("+998 99 812 34 56");
+  });
+
+  it("still clears the field when deleting into the prefix", () => {
+    expect(maskTypedPhone("+998 ", "+998 9")).toBe("");
+    expect(maskTypedPhone("+", "")).toBe("+");
   });
 });

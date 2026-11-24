@@ -153,7 +153,9 @@ export function PhoneGate({
             />
             {reauth ? (
               <div className="flex flex-col gap-2">
-                <p className="m-0 text-body-sm text-ink-muted">{copy.phoneGate.passwordHint}</p>
+                {hasPassword && (
+                  <p className="m-0 text-body-sm text-ink-muted">{copy.phoneGate.passwordHint}</p>
+                )}
                 <ReauthStep
                   locale={locale}
                   hasPassword={hasPassword}

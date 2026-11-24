@@ -30,7 +30,7 @@ export const DARK_QUERY = "(prefers-color-scheme: dark)";
 /** `<meta name="theme-color">` of each theme: the page surface (`--gd-surface`). */
 export const THEME_COLORS: Readonly<Record<ResolvedTheme, string>> = {
   light: "#fbf8f2",
-  dark: "#14110d",
+  dark: "#0d1322",
 };
 
 /**
@@ -47,7 +47,7 @@ function viewport(dark: string): Required<Pick<Viewport, "colorScheme" | "themeC
   };
 }
 
-export const CUSTOMER_DARK_COLOR = "#19171a";
+export const CUSTOMER_DARK_COLOR = "#0d1322";
 export const CUSTOMER_VIEWPORT = viewport(CUSTOMER_DARK_COLOR);
 export const THEME_VIEWPORT = viewport(THEME_COLORS.dark);
 

@@ -6,7 +6,7 @@
  * properties so a subtree can switch theme with `data-theme`; Tailwind
  * utilities read them through `@theme inline`.
  *
- * Two themes: light (the delivered designs) and Espresso dark. `<html data-theme>` is set before
+ * Two themes: light (the delivered designs) and night-blue dark. `<html data-theme>` is set before
  * the first paint by the inline head script (`src/lib/theme/theme-cookie.ts`, cookie `gd_theme`,
  * no cookie = the device's setting); without JavaScript the page stays light. A subtree that must
  * stay light (a QR code, a phone mock-up) carries `data-theme="light"`. There is no Tailwind
@@ -67,74 +67,78 @@
   color-scheme: light;
 }
 
-/* Espresso: warm brown-black. Every text pair passes WCAG AA (4.5:1) on the surface and on
-   raised cards; hairlines and the scrollbar thumb stay visible (thumb >= 3:1). */
+/* Night blue: the Glow Derma design-system dark palette (shared with the mobile app). Every text
+   pair passes WCAG AA (4.5:1) on the surface and on raised cards; hairlines and the scrollbar thumb
+   stay visible (thumb >= 3:1). Two values are a step lighter than the design-system sheet so the
+   AA guard holds: `danger` (#d64545 is 3.9:1 on raised cards) and `nav-line` (#2d3957 is 1.36:1
+   on the nav); the soft status fills keep the sheet's hues. */
 [data-theme="dark"] {
-  --gd-gold: #d9b25e;
-  --gd-gold-ink: #e8c77e;
-  --gd-gold-soft: #2a2216;
+  --gd-gold: #e2bc6a;
+  --gd-gold-ink: #ebcb7c;
+  --gd-gold-soft: #1c2438;
   --gd-on-gold: #151107;
   --gd-home-action: var(--gd-gold);
   --gd-home-action-ink: var(--gd-on-gold);
   --gd-home-action-accent: var(--gd-on-gold);
-  --gd-surface: #14110d;
-  --gd-surface-raised: #1e1a15;
-  --gd-ink: #f3ece0;
-  --gd-ink-muted: #a99d87;
-  --gd-line: #332c23;
+  --gd-surface: #0d1322;
+  --gd-surface-raised: #151c2f;
+  --gd-ink: #f3eee2;
+  --gd-ink-muted: #98a2b8;
+  --gd-line: #263049;
   --gd-line-strong: var(--gd-ink-muted);
-  --gd-nav: #0e0b08;
-  /* The nav and banners are darker than the page: a hairline keeps their edge visible. */
-  --gd-nav-line: #3a3127;
-  --gd-nav-ink-muted: #a99d87;
-  --gd-banner: #0e0b08;
-  --gd-banner-ink: #e8c77e;
-  --gd-banner-ink-soft: #f3ece0;
-  --gd-success-soft: #6fbf8d29;
-  --gd-danger-soft: #e8737329;
-  --gd-warning-soft: #eba24f29;
-  --gd-scrim: #000000b3;
-  --gd-shadow-sm: 0 1px 2px #00000066, 0 2px 8px #0000004d;
+  --gd-nav: #1b2338;
+  /* The nav and banners sit above the page: a hairline keeps their edge visible. */
+  --gd-nav-line: #2f3b5b;
+  --gd-nav-ink-muted: #98a2b8;
+  --gd-banner: #1b2338;
+  --gd-banner-ink: #ebcb7c;
+  --gd-banner-ink-soft: #f3eee2;
+  --gd-success-soft: #4e9a6b2e;
+  --gd-danger-soft: #d645452e;
+  --gd-warning-soft: #e08a2e2e;
+  --gd-scrim: #05080fb3;
+  --gd-shadow-sm: 0 1px 2px #00000066;
   --gd-shadow-lg: 0 12px 32px -6px #000000b3;
   --gd-shadow-card: 0 1px 2px #00000066, 0 24px 60px -18px #000000cc;
-  --gd-image-well: #1a1611;
-  --gd-skeleton: #26211a;
-  --gd-skeleton-sheen: #332c23;
-  --gd-scrollbar-thumb: #7d705c;
+  --gd-image-well: #111829;
+  --gd-skeleton: #1c2438;
+  --gd-skeleton-sheen: #263049;
+  --gd-scrollbar-thumb: #66738f;
   --gd-scrollbar-thumb-hover: var(--gd-gold-ink);
-  --gd-danger: #e87373;
-  --gd-danger-halo: #e8737333;
-  --gd-success: #6fbf8d;
-  --gd-warning: #eba24f;
-  --gd-danger-strong: #f08a8a;
+  --gd-danger: #e25a5a;
+  --gd-danger-halo: #e25a5a33;
+  --gd-success: #4e9a6b;
+  --gd-warning: #e08a2e;
+  --gd-danger-strong: #ef8080;
   --gd-on-fill: #151107;
-  /* Photos and pastel product shots sit calmer on espresso. */
+  /* Photos and pastel product shots sit calmer on night blue. */
   --gd-media-dim: brightness(0.86) saturate(0.92);
   color-scheme: dark;
 }
 
-/* Customer documents share this palette with their portalled menus and dialogs. */
+/* Customer documents (storefront, payment return) and their portalled menus and dialogs use the
+   same night-blue palette; the block stays so the customer surface has one place to diverge. */
 html[data-customer-web][data-theme="dark"] {
-  --gd-surface: #19171a;
-  --gd-surface-raised: #252226;
-  --gd-ink: #f5ece3;
-  --gd-ink-muted: #c2b4aa;
-  --gd-line: #42383c;
-  --gd-gold: #dcb38e;
-  --gd-gold-ink: #ebc6a4;
-  --gd-gold-soft: #35292b;
-  --gd-on-gold: #23191a;
-  --gd-nav: #121013;
-  --gd-nav-line: #473a41;
+  --gd-surface: #0d1322;
+  --gd-surface-raised: #151c2f;
+  --gd-ink: #f3eee2;
+  --gd-ink-muted: #98a2b8;
+  --gd-line: #263049;
+  --gd-gold: #e2bc6a;
+  --gd-gold-ink: #ebcb7c;
+  --gd-gold-soft: #1c2438;
+  --gd-on-gold: #151107;
+  --gd-nav: #1b2338;
+  --gd-nav-line: #2f3b5b;
   --gd-nav-ink-muted: var(--gd-ink-muted);
   --gd-banner: var(--gd-nav);
-  --gd-banner-ink: var(--gd-gold);
+  --gd-banner-ink: var(--gd-gold-ink);
   --gd-banner-ink-soft: var(--gd-ink);
-  --gd-image-well: #30292c;
-  --gd-skeleton: #352e33;
-  --gd-skeleton-sheen: #483d44;
-  --gd-scrollbar-thumb: #96838a;
-  --gd-media-dim: brightness(0.95);
+  --gd-image-well: #111829;
+  --gd-skeleton: #1c2438;
+  --gd-skeleton-sheen: #263049;
+  --gd-scrollbar-thumb: #66738f;
+  --gd-media-dim: brightness(0.86) saturate(0.92);
 }
 
 @theme inline {
@@ -542,7 +546,7 @@ html:has([data-auth-layout]) {
   scrollbar-gutter: stable;
 }
 
-/* Dark surfaces (espresso nav, `data-surface="dark"`): a lighter thumb (>= 3:1 on both navs). */
+/* Dark surfaces (the nav, `data-surface="dark"`): a lighter thumb (>= 3:1 on both navs). */
 .bg-nav,
 [data-surface="dark"] {
   --gd-scrollbar-thumb: #8a7d66;

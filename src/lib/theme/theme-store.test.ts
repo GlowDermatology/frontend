@@ -83,7 +83,7 @@ describe("theme store", () => {
       "gd_theme=dark; Path=/; Max-Age=31536000; SameSite=Lax; Secure",
     ]);
     expect(fake.attributes["data-theme"]).toBe("dark");
-    expect(fake.metas.map((meta) => meta.meta.content)).toEqual(["#14110d", "#14110d"]);
+    expect(fake.metas.map((meta) => meta.meta.content)).toEqual(["#0d1322", "#0d1322"]);
     expect(listener).toHaveBeenCalledTimes(1);
     expect(fake.fetch).toHaveBeenCalledWith(
       "/api/shop/theme",

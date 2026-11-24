@@ -7,7 +7,7 @@ import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/cn";
 import { useCountdown } from "@/lib/countdown";
 import type { Locale } from "@/lib/i18n/locales";
-import { maskPhone } from "@/lib/phone";
+import { maskTypedPhone } from "@/lib/phone";
 
 import { commonCopy } from "../copy/common";
 
@@ -123,7 +123,7 @@ export function PhoneField({
           placeholder="+998 90 123 45 67"
           autoFocus={autoFocus}
           value={value}
-          onChange={(event) => onValueChange(maskPhone(event.target.value) || "")}
+          onChange={(event) => onValueChange(maskTypedPhone(event.target.value, value))}
         />
       )}
     </Field>

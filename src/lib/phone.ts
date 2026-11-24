@@ -22,6 +22,9 @@ export function nationalDigits(input: string): string {
     const grouped = /^\+\d+\s+(.*)$/s.exec(value);
     if (grouped) {
       digits = grouped[1]!.replace(/\D/g, "");
+      // "998…" typed after the field's own "+998" (a full "998 93 …" number): past nine digits it is the
+      // country code again, not the start of the national number.
+      if (digits.length > 9 && digits.startsWith("998")) digits = digits.slice(3);
     } else {
       const all = value.replace(/\D/g, "");
       digits = all.startsWith("998") ? all.slice(3) : "998".startsWith(all) ? "" : all;
@@ -43,6 +46,24 @@ export function maskPhone(input: string): string {
   if (!digits) return "";
   const parts = [digits.slice(0, 2), digits.slice(2, 5), digits.slice(5, 7), digits.slice(7, 9)];
   return ["+998", ...parts.filter(Boolean)].join(" ");
+}
+
+/**
+ * The masked phone field's next value while typing: `maskPhone`, except that a "+", "+9", "+99" or "+998"
+ * being typed into an empty field stays as typed, so the visitor can type the country code themselves
+ * ("+998 93 …" must not lose its "+" and turn "998" into national digits). Deleting into the prefix still
+ * clears the field.
+ */
+export function maskTypedPhone(next: string, previous: string): string {
+  const trimmed = next.trim();
+  if (
+    next.length > previous.length &&
+    /^\+\d{0,3}$/.test(trimmed) &&
+    "998".startsWith(trimmed.slice(1))
+  ) {
+    return trimmed;
+  }
+  return maskPhone(next);
 }
 
 /** "+998 90 123 45 67", "90 123 45 67", "998901234567" → "+998901234567"; else the trimmed input. */

@@ -68,7 +68,7 @@ const uz = {
     noPassword: "Parolni unutdim yoki parolim yo‘q — kod orqali tasdiqlash",
     usePassword: "Parol bilan tasdiqlash",
     socialOnly:
-      "Hisobingizda parol, raqam yoki email yo‘q, shuning uchun kod yuboradigan joy yo‘q. Ijtimoiy tarmoq orqali qayta kiring: kirgandan keyin bir necha daqiqa davomida bu amal tasdiqsiz bajariladi.",
+      "Xavfsizlik uchun avvalgi usulda (masalan, Google orqali) qayta kiring. Shundan so‘ng bir necha daqiqa ichida qo‘shimcha kodsiz yakunlay olasiz.",
     signInAgainAction: "Qayta kirish",
   },
   consent: {
@@ -156,7 +156,7 @@ const ru: Copy = {
     noPassword: "Забыл пароль или его нет — подтвердить кодом",
     usePassword: "Подтвердить паролем",
     socialOnly:
-      "У аккаунта нет пароля, номера и email, поэтому код отправить некуда. Войдите заново через соцсеть: несколько минут после входа это действие не требует подтверждения.",
+      "Для безопасности войдите ещё раз тем же способом (например, через Google). После входа у вас будет несколько минут, чтобы закончить без дополнительных кодов.",
     signInAgainAction: "Войти заново",
   },
   consent: {
@@ -242,7 +242,7 @@ const en: Copy = {
     noPassword: "Forgot my password or have none — confirm with a code",
     usePassword: "Confirm with my password",
     socialOnly:
-      "Your account has no password, phone or e-mail, so there is nowhere to send a code. Sign in again with your social account: for a few minutes after signing in, this needs no confirmation.",
+      "For security, sign in again the way you did before (for example, with Google). After that you have a few minutes to finish without extra codes.",
     signInAgainAction: "Sign in again",
   },
   consent: {

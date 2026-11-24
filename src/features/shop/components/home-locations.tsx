@@ -31,6 +31,12 @@ export type VisitLocation = {
   primary?: boolean;
   bookingHref?: Route;
   bookingLabel?: string;
+  /** "Hozir ochiq · 18:00 gacha" (live dot) or "Hozir yopiq", from `clinics/`. */
+  status?: { label: string; open: boolean };
+  /** Short facts under the address (today's hours, number of specialists). */
+  details?: string[];
+  /** E.164 phone and its display form. */
+  phone?: { value: string; display: string; label: string };
 };
 
 const tileUrl = mapTileUrl(process.env.NEXT_PUBLIC_MAP_TILE_URL);
@@ -204,8 +210,37 @@ export function HomeLocations({ locations, copy }: { locations: VisitLocation[];
                 {location.directions ? (
                   <p className="m-0 text-body-sm text-ink-muted">{location.directions}</p>
                 ) : null}
+                {location.status ? (
+                  <p
+                    className={cn(
+                      "m-0 inline-flex w-fit items-center gap-2 rounded-full px-3 py-1 text-body-sm font-bold text-ink",
+                      location.status.open ? "bg-success-soft" : "bg-gold-soft",
+                    )}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        "size-2 rounded-full",
+                        location.status.open ? "gd-pulse bg-success" : "bg-ink-muted",
+                      )}
+                    />
+                    {location.status.label}
+                  </p>
+                ) : null}
+                {location.details?.length ? (
+                  <ul className="m-0 flex list-none flex-wrap gap-2 p-0">
+                    {location.details.map((detail) => (
+                      <li
+                        key={detail}
+                        className="rounded-full bg-gold-soft px-3 py-1 text-caption font-bold text-ink tabular-nums"
+                      >
+                        {detail}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
               </div>
-              {directionsUrl || location.bookingHref ? (
+              {directionsUrl || location.bookingHref || location.phone ? (
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
                   {directionsUrl ? (
                     <a
@@ -213,6 +248,16 @@ export function HomeLocations({ locations, copy }: { locations: VisitLocation[];
                       className="inline-flex min-h-11 items-center text-body-sm font-bold text-ink underline decoration-gold underline-offset-4"
                     >
                       {copy.directions}
+                    </a>
+                  ) : null}
+                  {location.phone ? (
+                    <a
+                      href={`tel:${location.phone.value}`}
+                      aria-label={`${location.phone.label}: ${location.phone.display}`}
+                      className="inline-flex min-h-11 items-center gap-1.5 text-body-sm font-bold text-ink tabular-nums underline decoration-gold underline-offset-4"
+                    >
+                      <Icon name="phone" size={16} className="text-gold-ink" />
+                      {location.phone.display}
                     </a>
                   ) : null}
                   {location.bookingHref ? (

@@ -13,7 +13,16 @@ export const MAIN_ID = "main";
  * Skip link, header, `<main>` and footer around every storefront page, inside
  * the client provider of the header's signed-in summary (name and badges).
  */
-export function ShopChrome({ locale, children }: { locale: Locale; children: ReactNode }) {
+export function ShopChrome({
+  locale,
+  children,
+  top,
+}: {
+  locale: Locale;
+  children: ReactNode;
+  /** Above the sticky header, scrolled away with the page (the home's ticker). */
+  top?: ReactNode;
+}) {
   const dict = getShopDictionary(locale);
   return (
     <ShopSessionProvider locale={locale}>
@@ -24,6 +33,7 @@ export function ShopChrome({ locale, children }: { locale: Locale; children: Rea
         >
           {dict.skipLink}
         </a>
+        {top}
         <ShopHeader locale={locale} dict={dict} />
         {/* At least a viewport tall: the footer starts below the fold, so a
             streamed body taller than its fallback never pushes visible

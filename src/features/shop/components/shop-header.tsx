@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { themeCopy } from "@/components/brand/copy";
+import { ThemeMenu } from "@/components/ui/theme-control";
 
 import { cn } from "@/lib/cn";
 import type { Locale } from "@/lib/i18n/locales";
@@ -16,8 +17,13 @@ import { gutter, textLink } from "./layout-primitives";
  * small client islands for the product search (a field; an icon on phones),
  * the account menu (sign-in / sign-up or the private sections, and the
  * language list with flags), the cart and inbox links and the small-screen
- * menu (links, the same language list and the theme switch).
+ * menu (links, the same language list and the theme switch). It sticks to
+ * the top of the viewport; from the `nav` width the theme menu sits in the
+ * row (below it, the small-screen menu carries the theme switch).
  */
+const themeTrigger =
+  "flex size-11 shrink-0 items-center justify-center rounded-full border border-line bg-surface-raised text-ink transition-colors duration-150 hover:bg-gold-soft data-[state=open]:bg-gold-soft";
+
 export function ShopHeader({ locale, dict }: { locale: Locale; dict: ShopDictionary }) {
   const links = [
     { href: shopPath(locale, { kind: "catalog" }), label: dict.header.catalog },
@@ -25,7 +31,7 @@ export function ShopHeader({ locale, dict }: { locale: Locale; dict: ShopDiction
     { href: shopPath(locale, { kind: "services" }), label: dict.header.services },
   ];
   return (
-    <header className="relative z-20 border-b border-line bg-surface">
+    <header className="sticky top-0 z-30 border-b border-line bg-surface/90 backdrop-blur-md backdrop-saturate-150">
       <div
         className={cn("mx-auto flex max-w-page items-center justify-between gap-4 py-3.5", gutter)}
       >
@@ -61,6 +67,9 @@ export function ShopHeader({ locale, dict }: { locale: Locale; dict: ShopDiction
             openLabel={dict.header.searchOpen}
             closeLabel={dict.header.searchClose}
           />
+          <div className="hidden nav:flex">
+            <ThemeMenu labels={themeCopy[locale]} triggerClassName={themeTrigger} />
+          </div>
           <InboxLink locale={locale} />
           <AccountLink locale={locale} />
           <CartLink locale={locale} label={dict.header.cart} />

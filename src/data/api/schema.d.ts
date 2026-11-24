@@ -3,8 +3,8 @@
  * GENERATED FILE — do not edit by hand. Regenerate with `npm run gen:api`.
  *
  * Source: openapi/schema.yaml of the backend repository
- * Commit: f7768e23d3b61f4a7ac57d81e04e8a4a9f4a386e
- * Generated: 2026-11-24T17:41:41.727Z (openapi-typescript)
+ * Commit: 4777cfb0a0b1b57c2fef1bb2f28ed6531b673363
+ * Generated: 2026-11-24T22:43:17.478Z (openapi-typescript)
  */
 
 export interface paths {
@@ -2699,6 +2699,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/catalog/feed/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The storefront's endless product feed: 24 visible products per page, newest first (`created_at`, then `id`), paged by an opaque `cursor`; an unknown cursor is 400 `invalid`, an unknown category 400 `invalid_choice`. Public cache 30 s. */
+        get: operations["customer_catalog_feed_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/catalog/products/": {
         parameters: {
             query?: never;
@@ -2756,6 +2773,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/clinics/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Active clinics by position with their listed specialists, today's opening (the union of the specialists' working hours there today) and whether they are open now (Tashkent). */
+        get: operations["customer_clinics_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/delivery/calculate/": {
         parameters: {
             query?: never;
@@ -2801,6 +2835,23 @@ export interface paths {
             cookie?: never;
         };
         get: operations["health_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/home/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The storefront landing page: the shop numbers, the spotlight, the product rails (`ProductCard`) and the active cashback tiers. Public cache 60 s. */
+        get: operations["customer_home_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3495,6 +3546,23 @@ export interface paths {
         };
         /** @description One active specialist by its website slug (B-W1; 404 when inactive or unknown). */
         get: operations["customer_specialists_by_slug_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/specialists/availability/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Every listed specialist's next free slot within `days` days (never past the booking horizon) and the number of free slots today, both for the specialist's shortest active service, by the rules of `specialists/{id}/slots/` at the clinic of each day. */
+        get: operations["customer_specialists_availability_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4364,6 +4432,32 @@ export interface components {
         City: {
             code: string;
             name: string;
+        };
+        Clinic: {
+            readonly address: string;
+            readonly directions: string;
+            id: number;
+            /** Format: double */
+            readonly latitude: number | null;
+            /** Format: double */
+            readonly longitude: number | null;
+            readonly name: string;
+            /** @description Tashkent now is within `today_hours`. */
+            open_now: boolean;
+            readonly phone: string | null;
+            /** @description Listed specialists working at this clinic. */
+            specialist_count: number;
+            /** @description Today's opening: the earliest start and latest end of the listed specialists working here today; null = nobody works here today. */
+            today_hours: components["schemas"]["ClinicHours"] | null;
+        };
+        ClinicHours: {
+            /** @description "HH:MM" Tashkent. */
+            end: string;
+            /** @description "HH:MM" Tashkent. */
+            start: string;
+        };
+        ClinicList: {
+            results: components["schemas"]["Clinic"][];
         };
         /** @description An admin-managed clinic branch. */
         ClinicLocation: {
@@ -5414,6 +5508,74 @@ export interface components {
          * @enum {string}
          */
         HealthStatusEnum: "ok" | "error";
+        Home: {
+            /** @description The active cashback policy; null = none. */
+            cashback: components["schemas"]["HomeCashback"] | null;
+            /**
+             * @description The response language (Accept-Language).
+             *
+             *     * `uz` - uz
+             *     * `ru` - ru
+             *     * `en` - en
+             */
+            content_language: components["schemas"]["ContentLanguageEnum"];
+            online_sales_enabled: boolean;
+            /** @description `new`, `promo`, `bestsellers` (at least 4 items) in that order; empty rails are left out. */
+            rails: components["schemas"]["HomeRail"][];
+            /** @description Up to 6 products with an image, each once with its first reason (promo, bestseller, low_stock, new), rotated by the Tashkent hour. */
+            spotlight: components["schemas"]["HomeSpotlight"][];
+            stats: components["schemas"]["HomeStats"];
+        };
+        HomeCashback: {
+            /** Format: decimal */
+            max_percent: string;
+            /** Format: decimal */
+            min_percent: string;
+            tiers: components["schemas"]["HomeCashbackTier"][];
+        };
+        HomeCashbackTier: {
+            /** @description Lifetime purchases from (so'm, inclusive). */
+            from_amount: number;
+            /** Format: decimal */
+            percent: string;
+            /** @description Up to (exclusive); null = no upper bound. */
+            to_amount: number | null;
+        };
+        HomeRail: {
+            items: components["schemas"]["ProductCard"][];
+            key: components["schemas"]["HomeRailKeyEnum"];
+        };
+        /**
+         * @description * `new` - new
+         *     * `promo` - promo
+         *     * `bestsellers` - bestsellers
+         * @enum {string}
+         */
+        HomeRailKeyEnum: "new" | "promo" | "bestsellers";
+        HomeSpotlight: {
+            product: components["schemas"]["ProductCard"];
+            reason: components["schemas"]["HomeSpotlightReasonEnum"];
+        };
+        /**
+         * @description * `promo` - promo
+         *     * `new` - new
+         *     * `bestseller` - bestseller
+         *     * `low_stock` - low_stock
+         * @enum {string}
+         */
+        HomeSpotlightReasonEnum: "promo" | "new" | "bestseller" | "low_stock";
+        HomeStats: {
+            /** @description Active categories (as `catalog/categories/` lists). */
+            categories: number;
+            /** @description Active clinics (as `clinics/` lists). */
+            clinics: number;
+            /** @description Visible products. */
+            products: number;
+            /** @description Visible products a customer can buy now; null while online selling is off. */
+            products_in_stock: number | null;
+            /** @description Listed specialists (as `specialists/` lists). */
+            specialists: number;
+        };
         /** @description One date's own hours; ``day_off`` = no hours that day (``start`` / ``end`` null). */
         HoursOverride: {
             /** Format: date-time */
@@ -5914,6 +6076,13 @@ export interface components {
             /** @description Open delivery issues (the exception queue). */
             delivery_issues_open: number;
             orders_processing: number;
+        };
+        NextSlot: {
+            location_id: number;
+            /** @description The specialist's shortest active service. */
+            service_id: number;
+            /** Format: date-time */
+            start: string;
         };
         NextStep: {
             email_mask: string | null;
@@ -6905,6 +7074,12 @@ export interface components {
             usage: string;
             volume: string;
         };
+        ProductFeed: {
+            /** @description Pass as `cursor`; null on the last page. */
+            next_cursor: string | null;
+            /** @description Up to 24 cards, newest first. */
+            results: components["schemas"]["ProductCard"][];
+        };
         /** @description Contract §2.3 ``ProductImage = {id, url, thumbnail_url, medium_url, position, alt}``. */
         ProductImage: {
             /** @description Alt text per language; "" = the product name is used. */
@@ -7712,6 +7887,17 @@ export interface components {
         };
         SpecialistList: {
             results: components["schemas"]["Specialist"][];
+        };
+        SpecialistNextSlot: {
+            next_slot: components["schemas"]["NextSlot"] | null;
+            /** @description Free slots today for the shortest active service. */
+            slots_today: number;
+            specialist_id: number;
+        };
+        SpecialistNextSlotList: {
+            /** Format: date-time */
+            generated_at: string;
+            results: components["schemas"]["SpecialistNextSlot"][];
         };
         /**
          * @description ``SpecialistOwnProfile``: the ``ClinicSpecialist`` of the signed-in specialist plus the clinics staff
@@ -23000,6 +23186,79 @@ export interface operations {
             };
         };
     };
+    customer_catalog_feed_list: {
+        parameters: {
+            query?: {
+                /** @description A category slug. */
+                category?: string;
+                /** @description Opaque: the `next_cursor` of the previous page; absent or empty = the first page. */
+                cursor?: string;
+            };
+            header?: {
+                /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
+                "Accept-Language"?: string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
+                /** @description Firebase installation id of this app install (an identifier, not a secret). */
+                "X-GD-Device-Id"?: string;
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform"?: "android" | "ios" | "web";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductFeed"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+        };
+    };
     customer_catalog_products_list: {
         parameters: {
             query?: {
@@ -23178,6 +23437,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProductDetail"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+        };
+    };
+    customer_clinics_list: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
+                "Accept-Language"?: string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
+                /** @description Firebase installation id of this app install (an identifier, not a secret). */
+                "X-GD-Device-Id"?: string;
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform"?: "android" | "ios" | "web";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClinicList"];
                 };
             };
             400: {
@@ -23417,6 +23744,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Health"];
+                };
+            };
+        };
+    };
+    customer_home_retrieve: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
+                "Accept-Language"?: string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
+                /** @description Firebase installation id of this app install (an identifier, not a secret). */
+                "X-GD-Device-Id"?: string;
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform"?: "android" | "ios" | "web";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Home"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
                 };
             };
         };
@@ -27498,6 +27893,77 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Specialist"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerErrorEnvelope"];
+                };
+            };
+        };
+    };
+    customer_specialists_availability_list: {
+        parameters: {
+            query?: {
+                /** @description Tashkent days from today to search for the next slot (never past the booking horizon). */
+                days?: number;
+            };
+            header?: {
+                /** @description First supported tag among uz, ru, en in q-order; else the customer's language, else uz. */
+                "Accept-Language"?: string;
+                /** @description App version, required with `ios`/`android` (below the platform's minimum → 426 `app_update_required`); optional for `web`, where no minimum applies. */
+                "X-GD-App-Version"?: string;
+                /** @description Firebase installation id of this app install (an identifier, not a secret). */
+                "X-GD-Device-Id"?: string;
+                /** @description Device platform (`OrderChannel` literals); `web` = the website's server-side BFF. */
+                "X-GD-Platform"?: "android" | "ios" | "web";
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecialistNextSlotList"];
                 };
             };
             400: {

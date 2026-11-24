@@ -579,3 +579,312 @@ html:has([data-auth-layout]) {
     outline-color: Highlight;
   }
 }
+
+/*
+ * Storefront home showcase (features/shop/home/showcase.tsx): the spotlight frames share one
+ * keyframe set per frame count (2–8, `data-count`), each offset by 6 s (`--gd-spot-i`), so the
+ * rotation needs no script: a frame fades in, holds for 6 s and fades out while the next one
+ * fades in; `visibility` keeps hidden frames out of the tab order. Its progress tick fills during
+ * the same window. Hover, keyboard focus and the pause button (`data-paused`) stop it; under
+ * reduced motion only the first frame shows; below 600 px the frames are a scroll-snap row.
+ */
+.gd-spot-tick {
+  transform: scaleX(0);
+}
+@media (min-width: 37.5rem) {
+  .gd-spot[data-count] .gd-spot-frame:not(:first-child) {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+@media (min-width: 37.5rem) and (prefers-reduced-motion: no-preference) {
+  .gd-spot[data-count] .gd-spot-frame,
+  .gd-spot[data-count] .gd-spot-tick {
+    animation-duration: calc(var(--gd-spot-n) * 6s);
+    /* Shifted by the fade, so the first frame is fully shown at load (it is the LCP). */
+    animation-delay: calc(var(--gd-spot-i) * 6s - 0.7s);
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+    animation-fill-mode: both;
+  }
+  .gd-spot[data-count="2"] .gd-spot-frame {
+    animation-name: gd-spot-2;
+  }
+  .gd-spot[data-count="2"] .gd-spot-tick {
+    animation-name: gd-spot-tick-2;
+  }
+  .gd-spot[data-count="3"] .gd-spot-frame {
+    animation-name: gd-spot-3;
+  }
+  .gd-spot[data-count="3"] .gd-spot-tick {
+    animation-name: gd-spot-tick-3;
+  }
+  .gd-spot[data-count="4"] .gd-spot-frame {
+    animation-name: gd-spot-4;
+  }
+  .gd-spot[data-count="4"] .gd-spot-tick {
+    animation-name: gd-spot-tick-4;
+  }
+  .gd-spot[data-count="5"] .gd-spot-frame {
+    animation-name: gd-spot-5;
+  }
+  .gd-spot[data-count="5"] .gd-spot-tick {
+    animation-name: gd-spot-tick-5;
+  }
+  .gd-spot[data-count="6"] .gd-spot-frame {
+    animation-name: gd-spot-6;
+  }
+  .gd-spot[data-count="6"] .gd-spot-tick {
+    animation-name: gd-spot-tick-6;
+  }
+  .gd-spot[data-count="7"] .gd-spot-frame {
+    animation-name: gd-spot-7;
+  }
+  .gd-spot[data-count="7"] .gd-spot-tick {
+    animation-name: gd-spot-tick-7;
+  }
+  .gd-spot[data-count="8"] .gd-spot-frame {
+    animation-name: gd-spot-8;
+  }
+  .gd-spot[data-count="8"] .gd-spot-tick {
+    animation-name: gd-spot-tick-8;
+  }
+  .gd-spot:hover .gd-spot-frame,
+  .gd-spot:hover .gd-spot-tick,
+  .gd-spot:focus-within .gd-spot-frame,
+  .gd-spot:focus-within .gd-spot-tick,
+  .gd-spot[data-paused] .gd-spot-frame,
+  .gd-spot[data-paused] .gd-spot-tick {
+    animation-play-state: paused;
+  }
+}
+@keyframes gd-spot-2 {
+  0% {
+    opacity: 0;
+    visibility: hidden;
+  }
+  5.833%,
+  50% {
+    opacity: 1;
+    visibility: visible;
+  }
+  55.833%,
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+@keyframes gd-spot-tick-2 {
+  0% {
+    transform: scaleX(0);
+  }
+  50% {
+    transform: scaleX(1);
+  }
+  50.01%,
+  100% {
+    transform: scaleX(0);
+  }
+}
+@keyframes gd-spot-3 {
+  0% {
+    opacity: 0;
+    visibility: hidden;
+  }
+  3.889%,
+  33.333% {
+    opacity: 1;
+    visibility: visible;
+  }
+  37.222%,
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+@keyframes gd-spot-tick-3 {
+  0% {
+    transform: scaleX(0);
+  }
+  33.333% {
+    transform: scaleX(1);
+  }
+  33.343%,
+  100% {
+    transform: scaleX(0);
+  }
+}
+@keyframes gd-spot-4 {
+  0% {
+    opacity: 0;
+    visibility: hidden;
+  }
+  2.917%,
+  25% {
+    opacity: 1;
+    visibility: visible;
+  }
+  27.917%,
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+@keyframes gd-spot-tick-4 {
+  0% {
+    transform: scaleX(0);
+  }
+  25% {
+    transform: scaleX(1);
+  }
+  25.01%,
+  100% {
+    transform: scaleX(0);
+  }
+}
+@keyframes gd-spot-5 {
+  0% {
+    opacity: 0;
+    visibility: hidden;
+  }
+  2.333%,
+  20% {
+    opacity: 1;
+    visibility: visible;
+  }
+  22.333%,
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+@keyframes gd-spot-tick-5 {
+  0% {
+    transform: scaleX(0);
+  }
+  20% {
+    transform: scaleX(1);
+  }
+  20.01%,
+  100% {
+    transform: scaleX(0);
+  }
+}
+@keyframes gd-spot-6 {
+  0% {
+    opacity: 0;
+    visibility: hidden;
+  }
+  1.944%,
+  16.667% {
+    opacity: 1;
+    visibility: visible;
+  }
+  18.611%,
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+@keyframes gd-spot-tick-6 {
+  0% {
+    transform: scaleX(0);
+  }
+  16.667% {
+    transform: scaleX(1);
+  }
+  16.677%,
+  100% {
+    transform: scaleX(0);
+  }
+}
+@keyframes gd-spot-7 {
+  0% {
+    opacity: 0;
+    visibility: hidden;
+  }
+  1.667%,
+  14.286% {
+    opacity: 1;
+    visibility: visible;
+  }
+  15.952%,
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+@keyframes gd-spot-tick-7 {
+  0% {
+    transform: scaleX(0);
+  }
+  14.286% {
+    transform: scaleX(1);
+  }
+  14.296%,
+  100% {
+    transform: scaleX(0);
+  }
+}
+@keyframes gd-spot-8 {
+  0% {
+    opacity: 0;
+    visibility: hidden;
+  }
+  1.458%,
+  12.5% {
+    opacity: 1;
+    visibility: visible;
+  }
+  13.958%,
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+@keyframes gd-spot-tick-8 {
+  0% {
+    transform: scaleX(0);
+  }
+  12.5% {
+    transform: scaleX(1);
+  }
+  12.51%,
+  100% {
+    transform: scaleX(0);
+  }
+}
+
+/* Live dots (the hero pill, "clinic open"): a soft success pulse, still under reduced motion. */
+@keyframes gd-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--gd-success) 55%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 8px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .gd-pulse {
+    animation: gd-pulse 2s infinite;
+  }
+}
+
+/* The home ticker (features/shop/home/ticker.tsx): two copies of the line slide left by one
+   copy's width; static under reduced motion. */
+@keyframes gd-ticker {
+  to {
+    transform: translateX(-50%);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .gd-ticker {
+    animation: gd-ticker 38s linear infinite;
+  }
+  .gd-ticker:hover {
+    animation-play-state: paused;
+  }
+}

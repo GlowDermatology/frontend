@@ -7,7 +7,7 @@ import { buildLandingMetadata } from "@/features/landing/metadata";
 import type { Locale } from "@/lib/i18n/locales";
 
 import { ShopChrome } from "../components/shop-chrome";
-import { ShopHome, homeMetadata } from "./home";
+import { HomeTickerSlot, ShopHome, homeMetadata } from "./home";
 
 /**
  * `/`, `/ru`, `/en`: the live storefront in api mode, the static marketing
@@ -19,7 +19,7 @@ import { ShopHome, homeMetadata } from "./home";
 async function Switch({ locale }: { locale: Locale }) {
   if (!(await storefrontEnabled())) return <LandingPage locale={locale} />;
   return (
-    <ShopChrome locale={locale}>
+    <ShopChrome locale={locale} top={<HomeTickerSlot locale={locale} />}>
       <ShopHome locale={locale} />
     </ShopChrome>
   );

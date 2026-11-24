@@ -14,8 +14,8 @@ import type { Locale } from "@/lib/i18n/locales";
 import { accountCopy } from "../copy/account";
 import { commonCopy } from "../copy/common";
 import { AddressMap } from "./address-map";
-import { FormAlert } from "./controls";
-import { failureText, useShopAction } from "./use-shop-action";
+import { RefusalAlert } from "./controls";
+import { useShopAction } from "./use-shop-action";
 
 /**
  * Add or edit a saved address (contract §2.2.7): a label, the BTS region and
@@ -189,7 +189,11 @@ export function AddressDialog({
           />
           {copy.makeDefault}
         </label>
-        {error && !error.fieldErrors ? <FormAlert>{failureText(error, locale)}</FormAlert> : null}
+        <RefusalAlert
+          failure={error}
+          shown={["label", "region_code", "city_code", "text", "latitude", "longitude", "comment"]}
+          locale={locale}
+        />
         <div className="flex justify-end gap-2 pt-1">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             {common.dialog.cancel}

@@ -9,13 +9,36 @@ import { useCountdown } from "@/lib/countdown";
 import type { Locale } from "@/lib/i18n/locales";
 import { maskTypedPhone } from "@/lib/phone";
 
+import type { ActionFailure } from "@/data/types";
+
 import { commonCopy } from "../copy/common";
+import { unplacedError } from "./password-rules";
+import { failureText } from "./use-shop-action";
 
 /**
  * Form controls of the private pages: a password field with a show/hide
  * toggle, the one-time-code field with its resend countdown, a masked uz
  * phone field and an alert line. Built on the design system's `Field`.
  */
+
+/**
+ * A form's refusal that none of its fields shows (`shown`: the API field names the form displays next to a
+ * field): the API's message, or the field error of a field the form has none for. A refused submit is never
+ * silent.
+ */
+export function RefusalAlert({
+  failure,
+  shown,
+  locale,
+}: {
+  failure: ActionFailure | null;
+  shown: readonly string[];
+  locale: Locale;
+}) {
+  const text = unplacedError(failure, shown);
+  if (!failure || text === null) return null;
+  return <FormAlert>{failure.code === "csrf" ? failureText(failure, locale) : text}</FormAlert>;
+}
 
 export function FormAlert({ children, className }: { children: ReactNode; className?: string }) {
   if (!children) return null;

@@ -43,9 +43,10 @@ import { shopPath } from "../routing/routes";
 import { runShopAction } from "../shared/action-client";
 import { AddressDialog } from "./address-form";
 import { AddressPinNote } from "./address-pin-note";
-import { CodeField, FormAlert, FormNote, PasswordField } from "./controls";
+import { CodeField, FormAlert, FormNote, PasswordField, RefusalAlert } from "./controls";
 import { PhoneGate } from "./phone-gate";
 import { ReauthStep } from "./reauth";
+import { hasReauthProof, newPasswordProblem } from "./password-rules";
 import { keepReauthAfter } from "./reauth-proof";
 import { useShopSession } from "./session-context";
 import { failureText, useShopAction } from "./use-shop-action";
@@ -194,7 +195,7 @@ function ProfileCard({
               {copy.saved}
             </span>
           ) : null}
-          {error && !error.fieldErrors ? <FormAlert>{failureText(error, locale)}</FormAlert> : null}
+          <RefusalAlert failure={error} shown={["name"]} locale={locale} />
         </div>
       </form>
     </Card>
@@ -307,7 +308,7 @@ function EmailDialog({
             passwordError={error?.fieldErrors?.password}
           />
         ) : null}
-        {error && !error.fieldErrors ? <FormAlert>{failureText(error, locale)}</FormAlert> : null}
+        <RefusalAlert failure={error} shown={["email", "code", "password"]} locale={locale} />
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             {common.dialog.cancel}
@@ -417,10 +418,29 @@ function PasswordCard({
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState<Reauth>({});
   const [password, setPassword] = useState("");
+  const [repeat, setRepeat] = useState("");
+  const [passwordTouched, setPasswordTouched] = useState(false);
   const [saved, setSaved] = useState(false);
   const { run, pending, error } = useShopAction(locale);
   const key = useIdempotencyKey();
+  const problem = newPasswordProblem(password, repeat);
+  const proven = hasReauthProof(current);
+  const ruleError =
+    passwordTouched && (problem === "short" || problem === "digits")
+      ? problem === "short"
+        ? copy.tooShort
+        : copy.onlyDigits
+      : undefined;
+  const repeatError = repeat && problem === "mismatch" ? copy.mismatch : undefined;
+  const close = () => {
+    setOpen(false);
+    setPassword("");
+    setRepeat("");
+    setPasswordTouched(false);
+    setCurrent({});
+  };
   const save = async () => {
+    if (!proven || problem) return;
     const result = key.settle(
       await run((csrf) =>
         changePassword({
@@ -436,9 +456,7 @@ function PasswordCard({
     if (result.ok) {
       onSaved(result.data);
       setSaved(true);
-      setOpen(false);
-      setPassword("");
-      setCurrent({});
+      close();
     } else {
       setCurrent((proof) => keepReauthAfter(proof, result));
     }
@@ -481,16 +499,38 @@ function PasswordCard({
             autoComplete="new-password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            error={error?.fieldErrors?.password}
+            onBlur={() => setPasswordTouched(true)}
+            error={ruleError ?? error?.fieldErrors?.password}
           />
-          {error && !error.fieldErrors ? <FormAlert>{failureText(error, locale)}</FormAlert> : null}
-          <div className="flex gap-2">
-            <Button type="submit" disabled={pending} aria-busy={pending || undefined}>
-              {copy.save}
-            </Button>
-            <Button variant="ghost" onClick={() => setOpen(false)}>
-              {commonCopy[locale].dialog.cancel}
-            </Button>
+          <PasswordField
+            label={copy.repeat}
+            showLabel={fields.showPassword}
+            hideLabel={fields.hidePassword}
+            autoComplete="new-password"
+            value={repeat}
+            onChange={(event) => setRepeat(event.target.value)}
+            error={repeatError}
+          />
+          <RefusalAlert failure={error} shown={["current_password", "password"]} locale={locale} />
+          <div className="flex flex-col gap-2">
+            <div className="flex gap-2">
+              <Button
+                type="submit"
+                disabled={pending || !proven || problem !== null}
+                aria-busy={pending || undefined}
+                aria-describedby={!proven ? "password-confirm-first" : undefined}
+              >
+                {copy.save}
+              </Button>
+              <Button variant="ghost" onClick={close}>
+                {commonCopy[locale].dialog.cancel}
+              </Button>
+            </div>
+            {!proven ? (
+              <p id="password-confirm-first" className="m-0 text-body-sm text-ink-muted">
+                {copy.confirmFirst}
+              </p>
+            ) : null}
           </div>
         </form>
       ) : null}
@@ -643,9 +683,7 @@ function SocialCard({
                 pending={pending}
               />
             ) : null}
-            {error && !error.fieldErrors ? (
-              <FormAlert>{failureText(error, locale)}</FormAlert>
-            ) : null}
+            <RefusalAlert failure={error} shown={["password"]} locale={locale} />
             <div className="flex justify-end gap-2">
               <Button variant="ghost" onClick={close}>
                 {commonCopy[locale].dialog.cancel}
@@ -886,7 +924,7 @@ function DangerCard({ locale, me }: { locale: Locale; me: ShopMe }) {
             onChange={setReauth}
             passwordError={error?.fieldErrors?.password}
           />
-          {error && !error.fieldErrors ? <FormAlert>{failureText(error, locale)}</FormAlert> : null}
+          <RefusalAlert failure={error} shown={["password"]} locale={locale} />
           <div className="flex flex-wrap justify-end gap-2">
             <AlertDialogCancel asChild>
               <Button variant="secondary">{commonCopy[locale].dialog.cancel}</Button>

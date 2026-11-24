@@ -196,7 +196,7 @@ The customer website is the storefront above plus the signed-in pages, served by
    - `INTERNAL_API_SECRET=<32+ characters>`: the frontend sends it as `X-GD-Internal-Secret`;
    - `PUBLIC_MEDIA_BASE_URL=http://127.0.0.1:8333/glowderma-media/media/`: start local SeaweedFS and
      allow its host and path in `GLOWDERMA_MEDIA_HOSTS`;
-   - fake integrations: `OAUTH_MODE=fake`, `ESKIZ_FAKE_CODE=123456` and `EMAIL_MODE=fake`. Every SMS and e-mail code is then **`123456`** (sign-up, new device, reset, phone gate, e-mail attach);
+   - fake integrations: `OAUTH_MODE=fake`, `OTP_FAKE_CODE=123456` (the default) and `EMAIL_MODE=fake`. Every SMS and e-mail code is then **`123456`** (sign-up, new device, reset, phone gate, e-mail attach);
    - sandbox payments: `FAKE_PAYMENTS_ENABLED=true` (the `dev/payments/{id}/simulate/` endpoint) and `PAYMENT_WEB_RETURN_URL=http://localhost:3000{locale_prefix}/buyurtmalar/{order_id}?paid=1`.
 
    Then run `uv run python manage.py migrate`, `uv run python manage.py seed_demo` and `uv run python manage.py runserver 127.0.0.1:8000`. Django reads `os.environ` only, so export the `.env` first (`set -a; . ./.env; set +a`).

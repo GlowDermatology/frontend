@@ -4,7 +4,7 @@ import { expect, type Page } from "@playwright/test";
 
 /**
  * Helpers of the signed-in storefront suite. Local backends send the fixed
- * code 123456 by SMS and by e-mail (`ESKIZ_FAKE_CODE`, B-W2 `EMAIL_MODE=fake`).
+ * code 123456 by SMS and by e-mail (`OTP_FAKE_CODE`, B-W2 `EMAIL_MODE=fake`).
  */
 
 export const FAKE_CODE = process.env.E2E_FAKE_OTP ?? "123456";

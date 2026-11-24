@@ -132,7 +132,7 @@ The `customer-public-dark` and `customer-dark` projects run the storefront's axe
 
 Running the whole suite (all six projects) against a local stack: the backend `.env` needs, besides the local
 defaults, `ADMIN_PANEL_URL=http://localhost:3000/admin` (e-mail link specs), `CAMPAIGN_APPROVAL_DELAY_MINUTES=0`,
-`ESKIZ_FAKE_CODE=123456`, `EMAIL_MODE=fake`, `FAKE_PAYMENTS_ENABLED=true` and `PAYMENT_WEB_RETURN_URL` (the
+`OTP_FAKE_CODE=123456` (the default), `EMAIL_MODE=fake`, `FAKE_PAYMENTS_ENABLED=true` and `PAYMENT_WEB_RETURN_URL` (the
 `customer` project, see the main README "Customer website"); the frontend runs with the main README's variables plus
 the fake OAuth ones above; the suite with `E2E_ADMIN_PASSWORD`, `E2E_STAFF_PASSWORD`, `E2E_BACKEND_DIR` and
 `E2E_API_URL` set, so no arranging spec skips. `mfa.spec.ts`'s manager reset reads the badge from the staff list:

@@ -6,6 +6,7 @@ import { accountCopy } from "./account";
 import { authCopy } from "./auth";
 import { bookingCopy } from "./booking";
 import { commonCopy } from "./common";
+import { homeCopy } from "./home";
 import { inboxCopy } from "./inbox";
 import { loyaltyCopy } from "./loyalty";
 import { ordersCopy } from "./orders";
@@ -17,6 +18,7 @@ const MODULES = {
   authCopy,
   bookingCopy,
   commonCopy,
+  homeCopy,
   inboxCopy,
   loyaltyCopy,
   ordersCopy,

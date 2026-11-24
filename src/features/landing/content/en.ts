@@ -164,8 +164,8 @@ export const en = {
         body: "We’ll let you know when your order is ready. Address: [Store address].",
       },
       {
-        title: "Click or Payme",
-        body: "You pay inside those apps. Card details are never entered or stored in Glow Derma.",
+        title: "Click, Payme or Uzum",
+        body: "You pay in the payment system’s own app or page. Card details are never entered or stored in Glow Derma.",
       },
     ],
     tracker: {

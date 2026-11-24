@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { PaymentProvider } from "@/domain/order";
 import type { Locale } from "@/lib/i18n/locales";
 
 import type {
@@ -102,7 +103,7 @@ export function apiCheckout(locale: Locale, body: ApiCheckoutRequest, idempotenc
 export function apiPay(
   locale: Locale,
   orderId: number,
-  provider: "click" | "payme" | null,
+  provider: PaymentProvider | null,
   idempotencyKey: string,
 ) {
   return customerFetch<ApiPayLink>(`${V1}/orders/${orderId}/pay/`, {

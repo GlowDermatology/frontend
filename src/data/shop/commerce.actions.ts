@@ -35,6 +35,7 @@ import {
 } from "@/data/api/customer/commerce";
 import { guardCustomerAction } from "@/data/customer-auth/session";
 import type { ActionResult } from "@/data/types";
+import { isPaymentProvider } from "@/domain/order";
 import type { DeliveryChoice } from "@/domain/shop-delivery";
 import type {
   Fulfilment,
@@ -228,13 +229,14 @@ export async function placeOrder(input: {
   const fulfilment = input.selection?.fulfilment === "delivery" ? "delivery" : "pickup";
   const quoteId = fulfilment === "delivery" ? quoteIdOrNull(input.deliveryQuoteId) : null;
   if (input.deliveryQuoteId && !quoteId && fulfilment === "delivery") return invalid(locale);
+  if (!isPaymentProvider(input.provider)) return invalid(locale);
   try {
     const { data } = await apiCheckout(
       locale,
       {
         fulfilment,
         address_id: fulfilment === "delivery" ? positiveInt(input.selection.addressId) : null,
-        payment_provider: input.provider === "payme" ? "payme" : "click",
+        payment_provider: input.provider,
         cashback_to_use: Math.max(0, Math.trunc(Number(input.selection.cashbackToUse) || 0)),
         expected_total: Math.max(0, Math.trunc(Number(input.expectedTotal) || 0)),
         customer_note: String(input.note ?? "")
@@ -252,7 +254,7 @@ export async function placeOrder(input: {
 
 /**
  * `POST orders/{id}/pay/` → where the browser goes to pay: the provider's
- * https page (Click or Payme), which returns to this site's order page
+ * https page (Click, Payme or Uzum), which returns to this site's order page
  * (`PAYMENT_WEB_RETURN_URL`). With the local payment sandbox on, the order
  * page itself (`?sandbox=1`) stands in for the provider.
  */
@@ -268,9 +270,9 @@ export async function startPayment(input: {
   if (!guard.ok) return guard;
   const orderId = positiveInt(input.orderId);
   if (!orderId) return invalid(locale);
+  const provider = input.provider ?? null;
+  if (provider !== null && !isPaymentProvider(provider)) return invalid(locale);
   try {
-    const provider =
-      input.provider === "click" || input.provider === "payme" ? input.provider : null;
     const { data } = await apiPay(locale, orderId, provider, String(input.idempotencyKey));
     if (paymentSandboxEnabled()) {
       const url = shopHref(locale, { kind: "order", slug: String(orderId) }, { sandbox: 1 });

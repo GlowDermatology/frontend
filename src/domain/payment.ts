@@ -1,7 +1,7 @@
 /**
  * Payments and their refunds, as listed on the "To‘lovlar" screen (contract
  * §2.12). A payment belongs to one order; refunds are created by an order
- * cancellation and settled by the provider (Click) or by hand (Payme).
+ * cancellation and settled by the provider (Click, Uzum) or by hand (Payme).
  */
 import {
   REFUND_STATES_NEEDING_ACTION,
@@ -118,7 +118,11 @@ export const CLICK_STILL_PAID_MESSAGE = paymentDataCopy.uz.clickStillPaid;
  */
 export const CLICK_NO_PAYDOC_MESSAGE = paymentDataCopy.uz.clickNoPaydoc;
 
-/** Whether `refund` may be closed as a failed Click refund (the guard of `…/resolve/`, M2). */
+/**
+ * Whether `refund` may be closed as a failed Click refund (the guard of `…/resolve/`, M2).
+ * Click only: the backend's close asks Click for the payment status and has no Uzum check, so a
+ * failed Uzum refund (`uzum_<code>`) is only retried (a new refund, sent to Uzum again).
+ */
 export function canCloseFailedRefund(
   refund: Pick<Refund, "id" | "state" | "provider">,
   payment: Pick<PaymentRecord, "status" | "refunds">,

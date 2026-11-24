@@ -70,7 +70,8 @@ export async function retryRefund(
       refunds: [
         {
           id: refund.id + 500_000,
-          state: payment.provider === "click" ? "requested" : "manual_required",
+          // Click and Uzum refunds go through the provider; Payme's is a cabinet refund.
+          state: payment.provider === "payme" ? "manual_required" : "requested",
           provider: payment.provider,
           amount: refund.amount,
           requestedAt: at,

@@ -16,7 +16,8 @@ import {
   type OrderEvent,
   type OrderStatus,
   type OrderSummary,
-  type PaymentProvider,
+  isPaymentProvider,
+  PAYMENT_PROVIDER_NAME,
   type Refund,
   type Shipment,
 } from "@/domain/order";
@@ -320,10 +321,9 @@ const str = (d: EventData, key: string): string | undefined =>
   typeof d[key] === "string" ? (d[key] as string) : undefined;
 const flag = (d: EventData, key: string): boolean => d[key] === true;
 
-const PROVIDER: Record<PaymentProvider, string> = { click: "Click", payme: "Payme" };
 const provider = (d: EventData): string => {
   const value = str(d, "provider");
-  return value === "click" || value === "payme" ? PROVIDER[value] : (value ?? "");
+  return isPaymentProvider(value) ? PAYMENT_PROVIDER_NAME[value] : (value ?? "");
 };
 const VIA: Record<string, string> = { webhook: "Webhook", polling: "Polling" };
 const via = (d: EventData): string => {
@@ -335,9 +335,9 @@ const pushSuffix = (d: EventData, h: OrderHistoryCopy) =>
 const actorName = (event: ApiOrderEvent, h: OrderHistoryCopy) =>
   event.actor?.display_name || h.admin;
 
-/** A manual refund's reason (§4: absent on M1 rows → `payme`); `null` for an automatic one. */
+/** A manual refund's reason (§4: absent on M1 Payme rows → `payme`); `null` for an automatic one. */
 const manualReasonOf = (d: EventData): ManualRefundReason | "unknown" | null =>
-  flag(d, "manual") ? (manualRefundReason(d.manual_reason) ?? "unknown") : null;
+  flag(d, "manual") ? (manualRefundReason(d.manual_reason, d.provider) ?? "unknown") : null;
 
 /** §5.1 note of `refund_requested`: by `manual_reason`, a reason added later reads as "manual". */
 const manualSuffix = (d: EventData, locale: Locale): string => {

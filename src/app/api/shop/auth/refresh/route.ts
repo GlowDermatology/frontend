@@ -37,7 +37,7 @@ import { parseAllowedOrigins } from "@/lib/origins";
  * - cross-site request → a tiny same-origin page that reloads this URL
  *               (`sameOriginBounce`): a link from elsewhere must not rotate
  *               tokens, and a 303 straight back to `next` would loop — a
- *               visitor returning from Click/Payme with a lapsed access cookie
+ *               visitor returning from Click/Payme/Uzum with a lapsed access cookie
  *               is bounced here by the proxy again (ERR_TOO_MANY_REDIRECTS).
  *               The reload is same-origin, so it then refreshes normally.
  *

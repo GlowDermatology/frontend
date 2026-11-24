@@ -62,7 +62,7 @@ describe("mock dataset", () => {
     expect(customer && ledgerBalance(customer.ledger)).toBe(48_600);
   });
 
-  it("keeps a manual refund for each of the three manual reasons (§4, M2)", async () => {
+  it("keeps a manual refund for each of the four manual reasons (§4, M2)", async () => {
     const { PAYMENTS } = await import("./mock/payments");
     const manual = PAYMENTS.filter((p) => p.refunds[0]?.state === "manual_required");
     const orders = await Promise.all(manual.map((p) => getOrder(p.orderId)));
@@ -70,12 +70,14 @@ describe("mock dataset", () => {
       ["click", "fake_mode"],
       ["click", "no_paydoc"],
       ["payme", "payme"],
+      ["uzum", "uzum_fake"],
     ]);
     // The payments rows carry the same reasons on the refund itself (M3 `Refund.manual_reason`).
     expect(manual.map((p) => [p.provider, p.refunds[0]?.manualReason]).sort()).toEqual([
       ["click", "fake_mode"],
       ["click", "no_paydoc"],
       ["payme", "payme"],
+      ["uzum", "uzum_fake"],
     ]);
     // Every Payme refund is a cabinet refund, also once settled; an automatic Click one has none.
     const settled = PAYMENTS.flatMap((p) => p.refunds).filter((r) => r.state === "succeeded");
@@ -83,6 +85,8 @@ describe("mock dataset", () => {
       new Set(settled.filter((r) => r.provider === provider).map((r) => r.manualReason));
     expect(reasonsOf("payme")).toEqual(new Set(["payme"]));
     expect(reasonsOf("click")).toEqual(new Set([undefined]));
+    // Uzum refunds go through Uzum's API like Click's: a settled one has no manual reason.
+    expect(reasonsOf("uzum")).toEqual(new Set([undefined]));
     // The late capture: the order stays cancelled, its request is a history row of its own.
     const late = orders.find((o) => o?.refunds[0]?.manualReason === "fake_mode")!;
     expect(late.cancellation?.reason).toBe("reservation_expired");
@@ -93,6 +97,26 @@ describe("mock dataset", () => {
     });
     expect(late.history[0]!.note).toMatch(/ · Click sinov rejimida · qo‘lda to‘lanadi$/);
     expect(late.history.map((e) => e.title)).not.toContain("Jarayonda");
+  });
+
+  it("keeps fixed Uzum rows for every payment and refund state the board shows", async () => {
+    const { PAYMENTS } = await import("./mock/payments");
+    const uzum = PAYMENTS.filter((p) => p.provider === "uzum");
+    const row = (orderId: number) => uzum.find((p) => p.orderId === orderId);
+    expect(uzum.map((p) => p.orderId).sort()).toEqual([10031, 10072, 10097, 10219, 10234, 10238]);
+    expect(row(10234)?.status).toBe("pending");
+    expect(row(10238)?.status).toBe("paid");
+    expect(row(10031)?.refunds.map((r) => [r.state, r.manualReason])).toEqual([
+      ["succeeded", undefined],
+    ]);
+    expect(row(10097)?.refunds[0]?.state).toBe("failed");
+    expect(row(10072)?.refunds[0]).toMatchObject({
+      state: "manual_required",
+      manualReason: "uzum_fake",
+    });
+    expect(row(10238)?.transactionId).toMatch(/^UZM-/);
+    const order = await getOrder(10238);
+    expect(order?.history.map((e) => e.note).join(" ")).toContain("Uzum");
   });
 
   it("builds a coherent card for every customer who placed an order", async () => {

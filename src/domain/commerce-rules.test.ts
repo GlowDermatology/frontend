@@ -160,6 +160,13 @@ describe("refundOperations (contract §2.12, §7 item 18)", () => {
     expect(canCloseFailedRefund(failed, payment(failed, click(1, "failed")))).toBe(true);
     // Payme failures are retried, never closed by a Click status check.
     expect(canCloseFailedRefund(refund(2, "failed"), payment(refund(2, "failed")))).toBe(false);
+    // So are Uzum's (`uzum_<code>`): the backend's close only asks Click.
+    const uzum = refund(2, "failed", "uzum");
+    expect(refundOperations(uzum, payment(uzum))).toEqual({
+      retry: true,
+      resolve: false,
+      close: false,
+    });
     // Not the newest refund, a settled or open sibling, or no longer paid.
     expect(canCloseFailedRefund(failed, payment(click(3, "failed"), failed))).toBe(false);
     expect(canCloseFailedRefund(failed, payment(failed, click(1, "succeeded")))).toBe(false);
@@ -229,9 +236,15 @@ describe("refund state line (contract §5.1, §7 item 3, M2)", () => {
     expect(refundStateLine({ ...manual, provider: "payme", manualReason: "no_paydoc" })).toBe(
       CLICK,
     );
+    // Uzum in test mode is paid out by hand, like Click's.
+    expect(refundStateLine({ ...manual, provider: "uzum", manualReason: "uzum_fake" })).toBe(CLICK);
     // Without a reason the provider decides (rows written before the field).
     expect(refundStateLine({ ...manual, provider: "payme" })).toBe(PAYME);
     expect(refundStateLine({ ...manual, provider: "click" })).toBe(CLICK);
+    expect(refundStateLine({ ...manual, provider: "uzum" })).toBe(CLICK);
+    expect(refundStateLine({ ...manual, provider: "uzum" }, "en")).toBe(
+      "Pay the customer by hand, then mark the refund “Refunded”",
+    );
     // The reason stays after the refund settled; the line follows the state.
     expect(
       refundStateLine({ state: "succeeded", provider: "click", manualReason: "no_paydoc" }),
@@ -245,6 +258,12 @@ describe("refund state line (contract §5.1, §7 item 3, M2)", () => {
     expect(manualRefundNote({ state: "manual_required", manualReason: "fake_mode" })).toBe(
       "Click sinov rejimida · qo‘lda to‘lanadi",
     );
+    expect(manualRefundNote({ state: "manual_required", manualReason: "uzum_fake" })).toBe(
+      "Uzum sinov rejimida · qo‘lda to‘lanadi",
+    );
+    expect(manualRefundNote({ state: "manual_required", manualReason: "uzum_fake" }, "ru")).toBe(
+      "Uzum в тестовом режиме · выплата вручную",
+    );
     // Payme's line already names the cabinet; a settled or reason-less refund has no note.
     expect(manualRefundNote({ state: "manual_required", manualReason: "payme" })).toBeNull();
     expect(manualRefundNote({ state: "manual_required" })).toBeNull();
@@ -255,17 +274,22 @@ describe("refund state line (contract §5.1, §7 item 3, M2)", () => {
     expect(refundManualReason("payme")).toBe("payme");
     expect(refundManualReason("no_paydoc")).toBe("no_paydoc");
     expect(refundManualReason("fake_mode")).toBe("fake_mode");
+    expect(refundManualReason("uzum_fake")).toBe("uzum_fake");
     expect(refundManualReason(null)).toBeUndefined();
     expect(refundManualReason(undefined)).toBeUndefined();
     expect(refundManualReason("later_reason")).toBeUndefined();
   });
 
-  it("reads manual_reason, an absent one (M1 rows) as Payme", () => {
+  it("reads manual_reason, an absent one (M1 rows) as Payme only for a Payme refund", () => {
     expect(manualRefundReason("no_paydoc")).toBe("no_paydoc");
     expect(manualRefundReason("fake_mode")).toBe("fake_mode");
     expect(manualRefundReason("payme")).toBe("payme");
     expect(manualRefundReason(undefined)).toBe("payme");
     expect(manualRefundReason(null)).toBe("payme");
+    expect(manualRefundReason("uzum_fake", "uzum")).toBe("uzum_fake");
+    expect(manualRefundReason(undefined, "payme")).toBe("payme");
+    expect(manualRefundReason(null, "click")).toBeNull();
+    expect(manualRefundReason(undefined, "uzum")).toBeNull();
     expect(manualRefundReason("later_reason")).toBeNull();
   });
 });

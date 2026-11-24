@@ -65,8 +65,9 @@ const uz = {
 
   dialog: {
     retryTitle: "Qaytarishni qayta yuborasizmi?",
-    retryClick: (order: number, amount: string) =>
-      `Buyurtma №${order}: ${amount} uchun yangi qaytarish ochiladi va imkon bo‘lsa Click’ga yuboriladi; bo‘lmasa, mijozga qo‘lda to‘lash kerakligi ko‘rsatiladi.`,
+    /** A failed Click or Uzum refund: the new refund goes to the provider's API when it can. */
+    retryAutomatic: (provider: string, order: number, amount: string) =>
+      `Buyurtma №${order}: ${amount} uchun yangi qaytarish ochiladi va imkon bo‘lsa ${provider}’ga yuboriladi; bo‘lmasa, mijozga qo‘lda to‘lash kerakligi ko‘rsatiladi.`,
     retryPayme: (order: number, amount: string) =>
       `Buyurtma №${order}: ${amount} uchun yangi qaytarish ochiladi; Payme kabinetida qo‘lda qaytariladi.`,
     retryConfirm: "Qayta yuborish",
@@ -194,8 +195,8 @@ export const paymentsCopy = {
 
     dialog: {
       retryTitle: "Отправить возврат повторно?",
-      retryClick: (order: number, amount: string) =>
-        `Заказ №${order}: будет открыт новый возврат на ${amount}. Если получится, он уйдёт в Click; если нет — появится отметка, что клиенту нужно выплатить вручную.`,
+      retryAutomatic: (provider: string, order: number, amount: string) =>
+        `Заказ №${order}: будет открыт новый возврат на ${amount}. Если получится, он уйдёт в ${provider}; если нет — появится отметка, что клиенту нужно выплатить вручную.`,
       retryPayme: (order: number, amount: string) =>
         `Заказ №${order}: будет открыт новый возврат на ${amount}; его нужно провести вручную в кабинете Payme.`,
       retryConfirm: "Отправить повторно",
@@ -310,8 +311,8 @@ export const paymentsCopy = {
 
     dialog: {
       retryTitle: "Send the refund again?",
-      retryClick: (order: number, amount: string) =>
-        `Order No. ${order}: a new refund of ${amount} is opened and, if possible, sent to Click; otherwise the row shows that the customer must be paid by hand.`,
+      retryAutomatic: (provider: string, order: number, amount: string) =>
+        `Order No. ${order}: a new refund of ${amount} is opened and, if possible, sent to ${provider}; otherwise the row shows that the customer must be paid by hand.`,
       retryPayme: (order: number, amount: string) =>
         `Order No. ${order}: a new refund of ${amount} is opened; it is refunded by hand in the Payme merchant cabinet.`,
       retryConfirm: "Send again",

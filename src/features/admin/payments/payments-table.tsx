@@ -53,7 +53,9 @@ export function dialogCopy(
     return {
       title: d.retryTitle,
       body:
-        op.refund.provider === "click" ? d.retryClick(order, amount) : d.retryPayme(order, amount),
+        op.refund.provider === "payme"
+          ? d.retryPayme(order, amount)
+          : d.retryAutomatic(provider, order, amount),
       confirm: d.retryConfirm,
     };
   }
@@ -63,9 +65,9 @@ export function dialogCopy(
       : { title: d.closeTitle, body: d.closeBody(order, amount), confirm: d.closeConfirm };
   }
   if (op.state === "succeeded") {
-    // A manual Click refund is paid to the customer outside Click (§5.1, M2).
+    // A manual Click or Uzum refund is paid to the customer outside the provider (§5.1, M2).
     const check =
-      op.refund.state === "manual_required" && op.refund.provider === "click"
+      op.refund.state === "manual_required" && op.refund.provider !== "payme"
         ? d.checkManualClick(amount)
         : d.checkCabinet(provider, amount);
     return {

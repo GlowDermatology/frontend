@@ -81,11 +81,11 @@ export async function cancelOrder(
     : order.shipment.state === "created";
   const at = referenceNow().toISOString();
   const paid = order.payment.status === "paid";
-  // Click refunds go through the provider; Payme is refunded by hand in its cabinet.
+  // Click and Uzum refunds go through the provider; Payme is refunded by hand in its cabinet.
   const refund: Refund | null = paid
     ? {
         id: 900_000 + order.id,
-        state: order.payment.provider === "click" ? "requested" : "manual_required",
+        state: order.payment.provider === "payme" ? "manual_required" : "requested",
         provider: order.payment.provider,
         amount: order.total,
         requestedAt: at,

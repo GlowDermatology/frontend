@@ -17,7 +17,7 @@ import { runShopAction } from "../shared/action-client";
 import { POLL_INTERVAL_MS, keepPolling, paymentPhase, type PaymentPhase } from "./payment-phase";
 
 /**
- * The return from Click or Payme (`PAYMENT_WEB_RETURN_URL` →
+ * The return from Click, Payme or Uzum (`PAYMENT_WEB_RETURN_URL` →
  * `/buyurtmalar/{id}?paid=1`): polls the order every 2 s for up to a minute
  * until the payment is confirmed or refused, then shows a calm confirmation
  * (or the way to pay again) and refreshes the page below.

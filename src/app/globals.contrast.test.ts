@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { CUSTOMER_DARK_COLOR } from "../lib/theme/theme-cookie";
 
 /**
- * Guard for the two token blocks of `globals.css` (light and night-blue dark): the same tokens in
+ * Guard for the two token blocks of `globals.css` (light and Espresso dark): the same tokens in
  * both, WCAG AA for the dark theme's text and status pairs, the light theme's current ratios as
  * floors (a later tweak may not make it worse), and no Tailwind `dark:` variant anywhere (it would
  * leak into subtrees pinned to `data-theme="light"`).

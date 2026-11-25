@@ -54,6 +54,7 @@ function home(extra: Partial<ApiHome> = {}): ApiHome {
         { from_amount: 30_000_000, to_amount: null, percent: "3.00" },
       ],
     },
+    feed_cursor: "MjAyNi0xMS0wMlQwMDowMDowMCswNTowMHwxMg",
     ...extra,
   };
 }
@@ -79,6 +80,12 @@ describe("live landing mappers", () => {
       ["new", [3, 4]],
       ["promo", [2]],
     ]);
+    expect(mapped.feedCursor).toBe("MjAyNi0xMS0wMlQwMDowMDowMCswNTowMHwxMg");
+  });
+
+  it("drops an odd feed cursor, so the feed starts from the top", () => {
+    expect(mapHome(home({ feed_cursor: null }), HOSTS).feedCursor).toBeNull();
+    expect(mapHome(home({ feed_cursor: "a b/c" }), HOSTS).feedCursor).toBeNull();
   });
 
   it("drops unknown reasons, rail keys, duplicates and empty rails", () => {

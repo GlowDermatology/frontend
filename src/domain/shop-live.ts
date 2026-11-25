@@ -40,6 +40,11 @@ export interface ShopHome {
   spotlight: ReadonlyArray<{ reason: SpotlightReason; product: ShopProductCard }>;
   rails: ReadonlyArray<{ key: RailKey; items: ReadonlyArray<ShopProductCard> }>;
   cashback: ShopCashbackPolicy | null;
+  /**
+   * The feed cursor right after the `new` rail's last product: the landing's
+   * unfiltered «Kashf eting» feed starts there so it never repeats the rail.
+   */
+  feedCursor: string | null;
 }
 
 export interface ShopFeedPage {

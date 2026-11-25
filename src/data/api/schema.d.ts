@@ -3,8 +3,8 @@
  * GENERATED FILE — do not edit by hand. Regenerate with `npm run gen:api`.
  *
  * Source: openapi/schema.yaml of the backend repository
- * Commit: 4777cfb0a0b1b57c2fef1bb2f28ed6531b673363
- * Generated: 2026-11-24T22:43:17.478Z (openapi-typescript)
+ * Commit: 374753cd2108db7ae712bd63e29911c510c7ca2e
+ * Generated: 2026-11-25T17:24:53.899Z (openapi-typescript)
  */
 
 export interface paths {
@@ -5519,10 +5519,12 @@ export interface components {
              *     * `en` - en
              */
             content_language: components["schemas"]["ContentLanguageEnum"];
+            /** @description The `catalog/feed/` cursor right after the `new` rail's last product (the landing's unfiltered feed starts there, so it does not repeat the rail); null = no products. */
+            feed_cursor: string | null;
             online_sales_enabled: boolean;
             /** @description `new`, `promo`, `bestsellers` (at least 4 items) in that order; empty rails are left out. */
             rails: components["schemas"]["HomeRail"][];
-            /** @description Up to 6 products with an image, each once with its first reason (promo, bestseller, low_stock, new), rotated by the Tashkent hour. */
+            /** @description Up to 6 products with an image, each once, taken one per reason in turn (promo, bestseller, low_stock, new), rotated by the Tashkent hour. */
             spotlight: components["schemas"]["HomeSpotlight"][];
             stats: components["schemas"]["HomeStats"];
         };

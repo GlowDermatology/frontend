@@ -131,6 +131,7 @@ export function mapHome(api: ApiHome, mediaHosts: ReadonlyArray<string>): ShopHo
     spotlight,
     rails,
     cashback: mapCashbackPolicy(api.cashback),
+    feedCursor: feedCursorOf(api.feed_cursor),
   };
 }
 

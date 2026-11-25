@@ -1095,12 +1095,14 @@ async function Clinics({ locale, dict }: { locale: Locale; dict: ShopDictionary 
 /* -------------------------------------------------------------------------- */
 
 async function Discover({ locale }: { locale: Locale }) {
-  const [home, settings, feed, categories] = await Promise.all([
+  const [home, settings, categories] = await Promise.all([
     readHome(locale),
     readSettings(locale),
-    settle(getFeedPage(locale, null, null), null, "feed"),
     settle(getCategories(locale), [], "categories"),
   ]);
+  // The unfiltered feed continues after the «Yangi kelganlar» rail, so the
+  // landing never shows those products twice (category chips start afresh).
+  const feed = await settle(getFeedPage(locale, home?.feedCursor ?? null, null), null, "feed");
   let initial = feed?.items ?? [];
   let total = home?.stats.products ?? null;
   if (!feed) {

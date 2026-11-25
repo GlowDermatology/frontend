@@ -228,26 +228,15 @@ export function HomeTickerSlot({ locale }: { locale: Locale }) {
 
 function HeroIntro({
   locale,
-  pill,
   chips,
 }: {
   locale: Locale;
-  pill: { main: string; sub: string | null } | null;
   chips: ReadonlyArray<{ slug: string; name: string }>;
 }) {
   const copy = homeCopy[locale].hero;
   const catalog = shopPath(locale, { kind: "catalog" });
   return (
     <div className="flex min-w-0 flex-[1_1_420px] flex-col justify-center gap-6 py-2">
-      {pill ? (
-        <p className="m-0 inline-flex items-center gap-2.5 self-start rounded-full border border-line bg-surface-raised py-[7px] pr-3.5 pl-2.5 text-body-sm font-semibold text-ink shadow-sm">
-          <span aria-hidden="true" className="gd-pulse size-2 rounded-full bg-success" />
-          <span className="tabular-nums">{pill.main}</span>
-          {pill.sub ? <span className="font-medium text-ink-muted">· {pill.sub}</span> : null}
-        </p>
-      ) : (
-        <span aria-hidden="true" className="block h-[34px]" />
-      )}
       <h1
         id="hero-title"
         className="m-0 font-serif text-[clamp(44px,5.7vw,86px)] leading-[0.98] font-semibold tracking-[-0.015em] text-balance text-ink"
@@ -319,8 +308,6 @@ function HeroIntro({
 }
 
 async function Hero({ locale }: { locale: Locale }) {
-  const copy = homeCopy[locale].hero;
-  const fmt = createFormatter(locale);
   const [home, settings, categories] = await Promise.all([
     readHome(locale),
     readSettings(locale),
@@ -333,23 +320,13 @@ async function Hero({ locale }: { locale: Locale }) {
     const featured = await settle(getFeaturedProducts(locale, 6), [], "featured products");
     frames = featured.map((product) => ({ reason: product.promo ? "promo" : null, product }));
   }
-  const pill = home
-    ? {
-        main:
-          online && home.stats.productsInStock !== null
-            ? copy.pillInStock(fmt.number(home.stats.productsInStock))
-            : copy.pillCatalog(fmt.number(home.stats.products)),
-        sub:
-          home.stats.categories > 0 ? copy.pillCategories(fmt.number(home.stats.categories)) : null,
-      }
-    : null;
   const chips = [...categories]
     .filter((category) => category.productCount > 0)
     .sort((a, b) => b.productCount - a.productCount)
     .slice(0, 5);
   return (
     <Container className="flex flex-wrap items-stretch gap-[clamp(24px,3.6vw,56px)]">
-      <HeroIntro locale={locale} pill={pill} chips={chips} />
+      <HeroIntro locale={locale} chips={chips} />
       <Showcase
         locale={locale}
         frames={frames}
@@ -363,7 +340,7 @@ async function Hero({ locale }: { locale: Locale }) {
 function HeroSkeleton({ locale }: { locale: Locale }) {
   return (
     <Container className="flex flex-wrap items-stretch gap-[clamp(24px,3.6vw,56px)]">
-      <HeroIntro locale={locale} pill={null} chips={[]} />
+      <HeroIntro locale={locale} chips={[]} />
       <ShowcaseSkeleton />
     </Container>
   );

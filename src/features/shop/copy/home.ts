@@ -17,9 +17,6 @@ const uz = {
   },
   hero: {
     label: "Jonli vitrina",
-    pillInStock: (count: string) => `Omborda ${count} ta mahsulot`,
-    pillCatalog: (count: string) => `Katalogda ${count} ta mahsulot`,
-    pillCategories: (count: string) => `${count} ta toifa`,
     titleStart: "Teringizga mos",
     titleMiddle: "parvarishni",
     titleEmphasis: "toping.",
@@ -179,9 +176,6 @@ const ru: Copy = {
   },
   hero: {
     label: "Живая витрина",
-    pillInStock: (count) => `Товаров в наличии: ${count}`,
-    pillCatalog: (count) => `Товаров в каталоге: ${count}`,
-    pillCategories: (count) => `Категорий: ${count}`,
     titleStart: "Найдите уход,",
     titleMiddle: "который подходит",
     titleEmphasis: "вашей коже.",
@@ -338,9 +332,6 @@ const en: Copy = {
   },
   hero: {
     label: "Live showcase",
-    pillInStock: (count) => `${count} products in stock`,
-    pillCatalog: (count) => `${count} products in the catalog`,
-    pillCategories: (count) => `${count} categories`,
     titleStart: "Find the care",
     titleMiddle: "your skin",
     titleEmphasis: "needs.",

@@ -41,11 +41,12 @@ export function HomeProductCard({
     <article className={card}>
       <div className="group relative">
         <ProductImage
-          src={product.imageMedium ?? product.image}
+          src={product.renditions.square?.medium ?? product.imageMedium ?? product.image}
           alt=""
           sizes="(min-width: 1280px) 350px, (min-width: 1024px) 30vw, (min-width: 600px) 44vw, 90vw"
           seed={product.id}
           fit="contain"
+          square={Boolean(product.renditions.square)}
           zoom
         />
         <div className="absolute inset-x-3 top-3 flex flex-wrap gap-2">

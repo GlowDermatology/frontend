@@ -221,6 +221,8 @@ export function CartView({ locale, initial, canCheckout, supportPhone, providers
           <ul className="m-0 flex list-none flex-col p-0">
             {cart.lines.map((line) => {
               const problem = line.status !== "ok";
+              // The 4:5 rendition fills the 4:5 frame exactly; the photo itself otherwise.
+              const photo = line.renditions.portrait?.thumb ?? line.image;
               return (
                 <li
                   key={line.productId}
@@ -230,9 +232,9 @@ export function CartView({ locale, initial, canCheckout, supportPhone, providers
                   )}
                 >
                   <div className="relative aspect-product w-full overflow-hidden rounded-md bg-image-well">
-                    {line.image ? (
+                    {photo ? (
                       <Image
-                        src={line.image}
+                        src={photo}
                         alt={line.name}
                         fill
                         sizes="112px"

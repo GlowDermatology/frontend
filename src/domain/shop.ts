@@ -12,6 +12,31 @@ export interface ShopCategoryRef {
   name: string;
 }
 
+/**
+ * One screen shape of a product photo (backend 0bcf0a5 "renditions"): a crop staff chose (or the
+ * backend framed) as WebP copies. Every URL passed the media-host check of the original.
+ */
+export interface ShopRendition {
+  /** Full size (long side ≤ 2000 px): the product page's main slides. */
+  url: string;
+  /** 1000 px: cards and rails. */
+  medium: string;
+  /** 400 px: thumbnails and cart lines. */
+  thumb: string;
+}
+
+/**
+ * The screen shapes of a photo: a 4:5 `portrait` (product cards, product page, cart) and a 1:1
+ * `square` (home rails, the feed, thumbnails). Each is `null` until staff set it (or from an
+ * older API): the surface then shows the photo itself, as before.
+ */
+export interface ShopRenditions {
+  portrait: ShopRendition | null;
+  square: ShopRendition | null;
+}
+
+export const NO_RENDITIONS: ShopRenditions = { portrait: null, square: null };
+
 export interface ShopProductCard {
   id: number;
   /** URL segment: the slug when the API sends one, else the id (pre-B-W1 APIs). */
@@ -31,6 +56,8 @@ export interface ShopProductCard {
   imageMedium: string | null;
   /** Main image as the API sent it (absolute http(s)), for Open Graph / JSON-LD. */
   imageUrl: string | null;
+  /** The main image's screen shapes (`main_image_renditions`). */
+  renditions: ShopRenditions;
   available: number;
   inStock: boolean;
   brand: string | null;
@@ -57,6 +84,7 @@ export interface ShopProduct extends ShopProductCard {
     url: string;
     thumb: string | null;
     alt: string;
+    renditions: ShopRenditions;
   }>;
   /** `min(available, per-line cap)`; 0 = cannot be added (§2.3). */
   maxQuantity: number;

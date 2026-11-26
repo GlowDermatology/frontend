@@ -48,7 +48,7 @@ import {
   mapOrderDelivery,
   quoteIdOrNull,
 } from "./delivery-mappers";
-import { absoluteUrl, mapShopLocation, optimizable, variant } from "./mappers";
+import { absoluteUrl, mapShopLocation, optimizable, renditions, variant } from "./mappers";
 
 /**
  * Customer API → private storefront view models (pure; unit-tested). Every
@@ -141,6 +141,7 @@ export function mapCartLine(api: ApiCartLine, mediaHosts: ReadonlyArray<string>)
       optimizable(api.main_image_url, mediaHosts),
       mediaHosts,
     ),
+    renditions: renditions(api.main_image_renditions, mediaHosts),
     unitPrice: nonNegative(api.unit_price),
     promo: Boolean(api.promo),
     quantity: nonNegative(api.quantity),

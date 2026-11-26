@@ -395,13 +395,15 @@ describe("api mode (catalog actions wired)", () => {
     expect(request.formData).toBeInstanceOf(FormData);
     expect(request.body).toBeUndefined();
     expect(request.formData.get("file")).toBeInstanceOf(File);
-    expect(uploaded).toEqual({
+    expect(uploaded).toMatchObject({
       ok: true,
       data: {
         id: "32",
         src: "http://m/x.webp",
         label: "Rasm 2",
         alt: { uz: "", ru: "", en: "" },
+        // An answer without the renditions fields (older API): no shapes, an upload.
+        media: { source: "upload", renditions: { portrait: null, square: null } },
       },
     });
 

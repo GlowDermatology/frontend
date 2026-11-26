@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { ShopProductCard } from "@/domain/shop";
+import { NO_RENDITIONS, type ShopProductCard } from "@/domain/shop";
 
 import {
   AUTO_BATCHES,
@@ -27,6 +27,7 @@ function card(id: number): ShopProductCard {
     imageThumb: null,
     imageMedium: null,
     imageUrl: null,
+    renditions: NO_RENDITIONS,
     available: 3,
     inStock: true,
     brand: null,

@@ -41,6 +41,12 @@ describe("admin image variants", () => {
       medium_url: MEDIUM,
       position: 0,
       alt: {},
+      width: 1200,
+      height: 1500,
+      source: "upload" as const,
+      derived_from_id: null,
+      product_box: null,
+      renditions: { portrait: null, square: null },
     };
     expect(mapProductImage(image).src).toBe(THUMB);
     const old = { id: 3, url: ORIGINAL, position: 0 } as unknown as Parameters<

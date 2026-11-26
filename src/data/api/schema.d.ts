@@ -3,8 +3,8 @@
  * GENERATED FILE — do not edit by hand. Regenerate with `npm run gen:api`.
  *
  * Source: openapi/schema.yaml of the backend repository
- * Commit: 374753cd2108db7ae712bd63e29911c510c7ca2e
- * Generated: 2026-11-25T17:24:53.899Z (openapi-typescript)
+ * Commit: f39170fe1c6aac0659d8dcd88d5387ab6e4cf8c4
+ * Generated: 2026-11-26T16:27:10.157Z (openapi-typescript)
  */
 
 export interface paths {
@@ -1540,6 +1540,23 @@ export interface paths {
         patch: operations["admin_product_images_partial_update"];
         trace?: never;
     };
+    "/api/v1/admin/products/{id}/images/{image_id}/renditions/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Set the screen shapes of an image: a 4:5 `portrait` and a `square` crop, stored as WebP copies (the image itself is never changed). `invalid_crop` / `crop_too_small` per shape. */
+        put: operations["admin_product_images_renditions"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/products/{id}/images/order/": {
         parameters: {
             query?: never;
@@ -1573,6 +1590,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/products/{product_id}/images/{image_id}/scenes/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Build a scene around a saved image's product (`studio` / `ai_scene` with `template_id`) or propose its 4:5 and square crops (`fit`). 202 with a new job, 200 with the image's queued/running job. The product itself is never redrawn: the photo's own pixels are pasted back. Refusals (as the job's `error.code`): `scene_product_cut_off`, `scene_hand_covers_product`, `scene_occlusion_needs_ai`, `scene_no_product`, `scene_mask_unusable`, `scene_product_drift`, `scene_result_rejected`. */
+        post: operations["admin_scene_jobs_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/products/stats/": {
         parameters: {
             query?: never;
@@ -1581,6 +1615,89 @@ export interface paths {
             cookie?: never;
         };
         get: operations["admin_products_stats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/scenes/jobs/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["admin_scene_jobs_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/scenes/jobs/{id}/accept/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Accept a finished job: a scene becomes a new gallery image (the source stays; `make_main` puts it first), a `fit` writes the proposed renditions on the source image. `acknowledge_generated` must be true when part of the product was drawn by AI. 409 `scene_job_not_ready` / `scene_source_changed`. */
+        post: operations["admin_scene_jobs_accept_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/scenes/jobs/{id}/discard/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["admin_scene_jobs_discard_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/scenes/status/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Whether the product editor offers scenes and screen fitting, and which kinds. */
+        get: operations["admin_scenes_status_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/scenes/templates/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The enabled scene templates, in their console order. */
+        get: operations["admin_scene_templates_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3741,7 +3858,31 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
         };
+        AdminImageRenditions: {
+            portrait: components["schemas"]["AdminRendition"] | null;
+            square: components["schemas"]["AdminRendition"] | null;
+        };
         AdminLoginResult: components["schemas"]["LoginResponse"] | components["schemas"]["MfaChallenge"];
+        AdminRendition: {
+            /** @description [x, y, w, h], 0-1 of the image. */
+            crop: number[];
+            /**
+             * Format: uri
+             * @description 1000 px WebP variant.
+             */
+            medium_url: string;
+            mode: components["schemas"]["RenditionModeEnum"];
+            /**
+             * Format: uri
+             * @description 400 px WebP variant.
+             */
+            thumbnail_url: string;
+            /**
+             * Format: uri
+             * @description Full-size WebP of the shape (long side ≤ 2000 px).
+             */
+            url: string;
+        };
         /**
          * @description * `confirm` - confirm
          *     * `reject` - reject
@@ -4760,6 +4901,8 @@ export interface components {
             line_total: number;
             /** @description 1000 px WebP variant. */
             main_image_medium_url: string | null;
+            /** @description Screen shapes of the main image (null each = none). */
+            main_image_renditions: components["schemas"]["ImageRenditions"];
             /** @description 400 px WebP variant. */
             main_image_thumbnail_url: string | null;
             main_image_url: string | null;
@@ -4991,6 +5134,13 @@ export interface components {
          */
         CustomerLoginRequest: {
             email?: string | null;
+            /**
+             * @description New device: send the code by SMS to the account's phone or to its verified e-mail instead of the identifier signed in with (`NextStep.channels` lists what the account has); a channel the account lacks → field `otp_channel` `invalid`.
+             *
+             *     * `sms` - sms
+             *     * `email` - email
+             */
+            otp_channel?: (components["schemas"]["OtpChannelEnum"] | components["schemas"]["NullEnum"]) | null;
             password: string;
             phone?: string | null;
             verification_token?: string | null;
@@ -5137,6 +5287,7 @@ export interface components {
              */
             medium_url: string;
             position: number;
+            renditions: components["schemas"]["ImageRenditions"];
             /**
              * Format: uri
              * @description 400 px WebP variant.
@@ -5686,6 +5837,23 @@ export interface components {
         ImageOrderRequest: {
             image_ids: number[];
         };
+        ImageRenditions: {
+            /** @description 4:5 crop (product cards, product page, cart); null = use the image. */
+            portrait: components["schemas"]["RenditionUrls"] | null;
+            /** @description 1:1 crop (home rails, feed, app cards, thumbnails); null = use the image. */
+            square: components["schemas"]["RenditionUrls"] | null;
+        };
+        /**
+         * @description Body of ``PUT products/{id}/images/{image_id}/renditions/``: per shape a crop ``[x, y, w, h]`` (0-1 of
+         *     the image, the shape's ratio ±2 %, ≥ 200 px on its short side), ``"auto"`` (framed on the product box, or
+         *     centred) or ``null`` (removed); a shape left out is kept.
+         */
+        ImageRenditionsPutRequest: {
+            /** @description [x, y, w, h] | "auto" | null (4:5). */
+            portrait?: unknown;
+            /** @description [x, y, w, h] | "auto" | null (1:1). */
+            square?: unknown;
+        };
         ImagesResponse: {
             images: components["schemas"]["ProductImage"][];
         };
@@ -6087,6 +6255,8 @@ export interface components {
             start: string;
         };
         NextStep: {
+            /** @description verify_device: where the code can be sent (the account's verified phone and e-mail); repeat `auth/login/` with `otp_channel` to send it to the other one. Empty for verify_phone. */
+            channels: components["schemas"]["OtpChannel"][];
             email_mask: string | null;
             expires_in: number;
             next_step: components["schemas"]["NextStepEnum"];
@@ -6432,6 +6602,16 @@ export interface components {
             status: components["schemas"]["OrderStatusEnum"];
             total: number;
         };
+        OtpChannel: {
+            channel: components["schemas"]["OtpChannelEnum"];
+            mask: string;
+        };
+        /**
+         * @description * `sms` - sms
+         *     * `email` - email
+         * @enum {string}
+         */
+        OtpChannelEnum: "sms" | "email";
         OtpInfo: {
             expires_in: number;
             length: number;
@@ -6988,6 +7168,8 @@ export interface components {
              * @description 1000 px WebP variant.
              */
             main_image_medium_url: string | null;
+            /** @description The main image's screen shapes; each null until staff set it (use the image then). */
+            main_image_renditions: components["schemas"]["ImageRenditions"];
             /**
              * Format: uri
              * @description 400 px WebP variant.
@@ -7046,6 +7228,8 @@ export interface components {
              * @description 1000 px WebP variant.
              */
             main_image_medium_url: string | null;
+            /** @description The main image's screen shapes; each null until staff set it (use the image then). */
+            main_image_renditions: components["schemas"]["ImageRenditions"];
             /**
              * Format: uri
              * @description 400 px WebP variant.
@@ -7086,14 +7270,36 @@ export interface components {
         ProductImage: {
             /** @description Alt text per language; "" = the product name is used. */
             readonly alt: components["schemas"]["ImageAlt"];
+            /** @description The image a scene was built from (null for uploads, or once it is gone). */
+            derived_from_id: number | null;
+            height: number;
             id: number;
             /** @description 1000 px WebP variant. */
             readonly medium_url: string;
             position: number;
+            /** @description The product's box [x0, y0, x1, y1] (0-1), when known; frames `auto` renditions. */
+            product_box: number[] | null;
+            readonly renditions: components["schemas"]["AdminImageRenditions"];
+            /**
+             * @description `upload`, or a scene built around another image.
+             *
+             *     * `upload` - upload
+             *     * `studio` - studio
+             *     * `ai_scene` - ai_scene
+             */
+            source: components["schemas"]["ProductImageSourceEnum"];
             /** @description 400 px WebP variant. */
             readonly thumbnail_url: string;
             readonly url: string;
+            width: number;
         };
+        /**
+         * @description * `upload` - upload
+         *     * `studio` - studio
+         *     * `ai_scene` - ai_scene
+         * @enum {string}
+         */
+        ProductImageSourceEnum: "upload" | "studio" | "ai_scene";
         ProductImageUploadRequest: {
             /** Format: binary */
             file: string;
@@ -7412,6 +7618,29 @@ export interface components {
             updated_at: string | null;
         };
         /**
+         * @description * `auto` - auto
+         *     * `manual` - manual
+         * @enum {string}
+         */
+        RenditionModeEnum: "auto" | "manual";
+        RenditionUrls: {
+            /**
+             * Format: uri
+             * @description 1000 px WebP variant.
+             */
+            medium_url: string;
+            /**
+             * Format: uri
+             * @description 400 px WebP variant.
+             */
+            thumbnail_url: string;
+            /**
+             * Format: uri
+             * @description Full-size WebP of the shape (long side ≤ 2000 px).
+             */
+            url: string;
+        };
+        /**
          * @description * `app` - app
          *     * `admin` - admin
          * @enum {string}
@@ -7455,6 +7684,120 @@ export interface components {
         RevokedSessions: {
             revoked: number;
         };
+        SceneAcceptRequest: {
+            /**
+             * @description Required true when `generated_inside_pct` > 0: staff checked the pink parts.
+             * @default false
+             */
+            acknowledge_generated: boolean;
+            /**
+             * @description Put the new image first (scenes only).
+             * @default false
+             */
+            make_main: boolean;
+        };
+        SceneAcceptResponse: {
+            image: components["schemas"]["ProductImage"];
+            job: components["schemas"]["SceneJob"];
+        };
+        SceneCandidate: {
+            /** @description Proposed shapes: of the candidate (scenes) or of the source (fit). */
+            crops: components["schemas"]["SceneCrops"];
+            /** Format: decimal */
+            generated_inside_pct: string;
+            /** Format: decimal */
+            occluded_pct: string;
+            /**
+             * Format: uri
+             * @description The same image with the parts drawn inside the product washed pink.
+             */
+            overlay_url: string | null;
+            product_box: number[] | null;
+            /**
+             * Format: uri
+             * @description The new 4:5 image (null for `fit`).
+             */
+            url: string | null;
+        };
+        SceneCrops: {
+            /** @description [x, y, w, h] 0-1 (4:5). */
+            portrait: number[];
+            /** @description [x, y, w, h] 0-1 (1:1). */
+            square: number[];
+        };
+        /** @description The poller-compatible scene job: ``state`` / ``error`` like ``Job`` (§2.14) and the candidate. */
+        SceneJob: {
+            accepted_image_id: number | null;
+            /** Format: date-time */
+            created_at: string;
+            created_by: components["schemas"]["Actor"];
+            readonly error: components["schemas"]["AssistantJobError"] | null;
+            /** Format: date-time */
+            expires_at: string | null;
+            /** Format: date-time */
+            finished_at: string | null;
+            id: number;
+            kind: components["schemas"]["SceneJobKindEnum"];
+            outcome: components["schemas"]["SceneJobOutcomeEnum"];
+            product_id: number | null;
+            /** @description Always null (no progress steps). */
+            readonly progress: unknown;
+            readonly result: components["schemas"]["SceneCandidate"] | null;
+            source_image_id: number | null;
+            state: components["schemas"]["JobStateEnum"];
+            readonly template: unknown;
+            warnings: string[];
+        };
+        SceneJobCreateRequest: {
+            kind: components["schemas"]["SceneJobKindEnum"];
+            /** @description Required unless `fit`. */
+            template_id?: number | null;
+        };
+        /**
+         * @description * `studio` - studio
+         *     * `ai_scene` - ai_scene
+         *     * `fit` - fit
+         * @enum {string}
+         */
+        SceneJobKindEnum: "studio" | "ai_scene" | "fit";
+        /**
+         * @description * `pending` - pending
+         *     * `accepted` - accepted
+         *     * `discarded` - discarded
+         *     * `expired` - expired
+         * @enum {string}
+         */
+        SceneJobOutcomeEnum: "pending" | "accepted" | "discarded" | "expired";
+        SceneStatus: {
+            /** @description AI scene templates may be used (studio ones need only `enabled`). */
+            ai_enabled: boolean;
+            /** @description Scenes and screen fitting are switched on. */
+            enabled: boolean;
+            /**
+             * Format: decimal
+             * @description Share of the product a hand may hide for an AI scene to fill.
+             */
+            max_occluded_pct: string;
+            segmenter: components["schemas"]["SegmenterEnum"];
+        };
+        SceneTemplate: {
+            /** @description A studio template's colours (#rrggbb) for a swatch. */
+            readonly colours: string[];
+            id: number;
+            key: string;
+            kind: components["schemas"]["SceneTemplateKindEnum"];
+            /** @description In the request's language (else Uzbek). */
+            readonly name: string;
+        };
+        /**
+         * @description * `studio` - studio
+         *     * `ai_scene` - ai_scene
+         * @enum {string}
+         */
+        SceneTemplateKindEnum: "studio" | "ai_scene";
+        SceneTemplates: {
+            results: components["schemas"]["SceneTemplate"][];
+        };
         /** @description ``GET specialists/{id}/conflicts/``: open future appointments the schedule no longer covers. */
         ScheduleConflicts: {
             results: components["schemas"]["AppointmentItem"][];
@@ -7472,6 +7815,13 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
         };
+        /**
+         * @description * `gemini_matte` - gemini_matte
+         *     * `bria` - bria
+         *     * `gemini_json` - gemini_json
+         * @enum {string}
+         */
+        SegmenterEnum: "gemini_matte" | "bria" | "gemini_json";
         /**
          * @description ``POST segments/{id}/members/`` (contract §2.8): ``customer_ids`` (any status, must exist) and/or
          *     ``phones`` (E.164, resolved to **active** customers), each ≤ 500 and deduplicated.
@@ -8304,6 +8654,13 @@ export interface components {
         VerifyCodeRequest: {
             code: string;
             email?: string | null;
+            /**
+             * @description login_new_device only: the channel `auth/login/` sent the code to (`otp_channel`); the identifier stays the one signed in with.
+             *
+             *     * `sms` - sms
+             *     * `email` - email
+             */
+            otp_channel?: (components["schemas"]["OtpChannelEnum"] | components["schemas"]["NullEnum"]) | null;
             phone?: string | null;
             purpose: components["schemas"]["OtpPurposeEnum"];
         };
@@ -16340,6 +16697,88 @@ export interface operations {
             };
         };
     };
+    admin_product_images_renditions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+                image_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ImageRenditionsPutRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductImage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     admin_product_images_reorder: {
         parameters: {
             query?: never;
@@ -16510,6 +16949,96 @@ export interface operations {
             };
         };
     };
+    admin_scene_jobs_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                image_id: number;
+                product_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SceneJobCreateRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SceneJob"];
+                };
+            };
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SceneJob"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     admin_products_stats: {
         parameters: {
             query?: never;
@@ -16525,6 +17054,391 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProductStats"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_scene_jobs_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SceneJob"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_scene_jobs_accept_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SceneAcceptRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SceneAcceptResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_scene_jobs_discard_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SceneJob"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_scenes_status_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SceneStatus"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_scene_templates_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SceneTemplates"];
                 };
             };
             400: {

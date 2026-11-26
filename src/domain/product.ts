@@ -3,6 +3,7 @@ import { isFilled, recommendedToAsk } from "@/lib/forms/recommended-rules";
 import type { Locale } from "@/lib/i18n/locales";
 
 import { catalogDataCopy } from "./copy/catalog";
+import type { Crop, ProductBox, RenditionShape } from "./crop";
 import type { SeoStatus, SeoTexts } from "./seo";
 
 /**
@@ -64,6 +65,49 @@ export interface ProductArtRef {
   tone?: "default" | "night" | "dark-cap";
 }
 
+/** Where a photo came from: an upload, or a scene built around another photo. */
+export type ImageSource = "upload" | "studio" | "ai_scene";
+
+/** A stored screen shape of a photo (admin `ProductImage.renditions.<shape>`, backend 0bcf0a5). */
+export interface ImageRendition {
+  /** `[x, y, w, h]` (0-1 of the photo); `null` when the API sent something unreadable. */
+  crop: Crop | null;
+  /** `auto`: framed by the backend; `manual`: a crop staff chose. */
+  mode: "auto" | "manual";
+  url: string | null;
+  mediumUrl: string | null;
+  thumbnailUrl: string | null;
+}
+
+export type ImageRenditions = Record<RenditionShape, ImageRendition | null>;
+
+/**
+ * What the server knows about a saved photo beyond what the editor edits: its size, origin,
+ * product box and screen shapes. Server-owned: the editor keeps it on its baseline (`saved`),
+ * never in the form's values (see `features/admin/products/adopt-image.ts`).
+ */
+export interface ProductImageMedia {
+  /** Pixels of the stored photo; 0 when unknown (an older API). */
+  width: number;
+  height: number;
+  /** The full-size photo and its 1000 px variant (the cropper's background). */
+  url: string | null;
+  mediumUrl: string | null;
+  source: ImageSource;
+  /** The photo a scene was built from (`derived_from_id`), while it exists. */
+  derivedFromId: string | null;
+  /** The product's box in the photo, when known: frames the automatic crops. */
+  productBox: ProductBox | null;
+  renditions: ImageRenditions;
+}
+
+/**
+ * Body of `PUT …/images/{image_id}/renditions/` per shape: a crop, `"auto"` (the backend frames
+ * it), `null` (removed); a shape left out is kept as it is.
+ */
+export type RenditionChange = Crop | "auto" | null;
+export type RenditionChanges = Partial<Record<RenditionShape, RenditionChange>>;
+
 export interface ProductImage {
   id: string;
   label: string;
@@ -76,6 +120,8 @@ export interface ProductImage {
   src?: string;
   /** Alt text per language (absent on a photo picked but not uploaded yet). */
   alt?: ImageAlt;
+  /** Server-owned facts of a saved photo (absent before upload, and in the form's values). */
+  media?: ProductImageMedia;
 }
 
 export interface Product {

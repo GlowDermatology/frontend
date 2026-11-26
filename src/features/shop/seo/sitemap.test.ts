@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import robots from "@/app/robots";
+import { NO_RENDITIONS } from "@/domain/shop";
 
 import { parseSitemapName, productEntries, sitemapIndexXml, urlsetXml } from "./sitemap";
 
@@ -35,6 +36,7 @@ describe("sitemaps", () => {
         imageThumb: null,
         imageMedium: null,
         imageUrl: "https://media.glowderma.uz/a.webp?x=1&y=2",
+        renditions: NO_RENDITIONS,
         available: 1,
         inStock: true,
         brand: null,

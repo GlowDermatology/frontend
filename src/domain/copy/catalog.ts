@@ -27,6 +27,9 @@ const uz = {
   imageFileRequired: "Rasm faylini tanlang.",
   tooManyImages: (max: number) => `Ko‘pi bilan ${max} ta rasm qo‘shish mumkin.`,
   imagesRepeated: "Rasmlar takrorlanmoqda.",
+  /* Screen shapes of a photo (renditions; the backend's CROP_MESSAGES) */
+  cropInvalid: "Kesish chegarasi rasm ichida va kerakli shaklda bo‘lishi kerak.",
+  cropTooSmall: "Kesilgan qism juda kichik: kamida 200 piksel bo‘lsin.",
   checkImageOrder: "Rasmlar tartibini tekshiring.",
 
   /* Products */
@@ -137,6 +140,8 @@ export const catalogDataCopy = {
     tooManyImages: (max: number) =>
       `Можно добавить не более ${max} ${pluralRu(max, ["изображения", "изображений", "изображений"])}.`,
     imagesRepeated: "Изображения повторяются.",
+    cropInvalid: "Рамка кадрирования должна быть внутри изображения и нужной формы.",
+    cropTooSmall: "Кадр слишком мал: не меньше 200 пикселей.",
     checkImageOrder: "Проверьте порядок изображений.",
 
     productNotFound: "Товар не найден.",
@@ -237,6 +242,8 @@ export const catalogDataCopy = {
     tooManyImages: (max: number) =>
       `You can add up to ${max} ${pluralEn(max, ["image", "images"])}.`,
     imagesRepeated: "The images repeat.",
+    cropInvalid: "The crop must lie inside the image and have the required shape.",
+    cropTooSmall: "The crop is too small: at least 200 pixels.",
     checkImageOrder: "Check the image order.",
 
     productNotFound: "Product not found.",

@@ -1,14 +1,19 @@
 import { catalogDataCopy } from "@/domain/copy/catalog";
+import { isCropTuple, isProductBox, RENDITION_SHAPES } from "@/domain/crop";
 import {
   CONTENT_LANGUAGES,
   defaultImageLabel,
   emptyTexts,
   type ImageAlt,
+  type ImageRendition,
+  type ImageRenditions,
+  type ImageSource,
   lastChangeText,
   PRODUCT_TEXT_FIELDS,
   type ContentLanguage,
   type Product,
   type ProductImage,
+  type ProductImageMedia,
   type ProductLastChange,
   type ProductTexts,
 } from "@/domain/product";
@@ -85,6 +90,51 @@ export function mapProductImage(image: ApiProductImage): ProductImage {
     src: image.thumbnail_url ?? image.url,
     label: defaultImageLabel(image.position + 1),
     alt: mapImageAlt(image.alt),
+    media: mapImageMedia(image),
+  };
+}
+
+const SOURCES: ReadonlyArray<ImageSource> = ["upload", "studio", "ai_scene"];
+
+function urlOrNull(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+/** One `renditions.<shape>` (backend 0bcf0a5); anything that is not one is `null` (no shape). */
+export function mapImageRendition(value: unknown): ImageRendition | null {
+  if (typeof value !== "object" || value === null) return null;
+  const entry = value as Record<string, unknown>;
+  return {
+    crop: isCropTuple(entry.crop) ? entry.crop : null,
+    mode: entry.mode === "auto" ? "auto" : "manual",
+    url: urlOrNull(entry.url),
+    mediumUrl: urlOrNull(entry.medium_url),
+    thumbnailUrl: urlOrNull(entry.thumbnail_url),
+  };
+}
+
+/**
+ * The server-owned facts of a photo (size, origin, product box, screen shapes). Defensive about an
+ * API from before the renditions: a missing size is 0 (the cropper then reads the loaded photo),
+ * a missing source is an upload, missing shapes are `null`.
+ */
+export function mapImageMedia(image: ApiProductImage): ProductImageMedia {
+  const api = image as Partial<ApiProductImage>;
+  const size = (value: unknown) =>
+    typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.trunc(value) : 0;
+  const shapes = (api.renditions ?? {}) as Partial<Record<string, unknown>>;
+  const renditions = Object.fromEntries(
+    RENDITION_SHAPES.map((shape) => [shape, mapImageRendition(shapes[shape])]),
+  ) as ImageRenditions;
+  return {
+    width: size(api.width),
+    height: size(api.height),
+    url: urlOrNull(api.url),
+    mediumUrl: urlOrNull(api.medium_url) ?? urlOrNull(api.url),
+    source: SOURCES.includes(api.source as ImageSource) ? (api.source as ImageSource) : "upload",
+    derivedFromId: typeof api.derived_from_id === "number" ? idString(api.derived_from_id) : null,
+    productBox: isProductBox(api.product_box) ? api.product_box : null,
+    renditions,
   };
 }
 

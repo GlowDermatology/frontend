@@ -8,6 +8,8 @@ import type {
   ShopPage,
   ShopProduct,
   ShopProductCard,
+  ShopRendition,
+  ShopRenditions,
   ShopService,
   ShopSettings,
   ShopSpecialist,
@@ -93,6 +95,32 @@ export function contentLanguageOf(value: unknown): ContentLanguage | null {
   return value === "uz" || value === "ru" || value === "en" ? value : null;
 }
 
+/**
+ * One screen shape (`{url, medium_url, thumbnail_url}`, backend 0bcf0a5) under the media-host
+ * rule: the full-size URL must be one `next/image` may load, a variant the API leaves out falls
+ * back to it, and a variant from another host drops the whole shape. Anything else (`null`, an
+ * older API without the key) is "no shape": the surface shows the photo itself.
+ */
+export function rendition(value: unknown, mediaHosts: ReadonlyArray<string>): ShopRendition | null {
+  if (typeof value !== "object" || value === null) return null;
+  const shape = value as Record<string, unknown>;
+  const url = optimizable(shape.url, mediaHosts);
+  if (!url) return null;
+  const medium = variant(shape.medium_url, url, mediaHosts);
+  const thumb = variant(shape.thumbnail_url, url, mediaHosts);
+  return medium && thumb ? { url, medium, thumb } : null;
+}
+
+/** `renditions` / `main_image_renditions` → both shapes, each `null` when absent or unusable. */
+export function renditions(value: unknown, mediaHosts: ReadonlyArray<string>): ShopRenditions {
+  const shapes =
+    typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
+  return {
+    portrait: rendition(shapes.portrait, mediaHosts),
+    square: rendition(shapes.square, mediaHosts),
+  };
+}
+
 function productImages(
   api: ApiCustomerProductCard,
   mediaHosts: ReadonlyArray<string>,
@@ -120,6 +148,7 @@ export function mapProductCard(
     category: api.category ? { slug: api.category.slug, name: text(api.category.name) } : null,
     ...productImages(api, mediaHosts),
     imageUrl: absoluteUrl(api.main_image_url),
+    renditions: renditions(api.main_image_renditions, mediaHosts),
     available,
     inStock: api.stock_status === "in_stock" && available > 0,
     brand: optionalText(api.brand),
@@ -150,6 +179,7 @@ export function mapProduct(
           url,
           thumb: variant(image.thumbnail_url, optimised, mediaHosts),
           alt: text(image.alt),
+          renditions: renditions(image.renditions, mediaHosts),
         },
       ];
     });

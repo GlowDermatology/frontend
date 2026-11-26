@@ -47,6 +47,13 @@ export type ApiProductPatch = Omit<Partial<Schemas["PatchedProductPatchRequest"]
 };
 export type ApiPaginatedProducts = Schemas["PaginatedProductList"];
 export type ApiImagesResponse = Schemas["ImagesResponse"];
+/** `PUT …/images/{image_id}/renditions/` per shape: `[x, y, w, h]`, `"auto"` or `null` (left out: kept). */
+export type ApiImageRenditionsPut = Partial<
+  Record<
+    keyof Schemas["ImageRenditionsPutRequest"],
+    [number, number, number, number] | "auto" | null
+  >
+>;
 
 export type ApiCategory = Schemas["Category"];
 export type ApiCategoryWrite = Schemas["CategoryWriteRequest"];
@@ -283,3 +290,12 @@ export type ApiConfirmReturn = Schemas["ConfirmReturnRequest"];
 export type ApiDeliveryIssuesQuery = NonNullable<
   import("./schema").operations["admin_delivery_issues_list"]["parameters"]["query"]
 >;
+
+/* Product scenes (admin contract §2.20, backend f39170f) */
+export type ApiSceneStatus = Schemas["SceneStatus"];
+export type ApiSceneTemplates = Schemas["SceneTemplates"];
+export type ApiSceneTemplate = Schemas["SceneTemplate"];
+export type ApiSceneJob = Schemas["SceneJob"];
+export type ApiSceneJobCreate = Schemas["SceneJobCreateRequest"];
+export type ApiSceneAccept = Schemas["SceneAcceptRequest"];
+export type ApiSceneAcceptResult = Schemas["SceneAcceptResponse"];

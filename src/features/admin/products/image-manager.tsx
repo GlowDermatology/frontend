@@ -6,12 +6,15 @@ import { useEffect, useId, useRef, useState, type ChangeEvent, type DragEvent } 
 import { ProductArt } from "@/components/brand/product-art";
 import { Icon } from "@/components/ui/icon";
 import { ActionMenu } from "@/components/ui/menu";
-import { isDefaultImageLabel, type ProductImage } from "@/domain/product";
+import { RENDITION_SHAPES } from "@/domain/crop";
+import { isDefaultImageLabel, type ProductImage, type ProductImageMedia } from "@/domain/product";
 import { imageFileProblem, IMAGE_TYPES, MAX_IMAGES } from "@/data/products.schema";
 import { cn } from "@/lib/cn";
 import { useAdminLocale, useCopy } from "@/lib/i18n/admin-context";
 
 import { productsCopy } from "./copy";
+import { renditionsCopy } from "./renditions/copy";
+import { RenditionsDialog } from "./renditions/renditions-dialog";
 
 interface ImageManagerProps {
   images: ReadonlyArray<ProductImage>;
@@ -26,7 +29,27 @@ interface ImageManagerProps {
   error?: string;
   /** Accessible name of the card's group (the card title's id). */
   labelledBy?: string;
+  /** The saved product's id; `null` / absent (a new product): photos cannot be fitted yet. */
+  productId?: string | null;
+  /**
+   * The server-owned facts of each saved photo by id (the editor's baseline, `saved.images`):
+   * sizes, source and screen shapes. A tile without an entry is not saved yet.
+   */
+  media?: ReadonlyMap<string, ProductImageMedia>;
+  /** A photo the server changed outside the save (its screen shapes): adopt it (`adoptImage`). */
+  onAdopt?: (image: ProductImage) => void;
 }
+
+/** The dialog's photo; `open` toggles separately so the dialog can animate out and hand focus back. */
+interface FitTarget {
+  id: string;
+  open: boolean;
+  /** A fresh dialog state per opening. */
+  round: number;
+}
+
+const tileBadge =
+  "h-5 rounded-sm bg-surface-raised/90 px-1.5 text-[10px] leading-5 font-bold text-ink shadow-sm";
 
 const tileButton =
   "flex size-8 items-center justify-center rounded-sm bg-surface-raised transition-colors duration-150 hover:bg-gold-soft";
@@ -49,8 +72,13 @@ export function ImageManager({
   onAdd,
   error,
   labelledBy,
+  productId = null,
+  media,
+  onAdopt,
 }: ImageManagerProps) {
   const t = useCopy(productsCopy).imageManager;
+  const r = useCopy(renditionsCopy);
+  const [fit, setFit] = useState<FitTarget | null>(null);
   const locale = useAdminLocale();
   const errorId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -149,6 +177,9 @@ export function ImageManager({
   });
 
   const messages = [...(error ? [error] : []), ...uploadErrors];
+  const fitIndex = fit ? images.findIndex((image) => image.id === fit.id) : -1;
+  const fitImage = fitIndex === -1 ? undefined : images[fitIndex];
+  const fitMedia = fit ? media?.get(fit.id) : undefined;
 
   return (
     <div
@@ -170,6 +201,8 @@ export function ImageManager({
         {images.map((image, index) => {
           const main = index === 0;
           const label = labelOf(image, index);
+          const info = media?.get(image.id);
+          const shapes = info ? RENDITION_SHAPES.filter((shape) => info.renditions[shape]) : [];
           return (
             <li
               key={image.id}
@@ -211,6 +244,26 @@ export function ImageManager({
                   {t.main}
                 </span>
               )}
+              {info && (info.source !== "upload" || shapes.length > 0) && (
+                <span className="absolute bottom-1.5 left-1.5 flex flex-wrap gap-1">
+                  {info.source !== "upload" && (
+                    <span className={tileBadge} data-badge="source">
+                      {r.badges.source[info.source]}
+                    </span>
+                  )}
+                  {shapes.length > 0 && (
+                    <span
+                      className={cn(tileBadge, "tabular-nums")}
+                      data-badge="renditions"
+                      aria-label={r.badges.shapesLabel(
+                        shapes.map((shape) => r.badges[shape]).join(", "),
+                      )}
+                    >
+                      {shapes.map((shape) => r.badges[shape]).join(" · ")}
+                    </span>
+                  )}
+                </span>
+              )}
               <span className="absolute top-1.5 right-1.5 flex gap-0.5">
                 <ActionMenu
                   label={t.order(label)}
@@ -239,6 +292,17 @@ export function ImageManager({
                       label: t.later,
                       disabledReason: index === images.length - 1 ? t.alreadyLast : null,
                       onSelect: () => move(index, index + 1),
+                    },
+                    {
+                      key: "fit",
+                      label: r.menuItem,
+                      disabledReason: productId && info ? null : r.saveFirst,
+                      onSelect: () =>
+                        setFit((current) => ({
+                          id: image.id,
+                          open: true,
+                          round: (current?.round ?? 0) + 1,
+                        })),
                     },
                   ]}
                 />
@@ -299,6 +363,28 @@ export function ImageManager({
       <p aria-live="polite" className="sr-only">
         {announcement}
       </p>
+      {fit && productId && fitImage && fitMedia && (
+        <RenditionsDialog
+          key={`${fit.id}-${fit.round}`}
+          open={fit.open}
+          onOpenChange={(open) => setFit((current) => (current ? { ...current, open } : null))}
+          productId={productId}
+          image={fitImage}
+          media={fitMedia}
+          label={labelOf(fitImage, fitIndex)}
+          placeholder={
+            fitImage.art ? (
+              <ProductArt
+                kind={fitImage.art.kind}
+                tone={fitImage.art.tone}
+                detail="thumb"
+                width={96}
+              />
+            ) : null
+          }
+          onSaved={(saved) => onAdopt?.(saved)}
+        />
+      )}
     </div>
   );
 }

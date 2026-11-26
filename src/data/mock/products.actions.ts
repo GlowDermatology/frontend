@@ -172,7 +172,8 @@ function mockMedia(image: ProductImage): ProductImageMedia {
 /**
  * The demo's `PUT …/renditions/`: the backend's rules (`auto` framing, `invalid_crop` /
  * `crop_too_small` per shape, a shape left out kept), with the photo's own URL standing in for
- * the WebP copies. Nothing is persisted: the editor keeps the answer until the page reloads.
+ * the WebP copies. Nothing is persisted: the editor keeps the answer until the page reloads, and
+ * each call answers against the fixtures (a shape saved earlier in the visit is not remembered).
  */
 export async function updateProductImageRenditions(
   productId: string,

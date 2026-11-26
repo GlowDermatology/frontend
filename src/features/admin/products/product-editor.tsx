@@ -40,6 +40,7 @@ import type { Category } from "@/domain/category";
 import {
   CONTENT_LANGUAGES,
   emptyAlt,
+  type ProductImage,
   emptyTexts,
   isTextComplete,
   lastChangeActor,
@@ -72,6 +73,7 @@ import {
 import { assistantCopy } from "./assistant/copy";
 import { markedLanguages } from "./assistant/review";
 import { useProductAssistant } from "./assistant/use-product-assistant";
+import { adoptImage, formImage, mediaById } from "./adopt-image";
 import { afterDialogsClose, altLanguageToShow, languageToShow } from "./form-reveal";
 import { productsCopy, type ProductsCopy } from "./copy";
 import { ImageManager } from "./image-manager";
@@ -106,8 +108,12 @@ function toFormValues(product: Product | null): ProductFormValues {
     billzId: product.billzId,
     promo: product.promo,
     status: product.status,
-    // Every photo carries all three alt texts, so each input is controlled from the start.
-    images: product.images.map((image) => ({ ...image, alt: { ...emptyAlt(), ...image.alt } })),
+    // Every photo carries all three alt texts, so each input is controlled from the start. The
+    // server-owned `media` (sizes, screen shapes) stays on the baseline only (`adopt-image.ts`).
+    images: product.images.map((image) => ({
+      ...formImage(image),
+      alt: { ...emptyAlt(), ...image.alt },
+    })),
     slug: product.slug,
     seo: product.seo,
   });
@@ -262,6 +268,21 @@ export function ProductEditor({
     formBaseline.current = saved;
     reset(toFormValues(saved));
   }, [saved, reset]);
+
+  /**
+   * A photo the server changed outside the save (the renditions dialog): it joins the baseline
+   * only. The reset guard is moved first, so the effect above does not reset the form: unsaved
+   * texts, alt edits and pending uploads stay, and the form's values (hence `isDirty` and what
+   * `persistProduct` compares) are untouched. See `adopt-image.ts`.
+   */
+  const adopt = (image: ProductImage) => {
+    if (!saved) return;
+    const next = adoptImage(saved, image);
+    if (next === saved) return;
+    formBaseline.current = next;
+    setSaved(next);
+  };
+  const imageMedia = mediaById(saved?.images);
 
   // The Billz message sits under the header: bring it into view when it appears.
   useEffect(() => {
@@ -691,6 +712,9 @@ export function ProductEditor({
                   images.append(added);
                 }}
                 error={imagesError}
+                productId={saved?.id ?? null}
+                media={imageMedia}
+                onAdopt={adopt}
               />
               {images.fields.length > 0 && (
                 <div className="flex flex-col gap-3 border-t border-line pt-4">

@@ -73,6 +73,7 @@ export function RenditionsDialog({
   const s = useCopy(scenesCopy).fit;
   const fit = useSceneJob({ productId, imageId: image.id, slot: "fit", enabled: fitEnabled });
   const [loadedFit, setLoadedFit] = useState<string | null>(null);
+  const [fitPristine, setFitPristine] = useState(false);
   const toast = useToast();
   const idempotency = useIdempotencyKey();
   const idBase = useId();
@@ -89,6 +90,7 @@ export function RenditionsDialog({
   const fitReady = fitJob?.kind === "fit" && fitJob.result !== null && fit.view === "review";
   if (fitReady && fitJob.id !== loadedFit) {
     setLoadedFit(fitJob.id);
+    setFitPristine(true);
     const crops = fitJob.result!.crops;
     setShapes((current) => {
       const next = { ...current };
@@ -106,11 +108,16 @@ export function RenditionsDialog({
   const src = media.mediumUrl ?? media.url ?? image.src ?? null;
 
   const update = (shape: RenditionShape, next: DialogShapes[RenditionShape]) => {
+    setFitPristine(false);
     setShapes((current) => ({ ...current, [shape]: next }));
     setErrors((current) => ({ ...current, [shape]: undefined }));
   };
 
   const save = async () => {
+    // An untouched AI proposal is accepted as the server made it: its crops may reach past the photo's
+    // edges (filled with a blurred copy) so a tall product is never cut, which the croppers here cannot
+    // show; they only stay inside the photo once the admin adjusts them.
+    if (fitReady && fitPristine && !saving) return acceptFit();
     if (!changed || saving) return;
     setSaving(true);
     setFormError(null);

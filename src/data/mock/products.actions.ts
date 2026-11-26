@@ -131,7 +131,9 @@ export async function uploadProductImage(
   void productId;
   const problem = imageFileProblem(file, await getAdminLocale());
   if (problem) return { ok: false, error: problem, fieldErrors: { file: problem } };
-  return { ok: true, data: { id: `img-${crypto.randomUUID()}`, label: file.name } };
+  const image: ProductImage = { id: `img-${crypto.randomUUID()}`, label: file.name };
+  // Like the API's answer, the upload carries the server-owned facts: the photo counts as saved.
+  return { ok: true, data: { ...image, media: mockMedia(image) } };
 }
 
 export async function deleteProductImage(

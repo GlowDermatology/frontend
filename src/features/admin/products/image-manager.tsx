@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useEffect, useId, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 
 import { ProductArt } from "@/components/brand/product-art";
+import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { ActionMenu } from "@/components/ui/menu";
 import { RENDITION_SHAPES } from "@/domain/crop";
@@ -48,6 +49,13 @@ interface ImageManagerProps {
   scenes?: { status: SceneStatus; templates: ReadonlyArray<SceneTemplate> };
   /** An accepted scene: a new gallery photo, first with `makeMain` (`adoptNewImage`). */
   onSceneAccepted?: (image: ProductImage, makeMain: boolean) => void;
+  /**
+   * Save the product now (the editor's form submit). Given, unsaved photos get a notice with this
+   * button: fitting and scenes need a saved photo.
+   */
+  onSave?: () => void;
+  /** The save is running (the notice's button shows it). */
+  saving?: boolean;
 }
 
 /** The dialog's photo; `open` toggles separately so the dialog can animate out and hand focus back. */
@@ -87,6 +95,8 @@ export function ImageManager({
   onAdopt,
   scenes,
   onSceneAccepted,
+  onSave,
+  saving = false,
 }: ImageManagerProps) {
   const t = useCopy(productsCopy).imageManager;
   const r = useCopy(renditionsCopy);
@@ -95,6 +105,8 @@ export function ImageManager({
   // The scene dialog stays mounted per photo (its job outlives a close); `open` toggles.
   const [sceneTarget, setSceneTarget] = useState<{ id: string; open: boolean } | null>(null);
   const scenesOn = Boolean(scenes?.status.enabled);
+  // Photos the server does not hold yet (no entry in the saved baseline): fitting and scenes wait.
+  const unsavedCount = images.filter((image) => !media?.has(image.id)).length;
   const locale = useAdminLocale();
   const errorId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -267,6 +279,13 @@ export function ImageManager({
                   {t.main}
                 </span>
               )}
+              {!info && (
+                <span className="absolute bottom-1.5 left-1.5">
+                  <span className={cn(tileBadge, "text-ink-muted")} data-badge="unsaved">
+                    {t.unsaved}
+                  </span>
+                </span>
+              )}
               {info && (info.source !== "upload" || shapes.length > 0) && (
                 <span className="absolute bottom-1.5 left-1.5 flex flex-wrap gap-1">
                   {info.source !== "upload" && (
@@ -332,7 +351,7 @@ export function ImageManager({
                           {
                             key: "scene",
                             label: sc.menuItem,
-                            disabledReason: productId && info ? null : r.saveFirst,
+                            disabledReason: productId && info ? null : sc.saveFirst,
                             onSelect: () => setSceneTarget({ id: image.id, open: true }),
                           },
                         ]
@@ -380,6 +399,21 @@ export function ImageManager({
           </li>
         )}
       </ul>
+      {onSave && unsavedCount > 0 && (
+        <div
+          data-notice="unsaved-images"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-line bg-gold-soft/40 px-3 py-2"
+        >
+          <p className="m-0 flex min-w-0 flex-1 items-start gap-1.5 text-body-sm text-ink">
+            <Icon name="info" size={16} className="mt-px shrink-0 text-gold-ink" />
+            {t.unsavedNotice(unsavedCount)}
+          </p>
+          <Button type="button" variant="secondary" size="sm" busy={saving} onClick={onSave}>
+            <Icon name="check" size={16} />
+            {t.saveNow}
+          </Button>
+        </div>
+      )}
       {messages.length > 0 && (
         <div id={errorId} role="alert" className="flex flex-col gap-1">
           {messages.map((message) => (

@@ -736,7 +736,9 @@ export function ProductEditor({
                 }}
                 onAdd={(added, files) => {
                   for (const [id, file] of files) pending.files.set(id, file);
-                  images.append(added);
+                  // Every photo carries all three alt texts (empty until staff write them), or the
+                  // form's ru/en alt fields read "undefined" and block the save.
+                  images.append(added.map(formEntry));
                 }}
                 error={imagesError}
                 productId={saved?.id ?? null}
@@ -744,6 +746,8 @@ export function ProductEditor({
                 onAdopt={adopt}
                 scenes={scenes}
                 onSceneAccepted={acceptScene}
+                onSave={() => formRef.current?.requestSubmit()}
+                saving={saving}
               />
               {images.fields.length > 0 && (
                 <div className="flex flex-col gap-3 border-t border-line pt-4">

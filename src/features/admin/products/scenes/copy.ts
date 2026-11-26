@@ -7,6 +7,7 @@ import type { CopySet } from "@/lib/i18n/copy";
  */
 const uz = {
   menuItem: "Sahna yaratish",
+  saveFirst: "Avval saqlang: sahna saqlangan rasmdan yaratiladi.",
   title: "Sahna yaratish",
   lead: (label: string) =>
     `«${label}» atrofida yangi fon. Mahsulotning o‘zi qayta chizilmaydi, asl rasm galereyada qoladi.`,
@@ -72,6 +73,7 @@ export const scenesCopy = {
   uz,
   ru: {
     menuItem: "Создать сцену",
+    saveFirst: "Сначала сохраните: сцена создаётся из сохранённого фото.",
     title: "Создать сцену",
     lead: (label: string) =>
       `Новый фон вокруг «${label}». Сам товар не перерисовывается, исходное фото остаётся в галерее.`,
@@ -134,6 +136,7 @@ export const scenesCopy = {
   },
   en: {
     menuItem: "Create scene",
+    saveFirst: "Save first: a scene is made from a saved photo.",
     title: "Create scene",
     lead: (label: string) =>
       `A new background around “${label}”. The product itself is never redrawn; the original stays in the gallery.`,

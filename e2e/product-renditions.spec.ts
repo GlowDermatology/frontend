@@ -116,7 +116,7 @@ test("fit a photo to the screens with the keyboard; unsaved edits survive", asyn
   watch.assertClean();
 });
 
-test("a photo not saved yet cannot be fitted: the menu says to save first", async ({ page }) => {
+test("a photo not saved yet cannot be fitted until «Hozir saqlash» saves it", async ({ page }) => {
   await openEditor(page);
   await page.locator('[data-field="images"] input[type="file"]').setInputFiles(IMAGE);
   const count = await tiles(page).count();
@@ -125,6 +125,29 @@ test("a photo not saved yet cannot be fitted: the menu says to save first", asyn
   const item = page.getByRole("menuitem", { name: /Ekranlarga moslash/ });
   await expect(item).toHaveAttribute("aria-disabled", "true");
   await expect(item).toContainText("Avval saqlang");
+  await page.keyboard.press("Escape");
+
+  // The tile and the card say it is not saved, with a save button right there.
+  const fresh = tiles(page).nth(count - 2);
+  await expect(fresh.locator('[data-badge="unsaved"]')).toHaveText("Saqlanmagan");
+  const notice = page.locator('[data-notice="unsaved-images"]');
+  await expect(notice).toContainText("1 ta yangi rasm hali saqlanmagan");
+  // The new photo carries all three alt texts: the save is not refused with "undefined" errors.
+  await notice.getByRole("button", { name: "Hozir saqlash" }).click();
+  await saveAnyway(page, toast(page, "Mahsulot saqlandi"));
+  await expect(toast(page, "Mahsulot saqlandi")).toBeVisible();
+  await expect(page.getByText(/undefined/)).toHaveCount(0);
+  await expect(notice).toHaveCount(0);
+  await expect(
+    tiles(page)
+      .nth(count - 2)
+      .locator('[data-badge="unsaved"]'),
+  ).toHaveCount(0);
+  await openMenu(page, count - 2);
+  await expect(page.getByRole("menuitem", { name: /Ekranlarga moslash/ })).not.toHaveAttribute(
+    "aria-disabled",
+    "true",
+  );
 });
 
 test("the dialog stacks its croppers on a phone and fits the screen", async ({ page }) => {

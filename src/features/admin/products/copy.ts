@@ -175,6 +175,10 @@ const uz = {
     fileProblem: (name: string, problem: string) => `«${name}»: ${problem}`,
     emptyTitle: "Hali rasm yo‘q",
     emptyLead: "Faol mahsulotga kamida bitta rasm kerak.",
+    unsaved: "Saqlanmagan",
+    unsavedNotice: (count: number) =>
+      `${count} ta yangi rasm hali saqlanmagan. Saqlang — keyin ularni ekranlarga moslash va sahna yaratish mumkin.`,
+    saveNow: "Hozir saqlash",
   },
   tabs: {
     label: "Til",
@@ -378,6 +382,10 @@ export const productsCopy = {
       fileProblem: (name: string, problem: string) => `«${name}»: ${problem}`,
       emptyTitle: "Изображений пока нет",
       emptyLead: "Активному товару нужно хотя бы одно изображение.",
+      unsaved: "Не сохранено",
+      unsavedNotice: (count: number) =>
+        `${count} ${pluralRu(count, ["новое фото ещё не сохранено", "новых фото ещё не сохранены", "новых фото ещё не сохранены"])}. Сохраните — после этого их можно подогнать под экраны и создать сцену.`,
+      saveNow: "Сохранить сейчас",
     },
     tabs: {
       label: "Язык",
@@ -577,6 +585,10 @@ export const productsCopy = {
       fileProblem: (name: string, problem: string) => `“${name}”: ${problem}`,
       emptyTitle: "No images yet",
       emptyLead: "An active product needs at least one image.",
+      unsaved: "Not saved",
+      unsavedNotice: (count: number) =>
+        `${count} new ${pluralEn(count, ["photo isn't", "photos aren't"])} saved yet. Save to fit ${count === 1 ? "it" : "them"} to screens or create a scene.`,
+      saveNow: "Save now",
     },
     tabs: {
       label: "Language",

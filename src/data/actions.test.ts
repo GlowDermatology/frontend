@@ -987,7 +987,12 @@ describe("products", () => {
     const uploaded = await uploadProductImage(product.id, form, CSRF);
     expect(uploaded.ok).toBe(true);
     if (uploaded.ok)
-      expect(uploaded.data).toEqual({ id: expect.stringMatching(/^img-/), label: "photo.jpg" });
+      // Like the API, the upload's answer carries the server-owned facts (the photo is saved).
+      expect(uploaded.data).toMatchObject({
+        id: expect.stringMatching(/^img-/),
+        label: "photo.jpg",
+        media: { source: "upload", renditions: { portrait: null, square: null } },
+      });
 
     expect(await deleteProductImage(product.id, "img-1", CSRF)).toEqual({
       ok: true,

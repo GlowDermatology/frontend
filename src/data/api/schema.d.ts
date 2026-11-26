@@ -3,8 +3,8 @@
  * GENERATED FILE — do not edit by hand. Regenerate with `npm run gen:api`.
  *
  * Source: openapi/schema.yaml of the backend repository
- * Commit: 374753cd2108db7ae712bd63e29911c510c7ca2e
- * Generated: 2026-11-25T17:24:53.899Z (openapi-typescript)
+ * Commit: 0bcf0a5241373c75f92b3074ec06f59222196f4b
+ * Generated: 2026-11-26T15:41:15.469Z (openapi-typescript)
  */
 
 export interface paths {
@@ -1538,6 +1538,23 @@ export interface paths {
         options?: never;
         head?: never;
         patch: operations["admin_product_images_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/admin/products/{id}/images/{image_id}/renditions/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** @description Set the screen shapes of an image: a 4:5 `portrait` and a `square` crop, stored as WebP copies (the image itself is never changed). `invalid_crop` / `crop_too_small` per shape. */
+        put: operations["admin_product_images_renditions"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/admin/products/{id}/images/order/": {
@@ -3741,7 +3758,31 @@ export interface components {
             /** Format: date-time */
             updated_at: string;
         };
+        AdminImageRenditions: {
+            portrait: components["schemas"]["AdminRendition"] | null;
+            square: components["schemas"]["AdminRendition"] | null;
+        };
         AdminLoginResult: components["schemas"]["LoginResponse"] | components["schemas"]["MfaChallenge"];
+        AdminRendition: {
+            /** @description [x, y, w, h], 0-1 of the image. */
+            crop: number[];
+            /**
+             * Format: uri
+             * @description 1000 px WebP variant.
+             */
+            medium_url: string;
+            mode: components["schemas"]["RenditionModeEnum"];
+            /**
+             * Format: uri
+             * @description 400 px WebP variant.
+             */
+            thumbnail_url: string;
+            /**
+             * Format: uri
+             * @description Full-size WebP of the shape (long side ≤ 2000 px).
+             */
+            url: string;
+        };
         /**
          * @description * `confirm` - confirm
          *     * `reject` - reject
@@ -4760,6 +4801,8 @@ export interface components {
             line_total: number;
             /** @description 1000 px WebP variant. */
             main_image_medium_url: string | null;
+            /** @description Screen shapes of the main image (null each = none). */
+            main_image_renditions: components["schemas"]["ImageRenditions"];
             /** @description 400 px WebP variant. */
             main_image_thumbnail_url: string | null;
             main_image_url: string | null;
@@ -4991,6 +5034,13 @@ export interface components {
          */
         CustomerLoginRequest: {
             email?: string | null;
+            /**
+             * @description New device: send the code by SMS to the account's phone or to its verified e-mail instead of the identifier signed in with (`NextStep.channels` lists what the account has); a channel the account lacks → field `otp_channel` `invalid`.
+             *
+             *     * `sms` - sms
+             *     * `email` - email
+             */
+            otp_channel?: (components["schemas"]["OtpChannelEnum"] | components["schemas"]["NullEnum"]) | null;
             password: string;
             phone?: string | null;
             verification_token?: string | null;
@@ -5137,6 +5187,7 @@ export interface components {
              */
             medium_url: string;
             position: number;
+            renditions: components["schemas"]["ImageRenditions"];
             /**
              * Format: uri
              * @description 400 px WebP variant.
@@ -5686,6 +5737,23 @@ export interface components {
         ImageOrderRequest: {
             image_ids: number[];
         };
+        ImageRenditions: {
+            /** @description 4:5 crop (product cards, product page, cart); null = use the image. */
+            portrait: components["schemas"]["RenditionUrls"] | null;
+            /** @description 1:1 crop (home rails, feed, app cards, thumbnails); null = use the image. */
+            square: components["schemas"]["RenditionUrls"] | null;
+        };
+        /**
+         * @description Body of ``PUT products/{id}/images/{image_id}/renditions/``: per shape a crop ``[x, y, w, h]`` (0-1 of
+         *     the image, the shape's ratio ±2 %, ≥ 200 px on its short side), ``"auto"`` (framed on the product box, or
+         *     centred) or ``null`` (removed); a shape left out is kept.
+         */
+        ImageRenditionsPutRequest: {
+            /** @description [x, y, w, h] | "auto" | null (4:5). */
+            portrait?: unknown;
+            /** @description [x, y, w, h] | "auto" | null (1:1). */
+            square?: unknown;
+        };
         ImagesResponse: {
             images: components["schemas"]["ProductImage"][];
         };
@@ -6087,6 +6155,8 @@ export interface components {
             start: string;
         };
         NextStep: {
+            /** @description verify_device: where the code can be sent (the account's verified phone and e-mail); repeat `auth/login/` with `otp_channel` to send it to the other one. Empty for verify_phone. */
+            channels: components["schemas"]["OtpChannel"][];
             email_mask: string | null;
             expires_in: number;
             next_step: components["schemas"]["NextStepEnum"];
@@ -6432,6 +6502,16 @@ export interface components {
             status: components["schemas"]["OrderStatusEnum"];
             total: number;
         };
+        OtpChannel: {
+            channel: components["schemas"]["OtpChannelEnum"];
+            mask: string;
+        };
+        /**
+         * @description * `sms` - sms
+         *     * `email` - email
+         * @enum {string}
+         */
+        OtpChannelEnum: "sms" | "email";
         OtpInfo: {
             expires_in: number;
             length: number;
@@ -6988,6 +7068,8 @@ export interface components {
              * @description 1000 px WebP variant.
              */
             main_image_medium_url: string | null;
+            /** @description The main image's screen shapes; each null until staff set it (use the image then). */
+            main_image_renditions: components["schemas"]["ImageRenditions"];
             /**
              * Format: uri
              * @description 400 px WebP variant.
@@ -7046,6 +7128,8 @@ export interface components {
              * @description 1000 px WebP variant.
              */
             main_image_medium_url: string | null;
+            /** @description The main image's screen shapes; each null until staff set it (use the image then). */
+            main_image_renditions: components["schemas"]["ImageRenditions"];
             /**
              * Format: uri
              * @description 400 px WebP variant.
@@ -7086,14 +7170,36 @@ export interface components {
         ProductImage: {
             /** @description Alt text per language; "" = the product name is used. */
             readonly alt: components["schemas"]["ImageAlt"];
+            /** @description The image a scene was built from (null for uploads, or once it is gone). */
+            derived_from_id: number | null;
+            height: number;
             id: number;
             /** @description 1000 px WebP variant. */
             readonly medium_url: string;
             position: number;
+            /** @description The product's box [x0, y0, x1, y1] (0-1), when known; frames `auto` renditions. */
+            product_box: number[] | null;
+            readonly renditions: components["schemas"]["AdminImageRenditions"];
+            /**
+             * @description `upload`, or a scene built around another image.
+             *
+             *     * `upload` - upload
+             *     * `studio` - studio
+             *     * `ai_scene` - ai_scene
+             */
+            source: components["schemas"]["ProductImageSourceEnum"];
             /** @description 400 px WebP variant. */
             readonly thumbnail_url: string;
             readonly url: string;
+            width: number;
         };
+        /**
+         * @description * `upload` - upload
+         *     * `studio` - studio
+         *     * `ai_scene` - ai_scene
+         * @enum {string}
+         */
+        ProductImageSourceEnum: "upload" | "studio" | "ai_scene";
         ProductImageUploadRequest: {
             /** Format: binary */
             file: string;
@@ -7410,6 +7516,29 @@ export interface components {
             regions: components["schemas"]["Region"][];
             /** Format: date-time */
             updated_at: string | null;
+        };
+        /**
+         * @description * `auto` - auto
+         *     * `manual` - manual
+         * @enum {string}
+         */
+        RenditionModeEnum: "auto" | "manual";
+        RenditionUrls: {
+            /**
+             * Format: uri
+             * @description 1000 px WebP variant.
+             */
+            medium_url: string;
+            /**
+             * Format: uri
+             * @description 400 px WebP variant.
+             */
+            thumbnail_url: string;
+            /**
+             * Format: uri
+             * @description Full-size WebP of the shape (long side ≤ 2000 px).
+             */
+            url: string;
         };
         /**
          * @description * `app` - app
@@ -8304,6 +8433,13 @@ export interface components {
         VerifyCodeRequest: {
             code: string;
             email?: string | null;
+            /**
+             * @description login_new_device only: the channel `auth/login/` sent the code to (`otp_channel`); the identifier stays the one signed in with.
+             *
+             *     * `sms` - sms
+             *     * `email` - email
+             */
+            otp_channel?: (components["schemas"]["OtpChannelEnum"] | components["schemas"]["NullEnum"]) | null;
             phone?: string | null;
             purpose: components["schemas"]["OtpPurposeEnum"];
         };
@@ -16271,6 +16407,88 @@ export interface operations {
         requestBody?: {
             content: {
                 "application/json": components["schemas"]["PatchedImagePatchRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductImage"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_product_images_renditions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+                image_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ImageRenditionsPutRequest"];
             };
         };
         responses: {

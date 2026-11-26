@@ -91,6 +91,7 @@ const card: ApiCustomerProductCard = {
   main_image_url: "https://media.glowderma.uz/products/1/a.webp",
   main_image_thumbnail_url: "https://media.glowderma.uz/products/1/a_400.webp",
   main_image_medium_url: "https://media.glowderma.uz/products/1/a_1000.webp",
+  main_image_renditions: { portrait: null, square: null },
   available: 12,
   stock_status: "in_stock",
   in_cart_quantity: 0,
@@ -183,6 +184,7 @@ describe("mapProduct", () => {
           medium_url: "https://media.glowderma.uz/b_1000.webp",
           position: 1,
           alt: "",
+          renditions: { portrait: null, square: null },
         },
         {
           id: 8,
@@ -191,6 +193,7 @@ describe("mapProduct", () => {
           medium_url: "https://media.glowderma.uz/a_1000.webp",
           position: 0,
           alt: "Sarum flakoni",
+          renditions: { portrait: null, square: null },
         },
         {
           id: 7,
@@ -199,6 +202,7 @@ describe("mapProduct", () => {
           medium_url: "not a url",
           position: 2,
           alt: "",
+          renditions: { portrait: null, square: null },
         },
       ],
       max_quantity: 10,

@@ -4,7 +4,15 @@ import type { ProductFormValues } from "@/data/products.schema";
 import type { Product, ProductImage, ProductImageMedia } from "@/domain/product";
 import { emptySeo } from "@/domain/seo";
 
-import { adoptImage, formImage, mediaById, withMedia } from "./adopt-image";
+import {
+  adoptImage,
+  adoptNewImage,
+  formEntry,
+  formImage,
+  mediaById,
+  withMedia,
+  withServerId,
+} from "./adopt-image";
 import { createPendingImages, persistProduct, type PersistActions } from "./persist-product";
 
 /**
@@ -204,5 +212,87 @@ describe("adoptImage and the next product save", () => {
     });
     expect(calls).toEqual(["save:active"]);
     expect(result.ok && result.data.images[0]?.media?.renditions.square).toEqual(SQUARE);
+  });
+});
+
+describe("adoptNewImage (an accepted scene) and the next product save", () => {
+  const scene = (): ProductImage => ({
+    id: "50",
+    label: "",
+    src: "http://m/50_400.webp",
+    alt: { uz: "", ru: "", en: "" },
+    media: media({
+      source: "studio",
+      derivedFromId: "1",
+      renditions: { portrait: null, square: SQUARE },
+    }),
+  });
+
+  it("puts the new photo first with make_main, else last, and adopts a known id", () => {
+    const saved = product([photo("1"), photo("2")]);
+    expect(adoptNewImage(saved, scene(), true).images.map((i) => i.id)).toEqual(["50", "1", "2"]);
+    expect(adoptNewImage(saved, scene(), false).images.map((i) => i.id)).toEqual(["1", "2", "50"]);
+    const known = { ...scene(), id: "2" };
+    expect(adoptNewImage(saved, known, true).images.map((i) => i.id)).toEqual(["1", "2"]);
+    expect(formEntry(scene())).not.toHaveProperty("media");
+    expect(withServerId(null, "50", true)).toBeNull();
+    expect(withServerId(["1", "2"], "50", true)).toEqual(["50", "1", "2"]);
+    expect(withServerId(["1", "50"], "50", true)).toEqual(["1", "50"]);
+  });
+
+  it("a clean form rebuilt from the new baseline saves without image calls", async () => {
+    const loaded = product([photo("1"), photo("2")]);
+    const saved = adoptNewImage(loaded, scene(), true);
+    const { calls, actions } = recorder();
+    const { result } = await persistProduct({
+      saved,
+      targetId: "7",
+      values: values(saved),
+      pending: createPendingImages(),
+      actions,
+    });
+    expect(calls).toEqual(["save:active"]);
+    expect(result.ok && result.data.images.map((i) => i.id)).toEqual(["50", "1", "2"]);
+    expect(result.ok && result.data.images[0]?.media?.source).toBe("studio");
+  });
+
+  it("a dirty form with a pending upload keeps its edits; the scene is neither uploaded nor deleted", async () => {
+    const loaded = product([photo("1"), photo("2")]);
+    const form = values(loaded);
+    form.texts.uz.name = "Yangi nom";
+    const pending = createPendingImages();
+    pending.files.set("upload-a", new File(["x"], "a.png", { type: "image/png" }));
+    form.images.push({ id: "upload-a", label: "a.png", src: "blob:a" });
+    // Accepted as the main photo while the form is dirty: baseline and form both get it.
+    const saved = adoptNewImage(loaded, scene(), true);
+    form.images.unshift(formEntry(scene()));
+    const { calls, actions } = recorder();
+    const { result } = await persistProduct({
+      saved,
+      targetId: "7",
+      values: form,
+      pending,
+      actions,
+    });
+    expect(calls).toEqual(["save:active", "upload:a.png"]);
+    expect(result.ok && result.data.texts.uz.name).toBe("Yangi nom");
+    expect(result.ok && result.data.images.map((i) => i.id)).toEqual(["50", "1", "2", "9"]);
+    expect(result.ok && result.data.images[0]?.media?.renditions.square).toEqual(SQUARE);
+  });
+
+  it("after a partially failed save the known server ids gain the scene: no phantom delete", async () => {
+    const loaded = product([photo("1"), photo("2")]);
+    const form = values(loaded);
+    const pending = createPendingImages();
+    pending.server = ["1", "2"]; // what an earlier, failed attempt learnt
+    const saved = adoptNewImage(loaded, scene(), false);
+    pending.server = withServerId(pending.server, "50", false);
+    form.images.push(formEntry(scene()));
+    const { calls, actions } = recorder();
+    await persistProduct({ saved, targetId: "7", values: form, pending, actions });
+    expect(calls.filter((call) => call.startsWith("remove") || call.startsWith("upload"))).toEqual(
+      [],
+    );
+    expect(calls.some((call) => call.startsWith("reorder"))).toBe(false);
   });
 });

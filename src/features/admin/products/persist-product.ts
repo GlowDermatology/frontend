@@ -9,7 +9,7 @@ import {
   type ProductImage,
 } from "@/domain/product";
 
-import { mediaById, withMedia } from "./adopt-image";
+import { mediaById, withMedia, withServerId } from "./adopt-image";
 
 /**
  * Product save orchestration (spec "Frontend wiring › Product save
@@ -93,6 +93,14 @@ export function clearPendingImages(pending: PendingImages): void {
   pending.server = null;
   pending.committed = null;
   pending.alt.clear();
+}
+
+/**
+ * The server added a photo outside the save (an accepted scene): after a partially failed save the
+ * ids it is known to hold gain it, so the retry neither deletes nor re-uploads it.
+ */
+export function addServerImage(pending: PendingImages, id: string, first: boolean): void {
+  pending.server = withServerId(pending.server, id, first);
 }
 
 /** The editable scalar fields of a product or of the form (the PATCH baseline). */

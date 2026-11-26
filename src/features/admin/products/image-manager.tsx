@@ -8,6 +8,7 @@ import { Icon } from "@/components/ui/icon";
 import { ActionMenu } from "@/components/ui/menu";
 import { RENDITION_SHAPES } from "@/domain/crop";
 import { isDefaultImageLabel, type ProductImage, type ProductImageMedia } from "@/domain/product";
+import type { SceneStatus, SceneTemplate } from "@/domain/scene";
 import { imageFileProblem, IMAGE_TYPES, MAX_IMAGES } from "@/data/products.schema";
 import { cn } from "@/lib/cn";
 import { useAdminLocale, useCopy } from "@/lib/i18n/admin-context";
@@ -15,6 +16,8 @@ import { useAdminLocale, useCopy } from "@/lib/i18n/admin-context";
 import { productsCopy } from "./copy";
 import { renditionsCopy } from "./renditions/copy";
 import { RenditionsDialog } from "./renditions/renditions-dialog";
+import { scenesCopy } from "./scenes/copy";
+import { SceneDialog } from "./scenes/scene-dialog";
 
 interface ImageManagerProps {
   images: ReadonlyArray<ProductImage>;
@@ -38,6 +41,13 @@ interface ImageManagerProps {
   media?: ReadonlyMap<string, ProductImageMedia>;
   /** A photo the server changed outside the save (its screen shapes): adopt it (`adoptImage`). */
   onAdopt?: (image: ProductImage) => void;
+  /**
+   * Product scenes (admin contract §2.20): switched on, the saved tiles offer «Sahna yaratish»
+   * and the renditions dialog «AI bilan moslash». Off (or absent), only manual cropping.
+   */
+  scenes?: { status: SceneStatus; templates: ReadonlyArray<SceneTemplate> };
+  /** An accepted scene: a new gallery photo, first with `makeMain` (`adoptNewImage`). */
+  onSceneAccepted?: (image: ProductImage, makeMain: boolean) => void;
 }
 
 /** The dialog's photo; `open` toggles separately so the dialog can animate out and hand focus back. */
@@ -75,10 +85,16 @@ export function ImageManager({
   productId = null,
   media,
   onAdopt,
+  scenes,
+  onSceneAccepted,
 }: ImageManagerProps) {
   const t = useCopy(productsCopy).imageManager;
   const r = useCopy(renditionsCopy);
+  const sc = useCopy(scenesCopy);
   const [fit, setFit] = useState<FitTarget | null>(null);
+  // The scene dialog stays mounted per photo (its job outlives a close); `open` toggles.
+  const [sceneTarget, setSceneTarget] = useState<{ id: string; open: boolean } | null>(null);
+  const scenesOn = Boolean(scenes?.status.enabled);
   const locale = useAdminLocale();
   const errorId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -180,6 +196,13 @@ export function ImageManager({
   const fitIndex = fit ? images.findIndex((image) => image.id === fit.id) : -1;
   const fitImage = fitIndex === -1 ? undefined : images[fitIndex];
   const fitMedia = fit ? media?.get(fit.id) : undefined;
+  const sceneIndex = sceneTarget ? images.findIndex((image) => image.id === sceneTarget.id) : -1;
+  const sceneImage = sceneIndex === -1 ? undefined : images[sceneIndex];
+  /** The demo's illustration in a dialog's frames (a photo without a URL). */
+  const artOf = (image: ProductImage) =>
+    image.art ? (
+      <ProductArt kind={image.art.kind} tone={image.art.tone} detail="thumb" width={96} />
+    ) : null;
 
   return (
     <div
@@ -304,6 +327,16 @@ export function ImageManager({
                           round: (current?.round ?? 0) + 1,
                         })),
                     },
+                    ...(scenesOn
+                      ? [
+                          {
+                            key: "scene",
+                            label: sc.menuItem,
+                            disabledReason: productId && info ? null : r.saveFirst,
+                            onSelect: () => setSceneTarget({ id: image.id, open: true }),
+                          },
+                        ]
+                      : []),
                   ]}
                 />
                 <button
@@ -372,17 +405,27 @@ export function ImageManager({
           image={fitImage}
           media={fitMedia}
           label={labelOf(fitImage, fitIndex)}
-          placeholder={
-            fitImage.art ? (
-              <ProductArt
-                kind={fitImage.art.kind}
-                tone={fitImage.art.tone}
-                detail="thumb"
-                width={96}
-              />
-            ) : null
-          }
+          placeholder={artOf(fitImage)}
           onSaved={(saved) => onAdopt?.(saved)}
+          fitEnabled={scenesOn}
+        />
+      )}
+      {sceneTarget && productId && sceneImage && scenes && (
+        <SceneDialog
+          key={sceneTarget.id}
+          open={sceneTarget.open}
+          onOpenChange={(open) =>
+            setSceneTarget((current) => (current ? { ...current, open } : null))
+          }
+          productId={productId}
+          image={sceneImage}
+          media={media?.get(sceneTarget.id)}
+          label={labelOf(sceneImage, sceneIndex)}
+          status={scenes.status}
+          templates={scenes.templates}
+          imageCount={images.length}
+          placeholder={artOf(sceneImage)}
+          onAccepted={(accepted, makeMain) => onSceneAccepted?.(accepted, makeMain)}
         />
       )}
     </div>

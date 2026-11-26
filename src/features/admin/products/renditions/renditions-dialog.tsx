@@ -8,13 +8,15 @@ import { Dialog } from "@/components/ui/dialog";
 import { Icon } from "@/components/ui/icon";
 import { useToast } from "@/components/ui/toast";
 import { updateProductImageRenditions } from "@/data/products.actions";
-import { RENDITION_SHAPES, SHAPE_RATIO, type Crop, type RenditionShape } from "@/domain/crop";
+import { clampCrop, RENDITION_SHAPES, SHAPE_RATIO, type RenditionShape } from "@/domain/crop";
 import type { ProductImage, ProductImageMedia } from "@/domain/product";
 import { cn } from "@/lib/cn";
 import { useCopy } from "@/lib/i18n/admin-context";
 
 import { runAction } from "../../shared/action-client";
 import { useIdempotencyKey } from "../../shared/idempotency";
+import { scenesCopy } from "../scenes/copy";
+import { useSceneJob } from "../scenes/use-scene-job";
 import { renditionsCopy } from "./copy";
 import {
   chooseAuto,
@@ -40,12 +42,12 @@ interface RenditionsDialogProps {
   /** The server's answer: the editor adopts it into its baseline (`adoptImage`). */
   onSaved: (image: ProductImage) => void;
   /**
-   * Proposed crops to load into the croppers (e.g. from the AI's `fit` job); each becomes a
-   * touched manual crop the admin can still adjust before saving.
+   * Offer «AI bilan moslash» (scenes switched on, admin contract §2.20): a `fit` job whose proposed
+   * crops load into the croppers as the admin's own (adjust, then «Saqlash»), or are accepted as
+   * they are. The job belongs to this dialog: a save through the renditions PUT or a cancel
+   * discards it.
    */
-  proposal?: Partial<Record<RenditionShape, Crop>> | null;
-  /** Extra actions above the shapes (the AI «fit» button). */
-  actions?: ReactNode;
+  fitEnabled?: boolean;
 }
 
 /**
@@ -65,34 +67,40 @@ export function RenditionsDialog({
   label,
   placeholder,
   onSaved,
-  proposal,
-  actions,
+  fitEnabled = false,
 }: RenditionsDialogProps) {
   const t = useCopy(renditionsCopy);
+  const s = useCopy(scenesCopy).fit;
+  const fit = useSceneJob({ productId, imageId: image.id, slot: "fit", enabled: fitEnabled });
+  const [loadedFit, setLoadedFit] = useState<string | null>(null);
   const toast = useToast();
   const idempotency = useIdempotencyKey();
   const idBase = useId();
   const size = mediaSize(media);
   const [shapes, setShapes] = useState<DialogShapes>(() => initialShapes(media));
-  const [seenProposal, setSeenProposal] = useState(proposal);
+
   const [errors, setErrors] = useState<Partial<Record<RenditionShape, string>>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // A new proposal (the AI's crops) is loaded into the croppers as the admin's own crops.
-  if (proposal !== seenProposal) {
-    setSeenProposal(proposal);
-    if (proposal) {
-      setShapes((current) => {
-        const next = { ...current };
-        for (const shape of RENDITION_SHAPES) {
-          const crop = proposal[shape];
-          if (crop) next[shape] = moved(current[shape], crop);
-        }
-        return next;
-      });
-    }
+  // The AI's crops (a `fit` job, never another kind's: those describe a candidate, not this photo)
+  // are loaded once per job into the croppers as the admin's own crops.
+  const fitJob = fit.job;
+  const fitReady = fitJob?.kind === "fit" && fitJob.result !== null && fit.view === "review";
+  if (fitReady && fitJob.id !== loadedFit) {
+    setLoadedFit(fitJob.id);
+    const crops = fitJob.result!.crops;
+    setShapes((current) => {
+      const next = { ...current };
+      for (const shape of RENDITION_SHAPES) {
+        const crop = crops[shape];
+        if (crop && size)
+          next[shape] = moved(current[shape], clampCrop(SHAPE_RATIO[shape], crop, size));
+      }
+      return next;
+    });
   }
+  const otherJob = fitJob !== null && fitJob.kind !== "fit" && fit.view !== "closed";
 
   const changes = renditionChanges(shapes, media);
   const changed = Object.keys(changes).length > 0;
@@ -127,6 +135,8 @@ export function RenditionsDialog({
         return;
       }
       onSaved(result.data);
+      // The AI's proposal (if any) was saved through the PUT: its job has nothing left to do.
+      if (fitJob?.kind === "fit") void fit.discard();
       toast({ tone: "success", title: t.savedToast, description: t.savedLead });
       onOpenChange(false);
     } finally {
@@ -134,17 +144,79 @@ export function RenditionsDialog({
     }
   };
 
+  const close = () => {
+    if (fitJob?.kind === "fit") void fit.discard();
+    onOpenChange(false);
+  };
+
+  const acceptFit = async () => {
+    const result = await fit.accept({ makeMain: false, acknowledgeGenerated: false });
+    if (!result.ok) {
+      setFormError(result.error);
+      return;
+    }
+    onSaved(result.data.image);
+    toast({ tone: "success", title: t.savedToast, description: t.savedLead });
+    onOpenChange(false);
+  };
+
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!saving) onOpenChange(next);
+        if (saving || fit.busy) return;
+        if (next) onOpenChange(true);
+        else close();
       }}
       title={t.title}
       description={t.lead(label)}
       className="max-w-[760px]"
     >
-      {actions}
+      {fitEnabled && (
+        <div
+          data-fit-ai=""
+          className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md bg-gold-soft px-3 py-2.5"
+        >
+          {fit.view === "running" ? (
+            <p
+              role="status"
+              className="m-0 flex items-center gap-2 text-body-sm font-semibold text-ink"
+            >
+              <span
+                aria-hidden="true"
+                className="size-4 animate-spin rounded-full border-2 border-gold-ink border-t-transparent"
+              />
+              {s.running}
+            </p>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void fit.start({ kind: "fit" })}
+              disabledReason={saving ? t.saving : otherJob ? s.otherJob : null}
+            >
+              <Icon name="sparkles" size={16} />
+              {s.start}
+            </Button>
+          )}
+          {fitReady && (
+            <>
+              <p role="status" className="m-0 min-w-0 flex-1 text-caption text-ink">
+                {s.loaded}
+              </p>
+              <Button type="button" variant="ghost" size="sm" onClick={acceptFit} busy={fit.busy}>
+                {s.acceptAsIs}
+              </Button>
+            </>
+          )}
+          {(fit.view === "failed" || fit.error) && (
+            <p role="alert" className="m-0 w-full text-body-sm text-ink">
+              {fitJob?.error?.message || fit.error?.message}
+            </p>
+          )}
+        </div>
+      )}
       {!size && (
         <p className="m-0 flex items-start gap-2 rounded-md bg-warning-soft px-3 py-2.5 text-body-sm text-ink">
           <Icon name="alert-triangle" size={16} className="mt-0.5 shrink-0 text-warning" />
@@ -253,7 +325,7 @@ export function RenditionsDialog({
         <Button
           type="button"
           variant="ghost"
-          onClick={() => onOpenChange(false)}
+          onClick={close}
           disabledReason={saving ? t.saving : null}
         >
           {t.cancel}

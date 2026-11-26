@@ -67,3 +67,40 @@ export function formImage<T extends ProductImage>(image: T): Omit<T, "media"> {
   void _;
   return rest;
 }
+
+/**
+ * An image the server added outside the save (an accepted scene: a new gallery photo, first when
+ * made the main one). The baseline gets it at once — the server holds it — so the next save
+ * neither uploads nor deletes it:
+ *
+ * - a clean form simply takes the new baseline (the editor's ordinary reset rebuilds it);
+ * - a dirty form keeps its edits: the reset guard is moved as for `adoptImage`, and the photo is
+ *   put into the form's list too (`formEntry`, first or last), so `persistProduct` sees it among
+ *   the kept images and at most reorders to the admin's order;
+ * - after a partially failed save, `pending.server` (the server's ids as last known) gains it
+ *   (`withServerId`).
+ *
+ * An id the baseline already has is only adopted (`adoptImage`).
+ */
+export function adoptNewImage(saved: Product, image: ProductImage, makeMain: boolean): Product {
+  if (saved.images.some((candidate) => candidate.id === image.id)) {
+    return adoptImage(saved, image);
+  }
+  const entry = { ...image, alt: { uz: "", ru: "", en: "", ...image.alt } };
+  return { ...saved, images: makeMain ? [entry, ...saved.images] : [...saved.images, entry] };
+}
+
+/** The new photo as the form holds it: no `media`, all three alt texts (controlled inputs). */
+export function formEntry(image: ProductImage): Omit<ProductImage, "media"> {
+  return { ...formImage(image), alt: { uz: "", ru: "", en: "", ...image.alt } };
+}
+
+/** The server's ids after it added `id` (first or last); `null` (no save yet) stays `null`. */
+export function withServerId(
+  server: string[] | null,
+  id: string,
+  makeMain: boolean,
+): string[] | null {
+  if (!server || server.includes(id)) return server;
+  return makeMain ? [id, ...server] : [...server, id];
+}

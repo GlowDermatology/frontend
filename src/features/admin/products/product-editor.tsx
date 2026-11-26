@@ -37,6 +37,7 @@ import {
 import { productFormSchemas, type ProductFormValues } from "@/data/products.schema";
 import { buildDraft, formPathOf, keyOf, type AssistantStatus } from "@/domain/assistant";
 import type { Category } from "@/domain/category";
+import type { SceneStatus, SceneTemplate } from "@/domain/scene";
 import {
   CONTENT_LANGUAGES,
   emptyAlt,
@@ -73,12 +74,13 @@ import {
 import { assistantCopy } from "./assistant/copy";
 import { markedLanguages } from "./assistant/review";
 import { useProductAssistant } from "./assistant/use-product-assistant";
-import { adoptImage, formImage, mediaById } from "./adopt-image";
+import { adoptImage, adoptNewImage, formEntry, formImage, mediaById } from "./adopt-image";
 import { afterDialogsClose, altLanguageToShow, languageToShow } from "./form-reveal";
 import { productsCopy, type ProductsCopy } from "./copy";
 import { ImageManager } from "./image-manager";
 import { LanguageTabs } from "./language-tabs";
 import {
+  addServerImage,
   clearPendingImages,
   createPendingImages,
   persistProduct,
@@ -169,6 +171,8 @@ interface ProductEditorProps {
   product: Product | null;
   /** The AI assistant's availability (`assistant/status/`); absent or disabled hides it. */
   assistant?: AssistantStatus;
+  /** Product scenes (`scenes/status/`, `scenes/templates/`); absent or off: manual cropping only. */
+  scenes?: { status: SceneStatus; templates: ReadonlyArray<SceneTemplate> };
   /** Categories for the picker (`getCategories()`), ordered by position. */
   categories: ReadonlyArray<Category>;
   /** "2 daqiqa oldin" — when stock was last read from Billz (admin language). */
@@ -183,6 +187,7 @@ interface ProductEditorProps {
 export function ProductEditor({
   product,
   assistant,
+  scenes,
   categories,
   lastSyncLabel,
   redirectOnCreate,
@@ -283,6 +288,28 @@ export function ProductEditor({
     setSaved(next);
   };
   const imageMedia = mediaById(saved?.images);
+
+  /**
+   * An accepted scene: a new photo the server already holds (first with `makeMain`). It joins the
+   * baseline; a clean form is rebuilt from it by the ordinary reset, a dirty one keeps its edits
+   * (the reset guard moves) and gets the photo in its list too. See `adopt-image.ts`.
+   */
+  const acceptScene = (image: ProductImage, makeMain: boolean) => {
+    if (!saved) return;
+    const next = adoptNewImage(saved, image, makeMain);
+    if (next === saved) return;
+    addServerImage(pending, image.id, makeMain);
+    const known = images.fields.some((field) => field.id === image.id);
+    if (!isDirty || known) {
+      if (known) formBaseline.current = next;
+      setSaved(next);
+      return;
+    }
+    formBaseline.current = next;
+    setSaved(next);
+    if (makeMain) images.prepend(formEntry(image));
+    else images.append(formEntry(image));
+  };
 
   // The Billz message sits under the header: bring it into view when it appears.
   useEffect(() => {
@@ -715,6 +742,8 @@ export function ProductEditor({
                 productId={saved?.id ?? null}
                 media={imageMedia}
                 onAdopt={adopt}
+                scenes={scenes}
+                onSceneAccepted={acceptScene}
               />
               {images.fields.length > 0 && (
                 <div className="flex flex-col gap-3 border-t border-line pt-4">

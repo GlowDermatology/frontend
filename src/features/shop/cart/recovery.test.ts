@@ -2,6 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+import { NO_RENDITIONS } from "@/domain/shop";
 import type { ShopCart, ShopOrder } from "@/domain/shop-account";
 import { CartView } from "./cart-view";
 import { cartBadgeQuantity, recoveryPhase } from "./recovery";
@@ -106,6 +107,7 @@ describe("saved checkout in the cart", () => {
           name: "New cream",
           volume: "50 ml",
           image: null,
+          renditions: NO_RENDITIONS,
           unitPrice: 10_000,
           promo: false,
           quantity: 1,

@@ -92,11 +92,12 @@ export function LiveProductCard({
     <article className={cardFrame}>
       <Link href={path} tabIndex={-1} aria-hidden="true" className="relative block">
         <ProductImage
-          src={product.imageMedium ?? product.image}
+          src={product.renditions.square?.medium ?? product.imageMedium ?? product.image}
           alt=""
           sizes={LIVE_CARD_SIZES}
           seed={product.id}
           fit="contain"
+          square={Boolean(product.renditions.square)}
           zoom
           className="aspect-square bg-gold-soft"
         />

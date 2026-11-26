@@ -19,10 +19,18 @@ interface ProductImageProps {
   /** Hover zoom inside a card (`group` on the card). */
   zoom?: boolean;
   fit?: "cover" | "contain";
+  /**
+   * `src` is a 1:1 rendition (a crop staff chose): in a `contain` frame it fills a square box
+   * centred in the well (`object-cover`, no padding) instead of floating with padding. The
+   * box is the frame itself when the frame is square (`aspect-square`), so the crop is never
+   * cut again.
+   */
+  square?: boolean;
 }
 
 /**
- * A product photo in a fixed 4:5 frame on the warm image well. The frame
+ * A product photo in a fixed 4:5 frame on the warm image well (pass the photo's 4:5 rendition
+ * when it has one: it fills the frame exactly). The frame
  * reserves its space before the image loads (no layout shift) and, without
  * a photo, shows the brand's product illustration instead of a broken image.
  */
@@ -35,7 +43,11 @@ export function ProductImage({
   className,
   zoom = false,
   fit = "cover",
+  square = false,
 }: ProductImageProps) {
+  const zoomClass =
+    zoom &&
+    "transition-transform duration-700 ease-soft group-hover:scale-[1.035] group-focus-visible:scale-[1.035]";
   return (
     <span
       className={cn(
@@ -44,7 +56,18 @@ export function ProductImage({
         className,
       )}
     >
-      {src ? (
+      {src && square && fit === "contain" ? (
+        <span className="absolute inset-y-0 left-1/2 aspect-square h-full max-w-full -translate-x-1/2 overflow-hidden">
+          <Image
+            src={src}
+            alt={alt}
+            fill
+            sizes={sizes}
+            priority={priority}
+            className={cn("object-cover media-dim", zoomClass)}
+          />
+        </span>
+      ) : src ? (
         <Image
           src={src}
           alt={alt}
@@ -54,8 +77,7 @@ export function ProductImage({
           className={cn(
             "media-dim",
             fit === "contain" ? "object-contain p-[clamp(16px,2vw,28px)]" : "object-cover",
-            zoom &&
-              "transition-transform duration-700 ease-soft group-hover:scale-[1.035] group-focus-visible:scale-[1.035]",
+            zoomClass,
           )}
         />
       ) : (

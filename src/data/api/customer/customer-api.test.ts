@@ -120,6 +120,7 @@ describe("mapProductCard", () => {
       imageThumb: "https://media.glowderma.uz/products/1/a_400.webp",
       imageMedium: "https://media.glowderma.uz/products/1/a_1000.webp",
       imageUrl: "https://media.glowderma.uz/products/1/a.webp",
+      renditions: { portrait: null, square: null },
       available: 12,
       inStock: true,
       brand: null,

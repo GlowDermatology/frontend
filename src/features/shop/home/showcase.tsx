@@ -46,6 +46,31 @@ function FrameArt({
   preload?: boolean;
   small?: boolean;
 }) {
+  const square = product.renditions.square;
+  const sizes = small ? "76px" : "(min-width: 72rem) 420px, (min-width: 37.5rem) 50vw, 80vw";
+  if (square) {
+    // The 1:1 rendition in the largest square that fits the art area (a size container), so the
+    // crop staff chose is shown whole, never cut again by a frame of another shape.
+    return (
+      <span className="[container-type:size] absolute inset-0">
+        <span
+          className={cn(
+            "absolute inset-0 m-auto size-[min(100cqw,100cqh)] overflow-hidden",
+            small ? "rounded-[10px]" : "rounded-[20px]",
+          )}
+        >
+          <Image
+            src={small ? square.thumb : square.medium}
+            alt=""
+            fill
+            sizes={sizes}
+            preload={preload}
+            className="object-cover media-dim"
+          />
+        </span>
+      </span>
+    );
+  }
   const src = small
     ? (product.imageThumb ?? product.image)
     : (product.imageMedium ?? product.image);
@@ -55,7 +80,7 @@ function FrameArt({
         src={src}
         alt=""
         fill
-        sizes={small ? "76px" : "(min-width: 72rem) 420px, (min-width: 37.5rem) 50vw, 80vw"}
+        sizes={sizes}
         preload={preload}
         className={cn("object-contain media-dim", small ? "p-1.5" : "p-[clamp(12px,3vw,40px)]")}
       />

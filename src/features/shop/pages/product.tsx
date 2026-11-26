@@ -143,10 +143,16 @@ async function Alternatives({
               href={shopPath(locale, { kind: "product", slug: item.segment })}
               className="flex items-center gap-3 rounded-md p-1.5 text-ink no-underline hover:bg-gold-soft"
             >
-              <span className="relative block aspect-product w-12 shrink-0 overflow-hidden rounded-sm bg-gold-soft">
+              {/* The 1:1 rendition in a square box (never cut again); the photo in 4:5 without one. */}
+              <span
+                className={cn(
+                  "relative block w-12 shrink-0 overflow-hidden rounded-sm bg-gold-soft",
+                  item.renditions.square ? "aspect-square" : "aspect-product",
+                )}
+              >
                 {item.image ? (
                   <Image
-                    src={item.imageThumb ?? item.image}
+                    src={item.renditions.square?.thumb ?? item.imageThumb ?? item.image}
                     alt=""
                     fill
                     sizes="48px"

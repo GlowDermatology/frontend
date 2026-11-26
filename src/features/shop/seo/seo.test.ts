@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import type { ShopProduct, ShopSettings, ShopSpecialist } from "@/domain/shop";
+import {
+  NO_RENDITIONS,
+  type ShopProduct,
+  type ShopSettings,
+  type ShopSpecialist,
+} from "@/domain/shop";
 
 import { getShopDictionary } from "../content";
 import { categoryDescription, inPageLanguage, productDescription, productTitle } from "./describe";
@@ -31,6 +36,7 @@ const product: ShopProduct = {
   imageThumb: "https://media.glowderma.uz/a_400.webp",
   imageMedium: "https://media.glowderma.uz/a_1000.webp",
   imageUrl: "https://media.glowderma.uz/a.webp",
+  renditions: NO_RENDITIONS,
   available: 12,
   inStock: true,
   brand: null,

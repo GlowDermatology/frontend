@@ -11,14 +11,19 @@ const MAIN_SIZES = "(min-width: 72rem) 640px, (min-width: 37.5rem) 80vw, 100vw";
  * Product photos without client JavaScript: a scroll-snap track (swipe on
  * phones) and thumbnails that are in-page links to each slide. The first
  * photo is the page's LCP image (`priority`), the frame keeps its 4:5 space
- * before any image loads.
+ * before any image loads. A photo's 4:5 rendition (full size) fills the slides and its 1:1
+ * rendition the thumbnails; without them the photo itself is shown, as before.
  */
 export function ProductGallery({ product, dict }: { product: ShopProduct; dict: ShopDictionary }) {
   const photos = product.images.filter((image) => image.image);
   if (photos.length <= 1) {
     return (
       <ProductImage
-        src={photos[0]?.image ?? product.image}
+        src={
+          photos[0]
+            ? (photos[0].renditions.portrait?.url ?? photos[0].image)
+            : (product.renditions.portrait?.url ?? product.image)
+        }
         alt={photos[0]?.alt || product.name}
         sizes={MAIN_SIZES}
         priority
@@ -41,7 +46,7 @@ export function ProductGallery({ product, dict }: { product: ShopProduct; dict: 
             className="w-full shrink-0 snap-center scroll-mt-24"
           >
             <ProductImage
-              src={photo.image}
+              src={photo.renditions.portrait?.url ?? photo.image}
               alt={
                 photo.alt ||
                 (index === 0
@@ -64,7 +69,7 @@ export function ProductGallery({ product, dict }: { product: ShopProduct; dict: 
               className="relative block size-16 overflow-hidden rounded-md border border-line bg-image-well transition-[border-color] duration-150 hover:border-gold sm:size-20"
             >
               <Image
-                src={(photo.thumb ?? photo.image)!}
+                src={(photo.renditions.square?.thumb ?? photo.thumb ?? photo.image)!}
                 alt=""
                 fill
                 sizes="80px"

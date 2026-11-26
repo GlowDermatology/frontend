@@ -8,7 +8,7 @@
  */
 
 import type { PaymentProvider } from "./order";
-import type { ShopLocation } from "./shop";
+import type { ShopLocation, ShopRenditions } from "./shop";
 import type {
   DeliveryMethod,
   DeliveryProvider,
@@ -71,6 +71,8 @@ export interface ShopCartLine {
   name: string;
   volume: string;
   image: string | null;
+  /** The main image's screen shapes (`main_image_renditions`); the line shows the 4:5 one. */
+  renditions: ShopRenditions;
   unitPrice: number;
   promo: boolean;
   quantity: number;

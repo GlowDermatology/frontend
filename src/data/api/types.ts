@@ -290,3 +290,12 @@ export type ApiConfirmReturn = Schemas["ConfirmReturnRequest"];
 export type ApiDeliveryIssuesQuery = NonNullable<
   import("./schema").operations["admin_delivery_issues_list"]["parameters"]["query"]
 >;
+
+/* Product scenes (admin contract §2.20, backend f39170f) */
+export type ApiSceneStatus = Schemas["SceneStatus"];
+export type ApiSceneTemplates = Schemas["SceneTemplates"];
+export type ApiSceneTemplate = Schemas["SceneTemplate"];
+export type ApiSceneJob = Schemas["SceneJob"];
+export type ApiSceneJobCreate = Schemas["SceneJobCreateRequest"];
+export type ApiSceneAccept = Schemas["SceneAcceptRequest"];
+export type ApiSceneAcceptResult = Schemas["SceneAcceptResponse"];

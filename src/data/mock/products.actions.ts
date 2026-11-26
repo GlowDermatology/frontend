@@ -169,6 +169,45 @@ function mockMedia(image: ProductImage): ProductImageMedia {
   );
 }
 
+/** The 4:5 picture the demo's scenes «generate» (`public/mock`), and its pink-marked twin. */
+export const MOCK_SCENE_URL = "/mock/scene-candidate.webp";
+export const MOCK_SCENE_OVERLAY_URL = "/mock/scene-overlay.webp";
+/** Where the flacon stands in that picture. */
+export const MOCK_SCENE_BOX = [0.375, 0.2, 0.625, 0.85] as const;
+/** Ids the demo gives an accepted scene (never in the fixtures). */
+export const MOCK_SCENE_IMAGE_PREFIX = "scene-";
+
+/**
+ * A demo photo by id: from the fixtures, or an accepted scene of this visit (its id says so; the
+ * demo keeps nothing, so it is rebuilt from the scene picture).
+ */
+export async function mockImageOf(
+  productId: string,
+  imageId: string,
+): Promise<ProductImage | null> {
+  const product = await getProduct(productId);
+  if (!product) return null;
+  const image = product.images.find((candidate) => candidate.id === imageId);
+  if (image) return image;
+  if (!imageId.startsWith(MOCK_SCENE_IMAGE_PREFIX)) return null;
+  return {
+    id: imageId,
+    label: "",
+    src: MOCK_SCENE_URL,
+    alt: emptyAlt(),
+    media: {
+      width: 1600,
+      height: 2000,
+      url: MOCK_SCENE_URL,
+      mediumUrl: MOCK_SCENE_URL,
+      source: "studio",
+      derivedFromId: null,
+      productBox: [...MOCK_SCENE_BOX],
+      renditions: { portrait: null, square: null },
+    },
+  };
+}
+
 /**
  * The demo's `PUT …/renditions/`: the backend's rules (`auto` framing, `invalid_crop` /
  * `crop_too_small` per shape, a shape left out kept), with the photo's own URL standing in for
@@ -182,7 +221,7 @@ export async function updateProductImageRenditions(
 ): Promise<ActionResult<ProductImage>> {
   await delay(300);
   const m = await copyFor(catalogDataCopy);
-  const image = (await getProduct(productId))?.images.find((candidate) => candidate.id === imageId);
+  const image = await mockImageOf(productId, imageId);
   if (!image) return { ok: false, error: m.notFoundShort, code: "not_found" };
   const media = mockMedia(image);
   const size = media.width > 0 && media.height > 0 ? media : MOCK_IMAGE_SIZE;

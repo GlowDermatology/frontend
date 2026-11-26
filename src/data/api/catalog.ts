@@ -9,6 +9,7 @@ import type {
   ApiCategoryPatch,
   ApiCategoryResults,
   ApiCategoryWrite,
+  ApiImageRenditionsPut,
   ApiImagesResponse,
   ApiJob,
   ApiPaginatedBanners,
@@ -97,6 +98,24 @@ export function apiPatchProductImage(
   return apiFetch<ApiProductImage>(
     `${BASE}/products/${encodeURIComponent(id)}/images/${encodeURIComponent(imageId)}/`,
     { method: "PATCH", body: { alt }, token },
+  );
+}
+
+/**
+ * `PUT products/{id}/images/{image_id}/renditions/` (backend 0bcf0a5): per shape a crop
+ * `[x, y, w, h]`, `"auto"` or `null`; a shape left out is kept. Answers the updated image.
+ * Keyed (optional on the server): a retry of a lost answer replays it instead of re-rendering.
+ */
+export function apiPutProductImageRenditions(
+  token: string,
+  id: string,
+  imageId: string,
+  body: ApiImageRenditionsPut,
+  idempotencyKey: string,
+) {
+  return apiFetch<ApiProductImage>(
+    `${BASE}/products/${encodeURIComponent(id)}/images/${encodeURIComponent(imageId)}/renditions/`,
+    { method: "PUT", body, token, idempotencyKey },
   );
 }
 

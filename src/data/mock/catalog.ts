@@ -3,6 +3,7 @@ import type {
   ContentLanguage,
   Product,
   ProductArtRef,
+  ProductImageMedia,
   ProductTexts,
 } from "@/domain/product";
 import { emptySeo, productSeoStatus, slugifyName, type SeoTexts } from "@/domain/seo";
@@ -36,15 +37,55 @@ const texts = (
 const HYALURON_INCI =
   "Aqua, Sodium Hyaluronate, Hydrolyzed Hyaluronic Acid, Sodium Acetylated Hyaluronate, Panthenol, Glycerin, Allantoin, Betaine, 1,2-Hexanediol.";
 
+/** A demo photo's server facts: a 1200 × 1500 illustration without screen shapes yet. */
+const demoMedia = (overrides: Partial<ProductImageMedia> = {}): ProductImageMedia => ({
+  width: 1200,
+  height: 1500,
+  url: null,
+  mediumUrl: null,
+  source: "upload",
+  derivedFromId: null,
+  productBox: null,
+  renditions: { portrait: null, square: null },
+  ...overrides,
+});
+
 const SERUM_IMAGES: Product["images"] = [
   {
     id: "img-1",
     label: "Asosiy rasm",
     art: { kind: "dropper" },
     alt: { uz: "Gialuron kislotali serum, 30 ml shisha flakon", ru: "", en: "" },
+    // The flacon's box (as the AI assistant would find it): frames the automatic crops.
+    media: demoMedia({ productBox: [0.34, 0.12, 0.66, 0.9] }),
   },
-  { id: "img-2", label: "Qadoq bilan", art: { kind: "box" } },
-  { id: "img-3", label: "Tekstura", art: { kind: "texture" } },
+  {
+    id: "img-2",
+    label: "Qadoq bilan",
+    art: { kind: "box" },
+    // A studio scene built around the first photo, already fitted to both screens.
+    media: demoMedia({
+      source: "studio",
+      derivedFromId: "img-1",
+      renditions: {
+        portrait: {
+          crop: [0, 0, 1, 1],
+          mode: "auto",
+          url: null,
+          mediumUrl: null,
+          thumbnailUrl: null,
+        },
+        square: {
+          crop: [0, 0.1, 1, 0.8],
+          mode: "manual",
+          url: null,
+          mediumUrl: null,
+          thumbnailUrl: null,
+        },
+      },
+    }),
+  },
+  { id: "img-3", label: "Tekstura", art: { kind: "texture" }, media: demoMedia() },
 ];
 
 interface Seed {

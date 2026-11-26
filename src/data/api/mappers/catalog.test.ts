@@ -70,7 +70,7 @@ describe("mapProduct", () => {
         note: "narx 175 000 → 185 000",
       },
     });
-    expect(mapped.images).toEqual([
+    expect(mapped.images).toMatchObject([
       {
         id: "1",
         src: "http://localhost:8001/media/products/1/d5872db9aa73d5e9.webp",

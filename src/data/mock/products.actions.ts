@@ -1,12 +1,23 @@
 import { catalogDataCopy } from "@/domain/copy/catalog";
+import {
+  autoCrop,
+  clampCrop,
+  cropProblem,
+  RENDITION_SHAPES,
+  SHAPE_RATIO,
+  type ImageSize,
+} from "@/domain/crop";
 import type { Job } from "@/domain/job";
 import {
   emptyAlt,
   lastChangeText,
   type ImageAlt,
+  type ImageRendition,
   type Product,
   type ProductImage,
+  type ProductImageMedia,
   type ProductLastChange,
+  type RenditionChanges,
 } from "@/domain/product";
 import { slugifyName } from "@/domain/seo";
 import { copyFor, getAdminLocale } from "@/lib/i18n/admin-locale";
@@ -139,6 +150,72 @@ export async function updateProductImageAlt(
 ): Promise<ActionResult<ProductImage>> {
   await delay(150);
   return { ok: true, data: { id: imageId, label: "", alt: { ...emptyAlt(), ...alt } } };
+}
+
+/** The demo's photos are illustrations: a 4:5 photo of this size when a fixture gives none. */
+export const MOCK_IMAGE_SIZE: ImageSize = { width: 1200, height: 1500 };
+
+function mockMedia(image: ProductImage): ProductImageMedia {
+  return (
+    image.media ?? {
+      ...MOCK_IMAGE_SIZE,
+      url: image.src ?? null,
+      mediumUrl: image.src ?? null,
+      source: "upload",
+      derivedFromId: null,
+      productBox: null,
+      renditions: { portrait: null, square: null },
+    }
+  );
+}
+
+/**
+ * The demo's `PUT …/renditions/`: the backend's rules (`auto` framing, `invalid_crop` /
+ * `crop_too_small` per shape, a shape left out kept), with the photo's own URL standing in for
+ * the WebP copies. Nothing is persisted: the editor keeps the answer until the page reloads.
+ */
+export async function updateProductImageRenditions(
+  productId: string,
+  imageId: string,
+  changes: RenditionChanges,
+): Promise<ActionResult<ProductImage>> {
+  await delay(300);
+  const m = await copyFor(catalogDataCopy);
+  const image = (await getProduct(productId))?.images.find((candidate) => candidate.id === imageId);
+  if (!image) return { ok: false, error: m.notFoundShort, code: "not_found" };
+  const media = mockMedia(image);
+  const size = media.width > 0 && media.height > 0 ? media : MOCK_IMAGE_SIZE;
+  const renditions = { ...media.renditions };
+  const fieldErrors: Record<string, string> = {};
+  for (const shape of RENDITION_SHAPES) {
+    if (!(shape in changes)) continue;
+    const change = changes[shape];
+    if (change === null || change === undefined) {
+      renditions[shape] = null;
+      continue;
+    }
+    const ratio = SHAPE_RATIO[shape];
+    const problem = change === "auto" ? null : cropProblem(ratio, change, size);
+    if (problem) {
+      fieldErrors[shape] = problem === "crop_too_small" ? m.cropTooSmall : m.cropInvalid;
+      continue;
+    }
+    const entry: ImageRendition = {
+      crop:
+        change === "auto"
+          ? autoCrop(ratio, size, media.productBox)
+          : clampCrop(ratio, change, size),
+      mode: change === "auto" ? "auto" : "manual",
+      url: media.url,
+      mediumUrl: media.mediumUrl,
+      thumbnailUrl: image.src ?? null,
+    };
+    renditions[shape] = entry;
+  }
+  if (Object.keys(fieldErrors).length > 0) {
+    return { ok: false, error: m.checkImage, code: "validation_error", fieldErrors };
+  }
+  return { ok: true, data: { ...image, media: { ...media, renditions } } };
 }
 
 export async function reorderProductImages(

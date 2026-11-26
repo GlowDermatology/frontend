@@ -185,3 +185,18 @@ export const imageFileSchemas = localized(catalogDataCopy, (m) =>
 );
 /** @deprecated Uzbek messages: use `imageFileSchemas[locale]`. */
 export const imageFileSchema = imageFileSchemas.uz;
+
+/** A crop as sent: four finite numbers (0-1 of the image); the server judges bounds and shape. */
+const cropSchema = z
+  .tuple([z.number(), z.number(), z.number(), z.number()])
+  .refine((crop) => crop.every((value) => Number.isFinite(value) && value >= -1 && value <= 2));
+const renditionChangeSchema = z.union([cropSchema, z.literal("auto"), z.null()]);
+
+/**
+ * Body of `PUT products/{id}/images/{image_id}/renditions/` (backend 0bcf0a5): per shape a crop,
+ * `"auto"` or `null` (removed); a shape left out is kept. At least one shape.
+ */
+export const renditionChangesSchema = z
+  .object({ portrait: renditionChangeSchema.optional(), square: renditionChangeSchema.optional() })
+  .strict()
+  .refine((changes) => Object.keys(changes).length > 0);

@@ -10,6 +10,7 @@ import {
   type ImageAlt,
   type Product,
   type ProductImage,
+  type RenditionChanges,
 } from "@/domain/product";
 import { getAdminLocale } from "@/lib/i18n/admin-locale";
 import type { Locale } from "@/lib/i18n/locales";
@@ -27,6 +28,7 @@ import {
   apiGetProduct,
   apiPatchProduct,
   apiPatchProductImage,
+  apiPutProductImageRenditions,
   apiReorderProductImages,
   apiStartBillzImport,
   apiUploadProductImage,
@@ -52,6 +54,7 @@ import {
   MAX_IMAGES,
   productBaselineSchema,
   productFormSchemas,
+  renditionChangesSchema,
   type ProductBaseline,
   type ProductFormValues,
 } from "./products.schema";
@@ -252,6 +255,58 @@ export async function updateProductImageAlt(
     });
   }
   return mock.updateProductImageAlt(parsed.data.imageId, parsed.data.alt);
+}
+
+/**
+ * The screen shapes of one saved photo (`PUT products/{id}/images/{image_id}/renditions/`,
+ * backend 0bcf0a5): per shape a crop `[x, y, w, h]`, `"auto"` or `null` (removed); a shape left
+ * out of `changes` is kept. Answers the updated photo; the server's `invalid_crop` /
+ * `crop_too_small` come back as `fieldErrors.portrait` / `fieldErrors.square`. Keyed with the
+ * dialog's idempotency key, so a retry after a lost answer is replayed, not rendered twice.
+ */
+export async function updateProductImageRenditions(
+  productId: string,
+  imageId: string,
+  changes: RenditionChanges,
+  key: string,
+  csrf: string,
+): Promise<ActionResult<ProductImage>> {
+  const guard = await guardAction(csrf);
+  if (!guard.ok) return guard;
+  const { m, locale } = await messages();
+  const parsed = z
+    .object({
+      productId: productIdSchema,
+      imageId: imageIdSchema,
+      changes: renditionChangesSchema,
+      key: idempotencyKeySchemas[locale],
+    })
+    .safeParse({ productId, imageId, changes, key });
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, m.checkImage);
+  if ((await dataSource()) === "api") {
+    if (!apiIdSchema.safeParse(parsed.data.imageId).success) {
+      return { ok: false, error: m.notFoundShort, code: "not_found" };
+    }
+    return apiMutation("updateProductImageRenditions", async () => {
+      try {
+        const { data } = await apiPutProductImageRenditions(
+          sessionToken(guard.session),
+          parsed.data.productId,
+          parsed.data.imageId,
+          parsed.data.changes,
+          parsed.data.key,
+        );
+        return { ok: true, data: mapProductImage(data) };
+      } catch (error) {
+        return toActionResult(error);
+      }
+    });
+  }
+  return mock.updateProductImageRenditions(
+    parsed.data.productId,
+    parsed.data.imageId,
+    parsed.data.changes,
+  );
 }
 
 /** The full ordered list of the product's image ids (first = main image). */

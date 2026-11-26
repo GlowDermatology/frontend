@@ -176,7 +176,7 @@ export function SceneDialog({
       description={t.lead(label)}
       className="max-w-[760px]"
     >
-      <div data-scene-view={view} className="flex flex-col gap-4">
+      <div data-scene-view={view} data-scene-job={job?.id} className="flex flex-col gap-4">
         {view === "idle" && (
           <>
             <SegmentedControl
@@ -464,8 +464,7 @@ export function SceneDialog({
               >
                 {t.templates}
               </Button>
-              {view === "failed" &&
-                hint !== "ai_template" &&
+              {((view === "failed" && hint !== "ai_template") || view === "expired") &&
                 (request ?? (job?.template && requestOf(job.template.key))) && (
                   <Button
                     type="button"

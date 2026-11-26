@@ -130,6 +130,16 @@ export function jobMatches(
   return key === undefined || job.template?.key === key;
 }
 
+/**
+ * Whether a job is of the request's family: a scene (studio or AI) for a scene request, a `fit`
+ * for a fit. The start answers 200 with the photo's queued or running job whatever its kind: a
+ * job of the other family must not be tracked by the dialog that asked (a scene dialog would
+ * accept a fit, a fit dialog would wait on a scene).
+ */
+export function sameSceneFamily(job: Pick<SceneJob, "kind">, request: SceneRequest): boolean {
+  return (job.kind === "fit") === (request.kind === "fit");
+}
+
 /** The known warning codes (others are shown with a generic note). */
 export const SCENE_WARNINGS = [
   "hand_removed",

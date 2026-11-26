@@ -4,6 +4,7 @@ import {
   isKnownSceneWarning,
   jobMatches,
   needsAcknowledge,
+  sameSceneFamily,
   sceneFailureHint,
   sceneView,
   type SceneJob,
@@ -81,6 +82,16 @@ describe("scene jobs", () => {
         TEMPLATES,
       ),
     ).toBe(false);
+  });
+
+  it("never lets a dialog track the photo's running job of the other family", () => {
+    expect(sameSceneFamily(job(), { kind: "studio", templateId: "1" })).toBe(true);
+    expect(sameSceneFamily(job({ kind: "ai_scene" }), { kind: "studio", templateId: "1" })).toBe(
+      true,
+    );
+    expect(sameSceneFamily(job({ kind: "fit" }), { kind: "studio", templateId: "1" })).toBe(false);
+    expect(sameSceneFamily(job(), { kind: "fit" })).toBe(false);
+    expect(sameSceneFamily(job({ kind: "fit" }), { kind: "fit" })).toBe(true);
   });
 
   it("knows the documented warnings", () => {

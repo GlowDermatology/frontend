@@ -150,3 +150,39 @@ test("«AI bilan moslash» loads the AI's crops into the croppers", async ({ pag
   await expect(fit).toBeHidden();
   await expect(tiles(page).nth(0).locator('[data-badge="renditions"]')).toHaveText("4:5 · 1:1");
 });
+
+test("a scene accepted on a clean form is added last; the form stays clean", async ({ page }) => {
+  await openEditor(page);
+  const before = await tiles(page).count();
+  await openScene(page);
+  await generate(page, "Krem gradient");
+  await expect(view(page)).toHaveAttribute("data-scene-view", "review");
+  await dialog(page).getByRole("button", { name: "Galereyaga qo‘shish" }).click();
+  await expect(dialog(page)).toBeHidden();
+  await expect(tiles(page)).toHaveCount(before + 1);
+  // The upload button is the last item: the scene is right before it.
+  await expect(
+    tiles(page)
+      .nth(before - 1)
+      .locator('[data-badge="source"]'),
+  ).toHaveText("Studiya");
+  // Nothing unsaved: «Bekor qilish» leaves without the "leave?" question.
+  await page.getByRole("link", { name: "Bekor qilish" }).click();
+  await expect(page).toHaveURL(/\/admin\/products$/);
+});
+
+test("a running scene is resumed after a reload", async ({ page }) => {
+  await openEditor(page);
+  await openScene(page);
+  await generate(page, "Spa toshlari", "AI sahna");
+  await expect(dialog(page).getByText("AI ishlamoqda…")).toBeVisible();
+  // The job exists (the start answered) and is still running when the page reloads.
+  await expect(view(page)).toHaveAttribute("data-scene-job", /.+/);
+  await expect(view(page)).toHaveAttribute("data-scene-view", "running");
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Mahsulotni tahrirlash" })).toBeVisible();
+  await openScene(page);
+  await expect(view(page)).toHaveAttribute("data-scene-view", "review");
+  await expect(dialog(page).getByText("AI chizgan joylar pushti rangda")).toBeVisible();
+  await dialog(page).getByRole("button", { name: "Bekor qilish" }).click();
+});

@@ -100,7 +100,6 @@ export function RenditionsDialog({
       return next;
     });
   }
-  const otherJob = fitJob !== null && fitJob.kind !== "fit" && fit.view !== "closed";
 
   const changes = renditionChanges(shapes, media);
   const changed = Object.keys(changes).length > 0;
@@ -194,7 +193,7 @@ export function RenditionsDialog({
               variant="outline"
               size="sm"
               onClick={() => void fit.start({ kind: "fit" })}
-              disabledReason={saving ? t.saving : otherJob ? s.otherJob : null}
+              disabledReason={saving ? t.saving : null}
             >
               <Icon name="sparkles" size={16} />
               {s.start}

@@ -123,10 +123,13 @@ every scene start is a new job, so both re-run on the same server. Run one with
 | renditions: keyboard crop              | «Ekranlarga moslash» → both croppers; + / arrows move the square crop (`data-crop`), «Saqlash» → toast, the tile's «1:1» badge; an unsaved name edit survives, also the product save |
 | renditions: unsaved photo              | A picked, unsaved photo's menu item is disabled with «Avval saqlang»                                                                                                                 |
 | renditions: phone                      | At 390 px the croppers stack and the page has no horizontal scroll                                                                                                                   |
+| renditions: mouse                      | Wheel zoom around the pointer, a drag and the zoom slider each move the square crop (`data-crop`) and enable «Saqlash»                                                               |
 | scenes: studio scene as the main photo | «Sahna yaratish» → «Oq studiya» → running → review (before / after, square crop) → «Asosiy rasm qilish» → the new tile is first («Studiya», «4:5 · 1:1»); the unsaved name survives  |
 | scenes: failure                        | `marble` fails with the server's message and the «retake the photo» hint; «Shablon» goes back to the templates                                                                       |
 | scenes: acknowledgement and resume     | `spa` (AI) closed while running and reopened resumes the job; «Galereyaga qo‘shish» waits for «Belgilangan joylarni tekshirdim»; «Boshqa variant» regenerates                        |
 | scenes: «AI bilan moslash»             | The fit job's crops load into the croppers (Save enabled), «AI taklifini o‘zgarishsiz saqlash» accepts them                                                                          |
+| scenes: clean form                     | A scene accepted without changes in the editor is added last, and «Bekor qilish» leaves without the leave question                                                                   |
+| scenes: reload                         | A job still running when the page reloads is resumed from sessionStorage and reviewed                                                                                                |
 
 ### Theme and menu specs (`feat/theme`)
 

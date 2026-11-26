@@ -140,3 +140,38 @@ test("the dialog stacks its croppers on a phone and fits the screen", async ({ p
   const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
   expect(scrollWidth).toBeLessThanOrEqual(390);
 });
+
+test("the croppers follow the mouse: drag, wheel and the zoom slider", async ({ page }) => {
+  await openEditor(page);
+  await openMenu(page, 0);
+  await page.getByRole("menuitem", { name: "Ekranlarga moslash" }).click();
+  const dialog = page.getByRole("dialog", { name: "Ekranlarga moslash" });
+  const square = dialog.getByRole("group", { name: "Kvadrat kesim" });
+  const crop = async () => (await square.getAttribute("data-crop"))!;
+
+  // Wheel up zooms in around the pointer.
+  const box = (await square.boundingBox())!;
+  const start = await crop();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.wheel(0, -300);
+  await expect(square).not.toHaveAttribute("data-crop", start);
+
+  // Dragging the photo left moves the crop right.
+  const zoomed = (await crop()).split(",").map(Number);
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 - 60, box.y + box.height / 2 - 40, { steps: 6 });
+  await page.mouse.up();
+  const dragged = (await crop()).split(",").map(Number);
+  expect(dragged[0]).toBeGreaterThan(zoomed[0]!);
+  expect(dragged[1]).toBeGreaterThan(zoomed[1]!);
+
+  // The slider sets the zoom.
+  const beforeSlider = await crop();
+  await dialog.getByRole("slider", { name: "Kvadrat kesim: yaqinlashtirish" }).fill("1");
+  await expect(square).not.toHaveAttribute("data-crop", beforeSlider);
+  await expect(dialog.getByRole("button", { name: "Saqlash", exact: true })).not.toHaveAttribute(
+    "aria-disabled",
+    "true",
+  );
+});

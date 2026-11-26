@@ -13,15 +13,19 @@ import type { ProductImage } from "@/domain/product";
 import {
   isSceneJobActive,
   isSceneReviewable,
+  sameSceneFamily,
   sceneView,
   type SceneJob,
   type SceneRequest,
   type SceneView,
 } from "@/domain/scene";
 
+import { useCopy } from "@/lib/i18n/admin-context";
+
 import { runAction } from "../../shared/action-client";
 import { useIdempotencyKey } from "../../shared/idempotency";
 import { createImportController, type ImportController } from "../import-controller";
+import { scenesCopy } from "./copy";
 
 /**
  * One photo's scene job (admin contract §2.20) for a dialog: start, poll (the shared job poller,
@@ -75,6 +79,9 @@ export function keepsSceneJob(job: SceneJob): boolean {
   return isSceneJobActive(job) || isSceneReviewable(job);
 }
 
+/** `error.code` when the photo already has a running job of the other family (scene vs fit). */
+export const OTHER_SCENE_JOB = "scene_other_job";
+
 /** A discard that found nothing to discard (already closed, expired, gone) still reached its goal. */
 export function discardSettled(result: ActionResult<unknown>): boolean {
   return result.ok || result.code === "scene_job_not_ready" || result.code === "not_found";
@@ -106,8 +113,10 @@ interface Options {
 }
 
 export function useSceneJob({ productId, imageId, slot, enabled }: Options): SceneJobHook {
+  const t = useCopy(scenesCopy);
   const startKey = useIdempotencyKey();
-  const reviewKey = useIdempotencyKey();
+  const acceptKey = useIdempotencyKey();
+  const discardKey = useIdempotencyKey();
   const [job, setJob] = useState<SceneJob | null>(null);
   const [starting, setStarting] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -161,6 +170,12 @@ export function useSceneJob({ productId, imageId, slot, enabled }: Options): Sce
       setError({ message: result.error, code: result.code, fieldErrors: result.fieldErrors });
       return null;
     }
+    // The photo's running job of the other family (a fit while a scene was asked for, or the
+    // reverse) is not this dialog's: say so instead of tracking it.
+    if (!sameSceneFamily(result.data, request)) {
+      setError({ message: t.fit.otherJob, code: OTHER_SCENE_JOB });
+      return null;
+    }
     rememberSceneJob(storeKey, result.data.id);
     controllerRef.current?.start(result.data);
     setJob(result.data);
@@ -171,12 +186,19 @@ export function useSceneJob({ productId, imageId, slot, enabled }: Options): Sce
     if (!job) return { ok: false as const, error: "" };
     setBusy(true);
     try {
-      const result = reviewKey.settle(
-        await runAction((csrf) => acceptSceneJob(job.id, options, reviewKey.key, csrf)),
+      const result = acceptKey.settle(
+        await runAction((csrf) => acceptSceneJob(job.id, options, acceptKey.key, csrf)),
       );
       if (result.ok) {
         forgetSceneJob(storeKey);
         setJob(result.data.job);
+      } else if (result.code === "scene_job_not_ready") {
+        // Expired or reviewed elsewhere meanwhile: show the job as it is now.
+        const fresh = await runAction((csrf) => pollSceneJob(job.id, csrf));
+        if (fresh.ok) {
+          setJob(fresh.data);
+          if (!keepsSceneJob(fresh.data)) forgetSceneJob(storeKey);
+        }
       }
       return result;
     } finally {
@@ -189,8 +211,8 @@ export function useSceneJob({ productId, imageId, slot, enabled }: Options): Sce
     forgetSceneJob(storeKey);
     if (current && isSceneReviewable(current)) {
       setBusy(true);
-      const result = reviewKey.settle(
-        await runAction((csrf) => discardSceneJob(current.id, reviewKey.key, csrf)),
+      const result = discardKey.settle(
+        await runAction((csrf) => discardSceneJob(current.id, discardKey.key, csrf)),
       );
       setBusy(false);
       if (!discardSettled(result)) console.warn("[scenes] discard failed", result);

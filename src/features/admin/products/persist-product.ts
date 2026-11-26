@@ -9,6 +9,8 @@ import {
   type ProductImage,
 } from "@/domain/product";
 
+import { mediaById, withMedia } from "./adopt-image";
+
 /**
  * Product save orchestration (spec "Frontend wiring › Product save
  * orchestration", contract §2.3 and §7.7), framework-free so it can be unit
@@ -23,6 +25,9 @@ import {
  * 5. PATCH each photo's changed alt texts (`PATCH products/{id}/images/{image_id}/`);
  * 6. PATCH `status: "active"` when activation was requested and the product
  *    was not already active.
+ *
+ * The returned images carry each photo's server-owned `media` again (the PATCH answer, the upload
+ * answers or the baseline, by id; see `adopt-image.ts`): the form's values never hold it.
  *
  * Deletes run before uploads so swapping a photo of a product that already
  * has 8 never makes the server see 9 (`images` `max_items`). An active
@@ -198,7 +203,12 @@ export async function persistProduct(input: {
     if (failure) return fail(failure);
   }
 
-  const finalImages = values.images.map((image) => pending.uploaded.get(image.id) ?? image);
+  // The server-owned facts of each photo (size, renditions) never travel in the form's values:
+  // the PATCH answer, the upload answers and the baseline (`adoptImage`) hold them, by id.
+  const media = mediaById(first.data.images, [...pending.uploaded.values()], saved?.images);
+  const finalImages = values.images.map((image) =>
+    withMedia(pending.uploaded.get(image.id) ?? image, media),
+  );
   const finalIds = finalImages.map((image) => image.id);
   if (needsReorder(pending.server, finalIds)) {
     const ordered = await actions.reorder(id, finalIds);

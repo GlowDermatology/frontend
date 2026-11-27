@@ -133,10 +133,26 @@ describe("scene mappers", () => {
     ).toEqual({ enabled: false, aiEnabled: false, maxOccludedPct: 15 });
     expect(
       mapSceneTemplates([
-        { id: 1, key: "white", kind: "studio", name: "Oq", colours: ["#ffffff", "red"] },
-        { id: 2, key: "odd", kind: "other" as never, name: "", colours: [] },
+        {
+          id: 1,
+          key: "white",
+          kind: "studio",
+          name: "Oq",
+          colours: ["#ffffff", "red"],
+          preview_url: "http://m/scene-previews/white.webp",
+        },
+        { id: 2, key: "odd", kind: "other" as never, name: "", colours: [], preview_url: null },
       ]),
-    ).toEqual([{ id: "1", key: "white", kind: "studio", name: "Oq", colours: ["#ffffff"] }]);
+    ).toEqual([
+      {
+        id: "1",
+        key: "white",
+        kind: "studio",
+        name: "Oq",
+        colours: ["#ffffff"],
+        previewUrl: "http://m/scene-previews/white.webp",
+      },
+    ]);
   });
 });
 

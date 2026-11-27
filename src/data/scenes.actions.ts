@@ -4,7 +4,15 @@ import { z } from "zod";
 
 import { sceneDataCopy } from "@/domain/copy/scenes";
 import type { ProductImage } from "@/domain/product";
-import type { SceneJob, SceneRequest } from "@/domain/scene";
+import {
+  CUSTOM_PROMPT_MAX,
+  CUSTOM_PROMPT_MIN,
+  normalizeCustomPrompt,
+  TEMPLATE_NAME_MAX,
+  type SceneJob,
+  type SceneRequest,
+  type SceneTemplate,
+} from "@/domain/scene";
 import { getAdminLocale } from "@/lib/i18n/admin-locale";
 
 import {
@@ -16,11 +24,12 @@ import {
 } from "./action-guard";
 import { isApiError } from "./api/errors";
 import { mapProductImage, toActionResult, TOP_LEVEL_ERROR } from "./api/mappers";
-import { mapSceneJob } from "./api/mappers/scenes";
+import { mapSceneJob, mapSceneTemplate } from "./api/mappers/scenes";
 import {
   apiAcceptSceneJob,
   apiDiscardSceneJob,
   apiGetSceneJob,
+  apiSaveSceneTemplate,
   apiStartSceneJob,
 } from "./api/scenes";
 import * as mock from "./mock/scenes";
@@ -50,6 +59,11 @@ const requestSchema = z
   .object({
     kind: z.enum(["studio", "ai_scene", "fit"]),
     templateId: idSchema.optional(),
+    customPrompt: z
+      .string()
+      .transform(normalizeCustomPrompt)
+      .pipe(z.string().min(CUSTOM_PROMPT_MIN).max(CUSTOM_PROMPT_MAX))
+      .optional(),
   })
   .strict();
 
@@ -67,14 +81,22 @@ export async function startSceneJob(
     .object({
       productId: idSchema,
       imageId: idSchema,
-      request: requestSchema.refine((value) => value.kind === "fit" || value.templateId, {
-        error: m.templateRequired,
-        path: ["templateId"],
-      }),
+      request: requestSchema
+        .refine((value) => value.customPrompt === undefined || value.kind === "ai_scene", {
+          error: m.customRequired,
+          path: ["customPrompt"],
+        })
+        .refine((value) => value.kind === "fit" || value.templateId || value.customPrompt, {
+          error: m.templateRequired,
+          path: ["templateId"],
+        }),
       key: idempotencyKeySchemas[locale],
     })
     .safeParse({ productId, imageId, request, key });
-  if (!parsed.success) return fieldErrorsFrom(parsed.error, m.templateRequired);
+  if (!parsed.success) {
+    const custom = parsed.error.issues.some((issue) => issue.path.includes("customPrompt"));
+    return fieldErrorsFrom(parsed.error, custom ? m.customRequired : m.templateRequired);
+  }
   const { request: body } = parsed.data;
   if (await isApi()) {
     if (
@@ -91,12 +113,14 @@ export async function startSceneJob(
         parsed.data.imageId,
         body.kind === "fit"
           ? { kind: "fit" }
-          : { kind: body.kind, template_id: Number(body.templateId) },
+          : body.customPrompt !== undefined
+            ? { kind: body.kind, custom_prompt: body.customPrompt }
+            : { kind: body.kind, template_id: Number(body.templateId) },
         parsed.data.key,
       );
       return { ok: true, data: mapSceneJob(data) };
     } catch (error) {
-      return toActionResult(error, { template_id: "templateId" });
+      return toActionResult(error, { template_id: "templateId", custom_prompt: "customPrompt" });
     }
   }
   return mock.startSceneJob(parsed.data.productId, parsed.data.imageId, body);
@@ -205,4 +229,58 @@ export async function discardSceneJob(
     }
   }
   return mock.discardSceneJob(parsed.data.id);
+}
+
+/**
+ * «Shablon sifatida saqlash»: a finished scene staff typed becomes an AI template for everyone
+ * (`POST scenes/jobs/{id}/template/`). Refreshes the route, so the editor's template list
+ * (server-loaded) shows the new card; unsaved form edits stay, as after accepting.
+ */
+export async function saveSceneTemplate(
+  id: string,
+  name: string,
+  key: string,
+  csrf: string,
+): Promise<ActionResult<SceneTemplate>> {
+  const guard = await guardAction(csrf);
+  if (!guard.ok) return guard;
+  const { m, locale } = await messages();
+  const parsed = z
+    .object({
+      id: jobIdSchema,
+      name: z
+        .string()
+        .transform(normalizeCustomPrompt)
+        .pipe(
+          z
+            .string()
+            .min(1, { error: m.templateName })
+            .max(TEMPLATE_NAME_MAX, { error: m.templateName }),
+        ),
+      key: idempotencyKeySchemas[locale],
+    })
+    .safeParse({ id, name, key });
+  if (!parsed.success) return fieldErrorsFrom(parsed.error, m.templateName);
+  if (await isApi()) {
+    if (!apiIdSchema.safeParse(parsed.data.id).success) {
+      return { ok: false, error: m.jobNotFound, code: "not_found" };
+    }
+    return apiMutation("saveSceneTemplate", async () => {
+      try {
+        const { data } = await apiSaveSceneTemplate(
+          sessionToken(guard.session),
+          parsed.data.id,
+          { name: parsed.data.name },
+          parsed.data.key,
+        );
+        const template = mapSceneTemplate(data);
+        return template
+          ? { ok: true, data: template }
+          : { ok: false, error: m.notCustom, code: "scene_not_custom" };
+      } catch (error) {
+        return toActionResult(error);
+      }
+    });
+  }
+  return mock.saveSceneTemplate(parsed.data.id, parsed.data.name);
 }

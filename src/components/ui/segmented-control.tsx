@@ -131,8 +131,10 @@ function Segment<T extends string>({
       <span
         className={cn(
           "pointer-events-none flex w-full items-center justify-center gap-2 rounded-[9px] font-semibold whitespace-nowrap text-ink transition-[background-color,box-shadow] duration-150",
-          "peer-checked:bg-surface-raised peer-checked:shadow-sm peer-hover:peer-not-checked:bg-surface-raised/50",
-          "peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-gold-ink",
+          // The chosen segment is raised and ringed in gold; keyboard focus is a dashed outline, so a
+          // focused but unchosen segment (e.g. the first one after a dialog opens) never looks chosen.
+          "peer-checked:bg-surface-raised peer-checked:shadow-sm peer-checked:ring-1 peer-checked:ring-gold-ink peer-hover:peer-not-checked:bg-surface-raised/50",
+          "peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-gold-ink peer-focus-visible:outline-dashed",
           "peer-disabled:text-ink-muted peer-disabled:peer-hover:bg-transparent",
           "peer-data-disabled:text-ink-muted peer-data-disabled:peer-hover:bg-transparent",
           ITEM_SIZES[size],

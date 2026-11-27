@@ -31,6 +31,22 @@ export interface SceneTemplate {
   name: string;
   /** A studio template's colours (`#rrggbb`) for its swatch; AI templates have none. */
   colours: string[];
+  /** A 4:5 sample picture of the scene (made in the ops console, or the scene staff saved). */
+  previewUrl: string | null;
+}
+
+/** A scene staff typed (`custom_prompt`) instead of picking a template: its job's template key. */
+export const CUSTOM_SCENE_KEY = "custom";
+/** The longest description staff may type (characters). */
+export const CUSTOM_PROMPT_MAX = 400;
+/** The shortest one worth sending. */
+export const CUSTOM_PROMPT_MIN = 3;
+/** A saved template's name, at most (characters). */
+export const TEMPLATE_NAME_MAX = 60;
+
+/** The description as the server keeps it: whitespace runs collapsed, trimmed. */
+export function normalizeCustomPrompt(text: string): string {
+  return text.split(/\s+/).filter(Boolean).join(" ");
 }
 
 /** What a succeeded job proposes (`SceneJob.result`). */
@@ -52,7 +68,16 @@ export interface SceneJob {
   productId: string | null;
   sourceImageId: string | null;
   kind: SceneKind;
-  template: { key: string; name: string } | null;
+  /**
+   * The template it was made from; `key` is `custom` for a scene staff typed (`customText`), and
+   * `savedTemplateId` is set once that was saved as a template.
+   */
+  template: {
+    key: string;
+    name: string;
+    customText: string | null;
+    savedTemplateId: string | null;
+  } | null;
   state: JobState;
   outcome: SceneOutcome;
   result: SceneCandidate | null;
@@ -69,8 +94,23 @@ export interface SceneJob {
 /** What starting a job asks for. */
 export interface SceneRequest {
   kind: SceneKind;
-  /** Required unless `fit`. */
+  /** Required unless `fit` or `customPrompt`. */
   templateId?: string;
+  /** `ai_scene` only, instead of a template: the scene in staff's own words (any language). */
+  customPrompt?: string;
+}
+
+/** The request that made a job (for «Qayta urinish» after a reload), or `null` when unknown. */
+export function requestOfJob(
+  job: Pick<SceneJob, "kind" | "template">,
+  templates: ReadonlyArray<SceneTemplate>,
+): SceneRequest | null {
+  if (job.kind === "fit") return { kind: "fit" };
+  if (job.template?.key === CUSTOM_SCENE_KEY && job.template.customText) {
+    return { kind: "ai_scene", customPrompt: job.template.customText };
+  }
+  const template = templates.find((entry) => entry.key === job.template?.key);
+  return template ? { kind: template.kind, templateId: template.id } : null;
 }
 
 export function isSceneJobActive(job: Pick<SceneJob, "state">): boolean {
@@ -106,7 +146,7 @@ export function sceneView(job: SceneJob | null, starting = false): SceneView {
 }
 
 /** What the failure screen suggests for a failure code. */
-export type SceneFailureHint = "retake" | "ai_template" | null;
+export type SceneFailureHint = "retake" | "ai_template" | "rewrite" | null;
 
 export function sceneFailureHint(code: string | undefined): SceneFailureHint {
   if (
@@ -117,6 +157,8 @@ export function sceneFailureHint(code: string | undefined): SceneFailureHint {
   )
     return "retake";
   if (code === "scene_occlusion_needs_ai") return "ai_template";
+  // A typed scene that asked for people, hands, text or brands: describe only the setting.
+  if (code === "scene_custom_refused") return "rewrite";
   return null;
 }
 
@@ -132,6 +174,12 @@ export function jobMatches(
 ): boolean {
   if (job.kind !== request.kind) return false;
   if (request.kind === "fit") return true;
+  if (request.customPrompt !== undefined) {
+    return (
+      job.template?.key === CUSTOM_SCENE_KEY &&
+      job.template.customText === normalizeCustomPrompt(request.customPrompt)
+    );
+  }
   const key = templates.find((template) => template.id === request.templateId)?.key;
   return key === undefined || job.template?.key === key;
 }

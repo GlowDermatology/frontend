@@ -20,6 +20,13 @@ const uz = {
   aiDisabled: "AI sahnalari o‘chirilgan.",
   productCutOff:
     "Mahsulot rasmda to‘liq ko‘rinmayapti (cheti kesilgan). Mahsulotni to‘liq suratga oling.",
+  customName: "O‘z sahnasi",
+  customRequired: "Sahnani tasvirlang (3–400 belgi).",
+  customRefused:
+    "Bu tavsif bo‘yicha sahna yaratib bo‘lmaydi: unda odamlar, qo‘llar, yozuv yoki brend bo‘lmasligi kerak. Faqat fon va atrofni tasvirlang.",
+  notCustom: "Faqat o‘zingiz yozgan, tayyor sahnani shablon sifatida saqlash mumkin.",
+  templateExists: "Bu sahna allaqachon shablon sifatida saqlangan.",
+  templateName: "Shablon nomini yozing (60 belgigacha).",
 };
 
 export const sceneDataCopy = {
@@ -39,6 +46,13 @@ export const sceneDataCopy = {
     aiDisabled: "AI-сцены выключены.",
     productCutOff:
       "Товар виден на фото не целиком (край обрезан). Сфотографируйте товар полностью.",
+    customName: "Своя сцена",
+    customRequired: "Опишите сцену (3–400 символов).",
+    customRefused:
+      "По этому описанию сцену создать нельзя: в ней не должно быть людей, рук, надписей или брендов. Опишите только фон и окружение.",
+    notCustom: "Сохранить как шаблон можно только готовую сцену, которую вы описали сами.",
+    templateExists: "Эта сцена уже сохранена как шаблон.",
+    templateName: "Введите название шаблона (до 60 символов).",
   },
   en: {
     templates: {
@@ -55,5 +69,12 @@ export const sceneDataCopy = {
     aiDisabled: "AI scenes are switched off.",
     productCutOff:
       "The product is not whole in the photo (its edge is cut off). Photograph the whole product.",
+    customName: "Custom scene",
+    customRequired: "Describe the scene (3–400 characters).",
+    customRefused:
+      "A scene can't be made from this description: it must not contain people, hands, text or brands. Describe only the background and surroundings.",
+    notCustom: "Only a finished scene you described yourself can be saved as a template.",
+    templateExists: "This scene is already saved as a template.",
+    templateName: "Enter the template's name (up to 60 characters).",
   },
 } satisfies CopySet<typeof uz>;

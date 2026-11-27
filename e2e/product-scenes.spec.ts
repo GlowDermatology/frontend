@@ -129,6 +129,67 @@ test("an AI scene that drew part of the product must be checked; the job outlive
   await expect(dialog(page)).toBeHidden();
 });
 
+test("AI templates show a sample picture; a typed scene is made and saved as a template", async ({
+  page,
+}) => {
+  const watch = watchPage(page);
+  await openEditor(page);
+  await openScene(page);
+  await dialog(page).getByRole("radio", { name: "AI sahna", exact: true }).check();
+  // Each AI card shows its sample picture, not a bare sparkle.
+  await expect(
+    dialog(page).locator('[data-template="spa"] img[data-template-preview]'),
+  ).toBeVisible();
+  // «O‘z sahnangiz»: a description of a few words is needed first.
+  await dialog(page).locator('[data-template="custom"]').click();
+  const create = dialog(page).getByRole("button", { name: "Yaratish" });
+  await expect(create).toHaveAttribute("aria-disabled", "true");
+  const text = dialog(page).getByLabel("Sahnani tasvirlang");
+  await text.fill("oq marmar ustida, atrofda atirgul gulbarglari");
+  await expect(dialog(page).getByText("45 / 400")).toBeVisible();
+  await create.click();
+  await expect(view(page)).toHaveAttribute("data-scene-view", "review");
+  const save = dialog(page).locator("[data-save-template]");
+  await expect(save).toContainText("oq marmar ustida, atrofda atirgul gulbarglari");
+  // «Shablon sifatida saqlash»: the name starts as the description, staff shorten it.
+  await save.getByRole("button", { name: "Shablon sifatida saqlash" }).click();
+  const name = save.getByPlaceholder("Shablon nomi");
+  await expect(name).toHaveValue("oq marmar ustida, atrofda atirgul gulbarglari");
+  await name.fill("Atirgullar");
+  await save.getByRole("button", { name: "Saqlash", exact: true }).click();
+  await expect(toast(page, "«Atirgullar» shablon sifatida saqlandi")).toBeVisible();
+  await expect(save).toContainText("Shablon sifatida saqlangan");
+  // The new card is among the AI templates (the route refreshed) once the dialog is back to them.
+  await dialog(page).getByRole("button", { name: "Bekor qilish" }).click();
+  await expect(dialog(page)).toBeHidden();
+  await openScene(page);
+  await dialog(page).getByRole("radio", { name: "AI sahna", exact: true }).check();
+  await expect(dialog(page).getByRole("radio", { name: /^Atirgullar/ })).toBeVisible();
+  watch.assertClean();
+});
+
+test("a typed scene with a person is refused and the description is kept to change", async ({
+  page,
+}) => {
+  await openEditor(page);
+  await openScene(page);
+  await dialog(page).getByRole("radio", { name: "AI sahna", exact: true }).check();
+  await dialog(page).locator('[data-template="custom"]').click();
+  await dialog(page).getByLabel("Sahnani tasvirlang").fill("qiz qo‘lida krem, plyajda");
+  await dialog(page).getByRole("button", { name: "Yaratish" }).click();
+  await expect(view(page)).toHaveAttribute("data-scene-view", "failed");
+  const alert = dialog(page).getByRole("alert");
+  await expect(alert).toContainText("odamlar, qo‘llar, yozuv yoki brend");
+  await expect(alert).toContainText("Tavsifni o‘zgartiring");
+  // No «Qayta urinish» with the same words; back to the description instead.
+  await expect(dialog(page).getByRole("button", { name: "Qayta urinish" })).toHaveCount(0);
+  await dialog(page).getByRole("button", { name: "Shablon" }).click();
+  await expect(view(page)).toHaveAttribute("data-scene-view", "idle");
+  await expect(dialog(page).getByLabel("Sahnani tasvirlang")).toHaveValue(
+    "qiz qo‘lida krem, plyajda",
+  );
+});
+
 test("«AI bilan moslash» loads the AI's crops into the croppers", async ({ page }) => {
   await openEditor(page);
   await tiles(page)

@@ -9,15 +9,17 @@ import {
   type ImageSize,
 } from "@/domain/crop";
 import type { ProductImage } from "@/domain/product";
-import type {
-  SceneCandidate,
-  SceneJob,
-  SceneKind,
-  SceneOutcome,
-  SceneRequest,
-  SceneStatus,
-  SceneTemplate,
+import {
+  CUSTOM_SCENE_KEY,
+  type SceneCandidate,
+  type SceneJob,
+  type SceneKind,
+  type SceneOutcome,
+  type SceneRequest,
+  type SceneStatus,
+  type SceneTemplate,
 } from "@/domain/scene";
+import { refresh } from "next/cache";
 import { copyFor, getAdminLocale } from "@/lib/i18n/admin-locale";
 
 import { referenceNow } from "../config";
@@ -41,7 +43,11 @@ import { getProduct } from "./products.queries";
  * start counter, so every start is a new job; the poll count and the review outcome are kept in
  * memory by job id (a server restart forgets them). Template `marble` fails like the backend's
  * `scene_product_cut_off`; the AI template `spa` «draws» part of the product (an overlay that must
- * be acknowledged). A `fit` proposes crops a little closer than the automatic framing.
+ * be acknowledged). A `fit` proposes crops a little closer than the automatic framing. A typed
+ * scene (`customPrompt`) succeeds, unless it mentions a person (`girl`, `qiz`, `девушк`), which
+ * fails like the backend's `scene_custom_refused`; saving it as a template adds a card for this
+ * server's lifetime. The AI templates show the scene picture as their preview, the studio ones
+ * their colours.
  */
 
 export const MOCK_SCENE_STATUS: SceneStatus = {
@@ -60,14 +66,24 @@ const TEMPLATES = [
 
 type TemplateKey = (typeof TEMPLATES)[number]["key"];
 
+/** Templates staff saved from a typed scene (this server's lifetime). */
+const saved: SceneTemplate[] = [];
+const savedByJob = new Map<string, string>();
+
 export async function getSceneTemplates(): Promise<SceneTemplate[]> {
   const names = sceneDataCopy[await getAdminLocale()].templates;
-  return TEMPLATES.map((template) => ({
-    ...template,
-    name: names[template.key],
-    colours: [...template.colours],
-  }));
+  return [
+    ...TEMPLATES.map((template) => ({
+      ...template,
+      name: names[template.key],
+      colours: [...template.colours],
+      previewUrl: template.kind === "ai_scene" ? MOCK_SCENE_URL : null,
+    })),
+    ...saved,
+  ];
 }
+
+const PEOPLE = /girl|woman|man\b|qiz|ayol|девушк|женщин|мужчин/i;
 
 const PREFIX = "mock-scene-";
 
@@ -76,6 +92,8 @@ interface Encoded {
   i: string;
   k: SceneKind;
   t: string | null;
+  /** A typed scene (instead of a template). */
+  c?: string;
   /** Tells starts apart: every start is a new job. */
   n: number;
 }
@@ -145,13 +163,15 @@ async function jobOf(id: string, request: Encoded, polled: number): Promise<Scen
   if (!image) return null;
   const at = referenceNow().toISOString();
   const template = TEMPLATES.find((entry) => entry.key === request.t);
+  const savedTemplate = saved.find((entry) => entry.key === request.t);
   const names = sceneDataCopy[await getAdminLocale()];
+  const refused = request.c !== undefined && PEOPLE.test(request.c);
   const state =
     polled === 0
       ? "queued"
       : polled === 1
         ? "running"
-        : request.t === "marble"
+        : request.t === "marble" || refused
           ? "failed"
           : "succeeded";
   const done = state === "succeeded" || state === "failed";
@@ -160,14 +180,38 @@ async function jobOf(id: string, request: Encoded, polled: number): Promise<Scen
     productId: request.p,
     sourceImageId: request.i,
     kind: request.k,
-    template: template
-      ? { key: template.key, name: names.templates[template.key as TemplateKey] }
-      : null,
+    template:
+      request.c !== undefined
+        ? {
+            key: CUSTOM_SCENE_KEY,
+            name: names.customName,
+            customText: request.c,
+            savedTemplateId: savedByJob.get(id) ?? null,
+          }
+        : template
+          ? {
+              key: template.key,
+              name: names.templates[template.key as TemplateKey],
+              customText: null,
+              savedTemplateId: null,
+            }
+          : savedTemplate
+            ? {
+                key: savedTemplate.key,
+                name: savedTemplate.name,
+                customText: null,
+                savedTemplateId: null,
+              }
+            : null,
     state,
     outcome: outcomes.get(id) ?? "pending",
     result: state === "succeeded" && !outcomes.has(id) ? candidate(request, image) : null,
     error:
-      state === "failed" ? { code: "scene_product_cut_off", message: names.productCutOff } : null,
+      state !== "failed"
+        ? null
+        : refused
+          ? { code: "scene_custom_refused", message: names.customRefused }
+          : { code: "scene_product_cut_off", message: names.productCutOff },
     warnings:
       request.t === "spa" && state === "succeeded"
         ? ["hand_removed", "product_partly_generated"]
@@ -188,9 +232,17 @@ export async function startSceneJob(
   const m = await copyFor(sceneDataCopy);
   const image = await mockImageOf(productId, imageId);
   if (!image) return { ok: false, error: m.jobNotFound, code: "not_found" };
-  let template: (typeof TEMPLATES)[number] | undefined;
-  if (request.kind !== "fit") {
-    template = TEMPLATES.find((entry) => entry.id === request.templateId);
+  let template: { key: string; kind: SceneKind } | undefined;
+  if (request.customPrompt !== undefined) {
+    if (request.kind !== "ai_scene") {
+      return {
+        ok: false,
+        error: m.customRequired,
+        fieldErrors: { customPrompt: m.customRequired },
+      };
+    }
+  } else if (request.kind !== "fit") {
+    template = [...TEMPLATES, ...saved].find((entry) => entry.id === request.templateId);
     if (!template || template.kind !== request.kind) {
       return {
         ok: false,
@@ -206,6 +258,7 @@ export async function startSceneJob(
     k: request.kind,
     t: template?.key ?? null,
     n: startCount,
+    ...(request.customPrompt !== undefined ? { c: request.customPrompt } : {}),
   };
   const id = encode(encoded);
   polls.set(id, 0);
@@ -335,4 +388,33 @@ export async function discardSceneJob(id: string): Promise<ActionResult<SceneJob
   }
   outcomes.set(id, "discarded");
   return { ok: true, data: { ...found.job, outcome: "discarded", result: null } };
+}
+
+/** «Shablon sifatida saqlash» in the demo: the typed scene becomes a card with the scene picture. */
+export async function saveSceneTemplate(
+  id: string,
+  name: string,
+): Promise<ActionResult<SceneTemplate>> {
+  await delay(250);
+  const m = await copyFor(sceneDataCopy);
+  const found = await peek(id);
+  if (!found) return { ok: false, error: m.jobNotFound, code: "not_found" };
+  const { request, job } = found;
+  if (request.c === undefined || job.state !== "succeeded") {
+    return { ok: false, error: m.notCustom, code: "scene_not_custom" };
+  }
+  if (savedByJob.has(id))
+    return { ok: false, error: m.templateExists, code: "scene_template_exists" };
+  const template: SceneTemplate = {
+    id: `saved-${request.n}`,
+    key: `${CUSTOM_SCENE_KEY}-${request.n}`,
+    kind: "ai_scene",
+    name,
+    colours: [],
+    previewUrl: MOCK_SCENE_URL,
+  };
+  saved.push(template);
+  savedByJob.set(id, template.id);
+  refresh(); // the editor's template list is server-loaded
+  return { ok: true, data: template };
 }

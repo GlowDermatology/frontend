@@ -299,3 +299,4 @@ export type ApiSceneJob = Schemas["SceneJob"];
 export type ApiSceneJobCreate = Schemas["SceneJobCreateRequest"];
 export type ApiSceneAccept = Schemas["SceneAcceptRequest"];
 export type ApiSceneAcceptResult = Schemas["SceneAcceptResponse"];
+export type ApiSceneTemplateSave = Schemas["SceneTemplateSaveRequest"];

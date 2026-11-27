@@ -2,6 +2,8 @@ import "server-only";
 
 import { apiFetch } from "./client";
 import type {
+  ApiSceneTemplate,
+  ApiSceneTemplateSave,
   ApiSceneAccept,
   ApiSceneAcceptResult,
   ApiSceneJob,
@@ -63,6 +65,21 @@ export function apiDiscardSceneJob(token: string, id: string, idempotencyKey: st
   return apiFetch<ApiSceneJob>(`${BASE}/scenes/jobs/${encodeURIComponent(id)}/discard/`, {
     method: "POST",
     body: {},
+    token,
+    idempotencyKey,
+  });
+}
+
+/** A finished scene staff typed → an AI template for everyone (201 the new template). */
+export function apiSaveSceneTemplate(
+  token: string,
+  id: string,
+  body: ApiSceneTemplateSave,
+  idempotencyKey: string,
+) {
+  return apiFetch<ApiSceneTemplate>(`${BASE}/scenes/jobs/${encodeURIComponent(id)}/template/`, {
+    method: "POST",
+    body,
     token,
     idempotencyKey,
   });

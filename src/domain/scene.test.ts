@@ -5,6 +5,8 @@ import {
   jobMatches,
   needsAcknowledge,
   sameSceneFamily,
+  normalizeCustomPrompt,
+  requestOfJob,
   sceneFailureHint,
   sceneView,
   type SceneJob,
@@ -16,7 +18,7 @@ const job = (overrides: Partial<SceneJob> = {}): SceneJob => ({
   productId: "7",
   sourceImageId: "3",
   kind: "studio",
-  template: { key: "white", name: "Oq studiya" },
+  template: { key: "white", name: "Oq studiya", customText: null, savedTemplateId: null },
   state: "succeeded",
   outcome: "pending",
   result: {
@@ -37,8 +39,8 @@ const job = (overrides: Partial<SceneJob> = {}): SceneJob => ({
 });
 
 const TEMPLATES: SceneTemplate[] = [
-  { id: "1", key: "white", kind: "studio", name: "Oq", colours: ["#ffffff"] },
-  { id: "4", key: "bathroom", kind: "ai_scene", name: "Hammom", colours: [] },
+  { id: "1", key: "white", kind: "studio", name: "Oq", colours: ["#ffffff"], previewUrl: null },
+  { id: "4", key: "bathroom", kind: "ai_scene", name: "Hammom", colours: [], previewUrl: null },
 ];
 
 describe("scene jobs", () => {
@@ -66,6 +68,7 @@ describe("scene jobs", () => {
     expect(sceneFailureHint("scene_product_cut_off")).toBe("retake");
     expect(sceneFailureHint("scene_hand_covers_product")).toBe("retake");
     expect(sceneFailureHint("scene_occlusion_not_fillable")).toBe("retake");
+    expect(sceneFailureHint("scene_custom_refused")).toBe("rewrite");
     expect(sceneFailureHint("scene_occlusion_needs_ai")).toBe("ai_template");
     expect(sceneFailureHint("provider_unavailable")).toBeNull();
     expect(sceneFailureHint(undefined)).toBeNull();
@@ -78,7 +81,7 @@ describe("scene jobs", () => {
     expect(jobMatches(job({ kind: "fit", template: null }), { kind: "fit" }, TEMPLATES)).toBe(true);
     expect(
       jobMatches(
-        job({ template: { key: "cream", name: "" } }),
+        job({ template: { key: "cream", name: "", customText: null, savedTemplateId: null } }),
         { kind: "studio", templateId: "1" },
         TEMPLATES,
       ),
@@ -98,5 +101,45 @@ describe("scene jobs", () => {
   it("knows the documented warnings", () => {
     expect(isKnownSceneWarning("hand_removed")).toBe(true);
     expect(isKnownSceneWarning("something_new")).toBe(false);
+  });
+});
+
+describe("typed scenes", () => {
+  const typed = (text: string) =>
+    job({
+      kind: "ai_scene",
+      template: { key: "custom", name: "Своя сцена", customText: text, savedTemplateId: null },
+    });
+
+  it("matches a job to the same typed scene, whitespace aside", () => {
+    expect(
+      jobMatches(
+        typed("на мраморе"),
+        { kind: "ai_scene", customPrompt: "  на   мраморе " },
+        TEMPLATES,
+      ),
+    ).toBe(true);
+    expect(
+      jobMatches(typed("на мраморе"), { kind: "ai_scene", customPrompt: "на шёлке" }, TEMPLATES),
+    ).toBe(false);
+    expect(jobMatches(typed("на мраморе"), { kind: "ai_scene", templateId: "4" }, TEMPLATES)).toBe(
+      false,
+    );
+  });
+
+  it("rebuilds a job's request after a reload", () => {
+    expect(requestOfJob(typed("на мраморе"), TEMPLATES)).toEqual({
+      kind: "ai_scene",
+      customPrompt: "на мраморе",
+    });
+    expect(requestOfJob(job(), TEMPLATES)).toEqual({ kind: "studio", templateId: "1" });
+    expect(requestOfJob(job({ kind: "fit", template: null }), TEMPLATES)).toEqual({ kind: "fit" });
+    expect(
+      requestOfJob(
+        job({ template: { key: "gone", name: "", customText: null, savedTemplateId: null } }),
+        TEMPLATES,
+      ),
+    ).toBeNull();
+    expect(normalizeCustomPrompt("  a \n b ")).toBe("a b");
   });
 });

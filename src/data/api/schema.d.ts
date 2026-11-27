@@ -3,8 +3,8 @@
  * GENERATED FILE — do not edit by hand. Regenerate with `npm run gen:api`.
  *
  * Source: openapi/schema.yaml of the backend repository
- * Commit: 232f437642deacd18e223e27bb6ae61834f415c5
- * Generated: 2026-11-27T14:33:25.396Z (openapi-typescript)
+ * Commit: a2f5435b0061213239b802a1691d407913d46ae6
+ * Generated: 2026-11-27T20:28:17.199Z (openapi-typescript)
  */
 
 export interface paths {
@@ -1599,7 +1599,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Build a scene around a saved image's product (`studio` / `ai_scene` with `template_id`) or propose its 4:5 and square crops (`fit`). 202 with a new job, 200 with the image's queued/running job. The product itself is never redrawn: the photo's own pixels are pasted back. Refusals (as the job's `error.code`): `scene_product_cut_off`, `scene_hand_covers_product`, `scene_occlusion_needs_ai`, `scene_occlusion_not_fillable`, `scene_no_product`, `scene_mask_unusable`, `scene_product_drift`, `scene_result_rejected`. */
+        /** @description Build a scene around a saved image's product (`studio` / `ai_scene` with `template_id`) or propose its 4:5 and square crops (`fit`). 202 with a new job, 200 with the image's queued/running job. The product itself is never redrawn: the photo's own pixels are pasted back. Refusals (as the job's `error.code`): `scene_product_cut_off`, `scene_hand_covers_product`, `scene_occlusion_needs_ai`, `scene_occlusion_not_fillable`, `scene_custom_refused`, `scene_no_product`, `scene_mask_unusable`, `scene_product_drift`, `scene_result_rejected`. `ai_scene` takes `template_id` or `custom_prompt`. */
         post: operations["admin_scene_jobs_create"];
         delete?: never;
         options?: never;
@@ -1666,6 +1666,23 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["admin_scene_jobs_discard_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/scenes/jobs/{id}/template/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Save a finished scene staff typed (`template.key == custom`) as an AI template for everyone: its English description, the given `name`, and the scene as the card's preview. Allowed while it waits for review or after it was accepted, once per job: 409 `scene_not_custom` / `scene_template_exists`. */
+        post: operations["admin_scene_jobs_template_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7745,13 +7762,9 @@ export interface components {
             readonly result: components["schemas"]["SceneCandidate"] | null;
             source_image_id: number | null;
             state: components["schemas"]["JobStateEnum"];
+            /** @description `{key, name, custom_text, saved_template_id}`: `key` is `custom` for a scene staff typed (`custom_text`, null otherwise); `saved_template_id` once it was saved as a template. */
             readonly template: unknown;
             warnings: string[];
-        };
-        SceneJobCreateRequest: {
-            kind: components["schemas"]["SceneJobKindEnum"];
-            /** @description Required unless `fit`. */
-            template_id?: number | null;
         };
         /**
          * @description * `studio` - studio
@@ -7759,7 +7772,22 @@ export interface components {
          *     * `fit` - fit
          * @enum {string}
          */
-        SceneJobKindEnum: "studio" | "ai_scene" | "fit";
+        SceneJobCreateKindEnum: "studio" | "ai_scene" | "fit";
+        SceneJobCreateRequest: {
+            /** @description `ai_scene` only, instead of `template_id`: the scene in staff's own words, any language (translated to English and screened by the worker). */
+            custom_prompt?: string;
+            kind: components["schemas"]["SceneJobCreateKindEnum"];
+            /** @description Required unless `fit` or `custom_prompt`. */
+            template_id?: number | null;
+        };
+        /**
+         * @description * `studio` - studio
+         *     * `ai_scene` - ai_scene
+         *     * `fit` - fit
+         *     * `preview` - preview
+         * @enum {string}
+         */
+        SceneJobKindEnum: "studio" | "ai_scene" | "fit" | "preview";
         /**
          * @description * `pending` - pending
          *     * `accepted` - accepted
@@ -7788,6 +7816,11 @@ export interface components {
             kind: components["schemas"]["SceneTemplateKindEnum"];
             /** @description In the request's language (else Uzbek). */
             readonly name: string;
+            /**
+             * Format: uri
+             * @description A 4:5 sample picture of the scene (a sample product, or the scene staff saved as this template); null until the console made one.
+             */
+            readonly preview_url: string | null;
         };
         /**
          * @description * `studio` - studio
@@ -7797,6 +7830,10 @@ export interface components {
         SceneTemplateKindEnum: "studio" | "ai_scene";
         SceneTemplates: {
             results: components["schemas"]["SceneTemplate"][];
+        };
+        SceneTemplateSaveRequest: {
+            /** @description The card's name (all languages). */
+            name: string;
         };
         /** @description ``GET specialists/{id}/conflicts/``: open future appointments the schedule no longer covers. */
         ScheduleConflicts: {
@@ -17289,6 +17326,87 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SceneJob"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_scene_jobs_template_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SceneTemplateSaveRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SceneTemplate"];
                 };
             };
             400: {

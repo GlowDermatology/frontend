@@ -54,6 +54,8 @@ export function mapSceneTemplate(api: ApiSceneTemplate): SceneTemplate | null {
     kind,
     name: String(api.name ?? "") || String(api.key ?? ""),
     colours: (api.colours ?? []).filter((colour) => COLOUR.test(colour)),
+    previewUrl:
+      typeof api.preview_url === "string" && api.preview_url.length > 0 ? api.preview_url : null,
   };
 }
 
@@ -86,7 +88,12 @@ function mapTemplateRef(value: unknown): SceneJob["template"] {
   const api = value as Record<string, unknown>;
   const key = typeof api.key === "string" ? api.key : "";
   if (!key) return null;
-  return { key, name: typeof api.name === "string" && api.name ? api.name : key };
+  return {
+    key,
+    name: typeof api.name === "string" && api.name ? api.name : key,
+    customText: typeof api.custom_text === "string" && api.custom_text ? api.custom_text : null,
+    savedTemplateId: optionalId(api.saved_template_id),
+  };
 }
 
 export function mapSceneJob(api: ApiSceneJob): SceneJob {
@@ -95,7 +102,8 @@ export function mapSceneJob(api: ApiSceneJob): SceneJob {
     id: idString(api.id),
     productId: optionalId(api.product_id),
     sourceImageId: optionalId(api.source_image_id),
-    kind: KINDS.includes(api.kind) ? api.kind : "studio",
+    // `preview` (the console's template pictures) never reaches the product editor
+    kind: (KINDS as ReadonlyArray<string>).includes(api.kind) ? (api.kind as SceneKind) : "studio",
     template: mapTemplateRef(api.template),
     state: (JOB_STATES as ReadonlyArray<string>).includes(api.state)
       ? (api.state as JobState)

@@ -4,12 +4,14 @@ import { useEffect, useRef, useState } from "react";
 
 import {
   acceptSceneJob,
+  saveSceneTemplate,
   discardSceneJob,
   pollSceneJob,
   startSceneJob,
 } from "@/data/scenes.actions";
 import type { ActionResult } from "@/data/types";
 import type { ProductImage } from "@/domain/product";
+import type { SceneTemplate } from "@/domain/scene";
 import {
   isSceneJobActive,
   isSceneReviewable,
@@ -100,6 +102,8 @@ export interface SceneJobHook {
   }) => Promise<ActionResult<{ job: SceneJob; image: ProductImage }>>;
   /** Discards a reviewable candidate (nothing to do otherwise) and forgets the job. */
   discard: () => Promise<void>;
+  /** A finished typed scene → an AI template for everyone. */
+  saveTemplate: (name: string) => Promise<ActionResult<SceneTemplate>>;
   /** Forgets a failed, expired or closed job: back to picking a template. */
   reset: () => void;
 }
@@ -117,6 +121,7 @@ export function useSceneJob({ productId, imageId, slot, enabled }: Options): Sce
   const startKey = useIdempotencyKey();
   const acceptKey = useIdempotencyKey();
   const discardKey = useIdempotencyKey();
+  const saveKey = useIdempotencyKey();
   const [job, setJob] = useState<SceneJob | null>(null);
   const [starting, setStarting] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -206,6 +211,24 @@ export function useSceneJob({ productId, imageId, slot, enabled }: Options): Sce
     }
   }
 
+  /** «Shablon sifatida saqlash» for a finished typed scene; the job then shows it as saved. */
+  async function saveTemplate(name: string) {
+    const current = job;
+    if (!current) return { ok: false as const, error: "" };
+    setBusy(true);
+    try {
+      const result = saveKey.settle(
+        await runAction((csrf) => saveSceneTemplate(current.id, name, saveKey.key, csrf)),
+      );
+      if (result.ok && current.template) {
+        setJob({ ...current, template: { ...current.template, savedTemplateId: result.data.id } });
+      }
+      return result;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function discard() {
     const current = job;
     forgetSceneJob(storeKey);
@@ -228,6 +251,7 @@ export function useSceneJob({ productId, imageId, slot, enabled }: Options): Sce
     start,
     accept,
     discard,
+    saveTemplate,
     reset: () => {
       forgetSceneJob(storeKey);
       setJob(null);

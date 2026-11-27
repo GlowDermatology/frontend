@@ -5,6 +5,7 @@ import { useId, useRef, useState, type ReactNode } from "react";
 import { Rings } from "@/components/brand/rings";
 import { Button, buttonStyles, IconButton } from "@/components/ui/button";
 import { Card, CardTitle } from "@/components/ui/card";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { AlertDialog, AlertDialogCancel } from "@/components/ui/dialog";
 import { Icon } from "@/components/ui/icon";
 import { SelectMenu } from "@/components/ui/menu";
@@ -28,6 +29,7 @@ import {
   type RateBasis,
 } from "@/domain/cashback";
 import { cn } from "@/lib/cn";
+import { fromLocalInput, tashkentNow } from "@/lib/datetime";
 import { revealFirstError } from "@/lib/forms/reveal";
 import { tashkentParts } from "@/lib/format";
 import { useAdminLocale, useCopy } from "@/lib/i18n/admin-context";
@@ -56,6 +58,15 @@ interface TierDraft {
   to: number | null;
   /** Kept as typed so "1," can be entered on the way to "1,5". */
   percent: string;
+}
+
+/** The start menu's special values (the others are month starts, aware ISO). */
+const START_NOW = "now";
+const START_CUSTOM = "custom";
+
+/** Whether an aware ISO moment is not in the future any more (read in event handlers only). */
+function hasPassed(iso: string): boolean {
+  return Date.parse(iso) <= Date.now();
 }
 
 const toDraft = (tiers: ReadonlyArray<CashbackTier>, locale: Locale): TierDraft[] =>
@@ -151,7 +162,19 @@ export function CashbackEditor({
   const [tiers, setTiers] = useState(() => toDraft(baseline.tiers, locale));
   const [basis, setBasis] = useState<RateBasis>(baseline.basis);
   const [earnOnCashbackPaid, setEarnOnCashbackPaid] = useState(baseline.earnOnCashbackPaid);
+  /** The start choice: `now`, a month start (ISO), or `custom` (the picker's moment below). */
   const [effectiveFrom, setEffectiveFrom] = useState(nextEffectiveFrom);
+  /** The custom moment, `YYYY-MM-DDTHH:MM` Tashkent wall clock ("" = not picked yet). */
+  const [customStart, setCustomStart] = useState("");
+  const custom = effectiveFrom === START_CUSTOM;
+  const immediately = effectiveFrom === START_NOW;
+  /** What is saved: `now`, an aware ISO moment, or "" (a custom moment not picked yet). */
+  const startValue = custom ? (fromLocalInput(customStart) ?? "") : effectiveFrom;
+  /** The picked moment was already past when picked (or when saving): judged in handlers. */
+  const [customPast, setCustomPast] = useState(false);
+  const customProblem = custom && (!startValue || customPast) ? t.customFuture : null;
+  /** At save time: a custom moment that has passed since it was picked. */
+  const startPassed = () => custom && Boolean(startValue) && hasPassed(startValue);
   const [saving, setSaving] = useState(false);
   // One key per editor instance: reused on retries, renewed after each saved version.
   const idempotency = useIdempotencyKey();
@@ -163,7 +186,7 @@ export function CashbackEditor({
   );
   const hasError = analysis.overlaps.length > 0 || badPercent.size > 0 || tiers.length === 0;
   const dirty =
-    draftSignature(tiers, basis, earnOnCashbackPaid, effectiveFrom) !==
+    draftSignature(tiers, basis, earnOnCashbackPaid, startValue) !==
     draftSignature(
       toDraft(baseline.tiers, "en"),
       baseline.basis,
@@ -207,6 +230,8 @@ export function CashbackEditor({
     setBasis(baseline.basis);
     setEarnOnCashbackPaid(baseline.earnOnCashbackPaid);
     setEffectiveFrom(nextEffectiveFrom);
+    setCustomStart("");
+    setCustomPast(false);
   };
 
   /** Scroll to, focus and mark the first invalid tier field (or the tiers card itself). */
@@ -226,9 +251,22 @@ export function CashbackEditor({
 
   // ADM-14.1: a policy version is never edited afterwards; confirm before it is created.
   const [confirmOpen, setConfirmOpen] = useState(false);
+  /** A custom start not picked, or no longer in the future: the picker says so and takes focus. */
+  const refuseStart = () => {
+    toast({ tone: "danger", title: t.fixFirst, description: t.customFuture });
+    window.requestAnimationFrame(() =>
+      document.querySelector<HTMLInputElement>("[data-effective-start] input")?.focus(),
+    );
+  };
   const askSave = () => {
     if (hasError) {
       refuse();
+      return;
+    }
+    const passed = startPassed();
+    if (customProblem || passed) {
+      if (passed) setCustomPast(true);
+      refuseStart();
       return;
     }
     setConfirmOpen(true);
@@ -241,10 +279,16 @@ export function CashbackEditor({
       refuse();
       return;
     }
+    const passed = startPassed();
+    if (customProblem || passed) {
+      if (passed) setCustomPast(true);
+      refuseStart();
+      return;
+    }
     inFlight.current = true;
     setSaving(true);
     clearServerErrors();
-    const draft = { ...baseline, ...rules, effectiveFrom };
+    const draft = { ...baseline, ...rules, effectiveFrom: startValue };
     const result = idempotency.settle(
       await runAction((csrf) => saveCashbackPolicy(draft, idempotency.key, csrf)),
     );
@@ -268,8 +312,12 @@ export function CashbackEditor({
       return;
     }
     const saved = result.data;
+    const startedNow = saved.version.state === "active";
     setBaseline(saved.policy);
-    setScheduledPolicy(saved.policy);
+    // «Darhol» is in force at once: nothing is scheduled any more (the page refresh brings the rest).
+    setScheduledPolicy(startedNow ? null : saved.policy);
+    setEffectiveFrom(nextEffectiveFrom);
+    setCustomStart("");
     setVersions((current) => [
       saved.version,
       ...current.map((v) =>
@@ -288,7 +336,7 @@ export function CashbackEditor({
       tone: "success",
       title: t.saved(saved.version.version),
       description: [
-        t.savedText(fmt.dayMonth(saved.policy.effectiveFrom)),
+        startedNow ? t.savedNowText : t.savedText(fmt.dayMonth(saved.policy.effectiveFrom)),
         saved.supersededVersion ? t.replaced(saved.supersededVersion) : "",
       ]
         .filter(Boolean)
@@ -304,7 +352,17 @@ export function CashbackEditor({
   };
 
   const scheduled = scheduledPolicy;
-  const effectiveOptions = [0, 1, 2].map((offset) => monthStart(nextEffectiveFrom, offset));
+  const monthStarts = [0, 1, 2].map((offset) => monthStart(nextEffectiveFrom, offset));
+  const effectiveOptions = [
+    { value: START_NOW, label: t.startNow },
+    ...monthStarts.map((iso) => ({ value: iso, label: fmt.dateTimeLong(iso) })),
+    { value: START_CUSTOM, label: t.startCustom },
+  ];
+  const startNote = immediately
+    ? t.startsNowNote
+    : startValue && !customProblem
+      ? t.startsAtNote(fmt.dateTimeLong(startValue))
+      : null;
 
   const overlapNotes = analysis.overlaps.map((o) =>
     o.kind === "empty-range"
@@ -548,29 +606,69 @@ export function CashbackEditor({
               error={serverErrors.effectiveFrom}
               last
             >
-              <SelectMenu<string>
-                label={t.effectiveTitle}
-                align="end"
-                value={effectiveFrom}
-                onValueChange={(value) => {
-                  clearServerErrors();
-                  setEffectiveFrom(value);
-                }}
-                triggerClassName={cn(
-                  "border-[1.5px] px-3 text-[14px] font-semibold tabular-nums",
-                  serverErrors.effectiveFrom && "border-danger",
+              <div className="flex flex-col items-end gap-2" data-effective-start="">
+                <SelectMenu<string>
+                  label={t.effectiveTitle}
+                  align="end"
+                  value={effectiveFrom}
+                  onValueChange={(value) => {
+                    clearServerErrors();
+                    setEffectiveFrom(value);
+                  }}
+                  triggerClassName={cn(
+                    "border-[1.5px] px-3 text-[14px] font-semibold tabular-nums",
+                    serverErrors.effectiveFrom && "border-danger",
+                  )}
+                  trigger={
+                    <>
+                      <Icon
+                        name={immediately ? "clock" : "calendar"}
+                        size={18}
+                        className="text-gold-ink"
+                      />
+                      {immediately
+                        ? t.startNow
+                        : custom
+                          ? t.startCustom
+                          : fmt.dateTimeLong(effectiveFrom)}
+                    </>
+                  }
+                  options={effectiveOptions}
+                />
+                {custom && (
+                  <DateTimePicker
+                    value={customStart}
+                    onValueChange={(value) => {
+                      clearServerErrors();
+                      setCustomStart(value);
+                      const iso = fromLocalInput(value);
+                      setCustomPast(Boolean(iso) && hasPassed(iso!));
+                    }}
+                    min={tashkentNow()}
+                    aria-label={t.customLabel}
+                    aria-invalid={customProblem && customStart ? true : undefined}
+                    placeholder={t.customLabel}
+                    className="w-[240px]"
+                  />
                 )}
-                trigger={
-                  <>
-                    <Icon name="calendar" size={18} className="text-gold-ink" />
-                    {fmt.dateTimeLong(effectiveFrom)}
-                  </>
-                }
-                options={effectiveOptions.map((iso) => ({
-                  value: iso,
-                  label: fmt.dateTimeLong(iso),
-                }))}
-              />
+                {custom && customStart && customProblem ? (
+                  <p role="alert" className="m-0 text-caption font-semibold text-danger">
+                    {customProblem}
+                  </p>
+                ) : startNote ? (
+                  <p
+                    className="m-0 max-w-[320px] text-right text-caption text-ink-muted"
+                    data-start-note=""
+                  >
+                    <Icon
+                      name="info"
+                      size={14}
+                      className="mr-1 inline-block align-[-2px] text-gold-ink"
+                    />
+                    {startNote}
+                  </p>
+                ) : null}
+              </div>
             </RuleRow>
           </Card>
         </div>
@@ -678,7 +776,7 @@ export function CashbackEditor({
         title={t.confirmTitle}
         description={
           <p className="m-0 text-[14px] leading-5 text-ink">
-            {t.confirmText(fmt.dayMonth(effectiveFrom))}
+            {immediately ? t.confirmNowText : t.confirmText(fmt.dayMonth(startValue))}
           </p>
         }
       >

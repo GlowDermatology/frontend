@@ -64,7 +64,10 @@ function draftSchemaFor(m: CashbackDataCopy) {
   });
   return z.object({
     version: z.int().min(0),
-    effectiveFrom: z.iso.datetime({ offset: true, error: m.chooseEffective }),
+    // "now" = «Darhol»: the server starts the version as it saves it.
+    effectiveFrom: z.union([z.literal("now"), z.iso.datetime({ offset: true })], {
+      error: m.chooseEffective,
+    }),
     basis: z.enum(["before_purchase", "with_purchase"]),
     earnOnCashbackPaid: z.boolean(),
     tiers: z.array(tier).max(20, m.maxTiers),

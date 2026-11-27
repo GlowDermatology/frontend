@@ -8,6 +8,7 @@ import {
 
 import type { SavedPolicy } from "../cashback.actions";
 import type { ActionResult } from "../types";
+import { referenceNow } from "../config";
 import { delay } from "./delay";
 import { getCashbackSettings } from "./cashback.queries";
 
@@ -39,29 +40,29 @@ export async function saveCashbackPolicy(
   const previous = active;
   const version = Math.max(active.version, scheduled?.version ?? 0) + 1;
   const warnings = tierWarnings(draft);
+  // «Darhol»: in force as it is saved (the server starts it a microsecond after creating it).
+  const immediately = draft.effectiveFrom === "now";
+  const effectiveFrom = immediately ? referenceNow().toISOString() : draft.effectiveFrom;
+  const state = immediately ? ("active" as const) : ("scheduled" as const);
   return {
     ok: true,
     data: {
-      policy: { ...draft, version },
+      policy: { ...draft, effectiveFrom, version },
       version: {
         version,
         summary: policySummary(draft.tiers, previous.tiers),
         detail: {
           tiers: draft.tiers,
           previous: previous.tiers,
-          effectiveFrom: draft.effectiveFrom,
+          effectiveFrom,
           effectiveTo: null,
           author: "Administrator",
         },
         author: "Administrator",
-        period: policyPeriod({
-          effectiveFrom: draft.effectiveFrom,
-          effectiveTo: null,
-          state: "scheduled",
-        }),
-        active: false,
-        scheduled: true,
-        state: "scheduled",
+        period: policyPeriod({ effectiveFrom, effectiveTo: null, state }),
+        active: immediately,
+        scheduled: !immediately,
+        state,
       },
       ...(scheduled && { supersededVersion: scheduled.version }),
       ...(warnings.length > 0 && { warnings }),

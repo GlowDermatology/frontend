@@ -3,8 +3,8 @@
  * GENERATED FILE — do not edit by hand. Regenerate with `npm run gen:api`.
  *
  * Source: openapi/schema.yaml of the backend repository
- * Commit: a2f5435b0061213239b802a1691d407913d46ae6
- * Generated: 2026-11-27T20:28:17.199Z (openapi-typescript)
+ * Commit: d90c0521443ce9f5948be9c33bc20dd064e304b9
+ * Generated: 2026-11-27T21:39:17.042Z (openapi-typescript)
  */
 
 export interface paths {
@@ -7118,8 +7118,8 @@ export interface components {
         PolicyVersionCreateRequest: {
             basis: components["schemas"]["RateBasisEnum"];
             earn_on_cashback_paid: boolean;
-            /** Format: date-time */
-            effective_from: string;
+            /** @description An aware ISO datetime in the future, or "now": the rules apply at once (the server starts them a microsecond after it saves them). */
+            effective_from: string | "now";
             tiers: components["schemas"]["CashbackTierInputRequest"][];
         };
         /**

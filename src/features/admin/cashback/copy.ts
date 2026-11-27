@@ -69,6 +69,15 @@ const uz = {
   locked: "(o‘zgartirib bo‘lmaydi)",
   effectiveTitle: "Kuchga kirish sanasi",
   effectiveText: "Shu sanadan keyingi xaridlarga qo‘llanadi; avvalgilari o‘zgarmaydi",
+  startNow: "Darhol — saqlangan zahoti",
+  startCustom: "Boshqa sana va vaqt…",
+  customLabel: "Sana va vaqt (Toshkent)",
+  customFuture: "Kelajakdagi vaqtni tanlang.",
+  startsNowNote: "Yangi qoidalar saqlangan zahoti yangi xaridlarga qo‘llanadi.",
+  startsAtNote: (when: string) => `Yangi qoidalar ${when} dan yangi xaridlarga qo‘llanadi.`,
+  confirmNowText:
+    "Saqlangan zahoti bu stavkalar yangi xaridlarga qo‘llanadi. Saqlangan versiyani keyin o‘zgartirib bo‘lmaydi — faqat yangisini qo‘shish mumkin.",
+  savedNowText: "Yangi xaridlarga darhol qo‘llanadi",
 
   simOverline: "Tekshirish",
   simTitle: (lifetime: string) => `Namuna: ${lifetime} xaridi bor mijoz`,
@@ -167,6 +176,15 @@ export const cashbackCopy = {
     locked: "(нельзя изменить)",
     effectiveTitle: "Дата вступления в силу",
     effectiveText: "Применяется к покупкам после этой даты; прошлые не меняются",
+    startNow: "Сразу — после сохранения",
+    startCustom: "Другая дата и время…",
+    customLabel: "Дата и время (Ташкент)",
+    customFuture: "Выберите время в будущем.",
+    startsNowNote: "Новые правила начнут действовать для новых покупок сразу после сохранения.",
+    startsAtNote: (when: string) => `Новые правила начнут действовать для новых покупок с ${when}.`,
+    confirmNowText:
+      "Сразу после сохранения эти ставки применяются к новым покупкам. Сохранённую версию потом нельзя изменить — можно только добавить новую.",
+    savedNowText: "Применяется к новым покупкам сразу",
 
     simOverline: "Проверка",
     simTitle: (lifetime: string) => `Пример: клиент с покупками на ${lifetime}`,
@@ -260,6 +278,15 @@ export const cashbackCopy = {
     locked: "(cannot be changed)",
     effectiveTitle: "Effective date",
     effectiveText: "Applies to purchases after this date; earlier ones do not change",
+    startNow: "Immediately — on save",
+    startCustom: "Another date and time…",
+    customLabel: "Date and time (Tashkent)",
+    customFuture: "Choose a time in the future.",
+    startsNowNote: "The new rules apply to new purchases as soon as you save.",
+    startsAtNote: (when: string) => `The new rules apply to new purchases from ${when}.`,
+    confirmNowText:
+      "As soon as you save, these rates apply to new purchases. A saved version cannot be changed later — you can only add a new one.",
+    savedNowText: "Applies to new purchases right away",
 
     simOverline: "Check",
     simTitle: (lifetime: string) => `Example: a customer with ${lifetime} in purchases`,

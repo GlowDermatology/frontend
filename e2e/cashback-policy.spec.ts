@@ -7,7 +7,7 @@ import { fillDateTime, selectOption, selectTrigger } from "./ui";
  * «Kuchga kirish sanasi» of a new cashback version (/admin/cashback, contract §2.7): «Darhol»
  * (the API's "now": in force as it is saved), the next month starts, or «Boshqa sana va vaqt…»
  * with the date-and-time picker (a past moment is refused before the round trip). Each test saves
- * a new version, so they run against a seeded database (api mode) or the demo.
+ * a new version and reloads, so they run against a seeded backend (api mode; skipped in the demo).
  */
 
 const START = "Kuchga kirish sanasi";
@@ -18,6 +18,8 @@ const PICKER = "Sana va vaqt (Toshkent)";
 async function openEditor(page: Page) {
   await page.goto("/admin/cashback");
   await expect(page.getByRole("heading", { name: "Cashback sozlamalari" })).toBeVisible();
+  const demo = await page.getByText("Demo ma’lumotlar").first().isVisible();
+  test.skip(demo, "api mode only: the demo keeps no saved version after a reload");
 }
 
 const note = (page: Page) => page.locator("[data-start-note]");

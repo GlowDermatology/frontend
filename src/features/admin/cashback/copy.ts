@@ -97,7 +97,7 @@ const uz = {
 
   confirmTitle: "Yangi cashback versiyasini saqlaysizmi?",
   confirmText: (from: string) =>
-    `${from}dan boshlab yangi xaridlarga shu foizlar qo‘llanadi. Saqlangan versiyani keyin o‘zgartirib bo‘lmaydi: faqat yangisini qo‘shish mumkin.`,
+    `${from} dan boshlab yangi xaridlarga shu foizlar qo‘llanadi. Saqlangan versiyani keyin o‘zgartirib bo‘lmaydi: faqat yangisini qo‘shish mumkin.`,
   cancel: "Bekor qilish",
   confirm: "Saqlash",
 
@@ -105,7 +105,7 @@ const uz = {
   fixFirstText: (n: number) => `${n} ta xatoni to‘g‘rilang — birinchisi belgilandi.`,
   failed: "Saqlanmadi",
   saved: (version: number) => `Siyosat v${version} saqlandi`,
-  savedText: (from: string) => `${from}dan boshlab yangi xaridlarga qo‘llanadi`,
+  savedText: (from: string) => `${from} dan boshlab yangi xaridlarga qo‘llanadi`,
   replaced: (version: number) => `v${version} almashtirildi`,
   warnings: "Eslatma",
 };

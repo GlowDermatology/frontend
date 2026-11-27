@@ -336,7 +336,7 @@ export function CashbackEditor({
       tone: "success",
       title: t.saved(saved.version.version),
       description: [
-        startedNow ? t.savedNowText : t.savedText(fmt.dayMonth(saved.policy.effectiveFrom)),
+        startedNow ? t.savedNowText : t.savedText(fmt.dateTimeLong(saved.policy.effectiveFrom)),
         saved.supersededVersion ? t.replaced(saved.supersededVersion) : "",
       ]
         .filter(Boolean)
@@ -776,7 +776,7 @@ export function CashbackEditor({
         title={t.confirmTitle}
         description={
           <p className="m-0 text-[14px] leading-5 text-ink">
-            {immediately ? t.confirmNowText : t.confirmText(fmt.dayMonth(startValue))}
+            {immediately ? t.confirmNowText : t.confirmText(fmt.dateTimeLong(startValue))}
           </p>
         }
       >

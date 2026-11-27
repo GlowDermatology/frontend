@@ -155,16 +155,17 @@ test("AI templates show a sample picture; a typed scene is made and saved as a t
   await save.getByRole("button", { name: "Shablon sifatida saqlash" }).click();
   const name = save.getByPlaceholder("Shablon nomi");
   await expect(name).toHaveValue("oq marmar ustida, atrofda atirgul gulbarglari");
-  await name.fill("Atirgullar");
+  const saved = `Atirgullar ${Date.now() % 100000}`;
+  await name.fill(saved);
   await save.getByRole("button", { name: "Saqlash", exact: true }).click();
-  await expect(toast(page, "«Atirgullar» shablon sifatida saqlandi")).toBeVisible();
+  await expect(toast(page, `«${saved}» shablon sifatida saqlandi`)).toBeVisible();
   await expect(save).toContainText("Shablon sifatida saqlangan");
   // The new card is among the AI templates (the route refreshed) once the dialog is back to them.
   await dialog(page).getByRole("button", { name: "Bekor qilish" }).click();
   await expect(dialog(page)).toBeHidden();
   await openScene(page);
   await dialog(page).getByRole("radio", { name: "AI sahna", exact: true }).check();
-  await expect(dialog(page).getByRole("radio", { name: /^Atirgullar/ })).toBeVisible();
+  await expect(dialog(page).getByRole("radio", { name: new RegExp(`^${saved}`) })).toBeVisible();
   watch.assertClean();
 });
 

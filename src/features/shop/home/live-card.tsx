@@ -21,11 +21,11 @@ import { shopPath } from "../routing/routes";
  * offers «Batafsil» instead.
  */
 
+/** 2 cards a row on phones and tablets, 3 from 1024 px: big photos, a calm row. */
 export const liveCardGrid =
-  "m-0 grid list-none grid-cols-2 gap-[clamp(10px,1.4vw,16px)] p-0 sm:grid-cols-3 lg:grid-cols-4 nav:grid-cols-5";
+  "m-0 grid list-none grid-cols-2 gap-[clamp(12px,1.8vw,24px)] p-0 lg:grid-cols-3";
 
-export const LIVE_CARD_SIZES =
-  "(min-width: 72rem) 230px, (min-width: 64rem) 23vw, (min-width: 37.5rem) 31vw, 46vw";
+export const LIVE_CARD_SIZES = "(min-width: 72rem) 400px, (min-width: 64rem) 31vw, 46vw";
 
 const cardFrame =
   "group relative flex h-full min-w-0 flex-col gap-2.5 rounded-lg border border-line bg-surface-raised p-3 shadow-sm transition-[transform,box-shadow] duration-300 ease-soft hover:-translate-y-[3px] hover:shadow-lg";
@@ -92,14 +92,12 @@ export function LiveProductCard({
     <article className={cardFrame}>
       <Link href={path} tabIndex={-1} aria-hidden="true" className="relative block">
         <ProductImage
-          src={product.renditions.square?.medium ?? product.imageMedium ?? product.image}
+          src={product.renditions.portrait?.medium ?? product.imageMedium ?? product.image}
           alt=""
           sizes={LIVE_CARD_SIZES}
           seed={product.id}
-          fit="contain"
-          square={Boolean(product.renditions.square)}
           zoom
-          className="aspect-square bg-gold-soft"
+          className="rounded-[14px]"
         />
         {product.promo ? (
           <span className="absolute top-2.5 left-2.5 inline-flex h-[22px] items-center rounded-sm bg-gold px-2 text-overline text-on-gold uppercase">
@@ -167,7 +165,7 @@ export function LiveCardSkeleton() {
       aria-hidden="true"
       className="flex flex-col gap-2.5 rounded-lg border border-line bg-surface-raised p-3"
     >
-      <span className="block aspect-square skeleton rounded-[14px]" />
+      <span className="block aspect-product skeleton rounded-[14px]" />
       <span className="h-3 w-1/2 skeleton rounded-sm" />
       <span className="h-4 w-[85%] skeleton rounded-sm" />
       <span className="h-4 w-2/5 skeleton rounded-sm" />

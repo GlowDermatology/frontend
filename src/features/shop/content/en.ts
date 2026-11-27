@@ -165,6 +165,17 @@ export const en: ShopDictionary = {
     alternatives: "Similar products in stock",
     galleryLabel: "Product images",
     imageLabel: (index, total) => `Image ${index} of ${total}`,
+    viewer: {
+      title: "Product images, full screen",
+      close: "Close",
+      previous: "Previous image",
+      next: "Next image",
+      zoomIn: "Zoom in",
+      zoomOut: "Zoom out",
+      enlarge: "Enlarge",
+      hint: "Click the photo to zoom in",
+      hintZoomed: "Move to look around · click to zoom out",
+    },
     noImage: "No image yet",
   },
   specialists: {

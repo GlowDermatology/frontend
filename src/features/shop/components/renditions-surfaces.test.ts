@@ -73,19 +73,21 @@ describe("storefront surfaces and renditions", () => {
     expect(sources(plain)).toContain(`${M}_1000.webp`);
   });
 
-  it("a live home card fills its square with the 1:1 shape, else keeps the padded photo", () => {
+  it("a live home card fills its 4:5 frame: the 4:5 shape, else the photo itself, never padded", () => {
     const props = { locale: "uz" as const, onlineSalesEnabled: false, cashback: null };
     const html = renderToStaticMarkup(
       createElement(LiveProductCard, { ...props, product: product(BOTH) }),
     );
-    expect(sources(html)).toContain(BOTH.square!.medium);
+    expect(sources(html)).toContain(BOTH.portrait!.medium);
+    expect(html).toContain("aspect-product");
     expect(html).toContain("object-cover");
     expect(html).not.toContain("object-contain");
     const plain = renderToStaticMarkup(
       createElement(LiveProductCard, { ...props, product: product(NO_RENDITIONS) }),
     );
     expect(sources(plain)).toContain(`${M}_1000.webp`);
-    expect(plain).toContain("object-contain");
+    expect(plain).toContain("object-cover");
+    expect(plain).not.toContain("object-contain");
   });
 
   it("the gallery: 4:5 full-size slides, 1:1 thumbnails, the photo where a shape is missing", () => {

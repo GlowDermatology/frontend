@@ -41,13 +41,12 @@ export function HomeProductCard({
     <article className={card}>
       <div className="group relative">
         <ProductImage
-          src={product.renditions.square?.medium ?? product.imageMedium ?? product.image}
+          src={product.renditions.portrait?.medium ?? product.imageMedium ?? product.image}
           alt=""
-          sizes="(min-width: 1280px) 350px, (min-width: 1024px) 30vw, (min-width: 600px) 44vw, 90vw"
+          sizes="(min-width: 1280px) 400px, (min-width: 1024px) 31vw, (min-width: 600px) 46vw, 92vw"
           seed={product.id}
-          fit="contain"
-          square={Boolean(product.renditions.square)}
           zoom
+          className="rounded-[14px]"
         />
         <div className="absolute inset-x-3 top-3 flex flex-wrap gap-2">
           {product.promo ? (
@@ -188,7 +187,7 @@ export function HomeProductGridSkeleton({ count }: { count: number }) {
     <ul aria-hidden="true" className={homeCardGrid}>
       {Array.from({ length: count }, (_, index) => (
         <li key={index} className={card}>
-          <span className="block aspect-[4/3] skeleton rounded-[14px]" />
+          <span className="block aspect-product skeleton rounded-[14px]" />
           <span className="mt-4 h-4 w-1/3 skeleton rounded-sm" />
           <span className="mt-2 h-7 w-4/5 skeleton rounded-sm" />
           <span className="mt-5 h-11 w-full skeleton rounded-full" />

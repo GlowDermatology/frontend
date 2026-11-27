@@ -169,6 +169,17 @@ export const ru: ShopDictionary = {
     alternatives: "Похожие товары в наличии",
     galleryLabel: "Фотографии товара",
     imageLabel: (index, total) => `Фото ${index} из ${total}`,
+    viewer: {
+      title: "Фотографии товара на весь экран",
+      close: "Закрыть",
+      previous: "Предыдущее фото",
+      next: "Следующее фото",
+      zoomIn: "Увеличить",
+      zoomOut: "Уменьшить",
+      enlarge: "Увеличить",
+      hint: "Нажмите на фото, чтобы увеличить",
+      hintZoomed: "Двигайте, чтобы рассмотреть · нажмите, чтобы уменьшить",
+    },
     noImage: "Фото пока не добавлено",
   },
   specialists: {

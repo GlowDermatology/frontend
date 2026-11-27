@@ -173,6 +173,17 @@ export const uz = {
     alternatives: "Sotuvda bor o‘xshash mahsulotlar",
     galleryLabel: "Mahsulot rasmlari",
     imageLabel: (index: number, total: number) => `${total} ta rasmdan ${index}-si`,
+    viewer: {
+      title: "Mahsulot rasmlari, to‘liq ekran",
+      close: "Yopish",
+      previous: "Oldingi rasm",
+      next: "Keyingi rasm",
+      zoomIn: "Kattalashtirish",
+      zoomOut: "Kichraytirish",
+      enlarge: "Kattalashtirish",
+      hint: "Kattalashtirish uchun rasmga bosing",
+      hintZoomed: "Ko‘rish uchun suring · kichraytirish uchun bosing",
+    },
     noImage: "Rasm hali qo‘shilmagan",
   },
   specialists: {

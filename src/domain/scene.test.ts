@@ -65,6 +65,7 @@ describe("scene jobs", () => {
   it("suggests a new photo or an AI template for the codes that need one", () => {
     expect(sceneFailureHint("scene_product_cut_off")).toBe("retake");
     expect(sceneFailureHint("scene_hand_covers_product")).toBe("retake");
+    expect(sceneFailureHint("scene_occlusion_not_fillable")).toBe("retake");
     expect(sceneFailureHint("scene_occlusion_needs_ai")).toBe("ai_template");
     expect(sceneFailureHint("provider_unavailable")).toBeNull();
     expect(sceneFailureHint(undefined)).toBeNull();

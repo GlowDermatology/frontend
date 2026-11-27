@@ -109,7 +109,13 @@ export function sceneView(job: SceneJob | null, starting = false): SceneView {
 export type SceneFailureHint = "retake" | "ai_template" | null;
 
 export function sceneFailureHint(code: string | undefined): SceneFailureHint {
-  if (code === "scene_product_cut_off" || code === "scene_hand_covers_product") return "retake";
+  if (
+    code === "scene_product_cut_off" ||
+    code === "scene_hand_covers_product" ||
+    // The AI scene provider (Bria) paints only the background: a finger's bite cannot be filled.
+    code === "scene_occlusion_not_fillable"
+  )
+    return "retake";
   if (code === "scene_occlusion_needs_ai") return "ai_template";
   return null;
 }

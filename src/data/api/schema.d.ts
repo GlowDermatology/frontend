@@ -3,8 +3,8 @@
  * GENERATED FILE — do not edit by hand. Regenerate with `npm run gen:api`.
  *
  * Source: openapi/schema.yaml of the backend repository
- * Commit: f39170fe1c6aac0659d8dcd88d5387ab6e4cf8c4
- * Generated: 2026-11-26T16:27:10.157Z (openapi-typescript)
+ * Commit: 232f437642deacd18e223e27bb6ae61834f415c5
+ * Generated: 2026-11-27T14:33:25.396Z (openapi-typescript)
  */
 
 export interface paths {
@@ -1599,7 +1599,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Build a scene around a saved image's product (`studio` / `ai_scene` with `template_id`) or propose its 4:5 and square crops (`fit`). 202 with a new job, 200 with the image's queued/running job. The product itself is never redrawn: the photo's own pixels are pasted back. Refusals (as the job's `error.code`): `scene_product_cut_off`, `scene_hand_covers_product`, `scene_occlusion_needs_ai`, `scene_no_product`, `scene_mask_unusable`, `scene_product_drift`, `scene_result_rejected`. */
+        /** @description Build a scene around a saved image's product (`studio` / `ai_scene` with `template_id`) or propose its 4:5 and square crops (`fit`). 202 with a new job, 200 with the image's queued/running job. The product itself is never redrawn: the photo's own pixels are pasted back. Refusals (as the job's `error.code`): `scene_product_cut_off`, `scene_hand_covers_product`, `scene_occlusion_needs_ai`, `scene_occlusion_not_fillable`, `scene_no_product`, `scene_mask_unusable`, `scene_product_drift`, `scene_result_rejected`. */
         post: operations["admin_scene_jobs_create"];
         delete?: never;
         options?: never;

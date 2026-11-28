@@ -8,6 +8,7 @@ import type { ActionResult } from "../types";
 import { BANNERS } from "./banners";
 import { PRODUCTS } from "./catalog";
 import { CATEGORIES } from "./categories";
+import { consumeBannerImage } from "./banner-images";
 import { delay } from "./delay";
 
 /**
@@ -47,12 +48,17 @@ function linkChanged(
   return before.link.kind !== values.link.kind || target(before.link) !== target(values.link);
 }
 
-function apply(before: Banner | null, values: BannerFormValues, image: File | null): Banner {
+function apply(
+  before: Banner | null,
+  values: BannerFormValues,
+  image: File | null,
+  imageUrl?: string,
+): Banner {
   const now = referenceNow().toISOString();
   return {
     id: before?.id ?? `draft-${crypto.randomUUID()}`,
     title: values.title,
-    imageUrl: image ? "" : (before?.imageUrl ?? ""),
+    imageUrl: imageUrl ?? (image ? "" : (before?.imageUrl ?? "")),
     link: {
       kind: values.link.kind,
       productId: values.link.kind === "product" ? values.link.productId : null,
@@ -96,6 +102,27 @@ export async function updateBanner(
   const fieldErrors = linkChanged(baseline ?? before, values) ? linkErrors(values, m) : null;
   if (fieldErrors) return { ok: false, error: m.checkFields, fieldErrors };
   return { ok: true, data: apply(before ?? { ...apply(null, values, null), id }, values, image) };
+}
+
+/** A banner saved with a finished demo banner image (`saveBanner`'s `imageJobId`). */
+export async function saveBannerWithImageJob(
+  id: string | null,
+  jobId: string,
+  values: BannerFormValues,
+  baseline: BannerFormValues | null,
+): Promise<ActionResult<Banner>> {
+  await delay(400);
+  const m = await copyFor(catalogDataCopy);
+  const before = id ? byId(id) : null;
+  if (id && !before && !id.startsWith("draft-")) {
+    return { ok: false, error: m.bannerNotFound, code: "not_found" };
+  }
+  const fieldErrors = !id || linkChanged(baseline ?? before, values) ? linkErrors(values, m) : null;
+  if (fieldErrors) return { ok: false, error: m.checkFields, fieldErrors };
+  const used = await consumeBannerImage(jobId);
+  if (!used.ok) return used;
+  const base = before ?? (id ? { ...apply(null, values, null), id } : null);
+  return { ok: true, data: apply(base, values, null, used.data.url) };
 }
 
 export async function deleteBanner(id: string): Promise<ActionResult<{ id: string }>> {

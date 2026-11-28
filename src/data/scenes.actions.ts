@@ -2,6 +2,11 @@
 
 import { z } from "zod";
 
+import {
+  BANNER_IMAGE_MAX_PRODUCTS,
+  BANNER_IMAGE_MODES,
+  type BannerImageRequest,
+} from "@/domain/banner-image";
 import { sceneDataCopy } from "@/domain/copy/scenes";
 import type { ProductImage } from "@/domain/product";
 import {
@@ -28,10 +33,12 @@ import { mapSceneJob, mapSceneTemplate } from "./api/mappers/scenes";
 import {
   apiAcceptSceneJob,
   apiDiscardSceneJob,
+  apiStartBannerImage,
   apiGetSceneJob,
   apiSaveSceneTemplate,
   apiStartSceneJob,
 } from "./api/scenes";
+import * as mockBanners from "./mock/banner-images";
 import * as mock from "./mock/scenes";
 import { dataSource } from "./source";
 import type { ActionResult } from "./types";
@@ -283,4 +290,87 @@ export async function saveSceneTemplate(
     });
   }
   return mock.saveSceneTemplate(parsed.data.id, parsed.data.name);
+}
+
+/**
+ * «AI bilan yaratish» of the banner dialog (§2.20.8): a banner's picture with 1–3 products in a
+ * scene or a scene alone, from an AI template or a typed scene. Polled with `pollSceneJob`,
+ * dropped with `discardSceneJob`, used by `saveBanner` (`imageJobId`).
+ */
+export async function startBannerImage(
+  request: BannerImageRequest,
+  key: string,
+  csrf: string,
+): Promise<ActionResult<SceneJob>> {
+  const guard = await guardAction(csrf);
+  if (!guard.ok) return guard;
+  const { m, locale } = await messages();
+  const parsed = z
+    .object({
+      request: z
+        .object({
+          mode: z.enum(BANNER_IMAGE_MODES as [string, ...string[]]),
+          productIds: z.array(idSchema).max(BANNER_IMAGE_MAX_PRODUCTS),
+          templateId: idSchema.optional(),
+          customPrompt: z
+            .string()
+            .transform(normalizeCustomPrompt)
+            .pipe(z.string().min(CUSTOM_PROMPT_MIN).max(CUSTOM_PROMPT_MAX))
+            .optional(),
+        })
+        .strict()
+        .refine(
+          (value) =>
+            value.mode === "scene"
+              ? value.productIds.length === 0
+              : value.productIds.length >= 1 &&
+                new Set(value.productIds).size === value.productIds.length,
+          { error: m.bannerProducts, path: ["productIds"] },
+        )
+        .refine((value) => value.templateId || value.customPrompt, {
+          error: m.templateRequired,
+          path: ["templateId"],
+        }),
+      key: idempotencyKeySchemas[locale],
+    })
+    .safeParse({ request, key });
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    const fallback = issue?.path.includes("productIds")
+      ? m.bannerProducts
+      : issue?.path.includes("customPrompt")
+        ? m.customRequired
+        : m.templateRequired;
+    return fieldErrorsFrom(parsed.error, fallback);
+  }
+  const body = parsed.data.request as BannerImageRequest;
+  if (await isApi()) {
+    if (
+      body.productIds.some((id) => !apiIdSchema.safeParse(id).success) ||
+      (body.templateId !== undefined && !apiIdSchema.safeParse(body.templateId).success)
+    ) {
+      return { ok: false, error: m.jobNotFound, code: "not_found" };
+    }
+    try {
+      const { data } = await apiStartBannerImage(
+        sessionToken(guard.session),
+        {
+          mode: body.mode,
+          product_ids: body.productIds.map(Number),
+          ...(body.customPrompt !== undefined
+            ? { custom_prompt: body.customPrompt }
+            : { template_id: Number(body.templateId) }),
+        },
+        parsed.data.key,
+      );
+      return { ok: true, data: mapSceneJob(data) };
+    } catch (error) {
+      return toActionResult(error, {
+        product_ids: "productIds",
+        template_id: "templateId",
+        custom_prompt: "customPrompt",
+      });
+    }
+  }
+  return mockBanners.startBannerImage(body);
 }

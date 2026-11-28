@@ -29,7 +29,7 @@ import { ReorderButtons } from "../shared/reorder-buttons";
 import { ListFilterBar, useListFilter } from "../shared/list-filter";
 import { useRowDrag } from "../shared/row-drag";
 import { upsertRow, useOrderedList } from "../shared/use-ordered-list";
-import { BannerDialog } from "./banner-dialog";
+import { BannerDialog, type BannerScenes } from "./banner-dialog";
 import { bannersCopy, type BannersCopy } from "./copy";
 
 interface BannersViewProps {
@@ -38,6 +38,8 @@ interface BannersViewProps {
   /** The server's now (ISO), for the schedule state; never `new Date()` here. */
   now: string;
   exportHref: string;
+  /** «AI bilan yaratish»: on when scenes and AI scenes are on; the AI templates. */
+  scenes?: BannerScenes;
 }
 
 type DialogState = { mode: "create" } | { mode: "edit"; banner: Banner } | null;
@@ -95,7 +97,7 @@ function keepPreviews(server: Banner[], local: Banner[]): Banner[] {
     banner.imageUrl ? banner : { ...banner, imageUrl: previews.get(banner.id) ?? "" },
   );
 }
-export function BannersView({ banners, categories, now, exportHref }: BannersViewProps) {
+export function BannersView({ banners, categories, now, exportHref, scenes }: BannersViewProps) {
   const copy = useCopy(bannersCopy);
   const t = copy.list;
   const fmt = useFormat();
@@ -340,6 +342,7 @@ export function BannersView({ banners, categories, now, exportHref }: BannersVie
         }}
         banner={dialog?.mode === "edit" ? dialog.banner : null}
         categories={categories}
+        scenes={scenes}
         onSaved={onSaved}
       />
 

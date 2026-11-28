@@ -28,6 +28,7 @@ import {
   type BannerRecommendedField,
 } from "@/domain/banner";
 import type { Category } from "@/domain/category";
+import type { SceneTemplate } from "@/domain/scene";
 import { catalogDataCopy } from "@/domain/copy/catalog";
 import { cn } from "@/lib/cn";
 import { fromLocalInput, toLocalInput } from "@/lib/datetime";
@@ -41,8 +42,16 @@ import { isHttpsUrl, LINK_URL_MAX } from "@/lib/link-url";
 import { afterDialogsClose } from "../products/form-reveal";
 import { runAction } from "../shared/action-client";
 import type { IdempotencyKey } from "../shared/idempotency";
+import { BannerImageDialog } from "./banner-image-dialog";
 import { bannersCopy, type BannersCopy } from "./copy";
 import { ProductPicker } from "./product-picker";
+import { useBannerImageJob } from "./use-banner-image-job";
+
+/** «AI bilan yaratish» of the image card: available (scenes and AI scenes on) and its templates. */
+export interface BannerScenes {
+  enabled: boolean;
+  templates: ReadonlyArray<SceneTemplate>;
+}
 
 /**
  * The dialog's own form shape, one schema per admin language: the link targets as plain strings
@@ -166,6 +175,8 @@ interface BannerDialogProps {
   /** `previewUrl` is the local object URL of a newly picked image (demo mode keeps it). */
   onSaved: (banner: Banner, mode: "create" | "edit", previewUrl: string | null) => void;
   onCloseAutoFocus?: (event: Event) => void;
+  /** «AI bilan yaratish» (absent: no button). */
+  scenes?: BannerScenes;
 }
 
 export function BannerDialog({
@@ -176,6 +187,7 @@ export function BannerDialog({
   idempotency,
   onSaved,
   onCloseAutoFocus,
+  scenes,
 }: BannerDialogProps) {
   // React Hook Form re-registers fields during render; the compiler's
   // memoisation of `register(...)` calls would skip that (see ProductEditor).
@@ -192,6 +204,10 @@ export function BannerDialog({
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
+  /** A finished AI banner image chosen in the generator: saved with the banner. */
+  const [generated, setGenerated] = useState<{ jobId: string; url: string } | null>(null);
+  const [generatorOpen, setGeneratorOpen] = useState(false);
+  const generator = useBannerImageJob(banner?.id ?? null, open && Boolean(scenes?.enabled));
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const resolver = useMemo(() => zodResolver(schema), [schema]);
@@ -235,6 +251,7 @@ export function BannerDialog({
     }
     setImageError(null);
     clearPreview();
+    setGenerated(null);
     setFile(picked);
     setPreview(URL.createObjectURL(picked));
   };
@@ -242,7 +259,7 @@ export function BannerDialog({
   /** The image's error for this submit (required on create), set on the card. */
   const imageProblem = (): string | null => {
     if (imageError) return imageError;
-    if (editing || file) return null;
+    if (editing || file || generated) return null;
     setImageError(m.bannerImageRequired);
     return m.bannerImageRequired;
   };
@@ -260,7 +277,14 @@ export function BannerDialog({
     const baseline = banner ? toValues(fromBanner(banner)) : null;
     const result = idempotency.settle(
       await runAction((csrf) =>
-        saveBanner(banner?.id ?? null, formData, baseline, idempotency.key, csrf),
+        saveBanner(
+          banner?.id ?? null,
+          formData,
+          baseline,
+          idempotency.key,
+          csrf,
+          generated?.jobId ?? null,
+        ),
       ),
     );
     if (!result.ok) {
@@ -284,6 +308,7 @@ export function BannerDialog({
     const previewUrl = preview;
     setPreview(null); // handed over to the list (demo mode); not revoked here
     setFile(null);
+    setGenerated(null);
     onSaved(result.data, editing ? "edit" : "create", previewUrl);
     onOpenChange(false);
   };
@@ -330,7 +355,8 @@ export function BannerDialog({
       (fieldErrors) => errorsUi.onInvalid(withImage(fieldErrors, imageProblem())),
     )(event);
 
-  const currentImage = preview ?? banner?.imageUrl ?? null;
+  const currentImage = generated?.url ?? preview ?? banner?.imageUrl ?? null;
+  const titleUz = useWatch({ control, name: "title.uz" }) ?? "";
   const imageErrorId = imageError ? `${idBase}-image-error` : undefined;
   const categoryOptions: SelectOption[] = categories.map((category) => ({
     value: category.slug,
@@ -389,18 +415,51 @@ export function BannerDialog({
               )}
             </span>
             <span className="flex min-w-0 flex-1 flex-col gap-2">
-              <button
-                type="button"
-                onClick={() => fileInput.current?.click()}
-                aria-describedby={imageErrorId}
-                className={cn(buttonStyles({ variant: "dashed", size: "sm" }), "self-start")}
-              >
-                <Icon name="upload" size={16} className="text-gold-ink" />
-                {currentImage ? t.replaceImage : t.chooseImage}
-              </button>
+              <span className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => fileInput.current?.click()}
+                  aria-describedby={imageErrorId}
+                  className={cn(buttonStyles({ variant: "dashed", size: "sm" }), "self-start")}
+                >
+                  <Icon name="upload" size={16} className="text-gold-ink" />
+                  {currentImage ? t.replaceImage : t.chooseImage}
+                </button>
+                {scenes && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    data-banner-generate=""
+                    disabledReason={scenes.enabled ? null : copy.generator.aiOff}
+                    onClick={() => setGeneratorOpen(true)}
+                  >
+                    <Icon name="sparkles" size={16} className="text-gold-ink" />
+                    {copy.generator.open}
+                  </Button>
+                )}
+              </span>
               <span className="text-caption font-normal text-ink-muted">{t.imageHint}</span>
               {file && (
                 <span className="truncate text-caption font-normal text-ink">{file.name}</span>
+              )}
+              {generated && (
+                <span className="flex flex-col gap-1" data-banner-generated="">
+                  <span className="flex items-center gap-1.5 text-caption font-semibold text-ink">
+                    <Icon name="sparkles" size={14} className="text-gold-ink" />
+                    {copy.generator.chosen}
+                  </span>
+                  <span className="text-caption font-normal text-ink-muted">
+                    {copy.generator.chosenLead}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setGenerated(null)}
+                    className="self-start text-caption font-semibold text-gold-ink underline underline-offset-2 hover:text-ink"
+                  >
+                    {copy.generator.removeChosen}
+                  </button>
+                </span>
               )}
             </span>
             <input
@@ -598,6 +657,20 @@ export function BannerDialog({
           </Button>
         </div>
         {recommendedDialog}
+        {scenes?.enabled && (
+          <BannerImageDialog
+            open={generatorOpen}
+            onOpenChange={setGeneratorOpen}
+            job={generator}
+            templates={scenes.templates}
+            title={titleUz}
+            onUse={(picture) => {
+              clearPreview();
+              setImageError(null);
+              setGenerated(picture);
+            }}
+          />
+        )}
       </form>
     </Dialog>
   );

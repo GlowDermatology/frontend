@@ -27,6 +27,9 @@ const uz = {
   notCustom: "Faqat o‘zingiz yozgan, tayyor sahnani shablon sifatida saqlash mumkin.",
   templateExists: "Bu sahna allaqachon shablon sifatida saqlangan.",
   templateName: "Shablon nomini yozing (60 belgigacha).",
+  bannerPhotoUnusable:
+    "Mahsulot rasmidan foydalanib bo‘lmadi (mahsulot to‘liq ko‘rinmaydi yoki uni qo‘l yopib turibdi). Boshqa mahsulotni tanlang yoki uning asosiy rasmini almashtiring.",
+  bannerProducts: "1 tadan 3 tagacha mahsulot tanlang.",
 };
 
 export const sceneDataCopy = {
@@ -53,6 +56,9 @@ export const sceneDataCopy = {
     notCustom: "Сохранить как шаблон можно только готовую сцену, которую вы описали сами.",
     templateExists: "Эта сцена уже сохранена как шаблон.",
     templateName: "Введите название шаблона (до 60 символов).",
+    bannerPhotoUnusable:
+      "Фото товара не подошло (товар виден не целиком или его закрывает рука). Выберите другой товар или замените его главное фото.",
+    bannerProducts: "Выберите от 1 до 3 товаров.",
   },
   en: {
     templates: {
@@ -76,5 +82,8 @@ export const sceneDataCopy = {
     notCustom: "Only a finished scene you described yourself can be saved as a template.",
     templateExists: "This scene is already saved as a template.",
     templateName: "Enter the template's name (up to 60 characters).",
+    bannerPhotoUnusable:
+      "A product's photo could not be used (the product is not fully in the frame or a hand covers it). Choose another product or replace its main photo.",
+    bannerProducts: "Choose 1 to 3 products.",
   },
 } satisfies CopySet<typeof uz>;

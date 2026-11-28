@@ -1,3 +1,4 @@
+import type { SceneBannerInfo } from "./banner-image";
 import type { Crop, ProductBox, RenditionShape } from "./crop";
 import type { JobState } from "./job";
 
@@ -86,6 +87,8 @@ export interface SceneJob {
   /** Codes: `hand_removed`, `product_partly_generated`, `product_floating`, `low_resolution`, … */
   warnings: string[];
   acceptedImageId: string | null;
+  /** A banner image job's facts (§2.20.8); absent or `null` for a product photo's job. */
+  banner?: SceneBannerInfo | null;
   createdAt: string;
   finishedAt: string | null;
   expiresAt: string | null;

@@ -2,6 +2,9 @@ import "server-only";
 
 import { apiFetch } from "./client";
 import type {
+  ApiBannerImageCreate,
+  ApiBannerImageUse,
+  ApiBannerImageUseResult,
   ApiSceneTemplate,
   ApiSceneTemplateSave,
   ApiSceneAccept,
@@ -83,4 +86,31 @@ export function apiSaveSceneTemplate(
     token,
     idempotencyKey,
   });
+}
+
+/** A banner's AI image: 202 a new job, 200 the staff member's banner image still being made. */
+export function apiStartBannerImage(
+  token: string,
+  body: ApiBannerImageCreate,
+  idempotencyKey: string,
+) {
+  return apiFetch<ApiSceneJob>(`${BASE}/scenes/banner-images/`, {
+    method: "POST",
+    body,
+    token,
+    idempotencyKey,
+  });
+}
+
+/** A finished banner image → a new banner (`banner_id` null) or an existing one's picture. */
+export function apiUseBannerImage(
+  token: string,
+  id: string,
+  body: ApiBannerImageUse,
+  idempotencyKey: string,
+) {
+  return apiFetch<ApiBannerImageUseResult>(
+    `${BASE}/scenes/jobs/${encodeURIComponent(id)}/banner/`,
+    { method: "POST", body, token, idempotencyKey },
+  );
 }

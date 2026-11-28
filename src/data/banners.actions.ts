@@ -21,6 +21,7 @@ import {
   apiReorderBanners,
 } from "./api/catalog";
 import { bannerFormData, bannerPatchBody, mapBanner, toActionResult } from "./api/mappers";
+import { apiUseBannerImage } from "./api/scenes";
 import { bannerSchemas, bannerValuesFromFormData, type BannerFormValues } from "./banners.schema";
 import * as mock from "./mock/banners.actions";
 import { dataSource } from "./source";
@@ -35,10 +36,15 @@ import type { ActionResult } from "./types";
  * product is never resent, so the banner can still be edited or switched
  * off. `deleteBanner` and `reorderBanners` (`PUT banners/order/` with the
  * exact id set) complete the section.
+ *
+ * `imageJobId` (instead of an `image` part) saves the banner with a finished AI banner image
+ * (§2.20.8, `POST scenes/jobs/{id}/banner/`): the fields and the picture in one transaction.
  */
 
 const bannerIdSchema = z.string().trim().min(1).max(64);
 const apiIdSchema = z.string().regex(/^\d{1,18}$/);
+/** A demo job id carries its request (base64url): longer than an API id. */
+const jobIdSchema = z.string().trim().min(1).max(600);
 
 export async function saveBanner(
   id: string | null,
@@ -46,6 +52,7 @@ export async function saveBanner(
   baseline: BannerFormValues | null,
   key: string,
   csrf: string,
+  imageJobId: string | null = null,
 ): Promise<ActionResult<Banner>> {
   const guard = await guardAction(csrf);
   if (!guard.ok) return guard;
@@ -73,8 +80,20 @@ export async function saveBanner(
   }
   const values: BannerFormValues = parsed.data;
   const image = parsedImage.data ?? null;
-  if (parsedId.data === null && !image) {
+  const parsedJob = z.union([jobIdSchema, z.null()]).safeParse(imageJobId);
+  if (!parsedJob.success || (parsedJob.data !== null && image)) {
+    return { ok: false, error: m.checkImage, fieldErrors: { image: m.checkImage } };
+  }
+  const generated = parsedJob.data;
+  if (parsedId.data === null && !image && !generated) {
     return { ok: false, error: m.checkImage, fieldErrors: { image: m.bannerImageRequired } };
+  }
+  if (generated) {
+    return saveWithGenerated(parsedId.data, generated, values, parsedBaseline.data, {
+      session: guard.session,
+      key: parsedKey.data.key,
+      notFound: m.bannerNotFound,
+    });
   }
 
   if ((await dataSource()) === "api") {
@@ -121,6 +140,40 @@ export async function saveBanner(
   return parsedId.data === null
     ? mock.createBanner(values, image!)
     : mock.updateBanner(parsedId.data, values, image, parsedBaseline.data);
+}
+
+/** A banner saved with a finished AI banner image (new: every field; existing: what changed). */
+async function saveWithGenerated(
+  id: string | null,
+  jobId: string,
+  values: BannerFormValues,
+  baseline: BannerFormValues | null,
+  context: { session: Parameters<typeof sessionToken>[0]; key: string; notFound: string },
+): Promise<ActionResult<Banner>> {
+  if ((await dataSource()) !== "api")
+    return mock.saveBannerWithImageJob(id, jobId, values, baseline);
+  if (
+    (id !== null && !apiIdSchema.safeParse(id).success) ||
+    !apiIdSchema.safeParse(jobId).success
+  ) {
+    return { ok: false, error: context.notFound, code: "not_found" };
+  }
+  return apiMutation("saveBanner", async () => {
+    try {
+      const { data } = await apiUseBannerImage(
+        sessionToken(context.session),
+        jobId,
+        {
+          banner_id: id === null ? null : Number(id),
+          banner: bannerPatchBody(id === null ? null : baseline, values),
+        },
+        context.key,
+      );
+      return { ok: true, data: mapBanner(data.banner) };
+    } catch (error) {
+      return toActionResult(error, { job_id: "image" });
+    }
+  });
 }
 
 export async function deleteBanner(

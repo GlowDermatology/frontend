@@ -23,6 +23,7 @@ import { refresh } from "next/cache";
 import { copyFor, getAdminLocale } from "@/lib/i18n/admin-locale";
 
 import { referenceNow } from "../config";
+import { discardBannerImage, getBannerImageJob, isMockBannerJob } from "./banner-images";
 import { MAX_IMAGES } from "../products.schema";
 import type { ActionResult } from "../types";
 import { delay } from "./delay";
@@ -268,6 +269,7 @@ export async function startSceneJob(
 
 export async function getSceneJob(id: string): Promise<SceneJob | null> {
   await delay(200);
+  if (isMockBannerJob(id)) return getBannerImageJob(id);
   const request = decode(id);
   if (!request) return null;
   const polled = (polls.get(id) ?? 1) + 1;
@@ -380,6 +382,7 @@ export async function acceptSceneJob(
 
 export async function discardSceneJob(id: string): Promise<ActionResult<SceneJob>> {
   await delay(150);
+  if (isMockBannerJob(id)) return discardBannerImage(id);
   const m = await copyFor(sceneDataCopy);
   const found = await peek(id);
   if (!found) return { ok: false, error: m.jobNotFound, code: "not_found" };

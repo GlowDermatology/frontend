@@ -61,6 +61,7 @@ const API_JOB: ApiSceneJob = {
   },
   error: null,
   warnings: ["hand_removed"],
+  banner: null,
   accepted_image_id: null,
   created_at: "2026-11-26T10:00:00Z",
   finished_at: "2026-11-26T10:00:30Z",

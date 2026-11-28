@@ -300,3 +300,7 @@ export type ApiSceneJobCreate = Schemas["SceneJobCreateRequest"];
 export type ApiSceneAccept = Schemas["SceneAcceptRequest"];
 export type ApiSceneAcceptResult = Schemas["SceneAcceptResponse"];
 export type ApiSceneTemplateSave = Schemas["SceneTemplateSaveRequest"];
+/* Banner images (admin contract §2.20.8, backend 75015f8) */
+export type ApiBannerImageCreate = Schemas["BannerImageCreateRequest"];
+export type ApiBannerImageUse = Schemas["BannerImageUseRequest"];
+export type ApiBannerImageUseResult = Schemas["BannerImageUseResponse"];

@@ -3,8 +3,8 @@
  * GENERATED FILE — do not edit by hand. Regenerate with `npm run gen:api`.
  *
  * Source: openapi/schema.yaml of the backend repository
- * Commit: d90c0521443ce9f5948be9c33bc20dd064e304b9
- * Generated: 2026-11-27T21:39:17.042Z (openapi-typescript)
+ * Commit: 75015f8450c8c776ce95dab5767709b1d9c4486a
+ * Generated: 2026-11-28T07:31:12.536Z (openapi-typescript)
  */
 
 export interface paths {
@@ -1623,6 +1623,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/scenes/banner-images/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Make a banner's image with AI (scenes must be on, AI scenes too): 1-3 products in a scene (`products`, each from its main photo, never redrawn) or a scene alone (`scene`), from an AI `template_id` or `custom_prompt`. The image is exactly 2.15:1 (the app's banner; the website shows its middle 2:1, `banner.web_crop`), text-free, its lower left kept calm for the title. 202 with a new scene job (kind `banner`), 200 with the staff member's banner image still being made. Poll `scenes/jobs/{id}/`; refusals as the job's `error.code`: `banner_product_photo_unusable` (with `banner.failed_product`), `scene_source_changed`, `scene_custom_refused`, `scene_product_drift`, `scene_result_rejected`. */
+        post: operations["admin_banner_images_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/scenes/jobs/{id}/": {
         parameters: {
             query?: never;
@@ -1650,6 +1667,23 @@ export interface paths {
         put?: never;
         /** @description Accept a finished job: a scene becomes a new gallery image (the source stays; `make_main` puts it first), a `fit` writes the proposed renditions on the source image. `acknowledge_generated` must be true when part of the product was drawn by AI. 409 `scene_job_not_ready` / `scene_source_changed`. */
         post: operations["admin_scene_jobs_accept_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/scenes/jobs/{id}/banner/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Use a finished banner image (kind `banner`, waiting for review): a new banner with `banner` as in `POST banners/` (without `image`), or an existing one (`banner_id`, `banner` as in `PATCH banners/{id}/`), saved with the image in one transaction (the same checks and variants as an upload). 409 `scene_job_not_ready` once used, discarded or expired. */
+        post: operations["admin_scene_jobs_banner_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4267,6 +4301,37 @@ export interface components {
             "title.en"?: string;
             "title.ru"?: string;
             "title.uz": string;
+        };
+        BannerImageCreateRequest: {
+            /** @description The scene in staff's own words, any language, instead of `template_id`. */
+            custom_prompt?: string;
+            /**
+             * @description `products`: 1-3 catalog products in a scene (each from its main photo); `scene`: a scene alone.
+             *
+             *     * `products` - products
+             *     * `scene` - scene
+             */
+            mode: components["schemas"]["BannerImageModeEnum"];
+            /** @description `products` only: 1-3 product ids; the first is the main one (the tallest). */
+            product_ids?: number[];
+            /** @description An AI template (required unless `custom_prompt`). */
+            template_id?: number | null;
+        };
+        /**
+         * @description * `products` - products
+         *     * `scene` - scene
+         * @enum {string}
+         */
+        BannerImageModeEnum: "products" | "scene";
+        BannerImageUseRequest: {
+            /** @description The banner's fields as in `POST banners/` (new) or `PATCH banners/{id}/` (existing), without `image`. */
+            banner: unknown;
+            /** @description An existing banner; null or absent: a new banner. */
+            banner_id?: number | null;
+        };
+        BannerImageUseResponse: {
+            banner: components["schemas"]["Banner"];
+            job: components["schemas"]["SceneJob"];
         };
         BannerLink: {
             category?: string | null;
@@ -7717,6 +7782,20 @@ export interface components {
             image: components["schemas"]["ProductImage"];
             job: components["schemas"]["SceneJob"];
         };
+        SceneBanner: {
+            accepted_banner_id: number | null;
+            /** @description The product whose photo could not be used (`banner_product_photo_unusable`). */
+            failed_product: components["schemas"]["SceneBannerProduct"] | null;
+            mode: components["schemas"]["BannerImageModeEnum"];
+            /** @description In the order staff picked them. */
+            products: components["schemas"]["SceneBannerProduct"][];
+            /** @description [x, y, w, h] 0-1: the website's 2:1 window of the 2.15:1 image (the app shows all of it). */
+            web_crop: number[];
+        };
+        SceneBannerProduct: {
+            id: number;
+            name: string;
+        };
         SceneCandidate: {
             /** @description Proposed shapes: of the candidate (scenes) or of the source (fit). */
             crops: components["schemas"]["SceneCrops"];
@@ -7745,6 +7824,7 @@ export interface components {
         /** @description The poller-compatible scene job: ``state`` / ``error`` like ``Job`` (§2.14) and the candidate. */
         SceneJob: {
             accepted_image_id: number | null;
+            readonly banner: components["schemas"]["SceneBanner"] | null;
             /** Format: date-time */
             created_at: string;
             created_by: components["schemas"]["Actor"];
@@ -7785,9 +7865,10 @@ export interface components {
          *     * `ai_scene` - ai_scene
          *     * `fit` - fit
          *     * `preview` - preview
+         *     * `banner` - banner
          * @enum {string}
          */
-        SceneJobKindEnum: "studio" | "ai_scene" | "fit" | "preview";
+        SceneJobKindEnum: "studio" | "ai_scene" | "fit" | "preview" | "banner";
         /**
          * @description * `pending` - pending
          *     * `accepted` - accepted
@@ -17151,6 +17232,93 @@ export interface operations {
             };
         };
     };
+    admin_banner_images_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BannerImageCreateRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SceneJob"];
+                };
+            };
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SceneJob"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     admin_scene_jobs_retrieve: {
         parameters: {
             query?: never;
@@ -17249,6 +17417,87 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SceneAcceptResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_scene_jobs_banner_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BannerImageUseRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BannerImageUseResponse"];
                 };
             };
             400: {

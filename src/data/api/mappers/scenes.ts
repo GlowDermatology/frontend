@@ -14,6 +14,11 @@ import type {
   SceneTemplate,
   SceneTemplateKind,
 } from "@/domain/scene";
+import {
+  BANNER_WEB_CROP,
+  type BannerImageProduct,
+  type SceneBannerInfo,
+} from "@/domain/banner-image";
 import { JOB_STATES, type JobState } from "@/domain/job";
 
 import type { ApiSceneJob, ApiSceneStatus, ApiSceneTemplate } from "../types";
@@ -115,8 +120,29 @@ export function mapSceneJob(api: ApiSceneJob): SceneJob {
       : null,
     warnings: (api.warnings ?? []).filter((warning) => typeof warning === "string"),
     acceptedImageId: optionalId(api.accepted_image_id),
+    banner: mapBannerInfo(api.banner),
     createdAt: api.created_at,
     finishedAt: api.finished_at ?? null,
     expiresAt: api.expires_at ?? null,
+  };
+}
+
+function mapBannerProduct(value: unknown): BannerImageProduct | null {
+  const item = value as { id?: unknown; name?: unknown } | null;
+  if (!item || (typeof item.id !== "number" && typeof item.id !== "string")) return null;
+  return { id: String(item.id), name: typeof item.name === "string" ? item.name : "" };
+}
+
+/** `SceneJob.banner` (kind `banner` only): its mode, products and the website's window. */
+export function mapBannerInfo(value: ApiSceneJob["banner"] | undefined): SceneBannerInfo | null {
+  if (!value) return null;
+  return {
+    mode: value.mode === "products" ? "products" : "scene",
+    products: (value.products ?? [])
+      .map(mapBannerProduct)
+      .filter((item): item is BannerImageProduct => item !== null),
+    failedProduct: mapBannerProduct(value.failed_product),
+    webCrop: isCropTuple(value.web_crop) ? value.web_crop : BANNER_WEB_CROP,
+    acceptedBannerId: optionalId(value.accepted_banner_id),
   };
 }

@@ -76,6 +76,12 @@ test("a new template from a picture of the scene and words; then renamed and hid
   await editor.getByLabel("Nomi (o‘zbekcha)").fill(name);
   await editor.locator("[data-reference-input]").setInputFiles(REFERENCE);
   await expect(editor.locator('[data-reference-preview="picture"]')).toBeVisible();
+  // The picked file is drawn on a canvas (no URL made from it reaches the page).
+  await expect
+    .poll(() =>
+      editor.locator("[data-picked-image]").evaluate((el) => (el as HTMLCanvasElement).width),
+    )
+    .toBeGreaterThan(0);
   await editor
     .getByLabel("Sahna tavsifi")
     .fill("oq marmar tokcha, iliq bej devor, yumshoq yorug‘lik");

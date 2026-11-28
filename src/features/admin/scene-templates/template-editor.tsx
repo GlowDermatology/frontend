@@ -1,12 +1,13 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 
 import { Button, buttonStyles } from "@/components/ui/button";
 import { AlertDialog, AlertDialogCancel, Dialog } from "@/components/ui/dialog";
 import { Field, TextInput } from "@/components/ui/field";
 import { Icon } from "@/components/ui/icon";
+import { PickedImage } from "@/components/ui/picked-image";
 import { useToast } from "@/components/ui/toast";
 import { imageFileProblem, IMAGE_TYPES } from "@/data/products.schema";
 import { saveSceneTemplateEdits } from "@/data/scene-templates.actions";
@@ -59,7 +60,6 @@ function EditorDialog({ open, onOpenChange, template, onSaved }: TemplateEditorP
   const [names, setNames] = useState(template?.names ?? { uz: "", ru: "", en: "" });
   const [text, setText] = useState(template?.text ?? "");
   const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
   const [removeReference, setRemoveReference] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Errors>({});
@@ -68,13 +68,6 @@ function EditorDialog({ open, onOpenChange, template, onSaved }: TemplateEditorP
     ok
       ? toast({ tone: "success", title: copy.toast.pictureReady })
       : toast({ tone: "danger", title: t.generateFailed, description: message }),
-  );
-
-  useEffect(
-    () => () => {
-      if (preview) URL.revokeObjectURL(preview);
-    },
-    [preview],
   );
 
   const pick = (picked: File | undefined) => {
@@ -87,10 +80,10 @@ function EditorDialog({ open, onOpenChange, template, onSaved }: TemplateEditorP
     setErrors((current) => ({ ...current, reference: undefined }));
     setFile(picked);
     setRemoveReference(false);
-    setPreview(URL.createObjectURL(picked));
   };
 
-  const shownPicture = preview ?? (removeReference ? null : (template?.referenceUrl ?? null));
+  const storedPicture = removeReference ? null : (template?.referenceUrl ?? null);
+  const shownPicture = Boolean(file) || Boolean(storedPicture);
   const textChanged = text.trim() !== (template?.text ?? "").trim();
   const canGenerate = !creating && ai && Boolean(template.text) && !textChanged;
 
@@ -186,20 +179,16 @@ function EditorDialog({ open, onOpenChange, template, onSaved }: TemplateEditorP
                 )}
                 data-reference-preview={shownPicture ? "picture" : "empty"}
               >
-                {shownPicture ? (
-                  shownPicture.startsWith("blob:") ? (
-                    // A picked file before saving; next/image cannot optimise blobs.
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={shownPicture} alt={t.reference} className="size-full object-cover" />
-                  ) : (
-                    <Image
-                      src={shownPicture}
-                      alt={t.reference}
-                      fill
-                      sizes="200px"
-                      className="object-cover"
-                    />
-                  )
+                {file ? (
+                  <PickedImage file={file} label={t.reference} />
+                ) : storedPicture ? (
+                  <Image
+                    src={storedPicture}
+                    alt={t.reference}
+                    fill
+                    sizes="200px"
+                    className="object-cover"
+                  />
                 ) : (
                   <Icon name="image" size={28} className="text-ink-muted" />
                 )}
@@ -215,7 +204,7 @@ function EditorDialog({ open, onOpenChange, template, onSaved }: TemplateEditorP
                     {t.generating}
                   </span>
                 )}
-                {shownPicture && !preview && template?.referenceSource && (
+                {storedPicture && !file && template?.referenceSource && (
                   <span className="absolute bottom-2 left-2 rounded-full bg-surface/90 px-2 py-0.5 text-caption font-semibold text-ink shadow-sm">
                     {template.referenceSource === "generated" ? t.generated : t.uploaded}
                   </span>
@@ -260,7 +249,6 @@ function EditorDialog({ open, onOpenChange, template, onSaved }: TemplateEditorP
                     onClick={() => {
                       if (file) {
                         setFile(null);
-                        setPreview(null);
                       } else {
                         setRemoveReference((current) => !current);
                       }

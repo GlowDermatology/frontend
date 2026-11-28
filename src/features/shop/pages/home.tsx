@@ -46,6 +46,8 @@ import { DiscoverFeed } from "../home/discover-feed";
 import {
   LiveCardSkeleton,
   LiveProductCard,
+  homeGridColumns,
+  homeGridGap,
   liveCardGrid,
   type CashbackRates,
 } from "../home/live-card";
@@ -528,7 +530,7 @@ async function Categories({ locale, dict }: { locale: Locale; dict: ShopDictiona
           title={copy.title}
           action={<ArrowLink href={shopPath(locale, { kind: "catalog" })}>{copy.link}</ArrowLink>}
         />
-        <ul className="m-0 grid list-none grid-cols-2 gap-x-[clamp(12px,2vw,24px)] gap-y-8 p-0 sm:grid-cols-3 nav:grid-cols-5">
+        <ul className={cn("m-0 grid list-none gap-y-8 p-0", homeGridColumns, homeGridGap)}>
           {categories.map((category, index) => (
             <li key={category.slug}>
               <CategoryCard category={category} index={index} locale={locale} dict={dict} />

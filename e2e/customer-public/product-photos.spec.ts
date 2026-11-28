@@ -6,7 +6,8 @@ import { expect, test, type Page } from "@playwright/test";
  * Product photos on the storefront (api mode, seeded backend): the product page's full-screen
  * viewer (labelled «Увеличить» chip → the whole photo, slider by arrows, keys, thumbnails and
  * swipe, click-to-zoom with its own labelled button, Esc back to the page) and the home page's
- * product cards (photos filling a 4:5 frame, 3 a row on a desktop, 2 on a phone).
+ * cards (photos filling a 4:5 frame; products and categories 4 a row on a desktop, 3 on a tablet,
+ * 2 on a phone).
  */
 
 const PRODUCT = "/ru/products/gialuron-kislotali-serum";
@@ -135,15 +136,28 @@ async function firstRowColumns(
   });
 }
 
-test("home product cards: 3 a row on a desktop, 2 on a phone; the photo fills a 4:5 frame", async ({
+test("home cards: 4 a row on a desktop, 3 on a tablet, 2 on a phone; the photo fills a 4:5 frame", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/");
   const desktop = await firstRowColumns(page);
-  expect(desktop.columns).toBe(3);
+  expect(desktop.columns).toBe(4);
   expect(desktop.ratio).toBeCloseTo(0.8, 1);
   expect(desktop.fit).toBe("cover");
+
+  // «Nimadan boshlaymiz?» categories keep the same rhythm (they were 5 a row, smaller than products).
+  const categories = page.locator('section[aria-labelledby="categories-title"] ul').first();
+  const categoryColumns = await categories.evaluate((list) => {
+    const items = Array.from(list.children) as HTMLElement[];
+    const top = items[0]!.getBoundingClientRect().top;
+    return items.filter((item) => Math.abs(item.getBoundingClientRect().top - top) < 2).length;
+  });
+  expect(categoryColumns).toBe(4);
+
+  await page.setViewportSize({ width: 820, height: 1000 });
+  await page.goto("/");
+  expect((await firstRowColumns(page)).columns).toBe(3);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");

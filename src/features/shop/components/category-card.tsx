@@ -35,7 +35,7 @@ export function CategoryCard({
             src={category.imageMedium ?? category.image}
             alt=""
             fill
-            sizes="(min-width: 72rem) 240px, (min-width: 37.5rem) 30vw, 46vw"
+            sizes="(min-width: 72rem) 300px, (min-width: 64rem) 23vw, (min-width: 40rem) 31vw, 46vw"
             className="object-cover media-dim transition-transform duration-700 ease-soft group-hover:scale-[1.04]"
           />
         ) : (

@@ -21,11 +21,17 @@ import { shopPath } from "../routing/routes";
  * offers «Batafsil» instead.
  */
 
-/** 2 cards a row on phones and tablets, 3 from 1024 px: big photos, a calm row. */
-export const liveCardGrid =
-  "m-0 grid list-none grid-cols-2 gap-[clamp(12px,1.8vw,24px)] p-0 lg:grid-cols-3";
+/**
+ * The home page's one card rhythm (product rails, the feed, «Nimadan boshlaymiz?» categories):
+ * 2 a row on phones, 3 on tablets, 4 from 1024 px — medium cards, the same width everywhere.
+ */
+export const homeGridColumns = "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4";
+export const homeGridGap = "gap-x-[clamp(12px,1.8vw,24px)]";
 
-export const LIVE_CARD_SIZES = "(min-width: 72rem) 400px, (min-width: 64rem) 31vw, 46vw";
+export const liveCardGrid = `m-0 grid list-none ${homeGridColumns} ${homeGridGap} gap-y-[clamp(12px,1.8vw,24px)] p-0`;
+
+export const LIVE_CARD_SIZES =
+  "(min-width: 72rem) 300px, (min-width: 64rem) 23vw, (min-width: 40rem) 31vw, 46vw";
 
 const cardFrame =
   "group relative flex h-full min-w-0 flex-col gap-2.5 rounded-lg border border-line bg-surface-raised p-3 shadow-sm transition-[transform,box-shadow] duration-300 ease-soft hover:-translate-y-[3px] hover:shadow-lg";

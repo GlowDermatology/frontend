@@ -30,6 +30,8 @@ import {
 import { cn } from "@/lib/cn";
 import { useCopy } from "@/lib/i18n/admin-context";
 
+import { NewTemplateCard, TemplateCard } from "../../scene-templates/template-card";
+import { TemplateEditor } from "../../scene-templates/template-editor";
 import { scenesCopy } from "./copy";
 import { useSceneJob } from "./use-scene-job";
 
@@ -47,13 +49,6 @@ interface SceneDialogProps {
   placeholder?: ReactNode;
   /** The accepted scene (a new gallery photo): the editor adds it (`adoptNewImage`). */
   onAccepted: (image: ProductImage, makeMain: boolean) => void;
-}
-
-/** A studio template's swatch: its colours as a gradient (one colour: solid). */
-function swatch(colours: ReadonlyArray<string>): string | undefined {
-  if (colours.length === 0) return undefined;
-  if (colours.length === 1) return colours[0];
-  return `linear-gradient(135deg, ${colours.join(", ")})`;
 }
 
 /** The part of a 4:5 picture a crop keeps, drawn by CSS (the frame has the crop's shape). */
@@ -122,6 +117,8 @@ export function SceneDialog({
   const [acknowledged, setAcknowledged] = useState(false);
   const [makeMain, setMakeMain] = useState(false);
   const [acceptError, setAcceptError] = useState<string | null>(null);
+  /** The template editor: a template's id, or `null` for «Yangi shablon»; closed when `null`. */
+  const [editing, setEditing] = useState<{ id: string | null } | null>(null);
 
   const job = scene.job;
   const view = scene.view;
@@ -241,56 +238,17 @@ export function SceneDialog({
               {shown.length === 0 && (
                 <p className="m-0 text-body-sm text-ink-muted">{t.noTemplates}</p>
               )}
-              {shown.map((template) => {
-                const checked = template.id === templateId;
-                return (
-                  <button
-                    key={template.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={checked}
-                    data-template={template.key}
-                    onClick={() => setTemplateId(template.id)}
-                    className={cn(
-                      "flex flex-col items-stretch gap-2 rounded-md border p-2 text-left text-label text-ink transition-colors",
-                      checked
-                        ? "border-gold-ink bg-gold-soft ring-1 ring-gold-ink"
-                        : "border-line hover:border-gold",
-                    )}
-                  >
-                    <span
-                      aria-hidden="true"
-                      className="relative flex aspect-[4/5] items-center justify-center overflow-hidden rounded-sm border border-line bg-surface"
-                      style={
-                        template.previewUrl ? undefined : { background: swatch(template.colours) }
-                      }
-                    >
-                      {template.previewUrl ? (
-                        <Image
-                          src={template.previewUrl}
-                          alt=""
-                          fill
-                          sizes="160px"
-                          className="object-cover"
-                          data-template-preview=""
-                        />
-                      ) : (
-                        template.colours.length === 0 && (
-                          <Icon name="sparkles" size={22} className="text-gold-ink" />
-                        )
-                      )}
-                    </span>
-                    <span className="flex flex-col">
-                      {template.name}
-                      {template.kind === "ai_scene" && (
-                        <span className="text-caption font-normal text-ink-muted">
-                          {t.aiTemplate}
-                        </span>
-                      )}
-                    </span>
-                  </button>
-                );
-              })}
+              {shown.map((template) => (
+                <TemplateCard
+                  key={template.id}
+                  template={template}
+                  checked={template.id === templateId}
+                  onSelect={() => setTemplateId(template.id)}
+                  lead={template.kind === "ai_scene" ? t.aiTemplate : undefined}
+                  onEdit={() => setEditing({ id: template.id })}
+                />
+              ))}
+              {kind === "ai_scene" && <NewTemplateCard onClick={() => setEditing({ id: null })} />}
               {kind === "ai_scene" && (
                 <button
                   type="button"
@@ -677,6 +635,16 @@ export function SceneDialog({
           </>
         )}
       </div>
+      <TemplateEditor
+        open={editing !== null}
+        onOpenChange={(next) => {
+          if (!next) setEditing(null);
+        }}
+        template={editing?.id ? (templates.find((entry) => entry.id === editing.id) ?? null) : null}
+        onSaved={(saved) => {
+          if (saved.kind === kind) setTemplateId(saved.id);
+        }}
+      />
     </Dialog>
   );
 }

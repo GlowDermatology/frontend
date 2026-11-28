@@ -67,21 +67,64 @@ const TEMPLATES = [
 
 type TemplateKey = (typeof TEMPLATES)[number]["key"];
 
-/** Templates staff saved from a typed scene (this server's lifetime). */
+/** The demo's pictures of a scene alone (no product): AI templates' references. */
+export const MOCK_REFERENCE_URLS = ["/mock/scene-reference-1.webp", "/mock/scene-reference-2.webp"];
+const SEEDED_TEXT: Partial<Record<TemplateKey, string>> = {
+  bathroom: "A white marble shelf against a warm beige wall, a sprig of eucalyptus, soft daylight.",
+  spa: "Smooth grey spa stones on white marble, a warm beige wall, calm side light.",
+};
+
+/**
+ * The demo's template library (this server's lifetime): the seeded five plus what staff created or
+ * saved; edits (names, text, reference, hidden) are kept by id. A reference «upload» keeps no bytes:
+ * it shows the demo's reference picture.
+ */
 const saved: SceneTemplate[] = [];
 const savedByJob = new Map<string, string>();
+const edits = new Map<string, Partial<SceneTemplate> & { hidden?: boolean }>();
 
-export async function getSceneTemplates(): Promise<SceneTemplate[]> {
+async function seeded(): Promise<SceneTemplate[]> {
   const names = sceneDataCopy[await getAdminLocale()].templates;
-  return [
-    ...TEMPLATES.map((template) => ({
+  const all = {
+    uz: sceneDataCopy.uz.templates,
+    ru: sceneDataCopy.ru.templates,
+    en: sceneDataCopy.en.templates,
+  };
+  return TEMPLATES.map((template, index) => {
+    const ai = template.kind === "ai_scene";
+    const reference = ai ? MOCK_REFERENCE_URLS[index % 2]! : null;
+    return {
       ...template,
       name: names[template.key],
       colours: [...template.colours],
-      previewUrl: template.kind === "ai_scene" ? MOCK_SCENE_URL : null,
-    })),
-    ...saved,
-  ];
+      previewUrl: reference,
+      names: { uz: all.uz[template.key], ru: all.ru[template.key], en: all.en[template.key] },
+      text: SEEDED_TEXT[template.key] ?? "",
+      referenceUrl: reference,
+      referenceSource: ai ? ("generated" as const) : ("" as const),
+      savedByStaff: false,
+    };
+  });
+}
+
+async function library(): Promise<Array<SceneTemplate & { hidden?: boolean }>> {
+  const locale = await getAdminLocale();
+  return [...(await seeded()), ...saved].map((template) => {
+    const edit = edits.get(template.id);
+    if (!edit) return template;
+    const names = edit.names ?? template.names;
+    return { ...template, ...edit, name: names[locale] || names.uz };
+  });
+}
+
+function withoutHidden(template: SceneTemplate & { hidden?: boolean }): SceneTemplate {
+  const copy = { ...template };
+  delete copy.hidden;
+  return copy;
+}
+
+export async function getSceneTemplates(): Promise<SceneTemplate[]> {
+  return (await library()).filter((template) => !template.hidden).map(withoutHidden);
 }
 
 const PEOPLE = /girl|woman|man\b|qiz|ayol|девушк|женщин|мужчин/i;
@@ -270,6 +313,7 @@ export async function startSceneJob(
 export async function getSceneJob(id: string): Promise<SceneJob | null> {
   await delay(200);
   if (isMockBannerJob(id)) return getBannerImageJob(id);
+  if (isMockReferenceJob(id)) return getReferenceJob(id);
   const request = decode(id);
   if (!request) return null;
   const polled = (polls.get(id) ?? 1) + 1;
@@ -408,16 +452,164 @@ export async function saveSceneTemplate(
   }
   if (savedByJob.has(id))
     return { ok: false, error: m.templateExists, code: "scene_template_exists" };
+  // like the backend: the card shows the scene alone (its reference is made from the words)
   const template: SceneTemplate = {
     id: `saved-${request.n}`,
     key: `${CUSTOM_SCENE_KEY}-${request.n}`,
     kind: "ai_scene",
     name,
     colours: [],
-    previewUrl: MOCK_SCENE_URL,
+    previewUrl: MOCK_REFERENCE_URLS[request.n % 2]!,
+    names: { uz: name, ru: name, en: name },
+    text: request.c ?? "",
+    referenceUrl: MOCK_REFERENCE_URLS[request.n % 2]!,
+    referenceSource: "generated",
+    savedByStaff: true,
   };
   saved.push(template);
   savedByJob.set(id, template.id);
   refresh(); // the editor's template list is server-loaded
   return { ok: true, data: template };
+}
+
+/* --- the template editor (§2.20.9) ------------------------------------------------------------ */
+
+export interface MockTemplateEdit {
+  name?: { uz: string; ru: string; en: string };
+  text?: string;
+  /** A picked file: the demo keeps no bytes and shows its reference picture. */
+  reference?: boolean;
+  removeReference?: boolean;
+  enabled?: boolean;
+}
+
+let createdCount = 0;
+const referenceJobs = new Map<string, { templateId: string; polls: number }>();
+
+function refusedText(text: string): boolean {
+  return PEOPLE.test(text);
+}
+
+export async function createSceneTemplate(
+  edit: MockTemplateEdit,
+): Promise<ActionResult<SceneTemplate>> {
+  await delay(400);
+  const m = await copyFor(sceneDataCopy);
+  const text = edit.text ?? "";
+  if (refusedText(text)) {
+    return { ok: false, error: m.customRefused, fieldErrors: { text: m.customRefused } };
+  }
+  createdCount += 1;
+  const name = edit.name ?? { uz: "", ru: "", en: "" };
+  const reference = edit.reference ? MOCK_REFERENCE_URLS[createdCount % 2]! : null;
+  const template: SceneTemplate = {
+    id: `staff-${createdCount}`,
+    key: `staff-${createdCount}`,
+    kind: "ai_scene",
+    name: name.uz,
+    colours: [],
+    previewUrl: reference,
+    names: name,
+    text,
+    referenceUrl: reference,
+    referenceSource: reference ? "upload" : "",
+    savedByStaff: true,
+  };
+  saved.push(template);
+  refresh();
+  return { ok: true, data: template };
+}
+
+export async function updateSceneTemplate(
+  id: string,
+  edit: MockTemplateEdit,
+): Promise<ActionResult<SceneTemplate>> {
+  await delay(400);
+  const m = await copyFor(sceneDataCopy);
+  const current = (await library()).find((template) => template.id === id);
+  if (!current) return { ok: false, error: m.jobNotFound, code: "not_found" };
+  if (current.kind === "studio" && (edit.text !== undefined || edit.reference)) {
+    return { ok: false, error: m.studioColours, fieldErrors: { text: m.studioColours } };
+  }
+  if (edit.text !== undefined && refusedText(edit.text)) {
+    return { ok: false, error: m.customRefused, fieldErrors: { text: m.customRefused } };
+  }
+  const next: Partial<SceneTemplate> & { hidden?: boolean } = { ...edits.get(id) };
+  if (edit.name) next.names = edit.name;
+  if (edit.enabled !== undefined) next.hidden = !edit.enabled;
+  if (edit.text !== undefined && edit.text !== current.text) {
+    next.text = edit.text;
+    if (current.referenceSource === "generated") {
+      next.referenceUrl = null;
+      next.previewUrl = null;
+      next.referenceSource = "";
+    }
+  }
+  if (edit.reference) {
+    const picture = MOCK_REFERENCE_URLS[(Number(id.replace(/\D/g, "")) + 1) % 2]!;
+    Object.assign(next, { referenceUrl: picture, previewUrl: picture, referenceSource: "upload" });
+  } else if (edit.removeReference) {
+    Object.assign(next, { referenceUrl: null, previewUrl: null, referenceSource: "" });
+  }
+  edits.set(id, next);
+  refresh();
+  const updated = (await library()).find((template) => template.id === id)!;
+  return { ok: true, data: withoutHidden(updated) };
+}
+
+const REFERENCE_PREFIX = "mock-reference-";
+
+/** «Rasmini yaratish»: a job that succeeds on the second poll and sets the demo's picture. */
+export async function makeTemplateReference(id: string): Promise<ActionResult<SceneJob>> {
+  await delay(200);
+  const m = await copyFor(sceneDataCopy);
+  const current = (await library()).find((template) => template.id === id);
+  if (!current || current.kind !== "ai_scene") {
+    return { ok: false, error: m.jobNotFound, code: "not_found" };
+  }
+  if (!current.text) {
+    return { ok: false, error: m.templateNeedsText, code: "scene_template_needs_text" };
+  }
+  const jobId = `${REFERENCE_PREFIX}${id}-${Date.parse(referenceNow().toISOString()) + referenceJobs.size}`;
+  referenceJobs.set(jobId, { templateId: id, polls: 0 });
+  return { ok: true, data: referenceJob(jobId, "queued") };
+}
+
+export const isMockReferenceJob = (id: string) => id.startsWith(REFERENCE_PREFIX);
+
+function referenceJob(id: string, state: SceneJob["state"]): SceneJob {
+  return {
+    id,
+    productId: null,
+    sourceImageId: null,
+    kind: "studio",
+    template: null,
+    state,
+    outcome: state === "succeeded" ? "accepted" : "pending",
+    result: null,
+    error: null,
+    warnings: [],
+    acceptedImageId: null,
+    createdAt: referenceNow().toISOString(),
+    finishedAt: state === "succeeded" ? referenceNow().toISOString() : null,
+    expiresAt: null,
+  };
+}
+
+export async function getReferenceJob(id: string): Promise<SceneJob | null> {
+  const entry = referenceJobs.get(id);
+  if (!entry) return null;
+  entry.polls += 1;
+  if (entry.polls < 2) return referenceJob(id, "running");
+  if (entry.polls === 2) {
+    const picture = MOCK_REFERENCE_URLS[entry.polls % 2]!;
+    edits.set(entry.templateId, {
+      ...edits.get(entry.templateId),
+      referenceUrl: picture,
+      previewUrl: picture,
+      referenceSource: "generated",
+    });
+    refresh();
+  }
+  return referenceJob(id, "succeeded");
 }

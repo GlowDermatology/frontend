@@ -61,6 +61,21 @@ export function mapSceneTemplate(api: ApiSceneTemplate): SceneTemplate | null {
     colours: (api.colours ?? []).filter((colour) => COLOUR.test(colour)),
     previewUrl:
       typeof api.preview_url === "string" && api.preview_url.length > 0 ? api.preview_url : null,
+    names: {
+      uz: String(api.names?.uz ?? api.name ?? ""),
+      ru: String(api.names?.ru ?? ""),
+      en: String(api.names?.en ?? ""),
+    },
+    text: typeof api.text === "string" ? api.text : "",
+    referenceUrl:
+      typeof api.reference_url === "string" && api.reference_url.length > 0
+        ? api.reference_url
+        : null,
+    referenceSource:
+      api.reference_source === "upload" || api.reference_source === "generated"
+        ? api.reference_source
+        : "",
+    savedByStaff: api.saved_by_staff === true,
   };
 }
 

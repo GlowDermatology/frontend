@@ -3,8 +3,8 @@
  * GENERATED FILE — do not edit by hand. Regenerate with `npm run gen:api`.
  *
  * Source: openapi/schema.yaml of the backend repository
- * Commit: 75015f8450c8c776ce95dab5767709b1d9c4486a
- * Generated: 2026-11-28T07:31:12.536Z (openapi-typescript)
+ * Commit: d93b270d25af87238ac646d19994f3c9627ca452
+ * Generated: 2026-11-28T12:43:43.734Z (openapi-typescript)
  */
 
 export interface paths {
@@ -1750,7 +1750,42 @@ export interface paths {
         /** @description The enabled scene templates, in their console order. */
         get: operations["admin_scene_templates_list"];
         put?: never;
+        /** @description A new AI template (§2.20.9), last in the list: `name` (`uz` required) and `text` (the scene in any language: translated to English and screened, 400 `text` when refused) and/or `reference` (a picture of the scene alone: screened, 400 `reference` when it shows a product, a person or text, and described for Bria). JSON or multipart (`name.uz`, …, the file part `reference`). 400 `text` `scene` without either; 409 `scenes_disabled` / `scene_ai_disabled`. The translation and screening run in the request (a few seconds; 400 with a message when the AI does not answer). */
+        post: operations["admin_scene_templates_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/scenes/templates/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description Edit a template (§2.20.9): `name`, `enabled` (false hides it from the dialogs; the ops console shows it again), and for an AI template `text`, `reference` (replace) or `remove_reference`. A changed text clears a reference made from the old one (an uploaded one stays). A studio template's colours stay in the ops console (400 `text`). */
+        patch: operations["admin_scene_templates_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/admin/scenes/templates/{id}/reference/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description «Rasmini yaratish»: an AI template's reference made from its text (a picture of the scene alone, 4:5), one image call within the scene budget. 202 the job (kind `preview`; a second call returns the pending one); poll `scenes/jobs/{id}/`, then re-read the templates. 409 `scene_template_needs_text` without text, `scene_budget_exceeded`, `scene_ai_disabled`. */
+        post: operations["admin_scene_templates_reference_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7099,6 +7134,23 @@ export interface components {
             status: components["schemas"]["ProductStatusEnum"];
             texts?: components["schemas"]["ProductTextsPatchRequest"];
         };
+        /**
+         * @description `POST scenes/templates/` (all of it) and `PATCH scenes/templates/{id}/` (`partial`): JSON or multipart
+         *     (dotted names: `name.uz`, …; the file part `reference`).
+         */
+        PatchedSceneTemplateWriteRequest: {
+            enabled?: boolean;
+            name?: components["schemas"]["SceneTemplateNamesRequest"];
+            /**
+             * Format: binary
+             * @description A picture of the scene alone (JPG, PNG, WebP; ≤ 5 MB): screened (no product, person or text) and described in the same request.
+             */
+            reference?: string;
+            /** @default false */
+            remove_reference: boolean;
+            /** @description The scene in staff's words, any language (translated to English and screened). */
+            text?: string;
+        };
         /** @description ``POST segments/`` (``name`` 2..60 unique, ``rules``) and ``PATCH segments/{id}/`` (partial). */
         PatchedSegmentWriteRequest: {
             name?: string;
@@ -7892,16 +7944,32 @@ export interface components {
         SceneTemplate: {
             /** @description A studio template's colours (#rrggbb) for a swatch. */
             readonly colours: string[];
+            enabled: boolean;
             id: number;
             key: string;
             kind: components["schemas"]["SceneTemplateKindEnum"];
             /** @description In the request's language (else Uzbek). */
             readonly name: string;
+            /** @description `{uz, ru, en}`: every language, for the editor. */
+            readonly names: {
+                [key: string]: string;
+            };
             /**
              * Format: uri
-             * @description A 4:5 sample picture of the scene (a sample product, or the scene staff saved as this template); null until the console made one.
+             * @description The card's 4:5 picture of the scene alone: an AI template's reference, a studio template's background. Until an AI template has a reference it is its older sample picture (with a sample product), or null.
              */
             readonly preview_url: string | null;
+            /** @description `upload`, `generated`, or empty (no reference). */
+            reference_source: string;
+            /**
+             * Format: uri
+             * @description An AI template's reference: a picture of the scene alone (uploaded or made from the text).
+             */
+            readonly reference_url: string | null;
+            /** @description Made in the admin panel. */
+            readonly saved_by_staff: boolean;
+            /** @description An AI template's scene in the words staff typed (else the English text the AI reads). */
+            readonly text: string;
         };
         /**
          * @description * `studio` - studio
@@ -7909,12 +7977,36 @@ export interface components {
          * @enum {string}
          */
         SceneTemplateKindEnum: "studio" | "ai_scene";
+        SceneTemplateNamesRequest: {
+            /** @default  */
+            en: string;
+            /** @default  */
+            ru: string;
+            uz: string;
+        };
         SceneTemplates: {
             results: components["schemas"]["SceneTemplate"][];
         };
         SceneTemplateSaveRequest: {
             /** @description The card's name (all languages). */
             name: string;
+        };
+        /**
+         * @description `POST scenes/templates/` (all of it) and `PATCH scenes/templates/{id}/` (`partial`): JSON or multipart
+         *     (dotted names: `name.uz`, …; the file part `reference`).
+         */
+        SceneTemplateWriteRequest: {
+            enabled?: boolean;
+            name?: components["schemas"]["SceneTemplateNamesRequest"];
+            /**
+             * Format: binary
+             * @description A picture of the scene alone (JPG, PNG, WebP; ≤ 5 MB): screened (no product, person or text) and described in the same request.
+             */
+            reference?: string;
+            /** @default false */
+            remove_reference: boolean;
+            /** @description The scene in staff's words, any language (translated to English and screened). */
+            text?: string;
         };
         /** @description ``GET specialists/{id}/conflicts/``: open future appointments the schedule no longer covers. */
         ScheduleConflicts: {
@@ -17806,6 +17898,245 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SceneTemplates"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_scene_templates_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SceneTemplateWriteRequest"];
+                "multipart/form-data": components["schemas"]["SceneTemplateWriteRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SceneTemplate"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_scene_templates_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedSceneTemplateWriteRequest"];
+                "multipart/form-data": components["schemas"]["PatchedSceneTemplateWriteRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SceneTemplate"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    admin_scene_templates_reference_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SceneJob"];
                 };
             };
             400: {

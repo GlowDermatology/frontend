@@ -114,3 +114,41 @@ export function apiUseBannerImage(
     { method: "POST", body, token, idempotencyKey },
   );
 }
+
+/* Templates in the admin (contract §2.20.9). The translation and the screening of a reference run
+   in the request: a few seconds, so the writes get a longer timeout. */
+
+export function apiCreateSceneTemplate(token: string, formData: FormData, idempotencyKey: string) {
+  return apiFetch<ApiSceneTemplate>(`${BASE}/scenes/templates/`, {
+    method: "POST",
+    formData,
+    token,
+    idempotencyKey,
+    timeoutMs: 60_000,
+  });
+}
+
+export function apiPatchSceneTemplate(
+  token: string,
+  id: string,
+  formData: FormData,
+  idempotencyKey: string,
+) {
+  return apiFetch<ApiSceneTemplate>(`${BASE}/scenes/templates/${encodeURIComponent(id)}/`, {
+    method: "PATCH",
+    formData,
+    token,
+    idempotencyKey,
+    timeoutMs: 60_000,
+  });
+}
+
+/** «Rasmini yaratish»: 202 the job making the template's reference from its text. */
+export function apiMakeTemplateReference(token: string, id: string, idempotencyKey: string) {
+  return apiFetch<ApiSceneJob>(`${BASE}/scenes/templates/${encodeURIComponent(id)}/reference/`, {
+    method: "POST",
+    body: {},
+    token,
+    idempotencyKey,
+  });
+}

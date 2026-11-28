@@ -32,9 +32,24 @@ export interface SceneTemplate {
   name: string;
   /** A studio template's colours (`#rrggbb`) for its swatch; AI templates have none. */
   colours: string[];
-  /** A 4:5 sample picture of the scene (made in the ops console, or the scene staff saved). */
+  /**
+   * The card's 4:5 picture of the scene alone: an AI template's reference, a studio template's
+   * background (an older AI template may still show a sample product until it gets a reference).
+   */
   previewUrl: string | null;
+  /** Every language's name, for the editor. */
+  names: { uz: string; ru: string; en: string };
+  /** An AI template's scene in the words staff typed (else the English text the AI reads). */
+  text: string;
+  /** An AI template's reference picture (the scene alone), or `null`. */
+  referenceUrl: string | null;
+  referenceSource: SceneReferenceSource;
+  /** Made in the admin panel (not one of the seeded templates). */
+  savedByStaff: boolean;
 }
+
+/** Where an AI template's reference came from (`""`: it has none). */
+export type SceneReferenceSource = "upload" | "generated" | "";
 
 /** A scene staff typed (`custom_prompt`) instead of picking a template: its job's template key. */
 export const CUSTOM_SCENE_KEY = "custom";

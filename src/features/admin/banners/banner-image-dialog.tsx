@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -26,6 +25,8 @@ import { cn } from "@/lib/cn";
 import { useCopy } from "@/lib/i18n/admin-context";
 
 import { scenesCopy } from "../products/scenes/copy";
+import { NewTemplateCard, TemplateCard } from "../scene-templates/template-card";
+import { TemplateEditor } from "../scene-templates/template-editor";
 import { AppBannerFrame, WebBannerFrame } from "./banner-frames";
 import { bannersCopy } from "./copy";
 import { ProductPicker } from "./product-picker";
@@ -68,6 +69,8 @@ export function BannerImageDialog({
   const [templateId, setTemplateId] = useState<string | null>(null);
   const [customText, setCustomText] = useState("");
   const [request, setRequest] = useState<BannerImageRequest | null>(null);
+  /** The template editor: a template's id, or `null` for «Yangi shablon»; closed when `null`. */
+  const [editing, setEditing] = useState<{ id: string | null } | null>(null);
 
   const job = generator.job;
   const view = generator.view;
@@ -289,43 +292,16 @@ export function BannerImageDialog({
                 {templates.length === 0 && (
                   <p className="m-0 text-body-sm text-ink-muted">{t.noTemplates}</p>
                 )}
-                {templates.map((template) => {
-                  const checked = template.id === templateId;
-                  return (
-                    <button
-                      key={template.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={checked}
-                      data-template={template.key}
-                      onClick={() => setTemplateId(template.id)}
-                      className={cn(
-                        "flex flex-col items-stretch gap-2 rounded-md border p-2 text-left text-label text-ink transition-colors",
-                        checked
-                          ? "border-gold-ink bg-gold-soft ring-1 ring-gold-ink"
-                          : "border-line hover:border-gold",
-                      )}
-                    >
-                      <span
-                        aria-hidden="true"
-                        className="relative flex aspect-[4/5] items-center justify-center overflow-hidden rounded-sm border border-line bg-surface"
-                      >
-                        {template.previewUrl ? (
-                          <Image
-                            src={template.previewUrl}
-                            alt=""
-                            fill
-                            sizes="160px"
-                            className="object-cover"
-                          />
-                        ) : (
-                          <Icon name="sparkles" size={22} className="text-gold-ink" />
-                        )}
-                      </span>
-                      <span>{template.name}</span>
-                    </button>
-                  );
-                })}
+                {templates.map((template) => (
+                  <TemplateCard
+                    key={template.id}
+                    template={template}
+                    checked={template.id === templateId}
+                    onSelect={() => setTemplateId(template.id)}
+                    onEdit={() => setEditing({ id: template.id })}
+                  />
+                ))}
+                <NewTemplateCard onClick={() => setEditing({ id: null })} />
                 <button
                   type="button"
                   role="radio"
@@ -567,6 +543,16 @@ export function BannerImageDialog({
           </>
         )}
       </div>
+      <TemplateEditor
+        open={editing !== null}
+        onOpenChange={(next) => {
+          if (!next) setEditing(null);
+        }}
+        template={editing?.id ? (templates.find((entry) => entry.id === editing.id) ?? null) : null}
+        onSaved={(saved) => {
+          if (saved.kind === "ai_scene") setTemplateId(saved.id);
+        }}
+      />
     </Dialog>
   );
 }

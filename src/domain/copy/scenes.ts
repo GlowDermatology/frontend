@@ -30,6 +30,9 @@ const uz = {
   bannerPhotoUnusable:
     "Mahsulot rasmidan foydalanib bo‘lmadi (mahsulot to‘liq ko‘rinmaydi yoki uni qo‘l yopib turibdi). Boshqa mahsulotni tanlang yoki uning asosiy rasmini almashtiring.",
   bannerProducts: "1 tadan 3 tagacha mahsulot tanlang.",
+  studioColours: "Studiya shablonining ranglari ops konsolida o‘zgartiriladi.",
+  templateNeedsText: "Rasmni yaratish uchun shablonga sahna tavsifini yozing.",
+  templateScene: "Sahnani tasvirlang yoki namuna rasm yuklang.",
 };
 
 export const sceneDataCopy = {
@@ -59,6 +62,9 @@ export const sceneDataCopy = {
     bannerPhotoUnusable:
       "Фото товара не подошло (товар виден не целиком или его закрывает рука). Выберите другой товар или замените его главное фото.",
     bannerProducts: "Выберите от 1 до 3 товаров.",
+    studioColours: "Цвета студийного шаблона меняются в ops-консоли.",
+    templateNeedsText: "Чтобы создать изображение, опишите сцену шаблона.",
+    templateScene: "Опишите сцену или загрузите образец.",
   },
   en: {
     templates: {
@@ -85,5 +91,8 @@ export const sceneDataCopy = {
     bannerPhotoUnusable:
       "A product's photo could not be used (the product is not fully in the frame or a hand covers it). Choose another product or replace its main photo.",
     bannerProducts: "Choose 1 to 3 products.",
+    studioColours: "A studio template's colours are changed in the ops console.",
+    templateNeedsText: "Describe the template's scene to create its picture.",
+    templateScene: "Describe the scene or upload a reference picture.",
   },
 } satisfies CopySet<typeof uz>;

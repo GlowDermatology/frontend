@@ -455,7 +455,7 @@ export function BannerDialog({
                   <button
                     type="button"
                     onClick={() => setGenerated(null)}
-                    className="self-start text-caption font-semibold text-gold-ink underline underline-offset-2 hover:text-ink"
+                    className="self-start text-caption font-semibold text-ink underline decoration-gold-ink underline-offset-2 hover:decoration-ink"
                   >
                     {copy.generator.removeChosen}
                   </button>

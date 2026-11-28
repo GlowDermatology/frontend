@@ -38,9 +38,33 @@ const job = (overrides: Partial<SceneJob> = {}): SceneJob => ({
   ...overrides,
 });
 
+const LIBRARY = {
+  text: "",
+  referenceUrl: null,
+  referenceSource: "" as const,
+  savedByStaff: false,
+};
 const TEMPLATES: SceneTemplate[] = [
-  { id: "1", key: "white", kind: "studio", name: "Oq", colours: ["#ffffff"], previewUrl: null },
-  { id: "4", key: "bathroom", kind: "ai_scene", name: "Hammom", colours: [], previewUrl: null },
+  {
+    ...LIBRARY,
+    id: "1",
+    key: "white",
+    kind: "studio",
+    name: "Oq",
+    names: { uz: "Oq", ru: "", en: "" },
+    colours: ["#ffffff"],
+    previewUrl: null,
+  },
+  {
+    ...LIBRARY,
+    id: "4",
+    key: "bathroom",
+    kind: "ai_scene",
+    name: "Hammom",
+    names: { uz: "Hammom", ru: "", en: "" },
+    colours: [],
+    previewUrl: null,
+  },
 ];
 
 describe("scene jobs", () => {
